@@ -89,13 +89,14 @@ export const ShotListPanel: React.FC = () => {
     if (shot.cameraId) {
       const linked = cameras.find((c) => c.id === shot.cameraId);
       if (linked) {
-        updateElement(linked.id, { name: trimmed, cameraLabel: trimmed });
-        updateShot(shot.id, { cameraLabel: trimmed });
+        // Rename the linked camera's display name; keep its short letter marker.
+        updateElement(linked.id, { name: trimmed });
       }
       return;
     }
+    const nextLetter = String.fromCharCode(65 + (cameras.length % 26));
     const newCamId = createCameraOnly(trimmed, { x: 400, y: 400 });
-    updateShot(shot.id, { cameraId: newCamId, cameraLabel: trimmed, lensMm: 35 });
+    updateShot(shot.id, { cameraId: newCamId, cameraLabel: nextLetter, lensMm: 35 });
   };
 
   // Filter shots

@@ -51,6 +51,9 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
   const labelOpacity = displaySettings.labelOpacity;
   const labelColor = displaySettings.cameraLabelColor;
 
+  const camDisplayName = camera.name && camera.name.trim() ? camera.name : `CAM ${camera.cameraLabel || 'A'}`;
+  const cameraBadgeText = `${camDisplayName} • ${focal}mm${camera.rigType ? ` [${camera.rigType}]` : ''}`;
+
   const { pathString, leftPt, rightPt, centerPt } = getCameraFovPolygon(
     { x: 0, y: 0 },
     0,
@@ -348,9 +351,9 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
             className="pointer-events-none"
           >
             <rect
-              x={-(camera.name.length * 4.5) - 14}
+              x={-(cameraBadgeText.length * 3) - 13}
               y={-10}
-              width={camera.name.length * 9 + 28}
+              width={cameraBadgeText.length * 6 + 26}
               height={20}
               fill="rgba(15, 23, 42, 0.94)"
               stroke={isSelected ? '#38bdf8' : 'rgba(255, 255, 255, 0.2)'}
@@ -367,7 +370,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
               textAnchor="middle"
               className="select-none font-sans"
             >
-              CAM {camera.cameraLabel} • {focal}mm {camera.rigType ? `[${camera.rigType}]` : ''}
+              {cameraBadgeText}
             </text>
           </g>
         )}
