@@ -2,7 +2,7 @@
 
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853?style=for-the-badge)](https://koosuli.github.io/OpenShotDesigner/)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosuli.github.io/OpenShotDesigner/)
 
 A free, open-source 2D film floor plan & shot list designer. Block scenes, plan camera moves, and export production-ready blueprints — entirely in your browser.
 
