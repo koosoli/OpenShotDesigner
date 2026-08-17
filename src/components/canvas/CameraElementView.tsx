@@ -1,5 +1,5 @@
 import React from 'react';
-import { CameraElement, Vector2D } from '../../types';
+import { CameraElement, Shot, Vector2D } from '../../types';
 import { getCameraFovPolygon, getInterpolatedPositionAndRotation, getSmoothSplinePath } from '../../utils/geometry';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 
@@ -14,6 +14,7 @@ interface CameraElementViewProps {
   onWaypointDragStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   onWaypointRotateStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   displaySettings: DisplaySettings;
+  shot?: Shot | null;
 }
 
 export const CameraElementView: React.FC<CameraElementViewProps> = ({
@@ -27,6 +28,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
   onWaypointDragStart,
   onWaypointRotateStart,
   displaySettings,
+  shot,
 }) => {
   // Interpolate position based on waypoints whenever the timeline is scrubbed or playing
   const hasWaypoints = (camera.path || []).length > 0;
@@ -53,6 +55,15 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
 
   const camDisplayName = camera.name && camera.name.trim() ? camera.name : `CAM ${camera.cameraLabel || 'A'}`;
   const cameraBadgeText = `${camDisplayName} • ${focal}mm${camera.rigType ? ` [${camera.rigType}]` : ''}`;
+
+  const shotInfoParts: string[] = [];
+  if (shot) {
+    if (displaySettings.showShotSizeOnCamera && shot.shotSize) shotInfoParts.push(shot.shotSize);
+    if (displaySettings.showShotLensOnCamera && shot.lensMm) shotInfoParts.push(`${shot.lensMm}mm`);
+    if (displaySettings.showShotAngleOnCamera && shot.cameraAngle) shotInfoParts.push(shot.cameraAngle);
+  }
+  const showShotInfoBadge = showCameraLabel && shot && shotInfoParts.length > 0;
+  const shotInfoText = shotInfoParts.join(' • ');
 
   const { pathString, leftPt, rightPt, centerPt } = getCameraFovPolygon(
     { x: 0, y: 0 },
@@ -371,6 +382,37 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
               className="select-none font-sans"
             >
               {cameraBadgeText}
+            </text>
+          </g>
+        )}
+
+        {showShotInfoBadge && (
+          <g
+            transform={`rotate(${-rotation}) translate(0, 58) scale(${labelScale})`}
+            opacity={labelOpacity}
+            className="pointer-events-none"
+          >
+            <rect
+              x={-(shotInfoText.length * 3) - 13}
+              y={-10}
+              width={shotInfoText.length * 6 + 26}
+              height={20}
+              fill="rgba(15, 23, 42, 0.94)"
+              stroke={isSelected ? '#38bdf8' : 'rgba(255, 255, 255, 0.2)'}
+              strokeWidth={1}
+              rx={4}
+              className="drop-shadow-md"
+            />
+            <text
+              x={0}
+              y={4}
+              fill={labelColor ?? '#f59e0b'}
+              fontSize="10"
+              fontWeight="bold"
+              textAnchor="middle"
+              className="select-none font-mono"
+            >
+              {shotInfoText}
             </text>
           </g>
         )}

@@ -7,6 +7,7 @@ import {
   FloorPlanElement,
   LightElement,
   PropElement,
+  Shot,
   TrackElement,
   Vector2D,
   WallElement,
@@ -38,6 +39,7 @@ export const FloorPlanCanvas: React.FC = () => {
   const {
     activeSetup,
     selectedElementIds,
+    selectedShotId,
     highlightedElementId,
     activeTool,
     playback,
@@ -229,6 +231,20 @@ export const FloorPlanCanvas: React.FC = () => {
   const tracks = activeSetup.elements.filter((e) => e.type === 'track') as TrackElement[];
   const actors = activeSetup.elements.filter((e) => e.type === 'actor') as ActorElement[];
   const cameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
+
+  // Which shot's info to show under a camera: the selected shot if it uses this
+  // camera, else the camera's associated shot, else the first linked shot.
+  const getShotForCamera = (camera: CameraElement): Shot | null => {
+    if (selectedShotId) {
+      const sel = activeSetup.shots.find((s) => s.id === selectedShotId && s.cameraId === camera.id);
+      if (sel) return sel;
+    }
+    if (camera.associatedShotId) {
+      const assoc = activeSetup.shots.find((s) => s.id === camera.associatedShotId);
+      if (assoc) return assoc;
+    }
+    return activeSetup.shots.find((s) => s.cameraId === camera.id) || null;
+  };
   const measurements = activeSetup.elements.filter((e) => e.type === 'measurement');
   const texts = activeSetup.elements.filter((e) => e.type === 'text');
 
@@ -1064,6 +1080,7 @@ export const FloorPlanCanvas: React.FC = () => {
             <CameraElementView
               key={camera.id}
               camera={camera}
+              shot={getShotForCamera(camera)}
               isSelected={selectedElementIds.includes(camera.id)}
               isHighlighted={highlightedElementId === camera.id}
               currentBeat={playback.currentBeat}

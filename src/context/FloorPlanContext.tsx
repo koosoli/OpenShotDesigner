@@ -155,6 +155,10 @@ export interface DisplaySettings {
   showFovCones: boolean;
   showLightBeams: boolean;
   showGrid: boolean;
+  // Shot info shown on the camera label
+  showShotSizeOnCamera: boolean;
+  showShotLensOnCamera: boolean;
+  showShotAngleOnCamera: boolean;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -176,6 +180,9 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showFovCones: true,
   showLightBeams: true,
   showGrid: true,
+  showShotSizeOnCamera: true,
+  showShotLensOnCamera: true,
+  showShotAngleOnCamera: true,
 };
 
 const FloorPlanContext = createContext<FloorPlanContextType | null>(null);

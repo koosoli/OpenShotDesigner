@@ -425,6 +425,18 @@ export const InspectorPanel: React.FC = () => {
                 </div>
               </div>
 
+              {/* Shot info shown on camera labels */}
+              <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-50 block mb-2">
+                  On camera labels, show
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <PillToggle on={displaySettings.showShotSizeOnCamera} onClick={() => updateDisplaySettings({ showShotSizeOnCamera: !displaySettings.showShotSizeOnCamera })} label="Shot size" isLight={isLight} />
+                  <PillToggle on={displaySettings.showShotLensOnCamera} onClick={() => updateDisplaySettings({ showShotLensOnCamera: !displaySettings.showShotLensOnCamera })} label="Lens" isLight={isLight} />
+                  <PillToggle on={displaySettings.showShotAngleOnCamera} onClick={() => updateDisplaySettings({ showShotAngleOnCamera: !displaySettings.showShotAngleOnCamera })} label="Angle" isLight={isLight} />
+                </div>
+              </div>
+
               {/* Per-category label colors */}
               <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
                 <span className="text-[10px] font-bold uppercase tracking-wider opacity-50 block mb-2">

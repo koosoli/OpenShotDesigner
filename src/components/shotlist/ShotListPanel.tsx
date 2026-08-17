@@ -513,8 +513,6 @@ export const ShotListPanel: React.FC = () => {
               <div
                 key={shot.id}
                 id={`shot-card-${shot.id}`}
-                draggable
-                onDragStart={(e) => handleDragStart(e, index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
@@ -543,6 +541,8 @@ export const ShotListPanel: React.FC = () => {
                   {/* Left: Drag Grip + Editable Shot # + Camera Pill */}
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
                       title="Drag to rearrange shot order"
                       className="cursor-grab active:cursor-grabbing p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                     >
@@ -843,8 +843,6 @@ export const ShotListPanel: React.FC = () => {
                   return (
                     <tr
                       key={shot.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, index)}
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDrop={(e) => handleDrop(e, index)}
                       onDragEnd={handleDragEnd}
@@ -861,7 +859,11 @@ export const ShotListPanel: React.FC = () => {
                     >
                       {/* Drag Handle */}
                       <td className="py-2 px-1 text-center">
-                        <div className="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex justify-center">
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          className="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex justify-center"
+                        >
                           <GripVertical className="w-3.5 h-3.5" />
                         </div>
                       </td>
