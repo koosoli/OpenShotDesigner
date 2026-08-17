@@ -7,6 +7,7 @@ interface WallLayerProps {
   windows: WindowElement[];
   selectedIds: string[];
   snappedWallId?: string | null;
+  showLightBeams: boolean;
   onSelect: (id: string, e: React.PointerEvent) => void;
 }
 
@@ -16,6 +17,7 @@ export const WallLayer: React.FC<WallLayerProps> = ({
   windows,
   selectedIds,
   snappedWallId,
+  showLightBeams,
   onSelect,
 }) => {
   return (
@@ -105,14 +107,16 @@ export const WallLayer: React.FC<WallLayerProps> = ({
             onPointerDown={(e) => onSelect(win.id, e)}
           >
             {/* Sunlight throw indicator */}
-            <path
-              d={`M ${-w / 2} 0 L ${-w / 2 - 40} 80 L ${w / 2 + 40} 80 L ${w / 2} 0 Z`}
-              fill="rgba(253, 224, 71, 0.08)"
-              stroke="rgba(253, 224, 71, 0.25)"
-              strokeWidth={1}
-              strokeDasharray="3 3"
-              className="pointer-events-none"
-            />
+            {showLightBeams && (
+              <path
+                d={`M ${-w / 2} 0 L ${-w / 2 - 40} 80 L ${w / 2 + 40} 80 L ${w / 2} 0 Z`}
+                fill="rgba(253, 224, 71, 0.08)"
+                stroke="rgba(253, 224, 71, 0.25)"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+                className="pointer-events-none"
+              />
+            )}
             {/* Window frame */}
             <rect
               x={-w / 2}

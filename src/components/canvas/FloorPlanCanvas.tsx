@@ -984,6 +984,7 @@ export const FloorPlanCanvas: React.FC = () => {
             windows={windows}
             selectedIds={selectedElementIds}
             snappedWallId={nearestWallInfo?.wallId}
+            showLightBeams={displaySettings.showLightBeams}
             onSelect={handleElementSelect}
           />
 

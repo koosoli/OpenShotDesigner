@@ -160,6 +160,7 @@ export interface DisplaySettings {
   showShotLensOnCamera: boolean;
   showShotAngleOnCamera: boolean;
   showShotNumberOnCamera: boolean;
+  showLensFovLabel: boolean;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -185,6 +186,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showShotLensOnCamera: false,
   showShotAngleOnCamera: true,
   showShotNumberOnCamera: true,
+  showLensFovLabel: false,
 };
 
 const FloorPlanContext = createContext<FloorPlanContextType | null>(null);

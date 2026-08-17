@@ -54,6 +54,11 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
   const labelColor = displaySettings.cameraLabelColor;
 
   const camDisplayName = camera.name && camera.name.trim() ? camera.name : `CAM ${camera.cameraLabel || 'A'}`;
+  const camLetter = camera.cameraLabel || 'A';
+  const isAutoName =
+    camera.name && camera.name.trim() && new RegExp(`^(Cam|Camera) ${camLetter}(\\s*\\(.*\\))?$`, 'i').test(camera.name.trim());
+  const cameraIconLabel =
+    camera.name && camera.name.trim() && !isAutoName ? camera.name : camLetter;
   const shotNumberText = shot
     ? (shot.shotNumber && shot.shotNumber.trim()) || `${shot.sceneNumber || '1'}/${shot.order}`
     : '';
@@ -192,7 +197,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
           </g>
         )}
 
-        {showCameraLabel && (
+        {showCameraLabel && displaySettings.showLensFovLabel && (
           <g
             transform={`translate(${throwDist * 0.65}, 0) rotate(${-rotation}) scale(${labelScale})`}
             opacity={labelOpacity}
@@ -338,7 +343,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
             textAnchor="middle"
             className="select-none font-sans"
           >
-            {camera.cameraLabel || 'A'}
+{cameraIconLabel}
           </text>
         </g>
 
