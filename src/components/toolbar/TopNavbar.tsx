@@ -1,11 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import brandIcon from '../../assets/brand-icon.png';
 import {
   Camera,
   ChevronDown,
   Download,
   Eye,
-  Film,
   FolderOpen,
   Magnet,
   Moon,
@@ -88,9 +88,11 @@ export const TopNavbar: React.FC = () => {
       {/* 1. App Logo & Project Title */}
       <div className="flex items-center gap-3">
 <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold tracking-tighter">
-              <Film className="w-4 h-4" />
-            </div>
+            <img
+              src={brandIcon}
+              alt="Open Shot Designer"
+              className="w-8 h-8 rounded-xl object-cover shadow-md shadow-sky-500/20 ring-1 ring-sky-500/30"
+            />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className={`text-xs font-black tracking-widest uppercase ${isLight ? 'text-slate-900' : 'text-white'}`}>
