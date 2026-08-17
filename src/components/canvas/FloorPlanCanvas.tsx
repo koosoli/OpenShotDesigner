@@ -21,7 +21,7 @@ import { LightingLayer } from './LightingLayer';
 import { PropsLayer } from './PropsLayer';
 import { TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
-import { Move, ZoomIn, ZoomOut, Check, X, Keyboard } from 'lucide-react';
+import { Move, ZoomIn, ZoomOut, Check, X, Keyboard, Scan } from 'lucide-react';
 
 interface DragState {
   type: 'move' | 'rotate' | 'pan' | 'box_select' | 'endpoint_start' | 'endpoint_end' | 'draw_wall' | 'draw_measure' | 'waypoint' | 'waypoint_rotate';
@@ -141,6 +141,84 @@ export const FloorPlanCanvas: React.FC = () => {
       container.removeEventListener('wheel', handleNativeWheel);
     };
   }, [setCanvasTransform]);
+
+  // Compute the bounding box of all scene content (elements + reference images)
+  const getContentBounds = useCallback((): { minX: number; minY: number; maxX: number; maxY: number } | null => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let found = false;
+
+    const includePoint = (x: number, y: number) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      found = true;
+    };
+
+    activeSetup.elements.forEach((el) => {
+      includePoint(el.x, el.y);
+      const anyEl = el as any;
+      if (typeof anyEl.x2 === 'number') {
+        includePoint(anyEl.x2, anyEl.y2);
+      }
+      if (typeof anyEl.width === 'number' && typeof anyEl.height === 'number') {
+        includePoint(el.x - anyEl.width / 2, el.y - anyEl.height / 2);
+        includePoint(el.x + anyEl.width / 2, el.y + anyEl.height / 2);
+      }
+      if (Array.isArray(anyEl.path)) {
+        anyEl.path.forEach((wp: any) => includePoint(wp.x, wp.y));
+      }
+    });
+
+    backgroundImages.forEach((img) => {
+      includePoint(img.x, img.y);
+      includePoint(img.x + img.width, img.y + img.height);
+    });
+
+    if (!found) return null;
+    return { minX, minY, maxX, maxY };
+  }, [activeSetup.elements, backgroundImages]);
+
+  // Fit & center the floor plan content to fill the viewport
+  const fitToContent = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const vw = container.clientWidth;
+    const vh = container.clientHeight;
+    if (vw <= 0 || vh <= 0) return;
+
+    const bounds = getContentBounds();
+    if (!bounds) return;
+
+    const contentW = Math.max(bounds.maxX - bounds.minX, 1);
+    const contentH = Math.max(bounds.maxY - bounds.minY, 1);
+
+    const pad = 0.12; // 12% breathing room around the content
+    const fitScale = Math.max(
+      0.15,
+      Math.min(4.0, Math.min((vw * (1 - pad)) / contentW, (vh * (1 - pad)) / contentH))
+    );
+
+    const midX = (bounds.minX + bounds.maxX) / 2;
+    const midY = (bounds.minY + bounds.maxY) / 2;
+
+    setCanvasTransform(fitScale, {
+      x: vw / 2 - midX * fitScale,
+      y: vh / 2 - midY * fitScale,
+    });
+  }, [getContentBounds, setCanvasTransform]);
+
+  // Center & zoom the floor plan on startup so it fills the screen
+  const didInitialFit = useRef(false);
+  useEffect(() => {
+    if (didInitialFit.current) return;
+    didInitialFit.current = true;
+    fitToContent();
+  }, [fitToContent]);
 
   // Segregate elements for wall snapping & SVG z-ordering
   const walls = activeSetup.elements.filter((e) => e.type === 'wall') as WallElement[];
@@ -1067,6 +1145,17 @@ export const FloorPlanCanvas: React.FC = () => {
         >
           <Move className="w-4 h-4" />
         </button>
+
+        <div className="w-[1px] h-5 bg-slate-700 mx-1" />
+
+        <button
+          id="btn-center-view"
+          onClick={fitToContent}
+          title="Center View (Fit Floor Plan to Screen)"
+          className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+        >
+          <Scan className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Connected Wall Active Finish Bar */}
@@ -1157,6 +1246,7 @@ export const FloorPlanCanvas: React.FC = () => {
                   items: [
                     ['Hold Space / Middle-click', 'Pan the floor plan'],
                     ['Mouse Wheel', 'Zoom (cursor-centered)'],
+                    ['Center View button', 'Fit & center the floor plan to screen'],
                     ['Ctrl/Cmd + Z', 'Undo'],
                     ['Ctrl/Cmd + Shift + Z / Ctrl+Y', 'Redo'],
                   ],

@@ -10,7 +10,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, '.'),
     },
   },
-  // GitHub Pages serves the app from https://koosuli.github.io/OpenShotDesigner/.
+  // GitHub Pages serves the app from https://koosoli.github.io/OpenShotDesigner/.
   // The deploy workflow sets GH_PAGES=true so built assets get the correct base path.
   // Local development (npm run dev) keeps the default '/' base.
   base: process.env.GH_PAGES === 'true' ? '/OpenShotDesigner/' : '/',

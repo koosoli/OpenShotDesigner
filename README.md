@@ -1,12 +1,18 @@
 # Open Shot Designer
 
+<div align="center">
+
+<img src="logo/big.png" alt="Open Shot Designer" width="320" />
+
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosuli.github.io/OpenShotDesigner/)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
+
+</div>
 
 A free, open-source 2D film floor plan & shot list designer. Block scenes, plan camera moves, and export production-ready blueprints — entirely in your browser.
 
-**Try it live:** <https://koosuli.github.io/OpenShotDesigner/>
+**Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
 ---
 
@@ -62,7 +68,7 @@ To activate it:
 1. Push this repository to GitHub.
 2. Go to **Settings → Pages**.
 3. Under **Build and deployment → Source**, select **GitHub Actions**.
-4. Done — every push to `main` redeploys automatically to <https://koosuli.github.io/OpenShotDesigner/>.
+4. Done — every push to `main` redeploys automatically to <https://koosoli.github.io/OpenShotDesigner/>.
 
 ## Usage
 
