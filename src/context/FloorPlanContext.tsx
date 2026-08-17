@@ -867,55 +867,64 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     let lens = shotData?.lensMm || 35;
     let newElements = [...activeSetup.elements];
 
-    // If no camera was explicitly specified in shotData, automatically create a new Camera on the floor plan for this shot
+    // If no camera was explicitly specified in shotData, reuse the default camera
+    // (Camera A) in single-camera mode so we don't spawn a new camera element for
+    // every shot. Only create a new camera for multi-camera mode or a fresh project.
     if (!camId) {
-      const newCamId = `cam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-      const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
-      
-      // Calculate smart position for new camera
-      const actors = activeSetup.elements.filter((e) => e.type === 'actor');
-      let posX = 320 + (existingCameras.length * 60);
-      let posY = 380 + (existingCameras.length * 40);
-      let rotation = 0;
+      if (existingCameras.length > 0 && !isMultiCam) {
+        const defaultCam = existingCameras.find((c) => c.cameraLabel === 'A') || existingCameras[0];
+        camId = defaultCam.id;
+        camLabel = defaultCam.cameraLabel || 'A';
+        lens = defaultCam.focalLength || 35;
+      } else {
+        const newCamId = `cam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+        const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
 
-      if (actors.length > 0) {
-        const mainActor = actors[0];
-        const angleOffset = (existingCameras.length * 45) % 360;
-        const rad = ((225 + angleOffset) * Math.PI) / 180;
-        posX = Math.round(mainActor.x + Math.cos(rad) * 180);
-        posY = Math.round(mainActor.y + Math.sin(rad) * 180);
-        const deg = (Math.atan2(mainActor.y - posY, mainActor.x - posX) * 180) / Math.PI;
-        rotation = Math.round((deg + 360) % 360);
+        // Calculate smart position for new camera
+        const actors = activeSetup.elements.filter((e) => e.type === 'actor');
+        let posX = 320 + (existingCameras.length * 60);
+        let posY = 380 + (existingCameras.length * 40);
+        let rotation = 0;
+
+        if (actors.length > 0) {
+          const mainActor = actors[0];
+          const angleOffset = (existingCameras.length * 45) % 360;
+          const rad = ((225 + angleOffset) * Math.PI) / 180;
+          posX = Math.round(mainActor.x + Math.cos(rad) * 180);
+          posY = Math.round(mainActor.y + Math.sin(rad) * 180);
+          const deg = (Math.atan2(mainActor.y - posY, mainActor.x - posX) * 180) / Math.PI;
+          rotation = Math.round((deg + 360) % 360);
+        }
+
+        const camDisplayName = isMultiCam
+          ? `Camera ${nextCamLetter}`
+          : `Camera ${camLabel} (Shot ${shotData?.shotNumber || shotNumber})`;
+
+        const newCamera: CameraElement = {
+          id: newCamId,
+          type: 'camera',
+          name: camDisplayName,
+          cameraLabel: camLabel,
+          color: camColor,
+          x: posX,
+          y: posY,
+          rotation,
+          locked: false,
+          visible: true,
+          focalLength: lens,
+          sensorFormat: 'Super35',
+          fovAngle: calculateFovAngle(lens, 'Super35'),
+          aspectRatio: '16:9',
+          cameraHeight: 'Eye Level',
+          rigType: 'Tripod',
+          throwDistance: 320,
+          path: [],
+          associatedShotId: id,
+        };
+
+        newElements.push(newCamera);
+        camId = newCamId;
       }
-
-      const camDisplayName = isMultiCam 
-        ? `Camera ${nextCamLetter}` 
-        : `Camera ${camLabel} (Shot ${shotData?.shotNumber || shotNumber})`;
-
-      const newCamera: CameraElement = {
-        id: newCamId,
-        type: 'camera',
-        name: camDisplayName,
-        cameraLabel: camLabel,
-        color: camColor,
-        x: posX,
-        y: posY,
-        rotation,
-        locked: false,
-        visible: true,
-        focalLength: lens,
-        sensorFormat: 'Super35',
-        fovAngle: calculateFovAngle(lens, 'Super35'),
-        aspectRatio: '16:9',
-        cameraHeight: 'Eye Level',
-        rigType: 'Tripod',
-        throwDistance: 320,
-        path: [],
-        associatedShotId: id,
-      };
-
-      newElements.push(newCamera);
-      camId = newCamId;
     }
 
     const newShot: Shot = {
@@ -1002,39 +1011,47 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
 
-    // Create camera for this inserted shot
-    const newCamId = `cam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-    const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
+    // Reuse the default camera (Camera A) in single-camera mode instead of
+    // creating a new camera element for the inserted shot.
     const shotId = `shot-${Date.now()}`;
-
-    const newCamera: CameraElement = {
-      id: newCamId,
-      type: 'camera',
-      name: isMultiCam ? `Camera ${nextCamLetter}` : `Camera A (Shot ${targetShotNumber})`,
-      cameraLabel: nextCamLetter,
-      color: camColor,
-      x: 350 + (existingCameras.length * 30),
-      y: 380 + (existingCameras.length * 20),
-      rotation: 0,
-      locked: false,
-      visible: true,
-      focalLength: 50,
-      sensorFormat: 'Super35',
-      fovAngle: calculateFovAngle(50, 'Super35'),
-      aspectRatio: '16:9',
-      cameraHeight: 'Eye Level',
-      rigType: 'Tripod',
-      throwDistance: 320,
-      path: [],
-      associatedShotId: shotId,
-    };
+    let shotCamId: string;
+    let newCamera: CameraElement | null = null;
+    if (existingCameras.length > 0 && !isMultiCam) {
+      const defaultCam = existingCameras.find((c) => c.cameraLabel === 'A') || existingCameras[0];
+      shotCamId = defaultCam.id;
+    } else {
+      const newCamId = `cam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
+      newCamera = {
+        id: newCamId,
+        type: 'camera',
+        name: isMultiCam ? `Camera ${nextCamLetter}` : `Camera A (Shot ${targetShotNumber})`,
+        cameraLabel: nextCamLetter,
+        color: camColor,
+        x: 350 + (existingCameras.length * 30),
+        y: 380 + (existingCameras.length * 20),
+        rotation: 0,
+        locked: false,
+        visible: true,
+        focalLength: 50,
+        sensorFormat: 'Super35',
+        fovAngle: calculateFovAngle(50, 'Super35'),
+        aspectRatio: '16:9',
+        cameraHeight: 'Eye Level',
+        rigType: 'Tripod',
+        throwDistance: 320,
+        path: [],
+        associatedShotId: shotId,
+      };
+      shotCamId = newCamId;
+    }
 
     const newShot: Shot = {
       id: shotId,
       sceneNumber: sceneNum,
       shotNumber: targetShotNumber,
       name: `Shot ${targetShotNumber} - Insert Coverage`,
-      cameraId: newCamId,
+      cameraId: shotCamId,
       cameraLabel: nextCamLetter,
       shotSize: 'CU',
       lensMm: 50,
@@ -1068,13 +1085,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const updatedSetup: SceneSetup = {
       ...activeSetup,
-      elements: [...activeSetup.elements, newCamera],
+      elements: newCamera ? [...activeSetup.elements, newCamera] : [...activeSetup.elements],
       shots: finalShots,
     };
 
     commitSetupState(updatedSetup);
     setSelectedShotId(shotId);
-    setSelectedElementIds([newCamId]);
+    setSelectedElementIds([shotCamId]);
     return shotId;
   };
 
