@@ -111,14 +111,16 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
             const wpFov = getCameraFovPolygon({ x: 0, y: 0 }, 0, fovAngle, throwDist * 0.7);
             return (
               <g key={wp.id || i} transform={`translate(${wp.x}, ${wp.y}) rotate(${wpRot})`} opacity={0.3}>
-                <path
-                  d={wpFov.pathString}
-                  fill={color}
-                  fillOpacity={0.15}
-                  stroke={color}
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
-                />
+                {displaySettings.showFovCones && (
+                  <path
+                    d={wpFov.pathString}
+                    fill={color}
+                    fillOpacity={0.15}
+                    stroke={color}
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                  />
+                )}
                 <rect
                   x={-10}
                   y={-8}
