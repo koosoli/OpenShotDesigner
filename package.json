@@ -1,0 +1,32 @@
+{
+  "name": "open-shotdesigner",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Open Shot Designer — a free, open-source 2D film floor plan & shot list designer. Block scenes, plan camera moves, and export production-ready blueprints.",
+  "license": "GPL-3.0",
+  "homepage": "https://koosuli.github.io/OpenShotDesigner/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/koosoli/OpenShotDesigner.git"
+  },
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tailwindcss": "^4.1.14",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3"
+  }
+}

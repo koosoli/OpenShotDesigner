@@ -1,0 +1,390 @@
+import React, { useRef, useState } from 'react';
+import { useFloorPlan } from '../../context/FloorPlanContext';
+import {
+  Camera,
+  ChevronDown,
+  Download,
+  Eye,
+  Film,
+  FolderOpen,
+  Magnet,
+  Moon,
+  Plus,
+  Printer,
+  Redo2,
+  Sparkles,
+  Sun,
+  Trash2,
+  Undo2,
+} from 'lucide-react';
+
+export const TopNavbar: React.FC = () => {
+  const {
+    project,
+    activeSetup,
+    historyIndex,
+    historyLength,
+    theme,
+    toggleTheme,
+    undo,
+    redo,
+    setActiveSetupId,
+    addSetup,
+    duplicateCurrentSetup,
+    deleteSetup,
+    updateProjectMeta,
+    loadTemplateScene,
+    loadProjectFromJson,
+    setGridSettings,
+    openViewfinder,
+    openExportModal,
+  } = useFloorPlan();
+
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  const [isSetupsOpen, setIsSetupsOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { gridSettings } = activeSetup;
+
+  // Handle Export JSON Project file
+  const handleExportJson = () => {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(project, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `${project.title.toLowerCase().replace(/\s+/g, '_')}_openshotdesigner.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  // Handle Import JSON Project file
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (parsed && parsed.setups) {
+          loadProjectFromJson(parsed);
+        }
+      } catch (err) {
+        alert('Invalid Open Shot Designer project file.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const isLight = theme === 'light';
+
+  return (
+    <header
+      id="top-navbar"
+      className={`h-14 border-b px-4 flex items-center justify-between gap-3 select-none z-30 transition-colors ${
+        isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'
+      }`}
+    >
+      {/* 1. App Logo & Project Title */}
+      <div className="flex items-center gap-3">
+<div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold tracking-tighter">
+              <Film className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-black tracking-widest uppercase ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  Open Shot Designer
+                </span>
+              </div>
+            </div>
+          </div>
+
+        <div className={`h-5 w-[1px] hidden sm:block ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`} />
+
+        {/* Project Title Input */}
+        <input
+          type="text"
+          value={project.title}
+          onChange={(e) => updateProjectMeta({ title: e.target.value })}
+          className={`text-xs font-semibold px-2 py-1 rounded-lg border border-transparent focus:border-sky-500 focus:outline-none transition-colors max-w-[180px] sm:max-w-xs truncate ${
+            isLight ? 'text-slate-800 hover:bg-slate-100 focus:bg-white' : 'text-slate-200 hover:bg-slate-800/60 focus:bg-slate-950'
+          }`}
+          title="Click to rename project"
+        />
+      </div>
+
+      {/* 2. Scene / Setup Switcher Dropdown */}
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <button
+            onClick={() => setIsSetupsOpen(!isSetupsOpen)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+              isLight ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-300 text-slate-800' : 'bg-slate-800 hover:bg-slate-700/80 border-slate-700 text-slate-100'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="font-mono text-sky-500 font-semibold">Scene {activeSetup.sceneNumber}:</span>
+            <span className="max-w-[140px] truncate">{activeSetup.name}</span>
+            <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+          </button>
+
+          {/* Setup Menu Dropdown */}
+          {isSetupsOpen && (
+            <div className={`absolute top-full left-0 mt-1.5 w-64 border rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-1 ${
+              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+            }`}>
+              <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1">
+                Scene Setups ({project.setups.length})
+              </div>
+              <div className="max-h-56 overflow-y-auto space-y-1">
+                {project.setups.map((setup) => (
+                  <div
+                    key={setup.id}
+                    className={`w-full px-2 py-1.5 rounded-lg text-xs flex items-center justify-between group transition-colors ${
+                      setup.id === activeSetup.id
+                        ? 'bg-sky-600 text-white font-semibold'
+                        : isLight ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <button
+                      onClick={() => {
+                        setActiveSetupId(setup.id);
+                        setIsSetupsOpen(false);
+                      }}
+                      className="flex-1 text-left truncate flex items-center gap-1.5"
+                    >
+                      <span className="truncate">{setup.name}</span>
+                    </button>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className="text-[10px] opacity-75 font-mono">
+                        {setup.shots.length} shots
+                      </span>
+                      {project.setups.length > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Delete scene "${setup.name}"? This cannot be undone.`)) {
+                              deleteSetup(setup.id);
+                            }
+                          }}
+                          title="Delete this scene setup"
+                          className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-red-500/20 text-red-400 transition-opacity"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`pt-2 mt-2 border-t flex flex-col gap-1 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                <button
+                  onClick={() => {
+                    addSetup();
+                    setIsSetupsOpen(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1 text-xs text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 rounded flex items-center gap-1.5 font-medium"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ New Scene Setup</span>
+                </button>
+                <button
+                  onClick={() => {
+                    duplicateCurrentSetup();
+                    setIsSetupsOpen(false);
+                  }}
+                  className={`w-full text-left px-2.5 py-1 text-xs rounded ${isLight ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300 hover:bg-slate-800'}`}
+                >
+                  Duplicate Current Setup
+                </button>
+                {project.setups.length > 1 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Delete current scene "${activeSetup.name}"?`)) {
+                        deleteSetup(activeSetup.id);
+                        setIsSetupsOpen(false);
+                      }
+                    }}
+                    className="w-full text-left px-2.5 py-1 text-xs text-red-500 hover:bg-red-500/10 rounded flex items-center gap-1.5 font-medium"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Current Scene</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Templates Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setIsTemplatesOpen(!isTemplatesOpen)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
+              isLight ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-300 text-slate-800' : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden md:inline">Templates</span>
+            <ChevronDown className="w-3 h-3 opacity-60" />
+          </button>
+
+          {isTemplatesOpen && (
+            <div className={`absolute top-full left-0 mt-1.5 w-72 border rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-1 ${
+              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+            }`}>
+              <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1">
+                Educational Presets
+              </div>
+              <button
+                onClick={() => {
+                  loadTemplateScene(0);
+                  setIsTemplatesOpen(false);
+                }}
+                className={`w-full text-left p-2 rounded-lg text-xs transition-colors ${
+                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+                }`}
+              >
+                <div className="font-semibold text-sky-500">Classic 2-Person Dialogue</div>
+                <div className="text-[11px] opacity-70">
+                  Shot-Reverse-Shot with Master wide, key/fill lighting, and sofa blocking.
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  loadTemplateScene(1);
+                  setIsTemplatesOpen(false);
+                }}
+                className={`w-full text-left p-2 rounded-lg text-xs transition-colors ${
+                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+                }`}
+              >
+                <div className="font-semibold text-amber-500">Film Noir Interrogation</div>
+                <div className="text-[11px] opacity-70">
+                  Dramatic single top light, hard rim light, low angle & Dutch angle coverage.
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3. Undo / Redo & Viewport & Theme Controls */}
+      <div className="flex items-center gap-2">
+        {/* Undo / Redo */}
+        <div className={`flex items-center rounded-lg border p-0.5 ${isLight ? 'bg-slate-100 border-slate-300' : 'bg-slate-800/80 border-slate-700'}`}>
+          <button
+            onClick={undo}
+            disabled={historyIndex <= 0}
+            title="Undo (Ctrl+Z)"
+            className="p-1.5 opacity-80 hover:opacity-100 disabled:opacity-30 rounded hover:bg-black/10 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={redo}
+            disabled={historyIndex >= historyLength - 1}
+            title="Redo (Ctrl+Y)"
+            className="p-1.5 opacity-80 hover:opacity-100 disabled:opacity-30 rounded hover:bg-black/10 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Snap to Grid Toggle */}
+        <button
+          onClick={() => setGridSettings({ snap: !gridSettings.snap })}
+          title={gridSettings.snap ? 'Snap to Grid: ON' : 'Snap to Grid: OFF'}
+          className={`p-2 rounded-lg border transition-colors ${
+            gridSettings.snap
+              ? 'bg-sky-500/15 text-sky-500 border-sky-500/40 font-bold'
+              : isLight ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-800/80 text-slate-400 border-slate-700'
+          }`}
+        >
+          <Magnet className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Grid Unit Toggle (Feet vs Meters) */}
+        <button
+          onClick={() =>
+            setGridSettings({
+              unit: gridSettings.unit === 'm' ? 'ft' : 'm',
+              pixelsPerUnit: gridSettings.unit === 'm' ? 25 : 30,
+            })
+          }
+          title="Toggle Grid Units"
+          className={`px-2 py-1 text-xs font-mono font-bold rounded-lg border transition-colors ${
+            isLight ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white'
+          }`}
+        >
+          {gridSettings.unit.toUpperCase()}
+        </button>
+
+        {/* Light / Dark Mode Toggle */}
+        <button
+          id="btn-toggle-theme"
+          onClick={toggleTheme}
+          title={`Switch to ${isLight ? 'Dark' : 'Light'} Mode`}
+          className={`p-2 rounded-lg border transition-colors ${
+            isLight ? 'bg-slate-100 text-amber-600 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-sky-400 border-slate-700 hover:bg-slate-700'
+          }`}
+        >
+          {isLight ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+        </button>
+
+        {/* Viewfinder Button */}
+        <button
+          onClick={() => openViewfinder()}
+          title="Simulate Camera Viewfinder"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+            isLight ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-sky-700' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-sky-300'
+          }`}
+        >
+          <Eye className="w-3.5 h-3.5 text-sky-500" />
+          <span className="hidden lg:inline">Viewfinder</span>
+        </button>
+
+        {/* Export / Call Sheet Print Button */}
+        <button
+          id="btn-open-export"
+          onClick={openExportModal}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+        >
+          <Printer className="w-3.5 h-3.5" />
+          <span>Export Plan</span>
+        </button>
+
+        {/* Save JSON Backup Button */}
+        <button
+          onClick={handleExportJson}
+          title="Save & Download Project JSON"
+          className={`p-2 rounded-lg border transition-colors ${
+            isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
+          }`}
+        >
+          <Download className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Hidden Import File Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleImportJson}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          title="Open / Import Project JSON"
+          className={`p-2 rounded-lg border transition-colors ${
+            isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
+          }`}
+        >
+          <FolderOpen className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </header>
+  );
+};

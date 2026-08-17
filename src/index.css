@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/* Custom dark mode scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.8);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 1);
+}
+
+/* Print styling for Director's Call Sheet & Shot List */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  header,
+  aside,
+  #left-toolbar,
+  #top-navbar,
+  #timeline-bar,
+  #floor-plan-canvas-container,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  #export-modal {
+    position: static !important;
+    background: white !important;
+    padding: 0 !important;
+  }
+
+  #printable-content {
+    background: white !important;
+    color: black !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+}
