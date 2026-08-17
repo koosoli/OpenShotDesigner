@@ -431,6 +431,7 @@ export const InspectorPanel: React.FC = () => {
                   On camera labels, show
                 </span>
                 <div className="grid grid-cols-3 gap-1.5">
+                  <PillToggle on={displaySettings.showShotNumberOnCamera} onClick={() => updateDisplaySettings({ showShotNumberOnCamera: !displaySettings.showShotNumberOnCamera })} label="Shot #" isLight={isLight} />
                   <PillToggle on={displaySettings.showShotSizeOnCamera} onClick={() => updateDisplaySettings({ showShotSizeOnCamera: !displaySettings.showShotSizeOnCamera })} label="Shot size" isLight={isLight} />
                   <PillToggle on={displaySettings.showShotLensOnCamera} onClick={() => updateDisplaySettings({ showShotLensOnCamera: !displaySettings.showShotLensOnCamera })} label="Lens" isLight={isLight} />
                   <PillToggle on={displaySettings.showShotAngleOnCamera} onClick={() => updateDisplaySettings({ showShotAngleOnCamera: !displaySettings.showShotAngleOnCamera })} label="Angle" isLight={isLight} />

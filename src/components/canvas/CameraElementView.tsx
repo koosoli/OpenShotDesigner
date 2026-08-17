@@ -54,7 +54,11 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
   const labelColor = displaySettings.cameraLabelColor;
 
   const camDisplayName = camera.name && camera.name.trim() ? camera.name : `CAM ${camera.cameraLabel || 'A'}`;
-  const cameraBadgeText = camDisplayName;
+  const shotNumberText = shot
+    ? (shot.shotNumber && shot.shotNumber.trim()) || `${shot.sceneNumber || '1'}/${shot.order}`
+    : '';
+  const showShotNumber = displaySettings.showShotNumberOnCamera && shotNumberText.length > 0;
+  const cameraBadgeText = showShotNumber ? shotNumberText : camDisplayName;
 
   const shotInfoParts: string[] = [];
   if (shot) {
