@@ -1176,8 +1176,21 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteShot = (id: string) => {
     const updatedShots = activeSetup.shots.filter((s) => s.id !== id);
+    const removedShot = activeSetup.shots.find((s) => s.id === id);
+    let updatedElements = activeSetup.elements;
+
+    // If the removed shot was the only one using its camera, remove that
+    // camera from the floor plan too so it doesn't linger on the canvas.
+    if (removedShot && removedShot.cameraId) {
+      const stillUsed = updatedShots.some((s) => s.cameraId === removedShot.cameraId);
+      if (!stillUsed) {
+        updatedElements = activeSetup.elements.filter((e) => e.id !== removedShot.cameraId);
+      }
+    }
+
     const updatedSetup: SceneSetup = {
       ...activeSetup,
+      elements: updatedElements,
       shots: updatedShots,
     };
 
@@ -1388,6 +1401,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const createCameraAndShot = (pos: Vector2D = { x: 350, y: 350 }) => {
+    const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
+    const isMultiCam = activeSetup.shootMode === 'multi_cam';
+
+    // Single-camera mode: reuse the default camera (Camera A) so adding shots
+    // doesn't spawn a new camera element (Cam B, C, ...) for every shot.
+    if (existingCameras.length > 0 && !isMultiCam) {
+      const defaultCam = existingCameras.find((c) => c.cameraLabel === 'A') || existingCameras[0];
+      const shotId = addShot();
+      return { cameraId: defaultCam.id, shotId };
+    }
+
     const camId = addElement({
       type: 'camera',
       x: pos.x,
