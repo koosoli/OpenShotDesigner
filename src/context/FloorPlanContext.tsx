@@ -181,7 +181,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showLightBeams: true,
   showGrid: true,
   showShotSizeOnCamera: true,
-  showShotLensOnCamera: true,
+  showShotLensOnCamera: false,
   showShotAngleOnCamera: true,
 };
 
@@ -321,6 +321,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Sync history when active setup changes externally (e.g. switched setup)
   const prevSetupIdRef = useRef(project.activeSetupId);
+  // Guards the lens <-> focal-length sync between shot and camera against
+  // mutual re-triggering (updateShot <-> updateElement would otherwise recurse)
+  const lensSyncRef = useRef(false);
   useEffect(() => {
     if (prevSetupIdRef.current !== project.activeSetupId) {
       prevSetupIdRef.current = project.activeSetupId;
@@ -661,11 +664,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const newFov = calculateFovAngle(focal, sensor);
       extraUpdates = { fovAngle: newFov };
 
-      // Update linked shot lens if focal length changed
-      if ((updates as Partial<CameraElement>).focalLength !== undefined) {
+      // Update linked shot lens if focal length changed (guard against the
+      // reverse sync in updateShot re-triggering this recursively)
+      if ((updates as Partial<CameraElement>).focalLength !== undefined && !lensSyncRef.current) {
         const linkedShot = activeSetup.shots.find((s) => s.cameraId === id || s.id === cam.associatedShotId);
         if (linkedShot) {
-          updateShot(linkedShot.id, { lensMm: focal });
+          lensSyncRef.current = true;
+          try {
+            updateShot(linkedShot.id, { lensMm: focal });
+          } finally {
+            lensSyncRef.current = false;
+          }
         }
       }
     }
@@ -1110,18 +1119,25 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!shot) return;
 
     // If lens or camera angle changed in shot, reflect in floor plan camera!
-    if (shot.cameraId && updates.lensMm !== undefined) {
+    // (guarded: the camera's own focal-length change would otherwise call back
+    // into updateShot and recurse forever)
+    if (shot.cameraId && updates.lensMm !== undefined && !lensSyncRef.current) {
       const cam = activeSetup.elements.find((e) => e.id === shot.cameraId);
       if (cam && cam.type === 'camera') {
         const newFov = calculateFovAngle(updates.lensMm, (cam as CameraElement).sensorFormat);
-        updateElement(
-          cam.id,
-          {
-            focalLength: updates.lensMm,
-            fovAngle: newFov,
-          } as Partial<CameraElement>,
-          false
-        );
+        lensSyncRef.current = true;
+        try {
+          updateElement(
+            cam.id,
+            {
+              focalLength: updates.lensMm,
+              fovAngle: newFov,
+            } as Partial<CameraElement>,
+            false
+          );
+        } finally {
+          lensSyncRef.current = false;
+        }
       }
     }
 
