@@ -45,6 +45,8 @@ export const ShotListPanel: React.FC = () => {
     renumberAllShots,
     sortShotsBy,
     createCameraAndShot,
+    createCameraOnly,
+    updateElement,
     openViewfinder,
     openExportModal,
     theme,
@@ -66,6 +68,35 @@ export const ShotListPanel: React.FC = () => {
 
   // Display name for a camera in the shot list (used by the CAM input + datalist)
   const getCamDisplay = (cam: any) => cam?.name || `Cam ${cam?.cameraLabel || 'A'}`;
+
+  // Commit typed CAM text: exact match relinks, otherwise rename the linked camera
+  // (or create a new camera on the canvas if the shot had none)
+  const commitCamText = (shot: Shot, text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      updateShot(shot.id, { cameraId: '', cameraLabel: 'A', lensMm: shot.lensMm });
+      return;
+    }
+    const matched = cameras.find((c) => getCamDisplay(c).toLowerCase() === trimmed.toLowerCase());
+    if (matched) {
+      updateShot(shot.id, {
+        cameraId: matched.id,
+        cameraLabel: (matched as any).cameraLabel,
+        lensMm: (matched as any).focalLength,
+      });
+      return;
+    }
+    if (shot.cameraId) {
+      const linked = cameras.find((c) => c.id === shot.cameraId);
+      if (linked) {
+        updateElement(linked.id, { name: trimmed, cameraLabel: trimmed });
+        updateShot(shot.id, { cameraLabel: trimmed });
+      }
+      return;
+    }
+    const newCamId = createCameraOnly(trimmed, { x: 400, y: 400 });
+    updateShot(shot.id, { cameraId: newCamId, cameraLabel: trimmed, lensMm: 35 });
+  };
 
   // Filter shots
   const filteredShots = activeSetup.shots.filter((shot) => {
@@ -434,18 +465,32 @@ export const ShotListPanel: React.FC = () => {
                         onChange={(e) => {
                           const text = e.target.value;
                           setCamTextOverrides((prev) => ({ ...prev, [shot.id]: text }));
-                          const matched = cameras.find((c) => getCamDisplay(c) === text);
+                          const matched = cameras.find((c) => getCamDisplay(c).toLowerCase() === text.trim().toLowerCase());
                           if (matched) {
                             updateShot(shot.id, {
                               cameraId: matched.id,
                               cameraLabel: (matched as any).cameraLabel,
                               lensMm: (matched as any).focalLength,
                             });
-                          } else if (text === '') {
-                            updateShot(shot.id, { cameraId: '', cameraLabel: 'A', lensMm: shot.lensMm });
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                          } else if (e.key === 'Escape') {
+                            setCamTextOverrides((prev) => {
+                              const next = { ...prev };
+                              delete next[shot.id];
+                              return next;
+                            });
+                            (e.target as HTMLInputElement).blur();
                           }
                         }}
                         onBlur={() => {
+                          const text = camTextOverrides[shot.id];
+                          if (text !== undefined) {
+                            commitCamText(shot, text);
+                          }
                           setCamTextOverrides((prev) => {
                             const next = { ...prev };
                             delete next[shot.id];
@@ -453,7 +498,7 @@ export const ShotListPanel: React.FC = () => {
                           });
                         }}
                         placeholder="No Camera"
-                        title="Linked camera — pick from the list or type a name"
+                        title="Linked camera — pick from the list, rename, or type a new camera name"
                         className={`w-20 text-[10px] font-mono font-semibold py-0.5 px-1.5 rounded border ${
                           linkedCamera
                             ? isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
@@ -789,18 +834,32 @@ export const ShotListPanel: React.FC = () => {
                           onChange={(e) => {
                             const text = e.target.value;
                             setCamTextOverrides((prev) => ({ ...prev, [shot.id]: text }));
-                            const matched = cameras.find((c) => getCamDisplay(c) === text);
+                            const matched = cameras.find((c) => getCamDisplay(c).toLowerCase() === text.trim().toLowerCase());
                             if (matched) {
                               updateShot(shot.id, {
                                 cameraId: matched.id,
                                 cameraLabel: (matched as any).cameraLabel,
                                 lensMm: (matched as any).focalLength,
                               });
-                            } else if (text === '') {
-                              updateShot(shot.id, { cameraId: '', cameraLabel: 'A', lensMm: shot.lensMm });
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            } else if (e.key === 'Escape') {
+                              setCamTextOverrides((prev) => {
+                                const next = { ...prev };
+                                delete next[shot.id];
+                                return next;
+                              });
+                              (e.target as HTMLInputElement).blur();
                             }
                           }}
                           onBlur={() => {
+                            const text = camTextOverrides[shot.id];
+                            if (text !== undefined) {
+                              commitCamText(shot, text);
+                            }
                             setCamTextOverrides((prev) => {
                               const next = { ...prev };
                               delete next[shot.id];
@@ -808,7 +867,7 @@ export const ShotListPanel: React.FC = () => {
                             });
                           }}
                           placeholder="None"
-                          title="Linked camera — pick from the list or type a name"
+                          title="Linked camera — pick from the list, rename, or type a new camera name"
                           className={`w-full text-[11px] font-mono py-0.5 px-1 rounded border ${
                             isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                           }`}

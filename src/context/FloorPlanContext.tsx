@@ -78,6 +78,7 @@ interface FloorPlanContextType {
   renumberAllShots: (format?: 'scene_slash_number' | 'scene_alphabetic' | 'numeric' | 'alphabetic') => void;
   sortShotsBy: (criteria: 'custom' | 'shotNumber' | 'camera' | 'lens' | 'status') => void;
   createCameraAndShot: (pos?: Vector2D) => { cameraId: string; shotId: string };
+  createCameraOnly: (name: string, pos?: Vector2D) => string;
   setShootMode: (mode: 'single_cam' | 'multi_cam') => void;
 
   // Background Screenshots / Reference Blueprints (multiple supported)
@@ -1057,6 +1058,46 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return shotId;
   };
 
+  // Create a standalone camera (no auto shot) so an existing shot can be re-linked to it
+  const createCameraOnly = (name: string, pos?: Vector2D): string => {
+    const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
+    const camLetter = String.fromCharCode(65 + (existingCams.length % 26));
+    const camColor = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
+    const focal = 35;
+    const sensor = 'Super35';
+    const id = `el-camera-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+
+    const newCamera: CameraElement = {
+      id,
+      type: 'camera',
+      name,
+      x: pos?.x ?? 400,
+      y: pos?.y ?? 400,
+      rotation: 0,
+      locked: false,
+      cameraLabel: camLetter,
+      color: camColor,
+      focalLength: focal,
+      sensorFormat: sensor,
+      fovAngle: calculateFovAngle(focal, sensor),
+      aspectRatio: '16:9',
+      cameraHeight: 'Eye Level',
+      rigType: 'Tripod',
+      throwDistance: 280,
+      path: [],
+      associatedShotId: null,
+      cameraModel: 'Cinema Camera',
+    };
+
+    const updatedSetup: SceneSetup = {
+      ...activeSetup,
+      elements: [...activeSetup.elements, newCamera],
+    };
+
+    commitSetupState(updatedSetup);
+    return id;
+  };
+
   const updateShot = (id: string, updates: Partial<Shot>) => {
     const shot = activeSetup.shots.find((s) => s.id === id);
     if (!shot) return;
@@ -1582,6 +1623,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         renumberAllShots,
         sortShotsBy,
         createCameraAndShot,
+        createCameraOnly,
 
         backgroundImages,
         selectedBackgroundId,
