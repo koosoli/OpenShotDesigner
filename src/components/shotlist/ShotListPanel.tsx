@@ -3,6 +3,160 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
 import { CAMERA_MOVEMENTS, SHOT_SIZES } from '../../constants/presets';
 import { exportShotListToCsv } from '../../utils/exportShotList';
+
+interface CamPickerOption {
+  id: string;
+  display: string;
+  focal: number;
+  marker: string;
+  color: string;
+}
+
+interface CamPickerProps {
+  value: string;
+  linkedId?: string | null;
+  isLight: boolean;
+  options: CamPickerOption[];
+  onPick: (cameraId: string | null) => void;
+  onCommit: (text: string) => void;
+  compact?: boolean;
+}
+
+/**
+ * CAM cell: a text input that doubles as a dropdown of every camera on the
+ * floor plan. Click to open the list and pick an existing camera, or type a
+ * new name and press Enter / click away to rename the linked camera (or
+ * create a new one if the shot had none).
+ */
+const CamPicker: React.FC<CamPickerProps> = ({ value, linkedId, isLight, options, onPick, onCommit, compact }) => {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const shown = draft ?? value;
+
+  const commitDraft = () => {
+    if (draft === null) return;
+    const t = draft.trim();
+    if (t === '') {
+      onPick(null);
+    } else {
+      onCommit(t);
+    }
+    setDraft(null);
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node) && open) {
+        commitDraft();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  });
+
+  return (
+    <div ref={rootRef} className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className="relative flex items-center">
+        <input
+          type="text"
+          value={shown}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commitDraft();
+              setOpen(false);
+              (e.target as HTMLInputElement).blur();
+            } else if (e.key === 'Escape') {
+              setDraft(null);
+              setOpen(false);
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          onBlur={() => {
+            commitDraft();
+            setOpen(false);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder="No Camera"
+          title="Pick a camera from the list, or type a new name to rename the linked camera / create one"
+          className={`text-[11px] font-mono font-semibold py-0.5 pl-1.5 pr-6 rounded border ${
+            linkedId
+              ? isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+              : 'bg-amber-500/15 text-amber-600 border-amber-500/30'
+          } ${compact ? 'w-24' : 'w-full'}`}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setOpen((o) => !o)}
+          title="Show camera list"
+          className={`absolute right-0.5 top-0 bottom-0 flex items-center px-0.5 ${isLight ? 'text-slate-400' : 'text-slate-500'} hover:text-sky-400`}
+        >
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {open && (
+        <div
+          className={`absolute right-0 mt-1 z-40 min-w-[170px] rounded-lg shadow-xl border overflow-hidden ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-800 border-slate-700 text-slate-100'
+          }`}
+        >
+          <div className="max-h-52 overflow-y-auto py-1 custom-scrollbar">
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onPick(null);
+                setDraft(null);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-[11px] font-semibold flex items-center justify-between ${
+                isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-700'
+              }`}
+            >
+              <span className="opacity-70">No Camera</span>
+              {!linkedId && <Check className="w-3 h-3 text-sky-500" />}
+            </button>
+            {options.length === 0 && (
+              <div className={`px-3 py-1.5 text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                No cameras yet — add one via "+ Cam &amp; Shot"
+              </div>
+            )}
+            {options.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onPick(opt.id);
+                  setDraft(null);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center justify-between gap-2 ${
+                  linkedId === opt.id ? (isLight ? 'bg-sky-50' : 'bg-sky-500/10') : ''
+                } ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-700'}`}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />
+                  <span className="truncate font-medium">{opt.display}</span>
+                </span>
+                <span className={`shrink-0 font-mono ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{opt.focal}mm</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 import {
   ArrowDown,
   ArrowUp,
@@ -62,11 +216,10 @@ export const ShotListPanel: React.FC = () => {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [lastInsertedShotId, setLastInsertedShotId] = useState<string | null>(null);
   const shotListContainerRef = useRef<HTMLDivElement>(null);
-  const [camTextOverrides, setCamTextOverrides] = useState<Record<string, string>>({});
 
   const cameras = activeSetup.elements.filter((e) => e.type === 'camera');
 
-  // Display name for a camera in the shot list (used by the CAM input + datalist)
+  // Display name for a camera in the shot list (used by the CAM combobox)
   const getCamDisplay = (cam: any) => cam?.name || `Cam ${cam?.cameraLabel || 'A'}`;
 
   // Commit typed CAM text: exact match relinks, otherwise rename the linked camera
@@ -98,6 +251,30 @@ export const ShotListPanel: React.FC = () => {
     const newCamId = createCameraOnly(trimmed, { x: 400, y: 400 });
     updateShot(shot.id, { cameraId: newCamId, cameraLabel: nextLetter, lensMm: 35 });
   };
+
+  // Pick an existing camera (or null) for a shot, syncing label + lens
+  const pickCamera = (shot: Shot, cameraId: string | null) => {
+    if (!cameraId) {
+      updateShot(shot.id, { cameraId: '', cameraLabel: 'A', lensMm: shot.lensMm });
+      return;
+    }
+    const cam = cameras.find((c) => c.id === cameraId);
+    if (cam) {
+      updateShot(shot.id, {
+        cameraId: cam.id,
+        cameraLabel: (cam as any).cameraLabel,
+        lensMm: (cam as any).focalLength,
+      });
+    }
+  };
+
+  const camPickerOptions: CamPickerOption[] = cameras.map((c: any) => ({
+    id: c.id,
+    display: getCamDisplay(c),
+    focal: c.focalLength ?? 35,
+    marker: c.cameraLabel,
+    color: c.color ?? '#0284c7',
+  }));
 
   // Filter shots
   const filteredShots = activeSetup.shots.filter((shot) => {
@@ -373,11 +550,6 @@ export const ShotListPanel: React.FC = () => {
         ref={shotListContainerRef}
         className="flex-1 overflow-y-auto p-2.5 space-y-2 custom-scrollbar"
       >
-        <datalist id="shot-camera-options">
-          {cameras.map((c) => (
-            <option key={c.id} value={getCamDisplay(c)} />
-          ))}
-        </datalist>
         {filteredShots.length === 0 ? (
           <div className={`p-8 text-center border border-dashed rounded-xl my-4 ${isLight ? 'border-slate-300' : 'border-slate-800'}`}>
             <Video className="w-8 h-8 mx-auto text-slate-400 mb-2" />
@@ -457,54 +629,16 @@ export const ShotListPanel: React.FC = () => {
                       }`}
                     />
 
-                    {/* Linked Camera Input with Autocomplete */}
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="text"
-                        list="shot-camera-options"
-                        value={camTextOverrides[shot.id] ?? (linkedCamera ? getCamDisplay(linkedCamera) : '')}
-                        onChange={(e) => {
-                          const text = e.target.value;
-                          setCamTextOverrides((prev) => ({ ...prev, [shot.id]: text }));
-                          const matched = cameras.find((c) => getCamDisplay(c).toLowerCase() === text.trim().toLowerCase());
-                          if (matched) {
-                            updateShot(shot.id, {
-                              cameraId: matched.id,
-                              cameraLabel: (matched as any).cameraLabel,
-                              lensMm: (matched as any).focalLength,
-                            });
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            (e.target as HTMLInputElement).blur();
-                          } else if (e.key === 'Escape') {
-                            setCamTextOverrides((prev) => {
-                              const next = { ...prev };
-                              delete next[shot.id];
-                              return next;
-                            });
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                        onBlur={() => {
-                          const text = camTextOverrides[shot.id];
-                          if (text !== undefined) {
-                            commitCamText(shot, text);
-                          }
-                          setCamTextOverrides((prev) => {
-                            const next = { ...prev };
-                            delete next[shot.id];
-                            return next;
-                          });
-                        }}
-                        placeholder="No Camera"
-                        title="Linked camera — pick from the list, rename, or type a new camera name"
-                        className={`w-20 text-[10px] font-mono font-semibold py-0.5 px-1.5 rounded border ${
-                          linkedCamera
-                            ? isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
-                            : 'bg-amber-500/15 text-amber-600 border-amber-500/30'
-                        }`}
+                    {/* Linked Camera Combobox */}
+                    <div className="relative">
+                      <CamPicker
+                        compact
+                        isLight={isLight}
+                        value={linkedCamera ? getCamDisplay(linkedCamera) : ''}
+                        linkedId={linkedCamera?.id}
+                        options={camPickerOptions}
+                        onPick={(id) => pickCamera(shot, id)}
+                        onCommit={(text) => commitCamText(shot, text)}
                       />
                     </div>
 
@@ -826,52 +960,15 @@ export const ShotListPanel: React.FC = () => {
                         />
                       </td>
 
-                      {/* Camera Input with Autocomplete */}
+                      {/* Camera Combobox */}
                       <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="text"
-                          list="shot-camera-options"
-                          value={camTextOverrides[shot.id] ?? (linkedCamera ? getCamDisplay(linkedCamera) : '')}
-                          onChange={(e) => {
-                            const text = e.target.value;
-                            setCamTextOverrides((prev) => ({ ...prev, [shot.id]: text }));
-                            const matched = cameras.find((c) => getCamDisplay(c).toLowerCase() === text.trim().toLowerCase());
-                            if (matched) {
-                              updateShot(shot.id, {
-                                cameraId: matched.id,
-                                cameraLabel: (matched as any).cameraLabel,
-                                lensMm: (matched as any).focalLength,
-                              });
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            } else if (e.key === 'Escape') {
-                              setCamTextOverrides((prev) => {
-                                const next = { ...prev };
-                                delete next[shot.id];
-                                return next;
-                              });
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          onBlur={() => {
-                            const text = camTextOverrides[shot.id];
-                            if (text !== undefined) {
-                              commitCamText(shot, text);
-                            }
-                            setCamTextOverrides((prev) => {
-                              const next = { ...prev };
-                              delete next[shot.id];
-                              return next;
-                            });
-                          }}
-                          placeholder="None"
-                          title="Linked camera — pick from the list, rename, or type a new camera name"
-                          className={`w-full text-[11px] font-mono py-0.5 px-1 rounded border ${
-                            isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
-                          }`}
+                        <CamPicker
+                          isLight={isLight}
+                          value={linkedCamera ? getCamDisplay(linkedCamera) : ''}
+                          linkedId={linkedCamera?.id}
+                          options={camPickerOptions}
+                          onPick={(id) => pickCamera(shot, id)}
+                          onCommit={(text) => commitCamText(shot, text)}
                         />
                       </td>
 
