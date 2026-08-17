@@ -182,9 +182,9 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showFovCones: true,
   showLightBeams: true,
   showGrid: true,
-  showShotSizeOnCamera: true,
+  showShotSizeOnCamera: false,
   showShotLensOnCamera: false,
-  showShotAngleOnCamera: true,
+  showShotAngleOnCamera: false,
   showShotNumberOnCamera: true,
   showLensFovLabel: false,
 };

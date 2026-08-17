@@ -134,7 +134,6 @@ export const ShotListPanel: React.FC = () => {
     sortShotsBy,
     createCameraAndShot,
     createCameraOnly,
-    updateElement,
     openViewfinder,
     openExportModal,
     theme,
@@ -174,11 +173,16 @@ export const ShotListPanel: React.FC = () => {
       return;
     }
     if (shot.cameraId) {
-      const linked = cameras.find((c) => c.id === shot.cameraId);
-      if (linked) {
-        // Rename the linked camera's display name; keep its short letter marker.
-        updateElement(linked.id, { name: trimmed });
-      }
+      // Typing a name that matches no existing camera means "create a new
+      // camera" — never rename the shared default camera, or it would be
+      // overwritten for every shot that uses it.
+      const nextLetter = String.fromCharCode(65 + (cameras.length % 26));
+      const newCamId = createCameraOnly(trimmed, { x: 400, y: 400 });
+      updateShot(shot.id, {
+        cameraId: newCamId,
+        cameraLabel: nextLetter,
+        lensMm: shot.lensMm || 35,
+      });
       return;
     }
     const nextLetter = String.fromCharCode(65 + (cameras.length % 26));
