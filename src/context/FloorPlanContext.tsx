@@ -79,6 +79,8 @@ interface FloorPlanContextType {
   sortShotsBy: (criteria: 'custom' | 'shotNumber' | 'camera' | 'lens' | 'status') => void;
   createCameraAndShot: (pos?: Vector2D) => { cameraId: string; shotId: string };
   createCameraOnly: (name: string, pos?: Vector2D) => string;
+  createCameraForShot: (name: string, shotId: string, lensMm?: number, pos?: Vector2D) => string;
+  setShotCameraLetter: (shotId: string, letter: string) => void;
   setShootMode: (mode: 'single_cam' | 'multi_cam') => void;
 
   // Background Screenshots / Reference Blueprints (multiple supported)
@@ -129,6 +131,7 @@ interface FloorPlanContextType {
   openExportModal: () => void;
   closeExportModal: () => void;
   setCanvasTransform: (scale: number, offset: Vector2D) => void;
+  setCanvasViewport: (width: number, height: number) => void;
   createNewProject: () => void;
 }
 
@@ -325,9 +328,26 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Sync history when active setup changes externally (e.g. switched setup)
   const prevSetupIdRef = useRef(project.activeSetupId);
-  // Guards the lens <-> focal-length sync between shot and camera against
-  // mutual re-triggering (updateShot <-> updateElement would otherwise recurse)
-  const lensSyncRef = useRef(false);
+  // Live size of the canvas viewport (reported by FloorPlanCanvas), used to
+  // spawn new cameras at the visual center of the canvas.
+  const canvasViewportRef = useRef<{ width: number; height: number }>({ width: 1200, height: 800 });
+  const setCanvasViewport = (width: number, height: number) => {
+    canvasViewportRef.current = { width, height };
+  };
+
+  // Spawn position for a newly added camera: the center of the currently
+  // visible canvas. If earlier cameras already sit at/near that spot, nudge
+  // diagonally so the new camera is visibly ADDED instead of stacking on top
+  // of (and appearing to overwrite) the previous one.
+  const getNewCameraPosition = (): Vector2D => {
+    const { width, height } = canvasViewportRef.current;
+    const scale = activeSetup.canvasScale || 1;
+    const centerX = (width / 2 - activeSetup.canvasOffset.x) / scale;
+    const centerY = (height / 2 - activeSetup.canvasOffset.y) / scale;
+    const camCount = activeSetup.elements.filter((e) => e.type === 'camera').length;
+    const nudge = camCount * 40;
+    return { x: Math.round(centerX + nudge), y: Math.round(centerY + nudge) };
+  };
   useEffect(() => {
     if (prevSetupIdRef.current !== project.activeSetupId) {
       prevSetupIdRef.current = project.activeSetupId;
@@ -498,7 +518,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     } else if (partial.type === 'camera') {
       const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
-      const camLetter = String.fromCharCode(65 + (existingCams.length % 26));
+      const isMultiCam = activeSetup.shootMode === 'multi_cam';
+      // Every newly added camera is its own element on the floor plan, but it
+      // keeps the default 'A' label (single-cam workflow: one physical camera,
+      // many positions). Letters B, C, ... are only used in multi-cam mode or
+      // when the user actively picks/creates another camera.
+      const camLetter = isMultiCam ? String.fromCharCode(65 + (existingCams.length % 26)) : 'A';
       const camColor = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
       const focal = partial.focalLength || 35;
       const sensor = partial.sensorFormat || 'Super35';
@@ -661,24 +686,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // If updating a camera's focal length or sensor format, re-calculate FOV and update linked shot
     let extraUpdates: Partial<FloorPlanElement> = {};
+    let updatedShots = activeSetup.shots;
     if (el.type === 'camera') {
       const cam = el as CameraElement;
       const focal = (updates as Partial<CameraElement>).focalLength ?? cam.focalLength;
       const sensor = (updates as Partial<CameraElement>).sensorFormat ?? cam.sensorFormat;
-      const newFov = calculateFovAngle(focal, sensor);
-      extraUpdates = { fovAngle: newFov };
+      extraUpdates = { fovAngle: calculateFovAngle(focal, sensor) };
 
-      // Update linked shot lens if focal length changed (guard against the
-      // reverse sync in updateShot re-triggering this recursively)
-      if ((updates as Partial<CameraElement>).focalLength !== undefined && !lensSyncRef.current) {
+      // Sync the linked shot's lens in the SAME commit — a separate updateShot
+      // call would be overwritten by this commit, because both rebuild the
+      // setup from the same base state (last write wins per field).
+      if ((updates as Partial<CameraElement>).focalLength !== undefined) {
         const linkedShot = activeSetup.shots.find((s) => s.cameraId === id || s.id === cam.associatedShotId);
         if (linkedShot) {
-          lensSyncRef.current = true;
-          try {
-            updateShot(linkedShot.id, { lensMm: focal });
-          } finally {
-            lensSyncRef.current = false;
-          }
+          updatedShots = activeSetup.shots.map((s) =>
+            s.id === linkedShot.id ? ({ ...s, lensMm: focal } as Shot) : s
+          );
         }
       }
     }
@@ -690,6 +713,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const updatedSetup: SceneSetup = {
       ...activeSetup,
       elements: updatedElements,
+      shots: updatedShots,
     };
 
     commitSetupState(updatedSetup, recordHistory);
@@ -1098,18 +1122,30 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Create a standalone camera (no auto shot) so an existing shot can be re-linked to it
   const createCameraOnly = (name: string, pos?: Vector2D): string => {
     const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
-    const camLetter = String.fromCharCode(65 + (existingCams.length % 26));
+    // Assign the first camera letter not currently in use (A is the shared
+    // default, so user-created cameras get B, C, ...) regardless of how many
+    // Camera A positions exist on the floor plan.
+    const usedLetters = new Set(existingCams.map((c) => (c.cameraLabel || 'A').toUpperCase()));
+    let camLetter = 'B';
+    for (let i = 0; i < 26; i++) {
+      const letter = String.fromCharCode(65 + i);
+      if (!usedLetters.has(letter)) {
+        camLetter = letter;
+        break;
+      }
+    }
     const camColor = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
     const focal = 35;
     const sensor = 'Super35';
     const id = `el-camera-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const spawnPos = pos ?? getNewCameraPosition();
 
     const newCamera: CameraElement = {
       id,
       type: 'camera',
       name,
-      x: pos?.x ?? 400,
-      y: pos?.y ?? 400,
+      x: spawnPos.x,
+      y: spawnPos.y,
       rotation: 0,
       locked: false,
       cameraLabel: camLetter,
@@ -1135,31 +1171,143 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return id;
   };
 
+  // Create a new camera on the floor plan AND link an existing shot to it in
+  // ONE commit. (Creating the camera and updating the shot in two separate
+  // commits would lose the camera again, because each commit rebuilds the
+  // setup from the same base state — last write wins per field.)
+  const createCameraForShot = (name: string, shotId: string, lensMm?: number, pos?: Vector2D): string => {
+    const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
+    const usedLetters = new Set(existingCams.map((c) => (c.cameraLabel || 'A').toUpperCase()));
+    let camLetter = 'B';
+    for (let i = 0; i < 26; i++) {
+      const letter = String.fromCharCode(65 + i);
+      if (!usedLetters.has(letter)) {
+        camLetter = letter;
+        break;
+      }
+    }
+    const camColor = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
+    const focal = 35;
+    const sensor = 'Super35';
+    const id = `el-camera-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const spawnPos = pos ?? getNewCameraPosition();
+
+    const newCamera: CameraElement = {
+      id,
+      type: 'camera',
+      name,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      rotation: 0,
+      locked: false,
+      cameraLabel: camLetter,
+      color: camColor,
+      focalLength: focal,
+      sensorFormat: sensor,
+      fovAngle: calculateFovAngle(focal, sensor),
+      aspectRatio: '16:9',
+      cameraHeight: 'Eye Level',
+      rigType: 'Tripod',
+      throwDistance: 280,
+      path: [],
+      associatedShotId: shotId,
+      cameraModel: 'Cinema Camera',
+    };
+
+    const updatedShots = activeSetup.shots.map((s) =>
+      s.id === shotId
+        ? ({ ...s, cameraId: id, cameraLabel: camLetter, lensMm: lensMm ?? s.lensMm ?? 35 } as Shot)
+        : s
+    );
+
+    const updatedSetup: SceneSetup = {
+      ...activeSetup,
+      elements: [...activeSetup.elements, newCamera],
+      shots: updatedShots,
+    };
+
+    commitSetupState(updatedSetup);
+    setSelectedShotId(shotId);
+    setSelectedElementIds([id]);
+    return id;
+  };
+
+  // Keep the shot's CAM letter in the shot list and its camera element on the
+  // floor plan linked: changing the letter here re-labels the shot's own
+  // camera element (and renames it if it still uses the auto "Cam X" name) in
+  // ONE commit, so the icon on the canvas shows the new letter.
+  const setShotCameraLetter = (shotId: string, letter: string) => {
+    const clean = letter.trim().toUpperCase() || 'A';
+    const shot = activeSetup.shots.find((s) => s.id === shotId);
+    if (!shot) return;
+
+    let updatedElements = activeSetup.elements;
+    let cameraId = shot.cameraId || '';
+
+    const currentCam = shot.cameraId
+      ? activeSetup.elements.find((e) => e.id === shot.cameraId)
+      : undefined;
+
+    if (currentCam && currentCam.type === 'camera') {
+      const cam = currentCam as CameraElement;
+      const oldLabel = (cam.cameraLabel || 'A').toUpperCase();
+      if (oldLabel === clean) return; // already this letter
+
+      // If the camera still carries an auto-generated name (e.g. "Cam A" or
+      // "Camera A (Shot 1/2)"), update it to match the new letter so the icon
+      // keeps showing the letter rather than a stale name.
+      const autoRe = new RegExp(`^((?:Cam|Camera) )${oldLabel}(\\s*\\(.*\\))?$`, 'i');
+      const name = cam.name || '';
+      const newName = autoRe.test(name) ? name.replace(autoRe, `$1${clean}$2`) : name;
+
+      updatedElements = activeSetup.elements.map((e) =>
+        e.id === currentCam.id ? ({ ...e, cameraLabel: clean, name: newName } as CameraElement) : e
+      );
+    } else {
+      // Shot has no camera element — link it to an existing camera carrying
+      // this letter.
+      const rep = activeSetup.elements.find(
+        (e) => e.type === 'camera' && ((e as CameraElement).cameraLabel || 'A').toUpperCase() === clean
+      );
+      if (!rep) return; // no camera with this letter exists
+      cameraId = rep.id;
+    }
+
+    const updatedShots = activeSetup.shots.map((s) =>
+      s.id === shotId ? ({ ...s, cameraId, cameraLabel: clean } as Shot) : s
+    );
+
+    const updatedSetup: SceneSetup = {
+      ...activeSetup,
+      elements: updatedElements,
+      shots: updatedShots,
+    };
+
+    commitSetupState(updatedSetup);
+    setSelectedShotId(shotId);
+    if (cameraId) setSelectedElementIds([cameraId]);
+  };
+
   const updateShot = (id: string, updates: Partial<Shot>) => {
     const shot = activeSetup.shots.find((s) => s.id === id);
     if (!shot) return;
 
-    // If lens or camera angle changed in shot, reflect in floor plan camera!
-    // (guarded: the camera's own focal-length change would otherwise call back
-    // into updateShot and recurse forever)
-    if (shot.cameraId && updates.lensMm !== undefined && !lensSyncRef.current) {
-      const cam = activeSetup.elements.find((e) => e.id === shot.cameraId);
-      if (cam && cam.type === 'camera') {
-        const newFov = calculateFovAngle(updates.lensMm, (cam as CameraElement).sensorFormat);
-        lensSyncRef.current = true;
-        try {
-          updateElement(
-            cam.id,
-            {
-              focalLength: updates.lensMm,
-              fovAngle: newFov,
-            } as Partial<CameraElement>,
-            false
-          );
-        } finally {
-          lensSyncRef.current = false;
+    // If lens changed in shot, reflect in floor plan camera IN THE SAME
+    // COMMIT — a separate updateElement call would be overwritten by this
+    // commit, because both rebuild the setup from the same base state.
+    let updatedElements = activeSetup.elements;
+    if (shot.cameraId && updates.lensMm !== undefined) {
+      updatedElements = activeSetup.elements.map((e) => {
+        if (e.id === shot.cameraId && e.type === 'camera') {
+          const cam = e as CameraElement;
+          return {
+            ...e,
+            focalLength: updates.lensMm,
+            fovAngle: calculateFovAngle(updates.lensMm, cam.sensorFormat),
+          } as FloorPlanElement;
         }
-      }
+        return e;
+      });
     }
 
     const updatedShots = activeSetup.shots.map((s) =>
@@ -1168,6 +1316,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const updatedSetup: SceneSetup = {
       ...activeSetup,
+      elements: updatedElements,
       shots: updatedShots,
     };
 
@@ -1400,22 +1549,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     updateElement(id, { rotation: Math.round(newRotation) });
   };
 
-  const createCameraAndShot = (pos: Vector2D = { x: 350, y: 350 }) => {
-    const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
-    const isMultiCam = activeSetup.shootMode === 'multi_cam';
-
-    // Single-camera mode: reuse the default camera (Camera A) so adding shots
-    // doesn't spawn a new camera element (Cam B, C, ...) for every shot.
-    if (existingCameras.length > 0 && !isMultiCam) {
-      const defaultCam = existingCameras.find((c) => c.cameraLabel === 'A') || existingCameras[0];
-      const shotId = addShot();
-      return { cameraId: defaultCam.id, shotId };
-    }
-
+  const createCameraAndShot = (pos?: Vector2D) => {
+    // Always place an ADDITIONAL camera element on the floor plan (never
+    // overwrite/reuse the existing one). In single-camera mode it still gets
+    // the default 'A' label until the user picks another camera in the shot
+    // list's CAM dropdown or renames it in the inspector.
+    const spawnPos = pos ?? getNewCameraPosition();
     const camId = addElement({
       type: 'camera',
-      x: pos.x,
-      y: pos.y,
+      x: spawnPos.x,
+      y: spawnPos.y,
     });
     const createdCam = activeSetup.elements.find((e) => e.id === camId) as CameraElement;
     return {
@@ -1692,6 +1835,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         sortShotsBy,
         createCameraAndShot,
         createCameraOnly,
+        createCameraForShot,
+        setShotCameraLetter,
 
         backgroundImages,
         selectedBackgroundId,
@@ -1720,6 +1865,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setCanvasScale,
         setCanvasOffset,
         setCanvasTransform,
+        setCanvasViewport,
         setGridSettings,
 
         togglePlayback,

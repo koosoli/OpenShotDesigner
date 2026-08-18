@@ -13,7 +13,7 @@ import { Film, Sliders, ChevronRight, ChevronLeft } from 'lucide-react';
 const MainLayout: React.FC = () => {
   const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme } = useFloorPlan();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState<number>(520); // Default expanded width
+  const [sidebarWidth, setSidebarWidth] = useState<number>(700); // Default wide enough to show the full shot list
   const [isResizing, setIsResizing] = useState(false);
 
   const isLight = theme === 'light';
@@ -75,7 +75,7 @@ const MainLayout: React.FC = () => {
             {/* Resizing left edge bar */}
             <div
               onPointerDown={handleResizePointerDown}
-              onDoubleClick={() => setSidebarWidth((prev) => (prev > 450 ? 340 : 580))}
+              onDoubleClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
               title="Drag to resize panel (Double click to toggle wide/standard)"
               className={`absolute -left-1.5 top-0 bottom-0 w-3 cursor-col-resize z-30 group flex items-center justify-center`}
             >
@@ -131,13 +131,13 @@ const MainLayout: React.FC = () => {
               {/* Panel Width Preset Quick Toggles */}
               <div className="flex items-center gap-0.5 ml-1">
                 <button
-                  onClick={() => setSidebarWidth((prev) => (prev > 450 ? 340 : 580))}
-                  title={sidebarWidth > 450 ? 'Compact panel width' : 'Expand panel width'}
+                  onClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
+                  title={sidebarWidth > 500 ? 'Compact panel width' : 'Expand panel width'}
                   className={`p-1.5 rounded-lg text-xs transition-colors ${
                     isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
                 >
-                  <span className="text-[10px] font-mono font-bold">{sidebarWidth > 450 ? '‹|›' : '›|‹'}</span>
+                  <span className="text-[10px] font-mono font-bold">{sidebarWidth > 500 ? '‹|›' : '›|‹'}</span>
                 </button>
 
                 {/* Collapse Sidebar Button */}

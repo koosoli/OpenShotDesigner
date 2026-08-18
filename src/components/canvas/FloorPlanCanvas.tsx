@@ -69,10 +69,23 @@ export const FloorPlanCanvas: React.FC = () => {
     setActiveRightTab,
     displaySettings,
     duplicateSelected,
+    setCanvasViewport,
   } = useFloorPlan();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // Report the live viewport size so the context can spawn new cameras at
+  // the visual center of the canvas
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const report = () => setCanvasViewport(container.clientWidth, container.clientHeight);
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [setCanvasViewport]);
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [boxSelection, setBoxSelection] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);

@@ -4,13 +4,10 @@ import { CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
 import { CAMERA_MOVEMENTS, SHOT_SIZES } from '../../constants/presets';
 import { exportShotListToCsv } from '../../utils/exportShotList';
 import {
-  ArrowDown,
-  ArrowUp,
   ArrowUpDown,
   Camera,
   ChevronDown,
   ChevronUp,
-  Clock,
   Download,
   Eye,
   Film,
@@ -18,11 +15,8 @@ import {
   Hash,
   Layers,
   LayoutGrid,
-  List,
-  MoreVertical,
   Plus,
   Printer,
-  Sparkles,
   Table,
   Trash2,
   Video,
@@ -30,8 +24,7 @@ import {
 
 interface CamPickerOption {
   id: string;
-  display: string;
-  focal: number;
+  label: string;
 }
 
 interface CamPickerProps {
@@ -39,63 +32,21 @@ interface CamPickerProps {
   isLight: boolean;
   options: CamPickerOption[];
   onPick: (cameraId: string | null) => void;
-  onCommit: (text: string) => void;
   compact?: boolean;
 }
 
 /**
- * CAM cell: a native <select> listing every camera on the floor plan plus
- * "No Camera" and a "type a new camera name" entry. Any camera can be linked
- * to any number of shots. Typing a new name creates a camera on the floor
- * plan (or renames the linked one) via onCommit.
+ * CAM cell: a native <select> listing each distinct camera letter (A, B, C...)
+ * present on the floor plan plus "No Camera". Changing the selection only
+ * re-links the shot to that camera — it never creates a new one.
  */
-const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, onPick, onCommit, compact }) => {
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState('');
-
-  const finishCreate = () => {
-    const t = newName.trim();
-    setCreating(false);
-    setNewName('');
-    if (t) onCommit(t);
-  };
-
-  if (creating) {
-    return (
-      <div className="relative" onClick={(e) => e.stopPropagation()}>
-        <input
-          type="text"
-          autoFocus
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              finishCreate();
-            } else if (e.key === 'Escape') {
-              setCreating(false);
-              setNewName('');
-            }
-          }}
-          onBlur={finishCreate}
-          placeholder="New camera name…"
-          title="Type a name — creates the camera on the floor plan and links this shot to it"
-          className={`text-[11px] font-mono font-semibold py-0.5 px-1.5 rounded border border-sky-400 bg-sky-500/10 text-sky-600 placeholder-sky-600/50 ${compact ? 'w-24' : 'w-full'}`}
-        />
-      </div>
-    );
-  }
-
+const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, onPick, compact }) => {
   return (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
       <select
         value={value || ''}
         onChange={(e) => {
-          const v = e.target.value;
-          if (v === '__new__') {
-            setCreating(true);
-          } else {
-            onPick(v || null);
-          }
+          onPick(e.target.value || null);
         }}
         title="Link a camera to this shot — several shots can share the same camera"
         className={`appearance-none text-[11px] font-mono font-semibold py-0.5 pl-1.5 pr-6 rounded border cursor-pointer ${
@@ -107,10 +58,9 @@ const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, onPick, 
         <option value="">— No Camera —</option>
         {options.map((o) => (
           <option key={o.id} value={o.id}>
-            {o.display} ({o.focal}mm)
+            {o.label}
           </option>
         ))}
-        <option value="__new__">＋ Type new camera name…</option>
       </select>
       <ChevronDown className={`pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 ${value ? 'opacity-60' : ''}`} />
     </div>
@@ -125,7 +75,6 @@ export const ShotListPanel: React.FC = () => {
     selectedElementIds,
     selectShot,
     addShot,
-    insertShotAfter,
     updateShot,
     deleteShot,
     reorderShots,
@@ -133,7 +82,7 @@ export const ShotListPanel: React.FC = () => {
     renumberAllShots,
     sortShotsBy,
     createCameraAndShot,
-    createCameraOnly,
+    setShotCameraLetter,
     openViewfinder,
     openExportModal,
     theme,
@@ -147,69 +96,45 @@ export const ShotListPanel: React.FC = () => {
   const [isRenumberMenuOpen, setIsRenumberMenuOpen] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [lastInsertedShotId, setLastInsertedShotId] = useState<string | null>(null);
   const shotListContainerRef = useRef<HTMLDivElement>(null);
 
   const cameras = activeSetup.elements.filter((e) => e.type === 'camera');
 
-  // Display name for a camera in the shot list (used by the CAM combobox)
-  const getCamDisplay = (cam: any) => cam?.name || `Cam ${cam?.cameraLabel || 'A'}`;
+  // One dropdown entry per camera LETTER. Cameras added via "+ Cam & Shot"
+  // are all positions of the default Camera A and share a single entry —
+  // only cameras the user actively labels (B, C, ...) show up as additional
+  // entries. Options show just the letter, no lens / description clutter.
+  const camerasByLabel = new Map<string, any>();
+  cameras.forEach((c: any) => {
+    const label = (c.cameraLabel || 'A').toUpperCase();
+    if (!camerasByLabel.has(label)) camerasByLabel.set(label, c);
+  });
 
-  // Commit typed CAM text: exact match relinks, otherwise rename the linked camera
-  // (or create a new camera on the canvas if the shot had none)
-  const commitCamText = (shot: Shot, text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      updateShot(shot.id, { cameraId: '', cameraLabel: 'A', lensMm: shot.lensMm });
-      return;
-    }
-    const matched = cameras.find((c) => getCamDisplay(c).toLowerCase() === trimmed.toLowerCase());
-    if (matched) {
-      updateShot(shot.id, {
-        cameraId: matched.id,
-        cameraLabel: (matched as any).cameraLabel,
-        lensMm: (matched as any).focalLength,
-      });
-      return;
-    }
-    if (shot.cameraId) {
-      // Typing a name that matches no existing camera means "create a new
-      // camera" — never rename the shared default camera, or it would be
-      // overwritten for every shot that uses it.
-      const nextLetter = String.fromCharCode(65 + (cameras.length % 26));
-      const newCamId = createCameraOnly(trimmed, { x: 400, y: 400 });
-      updateShot(shot.id, {
-        cameraId: newCamId,
-        cameraLabel: nextLetter,
-        lensMm: shot.lensMm || 35,
-      });
-      return;
-    }
-    const nextLetter = String.fromCharCode(65 + (cameras.length % 26));
-    const newCamId = createCameraOnly(trimmed, { x: 400, y: 400 });
-    updateShot(shot.id, { cameraId: newCamId, cameraLabel: nextLetter, lensMm: 35 });
+  // Map a shot's linked camera to its label's dropdown entry
+  const camPickerValue = (shot: Shot): string => {
+    const cam: any = cameras.find((c) => c.id === shot.cameraId);
+    if (!cam) return '';
+    const label = (cam.cameraLabel || 'A').toUpperCase();
+    return camerasByLabel.get(label)?.id || '';
   };
 
-  // Pick an existing camera (or null) for a shot, syncing label + lens
+  // Pick an existing camera (or null) for a shot. Choosing a letter re-labels
+  // the shot's own camera element on the floor plan so the icon shows that
+  // letter (the CAM dropdown and the element name/label stay linked). It never
+  // creates a new camera.
   const pickCamera = (shot: Shot, cameraId: string | null) => {
     if (!cameraId) {
       updateShot(shot.id, { cameraId: '', cameraLabel: 'A', lensMm: shot.lensMm });
       return;
     }
-    const cam = cameras.find((c) => c.id === cameraId);
-    if (cam) {
-      updateShot(shot.id, {
-        cameraId: cam.id,
-        cameraLabel: (cam as any).cameraLabel,
-        lensMm: (cam as any).focalLength,
-      });
-    }
+    const picked: any = cameras.find((c) => c.id === cameraId);
+    if (!picked) return;
+    setShotCameraLetter(shot.id, (picked.cameraLabel || 'A').toUpperCase());
   };
 
-  const camPickerOptions: CamPickerOption[] = cameras.map((c: any) => ({
+  const camPickerOptions: CamPickerOption[] = Array.from(camerasByLabel.values()).map((c: any) => ({
     id: c.id,
-    display: getCamDisplay(c),
-    focal: c.focalLength ?? 35,
+    label: (c.cameraLabel || 'A').toUpperCase(),
   }));
 
   // Filter shots
@@ -266,10 +191,11 @@ export const ShotListPanel: React.FC = () => {
     setDragOverIndex(null);
   };
 
-  const handleInsertBelow = (e: React.MouseEvent, shotId: string) => {
+  // Every "+" quick-add in the shot list does the same thing as "+ Cam & Shot":
+  // drops a new camera on the floor plan and creates its shot.
+  const handleAddCameraAndShot = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const newId = insertShotAfter(shotId);
-    setLastInsertedShotId(newId);
+    createCameraAndShot();
   };
 
   return (
@@ -309,18 +235,6 @@ export const ShotListPanel: React.FC = () => {
             >
               <Camera className="w-3.5 h-3.5" />
               <span>+ Cam & Shot</span>
-            </button>
-
-            {/* Quick Add Blank Shot */}
-            <button
-              id="btn-add-shot"
-              onClick={() => addShot()}
-              title="Add Shot to List (creates camera on plan)"
-              className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" />
             </button>
 
             {/* Export CSV / Excel */}
@@ -452,33 +366,6 @@ export const ShotListPanel: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* Sub-letter insertion feedback banner */}
-        {lastInsertedShotId && (
-          <div className="flex items-center justify-between p-2 rounded-lg bg-sky-500/10 border border-sky-500/30 text-xs text-sky-700 dark:text-sky-300">
-            <span className="flex items-center gap-1.5 font-medium">
-              <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-              Inserted new coverage shot.
-            </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => {
-                  renumberAllShots('scene_alphabetic');
-                  setLastInsertedShotId(null);
-                }}
-                className="px-2 py-0.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-[10px] font-bold"
-              >
-                Renumber Rest (1A, 1B, 1C...)
-              </button>
-              <button
-                onClick={() => setLastInsertedShotId(null)}
-                className="text-[10px] opacity-70 hover:opacity-100"
-              >
-                Keep
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 3. Main Content: Cards View or Table List View */}
@@ -570,10 +457,9 @@ export const ShotListPanel: React.FC = () => {
                       <CamPicker
                         compact
                         isLight={isLight}
-                        value={shot.cameraId || ''}
+                        value={camPickerValue(shot)}
                         options={camPickerOptions}
                         onPick={(id) => pickCamera(shot, id)}
-                        onCommit={(text) => commitCamText(shot, text)}
                       />
                     </div>
 
@@ -643,10 +529,10 @@ export const ShotListPanel: React.FC = () => {
                       <Eye className="w-3.5 h-3.5" />
                     </button>
 
-                    {/* Insert Shot Below Button */}
+                    {/* Add Camera & Shot (same as "+ Cam & Shot") */}
                     <button
-                      onClick={(e) => handleInsertBelow(e, shot.id)}
-                      title="Insert Sub-Shot Below (e.g. 1B)"
+                      onClick={handleAddCameraAndShot}
+                      title="Add a new Camera on Floor Plan & Shot in List"
                       className={`p-1 rounded transition-colors text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-slate-700`}
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -794,11 +680,11 @@ export const ShotListPanel: React.FC = () => {
 
                     <div className="flex items-center justify-between pt-1">
                       <button
-                        onClick={(e) => handleInsertBelow(e, shot.id)}
+                        onClick={handleAddCameraAndShot}
                         className="flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 font-semibold"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>+ Insert Sub-Shot Below (1B)</span>
+                        <span>+ Add Camera & Shot</span>
                       </button>
 
                       <button
@@ -847,6 +733,7 @@ export const ShotListPanel: React.FC = () => {
                   return (
                     <tr
                       key={shot.id}
+                      id={`shot-card-${shot.id}`}
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDrop={(e) => handleDrop(e, index)}
                       onDragEnd={handleDragEnd}
@@ -901,10 +788,9 @@ export const ShotListPanel: React.FC = () => {
                       <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <CamPicker
                           isLight={isLight}
-                          value={shot.cameraId || ''}
+                          value={camPickerValue(shot)}
                           options={camPickerOptions}
                           onPick={(id) => pickCamera(shot, id)}
-                          onCommit={(text) => commitCamText(shot, text)}
                         />
                       </td>
 
@@ -1026,8 +912,8 @@ export const ShotListPanel: React.FC = () => {
                             <Eye className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={(e) => handleInsertBelow(e, shot.id)}
-                            title="Insert Sub-Shot Below (1B)"
+                            onClick={handleAddCameraAndShot}
+                            title="Add a new Camera on Floor Plan & Shot in List"
                             className="p-1 text-sky-500 hover:text-sky-600 rounded"
                           >
                             <Plus className="w-3.5 h-3.5" />
