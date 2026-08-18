@@ -14,12 +14,14 @@ import {
   WindowElement,
 } from '../../types';
 import { findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
+import { ASPECT_RATIOS } from '../../constants/presets';
 import { ActorElementView } from './ActorElementView';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CameraElementView } from './CameraElementView';
 import { GridLayer } from './GridLayer';
 import { LightingLayer } from './LightingLayer';
 import { PropsLayer } from './PropsLayer';
+import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
 import { Move, ZoomIn, ZoomOut, Check, X, Keyboard, Scan } from 'lucide-react';
@@ -49,6 +51,7 @@ export const FloorPlanCanvas: React.FC = () => {
     clearSelection,
     addElement,
     updateElement,
+    updateShot,
     updateMultipleElements,
     deleteSelectedElements,
     updateBackgroundImage,
@@ -227,13 +230,13 @@ export const FloorPlanCanvas: React.FC = () => {
     });
   }, [getContentBounds, setCanvasTransform]);
 
-  // Center & zoom the floor plan on startup so it fills the screen
-  const didInitialFit = useRef(false);
+  // Center & zoom the floor plan whenever the active setup (e.g. a selected template) changes
+  const lastFittedSetupId = useRef<string | null>(null);
   useEffect(() => {
-    if (didInitialFit.current) return;
-    didInitialFit.current = true;
+    if (lastFittedSetupId.current === activeSetup.id) return;
+    lastFittedSetupId.current = activeSetup.id;
     fitToContent();
-  }, [fitToContent]);
+  }, [fitToContent, activeSetup.id]);
 
   // Segregate elements for wall snapping & SVG z-ordering
   const walls = activeSetup.elements.filter((e) => e.type === 'wall') as WallElement[];
@@ -260,6 +263,14 @@ export const FloorPlanCanvas: React.FC = () => {
   };
   const measurements = activeSetup.elements.filter((e) => e.type === 'measurement');
   const texts = activeSetup.elements.filter((e) => e.type === 'text');
+
+  // Storyboard thumbnails: shots that have a storyboard attached, shown near
+  // their camera on the floor plan.
+  const sceneAspectRatio =
+    ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
+  const storyboardThumbs = cameras
+    .map((c) => ({ camera: c, shot: getShotForCamera(c) }))
+    .filter((item): item is { camera: CameraElement; shot: Shot } => !!item.shot?.storyboardImage);
 
   // Collect all wall corner vertices for magnetic snapping
   const wallVertices: Vector2D[] = [];
@@ -1106,6 +1117,18 @@ export const FloorPlanCanvas: React.FC = () => {
               displaySettings={displaySettings}
             />
           ))}
+
+          {/* 9b. Storyboard Thumbnails (attached to their camera, draggable) */}
+          <StoryboardThumbLayer
+            items={storyboardThumbs}
+            canvasScale={canvasScale}
+            aspectRatio={sceneAspectRatio}
+            isInteractive={activeTool === 'select'}
+            onDragThumb={(shotId, pos) => updateShot(shotId, { storyboardCanvasPosition: pos })}
+            onSelectCamera={(camId) =>
+              handleElementSelect(camId, { stopPropagation: () => {}, shiftKey: false } as React.PointerEvent)
+            }
+          />
 
           {/* 10. Interactive Transform Handles (Rotation & Linear Endpoints) */}
           {selectedElement && (

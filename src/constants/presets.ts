@@ -313,7 +313,7 @@ export const CAMERA_COLOR_PALETTE = [
 export const SAMPLE_SCENES: SceneSetup[] = [
   {
     id: 'setup-dialogue-classic',
-    name: 'Setup 1: Classic Dialogue (Shot-Reverse-Shot + Master)',
+    name: 'Classic Dialogue (Shot-Reverse-Shot + Master)',
     sceneNumber: '1',
     scriptPage: 'p. 1-3',
     location: 'INT. LIVING ROOM - NIGHT',
@@ -447,9 +447,9 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         isStanding: false,
         actionNotes: 'Confronts Sarah about the missing ledger, remains seated.',
         path: [
-          { id: 'wp-a1', x: 400, y: 240, rotation: 90, beat: 1, dialogueCue: '"Where did you put it, Sarah?"' },
-          { id: 'wp-a2', x: 400, y: 240, rotation: 90, beat: 2, dialogueCue: 'Listens anxiously' },
-          { id: 'wp-a3', x: 400, y: 220, rotation: 90, beat: 3, dialogueCue: 'Stands up abruptly' },
+          { id: 'wp-a1', x: 400, y: 240, rotation: 90, beat: 1 },
+          { id: 'wp-a2', x: 400, y: 240, rotation: 90, beat: 2 },
+          { id: 'wp-a3', x: 400, y: 220, rotation: 90, beat: 3 },
         ],
       },
       // Actor 2 (Sarah - Seated in Armchair, then walks to door)
@@ -465,9 +465,9 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         isStanding: false,
         actionNotes: 'Defensive, stands up on Beat 2 and walks toward door.',
         path: [
-          { id: 'wp-s1', x: 400, y: 400, rotation: 270, beat: 1, dialogueCue: '"I don\'t know what you are talking about."' },
-          { id: 'wp-s2', x: 480, y: 380, rotation: 320, beat: 2, dialogueCue: 'Paces toward bookshelf' },
-          { id: 'wp-s3', x: 620, y: 350, rotation: 0, beat: 3, dialogueCue: 'Reaches for the door handle' },
+          { id: 'wp-s1', x: 400, y: 400, rotation: 270, beat: 1 },
+          { id: 'wp-s2', x: 480, y: 380, rotation: 320, beat: 2 },
+          { id: 'wp-s3', x: 620, y: 350, rotation: 0, beat: 3 },
         ],
       },
       // Lighting setup (Three-point lighting + practical)
@@ -517,7 +517,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'cam-a',
         type: 'camera',
-        name: 'Cam A - Master Wide',
+        name: 'Cam A',
         cameraLabel: 'A',
         color: '#0284c7',
         x: 180,
@@ -538,7 +538,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'cam-b',
         type: 'camera',
-        name: 'Cam B - OTS Sarah / Alex CU',
+        name: 'Cam B',
         cameraLabel: 'B',
         color: '#dc2626',
         x: 480,
@@ -559,7 +559,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'cam-c',
         type: 'camera',
-        name: 'Cam C - OTS Alex / Sarah CU',
+        name: 'Cam C',
         cameraLabel: 'C',
         color: '#16a34a',
         x: 480,
@@ -652,7 +652,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
   },
   {
     id: 'setup-noir-interrogation',
-    name: 'Setup 2: Noir Interrogation (Dramatic Key & Window Shadow)',
+    name: 'Noir Interrogation (Dramatic Key & Window Shadow)',
     sceneNumber: '2',
     scriptPage: 'p. 8-10',
     location: 'INT. POLICE INTERROGATION ROOM - NIGHT',
@@ -789,7 +789,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         actionNotes: 'Paces around Marcus on Beat 2.',
         path: [
           { id: 'wp-d1', x: 470, y: 310, rotation: 180, beat: 1 },
-          { id: 'wp-d2', x: 330, y: 230, rotation: 90, beat: 2, dialogueCue: 'Leans down into Marcus\'s face' },
+          { id: 'wp-d2', x: 330, y: 230, rotation: 90, beat: 2 },
         ],
       },
       // Overhead Single Hard Key Lamp
@@ -826,7 +826,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'noir-cam-a',
         type: 'camera',
-        name: 'Cam A - Suspect Low Angle CU',
+        name: 'Cam A',
         cameraLabel: 'A',
         color: '#0284c7',
         x: 440,
@@ -846,7 +846,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'noir-cam-b',
         type: 'camera',
-        name: 'Cam B - Dutch Angle Two-Shot',
+        name: 'Cam B',
         cameraLabel: 'B',
         color: '#dc2626',
         x: 400,

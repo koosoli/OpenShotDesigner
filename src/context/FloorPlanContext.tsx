@@ -229,6 +229,58 @@ function migrateStorageKey(oldKey: string, newKey: string): string | null {
   }
 }
 
+// Finds a position on the floor plan that doesn't overlap any existing element
+// or background image, so a newly imported reference image is visible & clickable.
+function findFreeSpawnPoint(
+  width: number,
+  height: number,
+  backgroundImages: BackgroundImage[],
+  elements: FloorPlanElement[]
+): Vector2D {
+  const candidates: Vector2D[] = [];
+  for (let row = 0; row < 12; row++) {
+    for (let col = 0; col < 12; col++) {
+      candidates.push({ x: 50 + col * 90, y: 50 + row * 90 });
+    }
+  }
+
+  const overlaps = (x: number, y: number): boolean => {
+    const pad = 40;
+    for (const bg of backgroundImages) {
+      if (
+        x < bg.x + bg.width + pad &&
+        x + width + pad > bg.x &&
+        y < bg.y + bg.height + pad &&
+        y + height + pad > bg.y
+      ) {
+        return true;
+      }
+    }
+    for (const el of elements) {
+      const ex = (el as any).x ?? 0;
+      const ey = (el as any).y ?? 0;
+      let ex2 = (el as any).x2;
+      let ey2 = (el as any).y2;
+      if (ex2 === undefined) ex2 = ex + ((el as any).width ?? 80);
+      if (ey2 === undefined) ey2 = ey + ((el as any).height ?? 60);
+      if (
+        x < Math.max(ex, ex2) + pad &&
+        x + width + pad > Math.min(ex, ex2) &&
+        y < Math.max(ey, ey2) + pad &&
+        y + height + pad > Math.min(ey, ey2)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  for (const pos of candidates) {
+    if (!overlaps(pos.x, pos.y)) return pos;
+  }
+  return { x: 50, y: 50 };
+}
+
 export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Initialize project state from localStorage or default template
   const [project, setProject] = useState<Project>(() => {
@@ -430,6 +482,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // When an element on the canvas is selected, open the inspector tab
     setActiveRightTab('inspector');
+    setSelectedBackgroundId(null);
 
     if (multi) {
       setSelectedElementIds((prev) =>
@@ -458,12 +511,14 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedElementIds(ids);
     if (ids.length > 0) {
       setActiveRightTab('inspector');
+      setSelectedBackgroundId(null);
     }
   };
 
   const clearSelection = () => {
     setSelectedElementIds([]);
     setSelectedShotId(null);
+    setSelectedBackgroundId(null);
   };
 
   // Select shot handler with bidirectional camera sync (keeps current tab by default)
@@ -474,6 +529,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const shot = activeSetup.shots.find((s) => s.id === shotId);
     if (shot && shot.cameraId) {
       setSelectedElementIds([shot.cameraId]);
+      setSelectedBackgroundId(null);
       setHighlightedElementId(shot.cameraId);
 
       if (focusCanvasCamera) {
@@ -1513,6 +1569,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const addBackgroundImage = (bg: BackgroundImage) => {
     const newBg = { ...bg, id: bg.id || `bg-${Date.now()}` };
+    // Spawn at a spot that doesn't sit underneath existing elements/images,
+    // so the imported image is immediately visible and clickable. Then open
+    // the inspector with the image's settings (opacity, lock, visibility...).
+    const freePos = findFreeSpawnPoint(
+      newBg.width || 800,
+      newBg.height || 600,
+      backgroundImages,
+      activeSetup.elements
+    );
+    newBg.x = freePos.x;
+    newBg.y = freePos.y;
     const updatedSetup: SceneSetup = {
       ...activeSetup,
       backgroundImages: [...backgroundImages, newBg],
@@ -1520,6 +1587,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     commitSetupState(updatedSetup);
     setSelectedBackgroundId(newBg.id);
+    setActiveRightTab('inspector');
   };
 
   const updateBackgroundImage = (id: string, updates: Partial<BackgroundImage>) => {
@@ -1576,7 +1644,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const nextNum = project.setups.length + 1;
     const newSetup: SceneSetup = {
       id: `setup-${Date.now()}`,
-      name: name || `Setup ${nextNum}: Scene ${nextNum} Coverage`,
+      name: name || `Coverage ${nextNum}`,
       sceneNumber: `${nextNum}`,
       location: 'INT. STUDIO - DAY',
       timeOfDay: 'Day INT',
@@ -1584,6 +1652,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       shots: [],
       currentBeat: 1,
       totalBeats: 1,
+      aspectRatio: '16:9',
       canvasScale: 1,
       canvasOffset: { x: 50, y: 50 },
       gridSettings: {
@@ -1665,7 +1734,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const createNewProject = () => {
     const newSetup: SceneSetup = {
       id: `setup-${Date.now()}`,
-      name: 'Scene 1: Master Setup',
+      name: 'Master Setup',
       sceneNumber: '1',
       location: 'INT. STUDIO - DAY',
       timeOfDay: 'Day INT',

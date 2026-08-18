@@ -28,6 +28,7 @@ import {
   Copy,
   DoorClosed,
   Eye,
+  Film,
   Flame,
   FlipHorizontal,
   Image as ImageIcon,
@@ -110,6 +111,138 @@ const PillToggle: React.FC<{
     {label}
   </button>
 );
+
+/** Storyboard image uploader — reads an image file and stores it as a data URL.
+ *  Previews it inside the scene's aspect ratio frame, with fit + pan controls. */
+const StoryboardField: React.FC<{
+  label: string;
+  value?: string;
+  onChange: (url: string | null) => void;
+  aspectRatio: number;
+  fit?: 'cover' | 'contain';
+  position?: { x: number; y: number };
+  onFitChange?: (fit: 'cover' | 'contain') => void;
+  onPositionChange?: (pos: { x: number; y: number }) => void;
+  isLight: boolean;
+}> = ({ label, value, onChange, aspectRatio, fit, position, onFitChange, onPositionChange, isLight }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const ratio = aspectRatio > 0 ? aspectRatio : 16 / 9;
+  const curFit = fit || 'cover';
+  const posX = position?.x ?? 50;
+
+  return (
+    <div>
+      <label className="opacity-60 block mb-1">{label}</label>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFile}
+        className="hidden"
+      />
+      {value ? (
+        <div className={`rounded-lg overflow-hidden border ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
+          {/* Aspect-ratio framed preview */}
+          <div
+            className="w-full bg-slate-100 overflow-hidden"
+            style={{ aspectRatio: `${ratio} / 1`, position: 'relative' }}
+          >
+            <img
+              src={value}
+              alt={label}
+              className="absolute inset-0 w-full h-full"
+              style={{
+                objectFit: curFit === 'cover' ? 'cover' : 'contain',
+                objectPosition: `${posX}% ${position?.y ?? 50}%`,
+                background: '#0f172a',
+              }}
+            />
+          </div>
+
+          {/* Fit + framing controls */}
+          <div className="p-1.5 border-t space-y-1.5">
+            <div className="flex gap-1">
+              <button
+                onClick={() => onFitChange?.('cover')}
+                className={`flex-1 py-1 text-[10px] font-semibold rounded border transition-colors ${
+                  curFit === 'cover'
+                    ? 'bg-violet-600 text-white border-violet-500'
+                    : isLight ? 'bg-slate-50 text-slate-600 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
+                }`}
+              >
+                Crop to frame
+              </button>
+              <button
+                onClick={() => onFitChange?.('contain')}
+                className={`flex-1 py-1 text-[10px] font-semibold rounded border transition-colors ${
+                  curFit === 'contain'
+                    ? 'bg-violet-600 text-white border-violet-500'
+                    : isLight ? 'bg-slate-50 text-slate-600 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
+                }`}
+              >
+                Fit whole image
+              </button>
+            </div>
+            {curFit === 'cover' && (
+              <div>
+                <div className="flex justify-between text-[10px] mb-0.5">
+                  <span className="opacity-60">Horizontal framing</span>
+                  <span className="font-mono font-bold text-violet-500">{Math.round(posX)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={posX}
+                  onChange={(e) => onPositionChange?.({ x: Number(e.target.value), y: position?.y ?? 50 })}
+                  className="w-full accent-violet-500 cursor-pointer"
+                />
+              </div>
+            )}
+            <div className="flex">
+              <button
+                onClick={() => inputRef.current?.click()}
+                className={`flex-1 py-1.5 text-[10px] font-semibold border-t ${
+                  isLight ? 'text-sky-700 border-slate-200 hover:bg-sky-50' : 'text-sky-300 border-slate-700 hover:bg-slate-800'
+                }`}
+              >
+                Replace
+              </button>
+              <button
+                onClick={() => onChange(null)}
+                className={`flex-1 py-1.5 text-[10px] font-semibold border-t border-l ${
+                  isLight ? 'text-red-600 border-slate-200 hover:bg-red-50' : 'text-red-400 border-slate-700 hover:bg-red-950/40'
+                }`}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => inputRef.current?.click()}
+          className={`w-full py-3 rounded-lg border border-dashed text-[11px] font-semibold transition-colors ${
+            isLight ? 'text-slate-500 border-slate-300 hover:bg-slate-50' : 'text-slate-400 border-slate-700 hover:bg-slate-800'
+          }`}
+        >
+          + Attach Storyboard Image
+        </button>
+      )}
+    </div>
+  );
+};
 
 /** Color swatch input + Auto (reset to element color) row */
 const ColorField: React.FC<{
@@ -242,12 +375,15 @@ const WaypointListEditor: React.FC<{
 export const InspectorPanel: React.FC = () => {
   const {
     activeSetup,
+    project,
+    updateProjectMeta,
     selectedElementIds,
     updateElement,
     deleteSelectedElements,
     duplicateSelected,
     openViewfinder,
     selectShot,
+    updateShot,
     playback,
     updateSetupMeta,
     insertDoorInWall,
@@ -255,6 +391,8 @@ export const InspectorPanel: React.FC = () => {
     rotateElementBy,
     theme,
     backgroundImages,
+    selectedBackgroundId,
+    setSelectedBackgroundId,
     updateBackgroundImage,
     removeBackgroundImage,
     displaySettings,
@@ -263,6 +401,184 @@ export const InspectorPanel: React.FC = () => {
   } = useFloorPlan();
 
   const isLight = theme === 'light';
+
+  // Dedicated Reference Image inspector — shown when a background image is
+  // selected on the canvas (separate from the Scene Setup inspector).
+  const selectedBg = backgroundImages.find((b) => b.id === selectedBackgroundId);
+  if (selectedBg) {
+    return (
+      <div
+        id="inspector-panel-image"
+        className={`flex flex-col h-full text-xs p-4 space-y-4 select-none overflow-y-auto ${
+          isLight ? 'bg-white text-slate-800' : 'bg-slate-900 text-slate-200'
+        }`}
+      >
+        <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <ImageIcon className="w-4 h-4 text-teal-500 flex-shrink-0" />
+            <h3 className="text-xs font-bold uppercase tracking-wider truncate">
+              Reference Image
+            </h3>
+          </div>
+          <button
+            onClick={() => setSelectedBackgroundId(null)}
+            title="Close image settings (back to scene setup)"
+            className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+              isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
+            }`}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Thumbnail preview */}
+        <div className={`rounded-xl overflow-hidden border ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div
+            className="w-full h-32 bg-slate-100 flex items-center justify-center"
+            style={{ backgroundImage: 'linear-gradient(45deg,#e2e8f0 25%,transparent 25%,transparent 75%,#e2e8f0 75%),linear-gradient(45deg,#e2e8f0 25%,transparent 25%,transparent 75%,#e2e8f0 75%)', backgroundSize: '16px 16px', backgroundPosition: '0 0, 8px 8px' }}
+          >
+            <img
+              src={selectedBg.url}
+              alt={selectedBg.name || 'Reference image'}
+              className="max-h-32 max-w-full object-contain"
+              style={{ opacity: selectedBg.opacity ?? 0.5 }}
+            />
+          </div>
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+            Image Name
+          </label>
+          <input
+            type="text"
+            value={selectedBg.name || ''}
+            onChange={(e) => updateBackgroundImage(selectedBg.id, { name: e.target.value })}
+            placeholder="e.g. Floorplan Scan, Scout Photo"
+            className={`w-full border rounded-lg p-2 focus:border-teal-500 focus:outline-none ${
+              isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+            }`}
+          />
+        </div>
+
+        {/* Opacity */}
+        <div>
+          <div className="flex justify-between text-[11px] mb-1">
+            <span className="opacity-60">Opacity</span>
+            <span className="font-mono font-bold text-teal-500">
+              {Math.round((selectedBg.opacity ?? 0.5) * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0.1}
+            max={1}
+            step={0.05}
+            value={selectedBg.opacity ?? 0.5}
+            onChange={(e) => updateBackgroundImage(selectedBg.id, { opacity: parseFloat(e.target.value) })}
+            className="w-full accent-teal-500 cursor-pointer"
+          />
+        </div>
+
+        {/* Position & Size */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>X</label>
+            <input
+              type="number"
+              value={Math.round(selectedBg.x)}
+              onChange={(e) => updateBackgroundImage(selectedBg.id, { x: Number(e.target.value) })}
+              className={`w-full border rounded-lg p-2 focus:border-teal-500 ${
+                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              }`}
+            />
+          </div>
+          <div>
+            <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Y</label>
+            <input
+              type="number"
+              value={Math.round(selectedBg.y)}
+              onChange={(e) => updateBackgroundImage(selectedBg.id, { y: Number(e.target.value) })}
+              className={`w-full border rounded-lg p-2 focus:border-teal-500 ${
+                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              }`}
+            />
+          </div>
+          <div>
+            <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Width</label>
+            <input
+              type="number"
+              value={Math.round(selectedBg.width)}
+              onChange={(e) => updateBackgroundImage(selectedBg.id, { width: Number(e.target.value) })}
+              className={`w-full border rounded-lg p-2 focus:border-teal-500 ${
+                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              }`}
+            />
+          </div>
+          <div>
+            <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Height</label>
+            <input
+              type="number"
+              value={Math.round(selectedBg.height)}
+              onChange={(e) => updateBackgroundImage(selectedBg.id, { height: Number(e.target.value) })}
+              className={`w-full border rounded-lg p-2 focus:border-teal-500 ${
+                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              }`}
+            />
+          </div>
+        </div>
+
+        {/* Visibility / Lock */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => updateBackgroundImage(selectedBg.id, { visible: !selectedBg.visible })}
+            className={`py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
+              selectedBg.visible
+                ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
+                : isLight ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            {selectedBg.visible ? 'Visible' : 'Hidden'}
+          </button>
+          <button
+            onClick={() => updateBackgroundImage(selectedBg.id, { locked: !selectedBg.locked })}
+            title={selectedBg.locked ? 'Unlock (allow moving & resizing)' : 'Lock (prevent accidental moves)'}
+            className={`py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
+              selectedBg.locked
+                ? isLight ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-800'
+                : isLight ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'
+            }`}
+          >
+            {selectedBg.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+            {selectedBg.locked ? 'Locked' : 'Unlocked'}
+          </button>
+        </div>
+
+        {/* Delete */}
+        <button
+          onClick={() => {
+            removeBackgroundImage(selectedBg.id);
+            setSelectedBackgroundId(null);
+          }}
+          className={`w-full py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
+            isLight
+              ? 'bg-red-50 text-red-600 border-red-300 hover:bg-red-100'
+              : 'bg-red-950/30 text-red-400 border-red-900 hover:bg-red-950/60'
+          }`}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Delete Image
+        </button>
+
+        <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+          Drag the image on the canvas to move it, use the corner handles to scale
+          (proportions preserved), or press <strong>Delete</strong> to remove it.
+        </p>
+      </div>
+    );
+  }
 
   if (selectedElementIds.length === 0) {
     // Show Scene / Setup Meta Inspector
@@ -295,7 +611,7 @@ export const InspectorPanel: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene Number</label>
+              <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene / Setup Number</label>
               <input
                 type="text"
                 value={activeSetup.sceneNumber}
@@ -304,6 +620,9 @@ export const InspectorPanel: React.FC = () => {
                   isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                 }`}
               />
+              <p className={`mt-0.5 text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                Shown as "Scene {activeSetup.sceneNumber}" in the scene selector.
+              </p>
             </div>
             <div>
               <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Script Page</label>
@@ -346,6 +665,105 @@ export const InspectorPanel: React.FC = () => {
               <option value="Day EXT">Day EXT (Exterior Sun)</option>
               <option value="Night EXT">Night EXT (Exterior Night)</option>
             </select>
+          </div>
+
+          {/* Project Aspect Ratio (also frames storyboards) */}
+          <div>
+            <label className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              Project Aspect Ratio
+            </label>
+            <select
+              value={activeSetup.aspectRatio || '16:9'}
+              onChange={(e) => updateSetupMeta({ aspectRatio: e.target.value as any })}
+              className={`w-full border rounded-lg p-2 focus:border-violet-500 ${
+                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              }`}
+            >
+              {ASPECT_RATIOS.map((ar) => (
+                <option key={ar.value} value={ar.value}>
+                  {ar.label}
+                </option>
+              ))}
+            </select>
+            <span className={`text-[10px] italic mt-1 block ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+              Storyboard frames and export thumbnails are cropped/framed to this ratio.
+            </span>
+          </div>
+
+          {/* Production Info (title, director, DP, company, date) */}
+          <div className={`pt-4 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+            <h4 className="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-2 flex items-center gap-1.5">
+              <Film className="w-3.5 h-3.5 text-sky-500" />
+              Production Info
+            </h4>
+            <div className="space-y-3">
+              <div>
+                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Project Title</label>
+                <input
+                  type="text"
+                  value={project.title}
+                  onChange={(e) => updateProjectMeta({ title: e.target.value })}
+                  className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  }`}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Director</label>
+                  <input
+                    type="text"
+                    value={project.director}
+                    placeholder="e.g. Jane Doe"
+                    onChange={(e) => updateProjectMeta({ director: e.target.value })}
+                    className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                      isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Cinematographer / DP</label>
+                  <input
+                    type="text"
+                    value={project.cinematographer}
+                    placeholder="e.g. John Smith"
+                    onChange={(e) => updateProjectMeta({ cinematographer: e.target.value })}
+                    className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                      isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    }`}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Company</label>
+                  <input
+                    type="text"
+                    value={project.productionCompany || ''}
+                    placeholder="e.g. Studio Films"
+                    onChange={(e) => updateProjectMeta({ productionCompany: e.target.value })}
+                    className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                      isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Date</label>
+                  <input
+                    type="text"
+                    value={project.date}
+                    placeholder="YYYY-MM-DD"
+                    onChange={(e) => updateProjectMeta({ date: e.target.value })}
+                    className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                      isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    }`}
+                  />
+                </div>
+              </div>
+              <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                These values appear in the header of the exported plan.
+              </p>
+            </div>
           </div>
 
           {/* Display & Labels - declutter the floor plan */}
@@ -1176,6 +1594,38 @@ export const InspectorPanel: React.FC = () => {
                 accentClass="text-sky-500"
                 isLight={isLight}
               />
+
+              {/* Storyboard Reference (only the shot corresponding to this camera) */}
+              {(() => {
+                const linkedShot =
+                  activeSetup.shots.find((s) => s.id === cam.associatedShotId) ||
+                  activeSetup.shots.find((s) => s.cameraId === cam.id);
+                if (!linkedShot) return null;
+                return (
+                  <div className={`pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-2 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-violet-500" />
+                      Storyboard Reference
+                    </h4>
+                    <StoryboardField
+                      label={`Storyboard for Shot ${linkedShot.shotNumber}`}
+                      value={linkedShot.storyboardImage}
+                      onChange={(url) =>
+                        updateShot(linkedShot.id, { storyboardImage: url || undefined })
+                      }
+                      aspectRatio={
+                        ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio ||
+                        16 / 9
+                      }
+                      fit={linkedShot.storyboardFit}
+                      position={linkedShot.storyboardPosition}
+                      onFitChange={(fit) => updateShot(linkedShot.id, { storyboardFit: fit })}
+                      onPositionChange={(pos) => updateShot(linkedShot.id, { storyboardPosition: pos })}
+                      isLight={isLight}
+                    />
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}

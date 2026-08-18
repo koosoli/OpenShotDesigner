@@ -264,6 +264,10 @@ export interface Shot {
   frameRate: number; // e.g. 24, 25, 30, 48, 60
   subjectActorIds: string[];
   equipmentNotes?: string;
+  storyboardImage?: string;
+  storyboardFit?: 'cover' | 'contain';
+  storyboardPosition?: { x: number; y: number };
+  storyboardCanvasPosition?: { x: number; y: number };
   framingDescription: string;
   actionScriptNotes?: string;
   status: ShotStatus;
@@ -310,6 +314,7 @@ export interface SceneSetup {
   currentBeat: number;
   totalBeats: number;
   shootMode?: 'single_cam' | 'multi_cam'; // single_cam (default: Cam A across shots) vs multi_cam (Cam A, B, C concurrent)
+  aspectRatio?: AspectRatio; // project / storyboard aspect ratio for this scene
   gridSettings: GridSettings;
   canvasScale: number;
   canvasOffset: Vector2D;

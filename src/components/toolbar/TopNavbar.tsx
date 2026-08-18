@@ -156,6 +156,13 @@ export const TopNavbar: React.FC = () => {
                       }}
                       className="flex-1 text-left truncate flex items-center gap-1.5"
                     >
+                      <span
+                        className={`font-mono text-[10px] flex-shrink-0 ${
+                          setup.id === activeSetup.id ? 'text-white/80' : 'text-sky-500'
+                        }`}
+                      >
+                        S{setup.sceneNumber || project.setups.indexOf(setup) + 1}
+                      </span>
                       <span className="truncate">{setup.name}</span>
                     </button>
                     <div className="flex items-center gap-1.5 flex-shrink-0">

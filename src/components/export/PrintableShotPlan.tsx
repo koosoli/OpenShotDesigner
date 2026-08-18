@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
+  BackgroundImage,
   CameraElement,
   DoorElement,
   FloorPlanElement,
@@ -11,7 +12,8 @@ import {
   WallElement,
   WindowElement,
 } from '../../types';
-import { getCameraFovPolygon, getLightBeamPolygon, kelvinToRgb } from '../../utils/geometry';
+import { getCameraFovPolygon, getLightBeamPolygon, getSmoothSplinePath, kelvinToRgb } from '../../utils/geometry';
+import { ASPECT_RATIOS } from '../../constants/presets';
 import { exportProjectToCsv, exportShotListToCsv } from '../../utils/exportShotList';
 import { exportSvgAsPng } from '../../utils/exportFloorPlanPng';
 import {
@@ -38,6 +40,15 @@ export const PrintableShotPlan: React.FC = () => {
   const { project, activeSetup, isExportModalOpen, closeExportModal } = useFloorPlan();
   const [exportSection, setExportSection] = useState<'floorplan' | 'shotlist' | 'combined'>('floorplan');
   const [pngScale, setPngScale] = useState<2 | 3>(2);
+  const [showStoryboards, setShowStoryboards] = useState(false);
+
+  // When the export opens, default the storyboard toggle ON if any shot has a
+  // storyboard attached (still fully toggleable off/on by the user).
+  useEffect(() => {
+    if (isExportModalOpen) {
+      setShowStoryboards(activeSetup.shots.some((s) => !!s.storyboardImage));
+    }
+  }, [isExportModalOpen, activeSetup]);
   const floorPlanSvgRef = useRef<SVGSVGElement>(null);
 
   if (!isExportModalOpen) return null;
@@ -50,6 +61,9 @@ export const PrintableShotPlan: React.FC = () => {
   const windows = activeSetup.elements.filter((e) => e.type === 'window') as WindowElement[];
   const props = activeSetup.elements.filter((e) => e.type === 'prop') as PropElement[];
   const tracks = activeSetup.elements.filter((e) => e.type === 'track') as TrackElement[];
+  const backgroundImages = (activeSetup.backgroundImages || []).filter((i) => i.visible) as BackgroundImage[];
+  const sceneAspectRatio =
+    ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
 
   const handlePrint = () => {
     window.print();
@@ -62,6 +76,24 @@ export const PrintableShotPlan: React.FC = () => {
     minY = Math.min(...activeSetup.elements.map((e) => e.y)) - 60;
     maxX = Math.max(...activeSetup.elements.map((e) => (e as any).x2 || e.x + ((e as any).width || 80))) + 60;
     maxY = Math.max(...activeSetup.elements.map((e) => (e as any).y2 || e.y + ((e as any).height || 80))) + 60;
+  }
+  for (const img of backgroundImages) {
+    minX = Math.min(minX, img.x - 20);
+    minY = Math.min(minY, img.y - 20);
+    maxX = Math.max(maxX, img.x + img.width + 20);
+    maxY = Math.max(maxY, img.y + img.height + 20);
+  }
+  if (showStoryboards) {
+    for (const shot of activeSetup.shots) {
+      if (!shot.storyboardImage) continue;
+      const cam = cameras.find((c) => c.id === shot.cameraId);
+      if (!cam) continue;
+      const pos = shot.storyboardCanvasPosition || { x: cam.x + 110, y: cam.y - 60 };
+      minX = Math.min(minX, pos.x - 60);
+      minY = Math.min(minY, pos.y - 60);
+      maxX = Math.max(maxX, pos.x + 60);
+      maxY = Math.max(maxY, pos.y + 60);
+    }
   }
   const viewBoxWidth = Math.max(800, maxX - minX);
   const viewBoxHeight = Math.max(500, maxY - minY);
@@ -190,6 +222,26 @@ export const PrintableShotPlan: React.FC = () => {
               </div>
             )}
 
+            {/* Storyboards toggle: controls thumbnails on the blueprint AND in the shot list */}
+            <button
+              onClick={() => setShowStoryboards((prev) => !prev)}
+              title={showStoryboards ? 'Hide storyboard thumbnails' : 'Show storyboard thumbnails on the floor plan and in the shot list'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                showStoryboards
+                  ? 'bg-violet-600 text-white border-violet-500'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+              }`}
+            >
+              <span
+                className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] ${
+                  showStoryboards ? 'bg-white text-violet-700 border-white' : 'border-slate-500'
+                }`}
+              >
+                {showStoryboards ? '✓' : ''}
+              </span>
+              Storyboards
+            </button>
+
             <button
               onClick={closeExportModal}
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors ml-1"
@@ -267,6 +319,46 @@ export const PrintableShotPlan: React.FC = () => {
                     </pattern>
                   </defs>
                   <rect x={minX} y={minY} width={viewBoxWidth} height={viewBoxHeight} fill="url(#print-grid)" />
+
+                  {/* 0. Reference / Background Images (scout photo, blueprint, screenshot) */}
+                  {backgroundImages.map((img) => (
+                    <g
+                      key={img.id || img.url}
+                      transform={`translate(${img.x}, ${img.y}) rotate(${img.rotation || 0})`}
+                    >
+                      <rect
+                        x={0}
+                        y={0}
+                        width={img.width}
+                        height={img.height}
+                        fill="none"
+                        stroke="#94a3b8"
+                        strokeWidth="1"
+                        strokeDasharray="4 3"
+                      />
+                      <image
+                        href={img.url}
+                        x={0}
+                        y={0}
+                        width={img.width}
+                        height={img.height}
+                        opacity={Math.max(0.12, Math.min(1, img.opacity || 0.5))}
+                        preserveAspectRatio="none"
+                      />
+                      {img.name && (
+                        <text
+                          x={4}
+                          y={-6}
+                          fontSize="9"
+                          fontStyle="italic"
+                          fill="#64748b"
+                          fontFamily="sans-serif"
+                        >
+                          {img.name}
+                        </text>
+                      )}
+                    </g>
+                  ))}
 
                   {/* 1. Draw Walls */}
                   {walls.map((wall) => {
@@ -398,6 +490,58 @@ export const PrintableShotPlan: React.FC = () => {
                     );
                   })}
 
+                  {/* 5.5 Draw Waypoint Trajectories (camera moves & actor blocking) */}
+                  {cameras.map((c) => {
+                    const cWps = (c.path || []).filter((wp) => wp.x !== undefined && wp.y !== undefined);
+                    if (cWps.length === 0) return null;
+                    const pts = [{ x: c.x, y: c.y }, ...cWps.map((wp) => ({ x: wp.x, y: wp.y }))];
+                    return (
+                      <g key={`${c.id}-traj`}>
+                        <path
+                          d={getSmoothSplinePath(pts)}
+                          fill="none"
+                          stroke="#0284c7"
+                          strokeWidth="2"
+                          strokeDasharray="6 4"
+                          strokeOpacity="0.6"
+                        />
+                        {pts.map((p, i) => (
+                          <g key={i} transform={`translate(${p.x}, ${p.y})`}>
+                            <circle cx={0} cy={0} r={i === 0 ? 5 : 4} fill={i === 0 ? '#0f172a' : '#ffffff'} stroke="#0284c7" strokeWidth={1.5} />
+                            <text x={0} y={i === 0 ? -9 : 13} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#0284c7" fontFamily="sans-serif">
+                              {i === 0 ? 'S' : `B${cWps[i - 1]?.beat ?? i + 1}`}
+                            </text>
+                          </g>
+                        ))}
+                      </g>
+                    );
+                  })}
+                  {actors.map((a) => {
+                    const aWps = (a.path || []).filter((wp) => wp.x !== undefined && wp.y !== undefined);
+                    if (aWps.length === 0) return null;
+                    const pts = [{ x: a.x, y: a.y }, ...aWps.map((wp) => ({ x: wp.x, y: wp.y }))];
+                    return (
+                      <g key={`${a.id}-traj`}>
+                        <path
+                          d={getSmoothSplinePath(pts)}
+                          fill="none"
+                          stroke="#059669"
+                          strokeWidth="2"
+                          strokeDasharray="6 4"
+                          strokeOpacity="0.6"
+                        />
+                        {pts.map((p, i) => (
+                          <g key={i} transform={`translate(${p.x}, ${p.y})`}>
+                            <circle cx={0} cy={0} r={i === 0 ? 5 : 4} fill={i === 0 ? '#0f172a' : '#ffffff'} stroke="#059669" strokeWidth={1.5} />
+                            <text x={0} y={i === 0 ? -9 : 13} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#059669" fontFamily="sans-serif">
+                              {i === 0 ? 'S' : `B${aWps[i - 1]?.beat ?? i + 1}`}
+                            </text>
+                          </g>
+                        ))}
+                      </g>
+                    );
+                  })}
+
                   {/* 6. Draw Camera FOV Cones & Camera Icons */}
                   {cameras.map((c) => {
                     const fov = getCameraFovPolygon(
@@ -456,6 +600,72 @@ export const PrintableShotPlan: React.FC = () => {
                       </g>
                     </g>
                   ))}
+
+                  {/* 8. Storyboard Thumbnails on the Blueprint (near their camera) */}
+                  {showStoryboards &&
+                    activeSetup.shots
+                      .filter((s) => !!s.storyboardImage)
+                      .map((shot) => {
+                        const cam = cameras.find((c) => c.id === shot.cameraId);
+                        if (!cam) return null;
+                        const pos = shot.storyboardCanvasPosition || { x: cam.x + 110, y: cam.y - 60 };
+                        const sbW = 56;
+                        const sbH = sbW / sceneAspectRatio;
+                        const sbClip = `print-sb-${shot.id}`;
+                        const isCover = shot.storyboardFit !== 'contain';
+                        return (
+                          <g key={`${shot.id}-sb`}>
+                            {/* Leader line from camera */}
+                            <line
+                              x1={cam.x}
+                              y1={cam.y}
+                              x2={pos.x}
+                              y2={pos.y}
+                              stroke="#a78bfa"
+                              strokeWidth="1"
+                              strokeDasharray="4 3"
+                              opacity="0.7"
+                            />
+                            <defs>
+                              <clipPath id={sbClip}>
+                                <rect x={-sbW / 2} y={-sbH / 2} width={sbW} height={sbH} rx="3" />
+                              </clipPath>
+                            </defs>
+                            <g transform={`translate(${pos.x}, ${pos.y})`}>
+                              <rect
+                                x={-sbW / 2}
+                                y={-sbH / 2}
+                                width={sbW}
+                                height={sbH}
+                                rx="3"
+                                fill="#ffffff"
+                                stroke="#7c3aed"
+                                strokeWidth="1.5"
+                              />
+                              <image
+                                href={shot.storyboardImage}
+                                x={-sbW / 2}
+                                y={-sbH / 2}
+                                width={sbW}
+                                height={sbH}
+                                preserveAspectRatio={isCover ? 'xMidYMid slice' : 'xMidYMid meet'}
+                                clipPath={`url(#${sbClip})`}
+                              />
+                              <text
+                                x={0}
+                                y={sbH / 2 + 11}
+                                textAnchor="middle"
+                                fontSize="9"
+                                fontWeight="bold"
+                                fill="#6d28d9"
+                                fontFamily="sans-serif"
+                              >
+                                SB {shot.shotNumber}
+                              </text>
+                            </g>
+                          </g>
+                        );
+                      })}
                 </svg>
               </div>
 
@@ -525,6 +735,9 @@ export const PrintableShotPlan: React.FC = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-bold">
+                      {showStoryboards && (
+                        <th className="p-2.5 w-16">STORY</th>
+                      )}
                       <th className="p-2.5 font-mono w-16">SHOT #</th>
                       <th className="p-2.5 w-14">CAM</th>
                       <th className="p-2.5 w-14">SIZE</th>
@@ -541,6 +754,30 @@ export const PrintableShotPlan: React.FC = () => {
                       const linkedCam = cameras.find((c) => c.id === shot.cameraId);
                       return (
                         <tr key={shot.id} className="hover:bg-slate-50">
+                          {showStoryboards && (
+                            <td className="p-2.5 align-middle">
+                              {shot.storyboardImage ? (
+                                <div
+                                  className="overflow-hidden rounded border border-slate-300 bg-slate-100"
+                                  style={{ width: 64, aspectRatio: `${sceneAspectRatio} / 1` }}
+                                >
+                                  <img
+                                    src={shot.storyboardImage}
+                                    alt={`Storyboard ${shot.shotNumber}`}
+                                    className="w-full h-full"
+                                    style={{
+                                      objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
+                                      objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-16 h-10 rounded border border-dashed border-slate-300 flex items-center justify-center text-[9px] text-slate-400">
+                                  No story
+                                </div>
+                              )}
+                            </td>
+                          )}
                           <td className="p-2.5 font-mono font-black text-slate-900 text-sm">
                             {shot.shotNumber}
                           </td>
