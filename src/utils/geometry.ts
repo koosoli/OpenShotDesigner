@@ -145,33 +145,109 @@ export function getLightBeamPolygon(
 }
 
 /**
- * Approximate Kelvin temperature to RGB string for lights
+ * Approximate Kelvin temperature to RGB string for lights.
+ * Tungsten renders warm amber, daylight renders cool blue so the beam + fixture
+ * front visually match the color temperature set on the element.
  */
 export function kelvinToRgb(kelvin: number): string {
-  const temp = Math.max(1000, Math.min(40000, kelvin)) / 100;
-  let red: number;
-  let green: number;
-  let blue: number;
-
-  if (temp <= 66) {
-    red = 255;
-    green = 99.4708025861 * Math.log(temp) - 161.1195681661;
-    if (temp <= 19) {
-      blue = 0;
-    } else {
-      blue = 138.5177312231 * Math.log(temp - 10) - 305.0447927307;
-    }
-  } else {
-    red = 329.698727446 * Math.pow(temp - 60, -0.1332047592);
-    green = 288.1221695283 * Math.pow(temp - 60, -0.0755148492);
-    blue = 255;
-  }
-
-  const r = Math.round(Math.max(0, Math.min(255, red)));
-  const g = Math.round(Math.max(0, Math.min(255, green)));
-  const b = Math.round(Math.max(0, Math.min(255, blue)));
-
+  const stops: [number, [number, number, number]][] = [
+    [2000, [255, 125, 40]],
+    [2700, [255, 165, 90]],
+    [3200, [255, 192, 125]],
+    [4300, [255, 238, 210]],
+    [5600, [160, 202, 255]],
+    [6500, [130, 182, 255]],
+    [10000, [110, 168, 255]],
+  ];
+  const t = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], kelvin));
+  let i = 0;
+  while (i < stops.length - 2 && t > stops[i + 1][0]) i++;
+  const [t0, c0] = stops[i];
+  const [t1, c1] = stops[i + 1];
+  const f = (t - t0) / (t1 - t0);
+  const r = Math.round(c0[0] + (c1[0] - c0[0]) * f);
+  const g = Math.round(c0[1] + (c1[1] - c0[1]) * f);
+  const b = Math.round(c0[2] + (c1[2] - c0[2]) * f);
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+/** Convert HSB/HSV (0-360, 0-100, 0-100) to a #rrggbb hex string. */
+export function hsvToHex(h: number, s: number, v: number): string {
+  const hh = ((h % 360) + 360) % 360;
+  const c = (Math.max(0, Math.min(100, v)) / 100) * (Math.max(0, Math.min(100, s)) / 100);
+  const x = c * (1 - Math.abs(((hh / 60) % 2) - 1));
+  const m = Math.max(0, Math.min(100, v)) / 100 - c;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hh < 60) { r = c; g = x; }
+  else if (hh < 120) { r = x; g = c; }
+  else if (hh < 180) { g = c; b = x; }
+  else if (hh < 240) { g = x; b = c; }
+  else if (hh < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  const toHex = (n: number) =>
+    Math.round(Math.max(0, Math.min(255, (n + m) * 255)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/** Convert integer r, g, b (0-255) to a #rrggbb hex string. */
+export function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) =>
+    Math.round(Math.max(0, Math.min(255, n)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/** Parse a #rrggbb / #rgb hex string into HSB (h 0-360, s 0-100, v 0-100). */
+export function hexToHsv(hex: string): { h: number; s: number; v: number } {
+  let m = (hex || '').trim().replace(/^#/, '');
+  if (m.length === 3) m = m.split('').map((ch) => ch + ch).join('');
+  const num = parseInt(m || 'ffffff', 16);
+  const r = ((num >> 16) & 255) / 255;
+  const g = ((num >> 8) & 255) / 255;
+  const b = (num & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return {
+    h: Math.round(h),
+    s: max === 0 ? 0 : Math.round((d / max) * 100),
+    v: Math.round(max * 100),
+  };
+}
+
+/** Parse a hex string into { r, g, b } (0-255) for display. */
+export function hexToRgbParts(hex: string): { r: number; g: number; b: number } {
+  const { h, s, v } = hexToHsv(hex);
+  const c = (v / 100) * (s / 100);
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v / 100 - c;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  };
 }
 
 /**

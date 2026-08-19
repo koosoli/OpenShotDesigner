@@ -6,6 +6,8 @@ interface GridLayerProps {
   width?: number;
   height?: number;
   visible?: boolean;
+  /** Dark theme: use light strokes. Light theme uses dark slate strokes. */
+  dark?: boolean;
 }
 
 export const GridLayer: React.FC<GridLayerProps> = ({
@@ -13,12 +15,17 @@ export const GridLayer: React.FC<GridLayerProps> = ({
   width = 5000,
   height = 5000,
   visible = true,
+  dark = true,
 }) => {
   const { size, showGrid, unit, pixelsPerUnit } = gridSettings;
 
   if (!showGrid || !visible) return null;
 
   const majorGridStep = size * 5; // e.g. 5 meters or 5 feet
+
+  // Light-theme strokes are dark slate; dark-theme strokes are white.
+  const fineStroke = dark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.09)';
+  const majorStroke = dark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(15, 23, 42, 0.2)';
 
   return (
     <g className="grid-layer pointer-events-none select-none">
@@ -33,7 +40,7 @@ export const GridLayer: React.FC<GridLayerProps> = ({
           <path
             d={`M ${size} 0 L 0 0 0 ${size}`}
             fill="none"
-            stroke="rgba(255, 255, 255, 0.04)"
+            stroke={fineStroke}
             strokeWidth="1"
           />
         </pattern>
@@ -49,7 +56,7 @@ export const GridLayer: React.FC<GridLayerProps> = ({
           <path
             d={`M ${majorGridStep} 0 L 0 0 0 ${majorGridStep}`}
             fill="none"
-            stroke="rgba(255, 255, 255, 0.12)"
+            stroke={majorStroke}
             strokeWidth="1.5"
           />
         </pattern>
@@ -83,46 +90,6 @@ export const GridLayer: React.FC<GridLayerProps> = ({
         strokeWidth="1.5"
         strokeDasharray="4 4"
       />
-
-      {/* Scale indicator marker in top left */}
-      <g transform="translate(40, 40)" className="opacity-60">
-        <rect
-          x={0}
-          y={0}
-          width={pixelsPerUnit * 5}
-          height={20}
-          fill="rgba(15, 23, 42, 0.7)"
-          stroke="rgba(255, 255, 255, 0.2)"
-          rx={4}
-        />
-        <line
-          x1={5}
-          y1={10}
-          x2={pixelsPerUnit * 5 - 5}
-          y2={10}
-          stroke="#94a3b8"
-          strokeWidth="2"
-        />
-        <line x1={5} y1={5} x2={5} y2={15} stroke="#94a3b8" strokeWidth="2" />
-        <line
-          x1={pixelsPerUnit * 5 - 5}
-          y1={5}
-          x2={pixelsPerUnit * 5 - 5}
-          y2={15}
-          stroke="#94a3b8"
-          strokeWidth="2"
-        />
-        <text
-          x={(pixelsPerUnit * 5) / 2}
-          y={35}
-          fill="#94a3b8"
-          fontSize="11"
-          textAnchor="middle"
-          fontFamily="monospace"
-        >
-          5 {unit === 'm' ? 'Meters' : 'Feet'}
-        </text>
-      </g>
     </g>
   );
 };

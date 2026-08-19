@@ -8,7 +8,8 @@ export type ElementType =
   | 'prop'
   | 'track'
   | 'text'
-  | 'measurement';
+  | 'measurement'
+  | 'arrow';
 
 export interface Vector2D {
   x: number;
@@ -102,20 +103,47 @@ export type LightFixtureType =
   | 'practical'
   | 'china_ball'
   | 'reflector'
+  | 'hmi'
+  | 'par_can'
+  | 'kino_flo'
   | 'c_stand_flag'
+  | 'flag_solid'
+  | 'flag_silk'
+  | 'flag_net'
+  | 'flag_cutter'
   | 'overhead_diffusion';
+
+export type FlagSize =
+  | '4x4'
+  | '6x6'
+  | '12x12'
+  | '12x18'
+  | '18x18'
+  | '18x24'
+  | '24x24'
+  | '24x36'
+  | '30x36'
+  | '36x36'
+  | '36x48'
+  | '42x42'
+  | '48x48'
+  | '48x60';
+export type FlagNetValue = 'single' | 'double';
 
 export interface LightElement extends BaseElement {
   type: 'light';
   fixtureType: LightFixtureType;
-  colorTemp: number; // Kelvin (e.g. 3200, 4300, 5600) or 0 for RGB
+  colorTemp: number; // Kelvin (e.g. 3200, 4300, 5600) or 0 for RGB / flags
   rgbColor?: string; // for RGB gels (e.g. #ff0055)
   intensity: number; // 0 to 100 %
-  beamAngle: number; // 10 to 120 degrees
+  beamAngle: number; // 10 to 120 degrees (0 for flags / non-emitting fixtures)
   throwDistance: number;
+  beamVisible?: boolean; // false hides this light's beam cone/glow (default true)
   hasBarnDoors?: boolean;
   hasDiffusionGrid?: boolean;
   fixtureModel?: string; // e.g. "Aputure 600d", "ARRI Skypanel S60"
+  flagSize?: FlagSize; // fabric size for C-stand flags (18×24", 24×36", ...)
+  netValue?: FlagNetValue; // single (≈½ stop) vs double (≈1 stop) net
 }
 
 export interface WallElement extends BaseElement {
@@ -141,6 +169,8 @@ export interface WindowElement extends BaseElement {
   depth: number;
   sunlightAngle?: number;
   hasCurtains?: boolean;
+  /** Hide the sunlight throw cone on this individual window. */
+  beamVisible?: boolean;
 }
 
 export type PropType =
@@ -198,6 +228,16 @@ export interface TextElement extends BaseElement {
   text: string;
   fontSize: number;
   color: string;
+  /** 'normal' | 'bold' | numeric weights like '600' */
+  fontWeight?: string;
+  /** 'normal' | 'italic' */
+  fontStyle?: string;
+  underline?: boolean;
+  strikethrough?: boolean;
+  /** CSS font family stack */
+  fontFamily?: string;
+  /** SVG text-anchor: where the text aligns relative to the element point */
+  textAlign?: 'left' | 'center' | 'right';
 }
 
 export interface MeasurementElement extends BaseElement {
@@ -205,6 +245,21 @@ export interface MeasurementElement extends BaseElement {
   x2: number;
   y2: number;
   unit: 'ft' | 'm';
+}
+
+export interface ArrowElement extends BaseElement {
+  type: 'arrow';
+  x2: number;
+  y2: number;
+  /** Stroke color */
+  color?: string;
+  strokeWidth?: number;
+  /** Arrowhead configuration */
+  headStyle?: 'single' | 'double' | 'open';
+  /** Line dash pattern */
+  dashStyle?: 'solid' | 'dashed' | 'dotted';
+  /** Optional label shown above the line midpoint */
+  label?: string;
 }
 
 export type FloorPlanElement =
@@ -217,7 +272,8 @@ export type FloorPlanElement =
   | PropElement
   | TrackElement
   | TextElement
-  | MeasurementElement;
+  | MeasurementElement
+  | ArrowElement;
 
 export type ShotSize =
   | 'ELS' // Extreme Long Shot
@@ -343,4 +399,5 @@ export type ActiveTool =
   | 'prop'
   | 'track'
   | 'measure'
+  | 'arrow'
   | 'text';

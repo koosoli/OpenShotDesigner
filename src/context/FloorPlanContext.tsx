@@ -4,8 +4,12 @@ import {
   AspectRatio,
   BackgroundImage,
   CameraElement,
+  CameraRigType,
   FloorPlanElement,
+  LightElement,
+  LightFixtureType,
   Project,
+  PropElement,
   PropType,
   SceneSetup,
   Shot,
@@ -28,6 +32,8 @@ interface FloorPlanContextType {
   highlightedElementId: string | null;
   activeTool: ActiveTool;
   activePropSubtype: PropType;
+  activeLightFixture: LightFixtureType;
+  activeCameraRig: CameraRigType;
   historyIndex: number;
   historyLength: number;
   playback: {
@@ -42,6 +48,8 @@ interface FloorPlanContextType {
   isExportModalOpen: boolean;
   theme: 'dark' | 'light';
   displaySettings: DisplaySettings;
+  storageWarning: string | null;
+  dismissStorageWarning: () => void;
 
   // Actions
   toggleTheme: () => void;
@@ -49,6 +57,10 @@ interface FloorPlanContextType {
   updateDisplaySettings: (updates: Partial<DisplaySettings>) => void;
   setTool: (tool: ActiveTool) => void;
   setPropSubtype: (type: PropType) => void;
+  setLightFixture: (type: LightFixtureType) => void;
+  setCameraRig: (rig: CameraRigType) => void;
+  quickSearchOpen: boolean;
+  setQuickSearchOpen: (open: boolean) => void;
   activeRightTab: 'shots' | 'inspector';
   setActiveRightTab: (tab: 'shots' | 'inspector') => void;
   selectElement: (id: string | null, multi?: boolean) => void;
@@ -59,11 +71,15 @@ interface FloorPlanContextType {
 
   // Element CRUD
   addElement: (element: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }) => string;
+  quickAddElement: (element: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }) => string;
   updateElement: (id: string, updates: Partial<FloorPlanElement>, recordHistory?: boolean) => void;
   updateMultipleElements: (updates: { id: string; updates: Partial<FloorPlanElement> }[], recordHistory?: boolean) => void;
   deleteSelectedElements: () => void;
   deleteElementById: (id: string) => void;
   duplicateSelected: () => void;
+  copySelectedElements: () => void;
+  pasteElements: () => void;
+  commitCurrentState: () => void;
   insertDoorInWall: (wallId: string) => string | null;
   insertWindowInWall: (wallId: string) => string | null;
 
@@ -146,7 +162,9 @@ export interface DisplaySettings {
   showPropLabels: boolean;
   showTrackLabels: boolean;
   showLightLabels: boolean;
+  showLightNameLabels: boolean;
   showMeasurementLabels: boolean;
+  showDoorWindowLabels: boolean;
   // Per-category label color overrides (null = use element's own color)
   actorLabelColor: string | null;
   cameraLabelColor: string | null;
@@ -175,7 +193,9 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showPropLabels: true,
   showTrackLabels: true,
   showLightLabels: true,
+  showLightNameLabels: true,
   showMeasurementLabels: true,
+  showDoorWindowLabels: true,
   actorLabelColor: null,
   cameraLabelColor: null,
   propLabelColor: null,
@@ -313,7 +333,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [selectedShotId, setSelectedShotId] = useState<string | null>(null);
   const [highlightedElementId, setHighlightedElementId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<ActiveTool>('select');
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [activePropSubtype, setActivePropSubtype] = useState<PropType>('table_rect');
+  const [activeLightFixture, setActiveLightFixture] = useState<LightFixtureType>('fresnel');
+  const [activeCameraRig, setActiveCameraRig] = useState<CameraRigType>('Tripod');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
       const savedTheme = migrateStorageKey(LEGACY_STORAGE_KEYS.theme, STORAGE_KEYS.theme);
@@ -336,7 +359,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(() => {
     try {
       const saved = migrateStorageKey(LEGACY_STORAGE_KEYS.display, STORAGE_KEYS.display);
-      if (saved) return { ...DEFAULT_DISPLAY_SETTINGS, ...JSON.parse(saved) };
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Light names became default-on; migrate any previously-saved "off".
+        if (parsed.showLightNameLabels === false) parsed.showLightNameLabels = true;
+        return { ...DEFAULT_DISPLAY_SETTINGS, ...parsed };
+      }
     } catch {}
     return DEFAULT_DISPLAY_SETTINGS;
   });
@@ -369,14 +397,24 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [history, setHistory] = useState<SceneSetup[]>([activeSetup]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  // Auto-save to localStorage
+  // Auto-save to localStorage. If the project grows too large for the browser's
+  // localStorage quota (most commonly because storyboards are embedded as
+  // base64 data URLs), surface a visible warning instead of failing silently —
+  // the user can still export the full project as a JSON file.
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+      setStorageWarning(null);
     } catch {
-      // ignore storage errors
+      setStorageWarning(
+        'Autosave to this browser failed — the project (likely with embedded storyboards) ' +
+          'exceeds the local storage limit. Use the download button in the top bar to save your project file.'
+      );
     }
   }, [project]);
+
+  const dismissStorageWarning = () => setStorageWarning(null);
 
   // Sync history when active setup changes externally (e.g. switched setup)
   const prevSetupIdRef = useRef(project.activeSetupId);
@@ -387,18 +425,26 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     canvasViewportRef.current = { width, height };
   };
 
+  // World-space position at the visual center of the currently visible canvas.
+  // Used to spawn elements added via quick search / new cameras.
+  const getCanvasCenterPosition = (): Vector2D => {
+    const { width, height } = canvasViewportRef.current;
+    const scale = activeSetup.canvasScale || 1;
+    return {
+      x: Math.round((width / 2 - activeSetup.canvasOffset.x) / scale),
+      y: Math.round((height / 2 - activeSetup.canvasOffset.y) / scale),
+    };
+  };
+
   // Spawn position for a newly added camera: the center of the currently
   // visible canvas. If earlier cameras already sit at/near that spot, nudge
   // diagonally so the new camera is visibly ADDED instead of stacking on top
   // of (and appearing to overwrite) the previous one.
   const getNewCameraPosition = (): Vector2D => {
-    const { width, height } = canvasViewportRef.current;
-    const scale = activeSetup.canvasScale || 1;
-    const centerX = (width / 2 - activeSetup.canvasOffset.x) / scale;
-    const centerY = (height / 2 - activeSetup.canvasOffset.y) / scale;
+    const center = getCanvasCenterPosition();
     const camCount = activeSetup.elements.filter((e) => e.type === 'camera').length;
     const nudge = camCount * 40;
-    return { x: Math.round(centerX + nudge), y: Math.round(centerY + nudge) };
+    return { x: center.x + nudge, y: center.y + nudge };
   };
   useEffect(() => {
     if (prevSetupIdRef.current !== project.activeSetupId) {
@@ -442,10 +488,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     if (recordHistory) {
       const nextHistory = history.slice(0, historyIndex + 1);
-      nextHistory.push(newSetup);
-      if (nextHistory.length > 50) nextHistory.shift();
-      setHistory(nextHistory);
-      setHistoryIndex(nextHistory.length - 1);
+      const last = nextHistory[nextHistory.length - 1];
+      // Skip identical consecutive states so one press of Ctrl+Z only ever
+      // steps back ONE logical operation (no stacked no-op entries).
+      if (!last || JSON.stringify(last) !== JSON.stringify(newSetup)) {
+        nextHistory.push(newSetup);
+        if (nextHistory.length > 50) nextHistory.shift();
+        setHistory(nextHistory);
+        setHistoryIndex(nextHistory.length - 1);
+      }
     }
   };
 
@@ -599,7 +650,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         fovAngle: calculateFovAngle(focal, sensor),
         aspectRatio: '16:9',
         cameraHeight: 'Eye Level',
-        rigType: 'Tripod',
+        rigType: activeCameraRig,
         throwDistance: 280,
         path: [],
         associatedShotId: shotId,
@@ -641,7 +692,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setSelectedShotId(shotId);
       return id;
     } else if (partial.type === 'light') {
-      const fixture = LIGHT_FIXTURES[0];
+      const requestedFixture = (partial as Partial<LightElement>).fixtureType;
+      const fixture =
+        LIGHT_FIXTURES.find((f) => f.type === (requestedFixture ?? activeLightFixture)) ||
+        LIGHT_FIXTURES[0];
       newElement = {
         ...baseDefaults,
         type: 'light',
@@ -652,6 +706,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         beamAngle: fixture.defaultBeam,
         throwDistance: 220,
         fixtureModel: fixture.defaultModel,
+        ...(fixture.isFlag ? { flagSize: '24x36' as const } : {}),
         ...partial,
       };
     } else if (partial.type === 'wall') {
@@ -684,7 +739,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...partial,
       };
     } else if (partial.type === 'prop') {
-      const propInfo = PROP_CATALOG.find((p) => p.type === activePropSubtype) || PROP_CATALOG[0];
+      const requestedProp = (partial as Partial<PropElement>).propType;
+      const propInfo =
+        PROP_CATALOG.find((p) => p.type === (requestedProp ?? activePropSubtype)) || PROP_CATALOG[0];
       newElement = {
         ...baseDefaults,
         type: 'prop',
@@ -714,6 +771,19 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         unit: activeSetup.gridSettings.unit,
         ...partial,
       };
+    } else if (partial.type === 'arrow') {
+      newElement = {
+        ...baseDefaults,
+        type: 'arrow',
+        name: 'Arrow',
+        x2: baseDefaults.x + 150,
+        y2: baseDefaults.y,
+        color: '#f97316',
+        strokeWidth: 2.5,
+        headStyle: 'single',
+        dashStyle: 'solid',
+        ...partial,
+      };
     } else {
       newElement = {
         ...baseDefaults,
@@ -733,6 +803,29 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     commitSetupState(updatedSetup);
     setSelectedElementIds([id]);
+    return id;
+  };
+
+  // Quick-search placement: drop an element at the center of the currently
+  // visible canvas (used by the Shift+Space quick asset search).
+  const quickAddElement = (
+    partial: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }
+  ): string => {
+    const pos = getCanvasCenterPosition();
+    const full: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] } = {
+      ...partial,
+      x: pos.x,
+      y: pos.y,
+    };
+
+    // Linear elements need a sensible default length when placed via search.
+    if ((partial.type === 'wall' || partial.type === 'track' || partial.type === 'measurement' || partial.type === 'arrow') && (full as any).x2 === undefined) {
+      (full as any).x2 = pos.x + 240;
+      (full as any).y2 = pos.y;
+    }
+
+    const id = addElement(full);
+    setActiveTool('select');
     return id;
   };
 
@@ -772,6 +865,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       shots: updatedShots,
     };
 
+    liveSetupRef.current = updatedSetup;
     commitSetupState(updatedSetup, recordHistory);
   };
 
@@ -790,6 +884,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       elements: updatedElements,
     };
 
+    liveSetupRef.current = updatedSetup;
     commitSetupState(updatedSetup, recordHistory);
   };
 
@@ -863,6 +958,97 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     commitSetupState(updatedSetup);
     setSelectedElementIds(newSelectedIds);
+  };
+
+  // Clipboard for Ctrl+C / Ctrl+V copy & paste of selected assets.
+  const clipboardRef = useRef<FloorPlanElement[]>([]);
+  const pasteOffsetRef = useRef(30);
+
+  // Holds the most recent LIVE setup produced by a no-history update (drag
+  // moves, rotate, endpoint/waypoint drags). Updated synchronously by
+  // updateElement / updateMultipleElements so that commitCurrentState (called
+  // on release) always pushes the EXACT state shown on the canvas — even if
+  // React hasn't re-rendered the pointerup handler with the final position yet.
+  const liveSetupRef = useRef<SceneSetup | null>(null);
+
+  const copySelectedElements = () => {
+    if (selectedElementIds.length === 0) return;
+    clipboardRef.current = selectedElementIds
+      .map((id) => activeSetup.elements.find((e) => e.id === id))
+      .filter((el): el is FloorPlanElement => !!el)
+      .map((el) => JSON.parse(JSON.stringify(el)) as FloorPlanElement);
+    pasteOffsetRef.current = 30;
+  };
+
+  const pasteElements = () => {
+    if (clipboardRef.current.length === 0) return;
+    const newElements: FloorPlanElement[] = [];
+    const newSelectedIds: string[] = [];
+    let newShots = activeSetup.shots;
+    let newShotsAdded = 0;
+
+    clipboardRef.current.forEach((el) => {
+      const newId = `el-${el.type}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const pasted: FloorPlanElement = {
+        ...el,
+        id: newId,
+        name: `${el.name} (Copy)`,
+        x: el.x + pasteOffsetRef.current,
+        y: el.y + pasteOffsetRef.current,
+      };
+
+      // Camera copies also carry a copy of their linked shot so the pasted
+      // camera isn't orphaned in the shot list.
+      if (pasted.type === 'camera') {
+        const cam = pasted as CameraElement;
+        const linkedShot = activeSetup.shots.find((s) => s.id === el.associatedShotId);
+        const newShotId = `shot-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+        cam.associatedShotId = newShotId;
+        if (linkedShot) {
+          const order = activeSetup.shots.length + newShotsAdded + 1;
+          const copiedShot: Shot = {
+            ...linkedShot,
+            id: newShotId,
+            cameraId: newId,
+            cameraLabel: cam.cameraLabel,
+            shotNumber: `${activeSetup.sceneNumber || '1'}/${order}`,
+            name: `${linkedShot.name} (Copy)`,
+            order,
+          };
+          newShots = [...newShots, copiedShot];
+          newShotsAdded++;
+        }
+      }
+
+      newElements.push(pasted);
+      newSelectedIds.push(newId);
+    });
+
+    pasteOffsetRef.current += 30;
+
+    const updatedSetup: SceneSetup = {
+      ...activeSetup,
+      elements: [...activeSetup.elements, ...newElements],
+      shots: newShots,
+    };
+
+    commitSetupState(updatedSetup);
+    setSelectedElementIds(newSelectedIds);
+  };
+
+  // Push the current live canvas state into history. Drags update the project
+  // live (recordHistory=false) and call this ONCE on release, so a single
+  // drag/move/rotate is exactly one undoable operation.
+  const commitCurrentState = () => {
+    const nextHistory = history.slice(0, historyIndex + 1);
+    const last = nextHistory[nextHistory.length - 1];
+    const targetSetup = liveSetupRef.current ?? activeSetup;
+    if (!last || JSON.stringify(last) !== JSON.stringify(targetSetup)) {
+      nextHistory.push(targetSetup);
+      if (nextHistory.length > 50) nextHistory.shift();
+      setHistory(nextHistory);
+      setHistoryIndex(nextHistory.length - 1);
+    }
   };
 
   const insertDoorInWall = (wallId: string): string | null => {
@@ -1857,6 +2043,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         highlightedElementId,
         activeTool,
         activePropSubtype,
+        activeLightFixture,
+        activeCameraRig,
         historyIndex,
         historyLength: history.length,
         playback: {
@@ -1878,6 +2066,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setTheme,
         setTool: setActiveTool,
         setPropSubtype: setActivePropSubtype,
+        setLightFixture: setActiveLightFixture,
+        setCameraRig: setActiveCameraRig,
+        quickSearchOpen,
+        setQuickSearchOpen,
         selectElement,
         selectElements,
         clearSelection,
@@ -1885,6 +2077,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setHighlightedElement: setHighlightedElementId,
 
         addElement,
+        quickAddElement,
         updateElement,
         updateMultipleElements,
         deleteSelectedElements,
@@ -1927,6 +2120,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         undo,
         redo,
+        commitCurrentState,
 
         zoomIn,
         zoomOut,
@@ -1952,6 +2146,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         displaySettings,
         updateDisplaySettings,
+        storageWarning,
+        dismissStorageWarning,
       }}
     >
       {children}

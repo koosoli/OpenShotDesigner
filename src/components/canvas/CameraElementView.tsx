@@ -150,7 +150,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
         onPointerDown={(e) => onSelect(camera.id, e)}
       >
         {displaySettings.showFovCones && (
-          <g>
+          <g className="pointer-events-none">
             <defs>
               <radialGradient
                 id={`cam-fov-grad-${camera.id}`}

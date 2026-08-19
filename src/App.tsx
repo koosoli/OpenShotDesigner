@@ -8,10 +8,11 @@ import { ShotListPanel } from './components/shotlist/ShotListPanel';
 import { InspectorPanel } from './components/inspector/InspectorPanel';
 import { ViewfinderModal } from './components/viewfinder/ViewfinderModal';
 import { PrintableShotPlan } from './components/export/PrintableShotPlan';
-import { Film, Sliders, ChevronRight, ChevronLeft } from 'lucide-react';
+import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
+import { AlertTriangle, Film, Sliders, ChevronRight, ChevronLeft, X } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme } = useFloorPlan();
+  const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning } = useFloorPlan();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState<number>(700); // Default wide enough to show the full shot list
   const [isResizing, setIsResizing] = useState(false);
@@ -62,6 +63,27 @@ const MainLayout: React.FC = () => {
           {/* Director's Blocking Playback Timeline */}
           <TimelineBar />
         </div>
+
+        {/* Storage Warning Banner (large embedded storyboards exceed localStorage quota) */}
+        {storageWarning && (
+          <div
+            className={`absolute top-3 left-1/2 -translate-x-1/2 z-[60] max-w-xl w-[92%] flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border shadow-2xl animate-in fade-in slide-in-from-top-1 ${
+              isLight ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-amber-950/95 border-amber-700 text-amber-200'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
+            <p className="text-[11px] leading-relaxed flex-1">{storageWarning}</p>
+            <button
+              onClick={dismissStorageWarning}
+              title="Dismiss"
+              className={`p-1 rounded transition-colors flex-shrink-0 ${
+                isLight ? 'text-amber-700 hover:bg-amber-200/60' : 'text-amber-300 hover:bg-amber-900/60'
+              }`}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Right Sidebar: Synchronized Shot List & Contextual Inspector */}
         {isRightPanelOpen ? (
@@ -176,6 +198,7 @@ const MainLayout: React.FC = () => {
       {/* 3. Modals */}
       <ViewfinderModal />
       <PrintableShotPlan />
+      <QuickAssetSearch />
     </div>
   );
 };

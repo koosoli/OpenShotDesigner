@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { MeasurementElement, PropElement, TextElement, TrackElement } from '../../types';
+import { ArrowElement, MeasurementElement, PropElement, TextElement, TrackElement } from '../../types';
 import { getDistance } from '../../utils/geometry';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
+import { ArrowGlyph } from './ArrowGlyph';
 
 interface PropsLayerProps {
   propsList: PropElement[];
   tracks: TrackElement[];
   measurements: MeasurementElement[];
+  arrows: ArrowElement[];
   texts: TextElement[];
   selectedIds: string[];
   onSelect: (id: string, e: React.PointerEvent) => void;
@@ -19,6 +21,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
   propsList,
   tracks,
   measurements,
+  arrows,
   texts,
   selectedIds,
   onSelect,
@@ -464,7 +467,93 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
         );
       })}
 
-      {/* 4. Text Annotations with Double-Click Inline Editing */}
+      {/* 4. Arrows / Direction Annotations */}
+      {arrows.map((a) => {
+        const isSelected = selectedIds.includes(a.id);
+        const x1 = a.x;
+        const y1 = a.y;
+        const x2 = a.x2 ?? a.x + 150;
+        const y2 = a.y2 ?? a.y;
+        const color = isSelected ? '#38bdf8' : a.color || '#f97316';
+        const sw = a.strokeWidth || 2.5;
+        const headStyle = a.headStyle || 'single';
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const headLen = Math.max(10, 7 + sw * 2);
+        const half = 0.45;
+
+        // Back off the line ends so open / double heads don't overlap the shaft
+        const lineInsetEnd = headStyle === 'open' ? headLen * 0.7 : 0;
+        const lineInsetStart = headStyle === 'double' ? headLen * 0.7 : 0;
+        const lx1 = x1 + Math.cos(angle) * lineInsetStart;
+        const ly1 = y1 + Math.sin(angle) * lineInsetStart;
+        const lx2 = x2 - Math.cos(angle) * lineInsetEnd;
+        const ly2 = y2 - Math.sin(angle) * lineInsetEnd;
+
+        const midX = (x1 + x2) / 2;
+        const midY = (y1 + y2) / 2;
+        const labelOffsetY = (y2 - y1) !== 0 ? -1 : -10;
+
+        return (
+          <g
+            key={a.id}
+            className="cursor-pointer"
+            onPointerDown={(e) => onSelect(a.id, e)}
+          >
+            {/* Invisible fat hit area so thin arrows are easy to select */}
+            <line
+              x1={lx1}
+              y1={ly1}
+              x2={lx2}
+              y2={ly2}
+              stroke="transparent"
+              strokeWidth={sw + 12}
+              fill="none"
+            />
+            <ArrowGlyph
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              color={color}
+              strokeWidth={sw}
+              headStyle={headStyle}
+              dashStyle={a.dashStyle}
+            />
+            {/* Optional label */}
+            {a.label && (
+              <g
+                transform={`translate(${midX}, ${midY + labelOffsetY}) scale(${labelScale})`}
+                opacity={labelOpacity}
+              >
+                <rect
+                  x={-38}
+                  y={-11}
+                  width={76}
+                  height={22}
+                  fill="#0f172a"
+                  stroke={isSelected ? '#38bdf8' : color}
+                  strokeWidth={1.5}
+                  rx={4}
+                  className="drop-shadow-md"
+                />
+                <text
+                  x={0}
+                  y={4}
+                  fill={isSelected ? '#38bdf8' : '#fb923c'}
+                  fontSize="11"
+                  textAnchor="middle"
+                  fontWeight="bold"
+                  className="select-none font-mono"
+                >
+                  {a.label}
+                </text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+
+      {/* 5. Text Annotations with Double-Click Inline Editing */}
       {texts.map((txt) => {
         const isSelected = selectedIds.includes(txt.id);
         const isEditing = editingTextId === txt.id;
@@ -522,8 +611,21 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 y={0}
                 fill={txt.color || '#94a3b8'}
                 fontSize={txt.fontSize || 16}
-                fontFamily="sans-serif"
-                fontWeight="600"
+                fontFamily={txt.fontFamily || 'sans-serif'}
+                fontWeight={txt.fontWeight || 'normal'}
+                fontStyle={txt.fontStyle || 'normal'}
+                textDecoration={
+                  txt.underline && txt.strikethrough
+                    ? 'underline line-through'
+                    : txt.underline
+                    ? 'underline'
+                    : txt.strikethrough
+                    ? 'line-through'
+                    : undefined
+                }
+                textAnchor={
+                  txt.textAlign === 'left' ? 'start' : txt.textAlign === 'right' ? 'end' : 'middle'
+                }
                 className="select-none"
               >
                 {txt.text}

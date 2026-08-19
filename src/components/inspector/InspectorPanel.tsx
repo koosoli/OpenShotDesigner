@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
+  ArrowElement,
   CameraElement,
   DoorElement,
   FloorPlanElement,
   LightElement,
   PropElement,
+  TextElement,
   WallElement,
   Waypoint,
   WindowElement,
@@ -17,11 +19,15 @@ import {
   CAMERA_COLOR_PALETTE,
   CAMERA_HEIGHTS,
   CAMERA_RIGS,
+  DEFAULT_FLAG_SIZE,
+  FLAG_SIZE_PRESETS,
   FOCAL_LENGTH_PRESETS,
   LIGHT_FIXTURES,
   PROP_CATALOG,
   SENSOR_FORMATS,
 } from '../../constants/presets';
+import { flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
+import { hexToHsv, hexToRgbParts, hsvToHex, rgbToHex } from '../../utils/geometry';
 import {
   Camera,
   Compass,
@@ -112,8 +118,10 @@ const PillToggle: React.FC<{
   </button>
 );
 
-/** Storyboard image uploader — reads an image file and stores it as a data URL.
- *  Previews it inside the scene's aspect ratio frame, with fit + pan controls. */
+/** Storyboard image uploader — reads an image file and stores it as a data URL
+ *  (embedded inside the saved project JSON), OR links an external image URL so
+ *  the project references it instead. Previews it inside the scene's aspect
+ *  ratio frame, with fit + pan controls. */
 const StoryboardField: React.FC<{
   label: string;
   value?: string;
@@ -126,6 +134,14 @@ const StoryboardField: React.FC<{
   isLight: boolean;
 }> = ({ label, value, onChange, aspectRatio, fit, position, onFitChange, onPositionChange, isLight }) => {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkDraft, setLinkDraft] = useState('');
+  const [imgError, setImgError] = useState(false);
+
+  // Re-test the image whenever the source changes (upload or re-link).
+  useEffect(() => {
+    setImgError(false);
+  }, [value]);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -136,6 +152,15 @@ const StoryboardField: React.FC<{
     e.target.value = '';
   };
 
+  const applyLink = () => {
+    const url = linkDraft.trim();
+    if (!url) return;
+    onChange(url);
+    setLinkDraft('');
+    setShowLinkInput(false);
+  };
+
+  const isEmbedded = !!value && value.startsWith('data:');
   const ratio = aspectRatio > 0 ? aspectRatio : 16 / 9;
   const curFit = fit || 'cover';
   const posX = position?.x ?? 50;
@@ -157,16 +182,29 @@ const StoryboardField: React.FC<{
             className="w-full bg-slate-100 overflow-hidden"
             style={{ aspectRatio: `${ratio} / 1`, position: 'relative' }}
           >
-            <img
-              src={value}
-              alt={label}
-              className="absolute inset-0 w-full h-full"
-              style={{
-                objectFit: curFit === 'cover' ? 'cover' : 'contain',
-                objectPosition: `${posX}% ${position?.y ?? 50}%`,
-                background: '#0f172a',
-              }}
-            />
+            {imgError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center p-2 bg-slate-200 dark:bg-slate-900">
+                <ImageIcon className="w-5 h-5 text-slate-400" />
+                <span className="text-[10px] font-semibold text-slate-500">
+                  Storyboard image could not be loaded.
+                </span>
+                <span className="text-[9px] text-slate-400">
+                  The file may have moved. Re-link or upload it again.
+                </span>
+              </div>
+            ) : (
+              <img
+                src={value}
+                alt={label}
+                className="absolute inset-0 w-full h-full"
+                onError={() => setImgError(true)}
+                style={{
+                  objectFit: curFit === 'cover' ? 'cover' : 'contain',
+                  objectPosition: `${posX}% ${position?.y ?? 50}%`,
+                  background: '#0f172a',
+                }}
+              />
+            )}
           </div>
 
           {/* Fit + framing controls */}
@@ -210,6 +248,14 @@ const StoryboardField: React.FC<{
                 />
               </div>
             )}
+
+            {/* Storage note */}
+            <p className={`text-[9px] leading-snug ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+              {isEmbedded
+                ? 'Embedded in the project file — saves and loads everywhere with the project.'
+                : 'Linked by URL — only loads when this address is reachable.'}
+            </p>
+
             <div className="flex">
               <button
                 onClick={() => inputRef.current?.click()}
@@ -220,6 +266,16 @@ const StoryboardField: React.FC<{
                 Replace
               </button>
               <button
+                onClick={() => setShowLinkInput((v) => !v)}
+                className={`flex-1 py-1.5 text-[10px] font-semibold border-t border-l ${
+                  showLinkInput
+                    ? 'text-violet-600 dark:text-violet-300'
+                    : isLight ? 'text-violet-700 border-slate-200 hover:bg-violet-50' : 'text-violet-300 border-slate-700 hover:bg-slate-800'
+                }`}
+              >
+                {showLinkInput ? 'Cancel' : 'Link URL'}
+              </button>
+              <button
                 onClick={() => onChange(null)}
                 className={`flex-1 py-1.5 text-[10px] font-semibold border-t border-l ${
                   isLight ? 'text-red-600 border-slate-200 hover:bg-red-50' : 'text-red-400 border-slate-700 hover:bg-red-950/40'
@@ -228,17 +284,72 @@ const StoryboardField: React.FC<{
                 Remove
               </button>
             </div>
+
+            {showLinkInput && (
+              <div className="flex gap-1 pt-1.5">
+                <input
+                  type="text"
+                  value={linkDraft}
+                  onChange={(e) => setLinkDraft(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && applyLink()}
+                  placeholder="https://…/frame.jpg or relative/path.jpg"
+                  className={`flex-1 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 ${
+                    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  }`}
+                />
+                <button
+                  onClick={applyLink}
+                  className="px-2.5 py-1.5 text-[10px] font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-lg"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => inputRef.current?.click()}
-          className={`w-full py-3 rounded-lg border border-dashed text-[11px] font-semibold transition-colors ${
-            isLight ? 'text-slate-500 border-slate-300 hover:bg-slate-50' : 'text-slate-400 border-slate-700 hover:bg-slate-800'
-          }`}
-        >
-          + Attach Storyboard Image
-        </button>
+        <div className="space-y-1.5">
+          <button
+            onClick={() => inputRef.current?.click()}
+            className={`w-full py-3 rounded-lg border border-dashed text-[11px] font-semibold transition-colors ${
+              isLight ? 'text-slate-500 border-slate-300 hover:bg-slate-50' : 'text-slate-400 border-slate-700 hover:bg-slate-800'
+            }`}
+          >
+            + Attach Storyboard Image
+          </button>
+          <button
+            onClick={() => setShowLinkInput((v) => !v)}
+            className={`w-full py-2 rounded-lg border border-dashed text-[10px] font-semibold transition-colors ${
+              isLight ? 'text-violet-600 border-violet-300 hover:bg-violet-50' : 'text-violet-300 border-violet-800 hover:bg-slate-800'
+            }`}
+          >
+            {showLinkInput ? 'Cancel linking' : 'or Link Image by URL…'}
+          </button>
+          {showLinkInput && (
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={linkDraft}
+                onChange={(e) => setLinkDraft(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyLink()}
+                placeholder="https://…/frame.jpg or relative/path.jpg"
+                className={`flex-1 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 ${
+                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                }`}
+              />
+              <button
+                onClick={applyLink}
+                className="px-2.5 py-1.5 text-[10px] font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-lg"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+          <p className={`text-[9px] leading-snug ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+            Uploading embeds the image in the project file (self-contained). Linking stores only the
+            URL — the image must stay reachable for it to display later.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -839,6 +950,7 @@ export const InspectorPanel: React.FC = () => {
                   <PillToggle on={displaySettings.showPropLabels} onClick={() => updateDisplaySettings({ showPropLabels: !displaySettings.showPropLabels })} label="Props" isLight={isLight} />
                   <PillToggle on={displaySettings.showTrackLabels} onClick={() => updateDisplaySettings({ showTrackLabels: !displaySettings.showTrackLabels })} label="Tracks" isLight={isLight} />
                   <PillToggle on={displaySettings.showLightLabels} onClick={() => updateDisplaySettings({ showLightLabels: !displaySettings.showLightLabels })} label="Lights" isLight={isLight} />
+                  <PillToggle on={displaySettings.showLightNameLabels} onClick={() => updateDisplaySettings({ showLightNameLabels: !displaySettings.showLightNameLabels })} label="Light names" isLight={isLight} />
                   <PillToggle on={displaySettings.showMeasurementLabels} onClick={() => updateDisplaySettings({ showMeasurementLabels: !displaySettings.showMeasurementLabels })} label="Measurements" isLight={isLight} />
                 </div>
               </div>
@@ -880,6 +992,7 @@ export const InspectorPanel: React.FC = () => {
                   <PillToggle on={displaySettings.showWaypoints} onClick={() => updateDisplaySettings({ showWaypoints: !displaySettings.showWaypoints })} label="Waypoint markers & paths" isLight={isLight} />
                   <PillToggle on={displaySettings.showFovCones} onClick={() => updateDisplaySettings({ showFovCones: !displaySettings.showFovCones })} label="Camera FOV cones" isLight={isLight} />
                   <PillToggle on={displaySettings.showLightBeams} onClick={() => updateDisplaySettings({ showLightBeams: !displaySettings.showLightBeams })} label="Light beams" isLight={isLight} />
+                  <PillToggle on={displaySettings.showDoorWindowLabels} onClick={() => updateDisplaySettings({ showDoorWindowLabels: !displaySettings.showDoorWindowLabels })} label="Door / window labels" isLight={isLight} />
                   <PillToggle on={displaySettings.showGrid} onClick={() => updateDisplaySettings({ showGrid: !displaySettings.showGrid })} label="Grid & axes" isLight={isLight} />
                 </div>
               </div>
@@ -1276,7 +1389,7 @@ export const InspectorPanel: React.FC = () => {
         </div>
 
         {/* Rotation & Orientation Section */}
-        {el.type !== 'wall' && el.type !== 'track' && el.type !== 'measurement' && (
+        {el.type !== 'wall' && el.type !== 'track' && el.type !== 'measurement' && el.type !== 'arrow' && (
           <div className={`p-2.5 rounded-xl border space-y-2 ${
             isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-slate-800'
           }`}>
@@ -1747,6 +1860,13 @@ export const InspectorPanel: React.FC = () => {
         {/* 5. LIGHT SPECIFIC INSPECTOR */}
         {el.type === 'light' && (() => {
           const light = el as LightElement;
+          const isFlag = isFlagFixture(light.fixtureType);
+          const gelHex = (() => {
+            const raw = light.rgbColor || '#ff0055';
+            return raw.startsWith('#') ? raw : `#${raw}`;
+          })();
+          const rgbParts = hexToRgbParts(gelHex);
+          const hsvParts = hexToHsv(gelHex);
           return (
             <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
               {/* Fixture Type */}
@@ -1756,11 +1876,15 @@ export const InspectorPanel: React.FC = () => {
                   value={light.fixtureType}
                   onChange={(e) => {
                     const fix = LIGHT_FIXTURES.find((f) => f.type === e.target.value);
+                    const flag = !!fix?.isFlag;
                     updateElement(light.id, {
                       fixtureType: e.target.value as any,
-                      beamAngle: fix?.defaultBeam ?? light.beamAngle,
-                      colorTemp: fix?.defaultTemp ?? light.colorTemp,
+                      beamAngle: flag ? 0 : fix?.defaultBeam ?? light.beamAngle,
+                      colorTemp: flag ? 0 : fix?.defaultTemp ?? light.colorTemp,
                       fixtureModel: fix?.defaultModel ?? light.fixtureModel,
+                      ...(flag
+                        ? { flagSize: light.flagSize || DEFAULT_FLAG_SIZE }
+                        : {}),
                     });
                   }}
                   className={`w-full border rounded-lg p-2 ${
@@ -1775,81 +1899,268 @@ export const InspectorPanel: React.FC = () => {
                 </select>
               </div>
 
-              {/* Color Temperature */}
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="opacity-60">Color Temp (Kelvin)</span>
-                  <span className="font-mono text-amber-500 font-bold">
-                    {light.colorTemp > 0 ? `${light.colorTemp}K` : 'RGB Gel'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-1 mb-2">
-                  {[2700, 3200, 4500, 5600].map((k) => (
-                    <button
-                      key={k}
-                      onClick={() => updateElement(light.id, { colorTemp: k, rgbColor: undefined })}
-                      className={`py-1 text-[10px] font-mono rounded border ${
-                        light.colorTemp === k
-                          ? 'bg-amber-600 text-white border-amber-500 font-bold'
-                          : isLight ? 'bg-slate-50 text-slate-700 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
-                      }`}
-                    >
-                      {k}K
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="range"
-                  min={2000}
-                  max={7000}
-                  step={100}
-                  value={light.colorTemp || 5600}
-                  onChange={(e) => updateElement(light.id, { colorTemp: Number(e.target.value), rgbColor: undefined })}
-                  className="w-full accent-amber-500 cursor-pointer"
-                />
-              </div>
+              {isFlag ? (
+                /* ---------- C-STAND FLAG CONTROLS ---------- */
+                <>
+                  <div>
+                    <label className="opacity-60 block mb-1">Flag Fabric Size</label>
+                    <div className="grid grid-cols-4 gap-1">
+                      {FLAG_SIZE_PRESETS.map((s) => (
+                        <button
+                          key={s.value}
+                          onClick={() =>
+                            updateElement(light.id, {
+                              flagSize: s.value as LightElement['flagSize'],
+                            })
+                          }
+                          title={s.label}
+                          className={`py-1.5 text-[10px] font-mono rounded border transition-colors ${
+                            (light.flagSize || DEFAULT_FLAG_SIZE) === s.value
+                              ? 'bg-slate-950 text-white border-slate-500'
+                              : isLight
+                              ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                              : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Light Intensity */}
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="opacity-60">Intensity (Dimmer)</span>
-                  <span className="font-mono font-bold">{light.intensity}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={light.intensity}
-                  onChange={(e) => updateElement(light.id, { intensity: Number(e.target.value) })}
-                  className="w-full accent-amber-500 cursor-pointer"
-                />
-              </div>
+                  {light.fixtureType === 'flag_net' && (
+                    <div>
+                      <label className="opacity-60 block mb-1">Net Density (Light Cut)</label>
+                      <div className="grid grid-cols-2 gap-1">
+                        <button
+                          onClick={() => updateElement(light.id, { netValue: 'single' })}
+                          className={`py-1.5 text-[10px] font-semibold rounded border transition-colors ${
+                            (light.netValue || 'single') === 'single'
+                              ? 'bg-sky-600 text-white border-sky-500'
+                              : isLight
+                              ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                              : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                          }`}
+                        >
+                          Single Net (≈½ stop)
+                        </button>
+                        <button
+                          onClick={() => updateElement(light.id, { netValue: 'double' })}
+                          className={`py-1.5 text-[10px] font-semibold rounded border transition-colors ${
+                            light.netValue === 'double'
+                              ? 'bg-sky-600 text-white border-sky-500'
+                              : isLight
+                              ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                              : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                          }`}
+                        >
+                          Double Net (≈1 stop)
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-              {/* Beam Throw & Beam Angle */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="opacity-60 block mb-1">Beam Angle ({light.beamAngle}°)</label>
-                  <input
-                    type="range"
-                    min={10}
-                    max={160}
-                    value={light.beamAngle}
-                    onChange={(e) => updateElement(light.id, { beamAngle: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
-                <div>
-                  <label className="opacity-60 block mb-1">Throw Distance</label>
-                  <input
-                    type="range"
-                    min={60}
-                    max={400}
-                    value={light.throwDistance}
-                    onChange={(e) => updateElement(light.id, { throwDistance: Number(e.target.value) })}
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
-              </div>
+                  <div className={`text-[10px] rounded-lg border p-2.5 leading-relaxed ${
+                    isLight ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-slate-900 text-slate-400 border-slate-800'
+                  }`}>
+                    <strong className={isLight ? 'text-slate-700' : 'text-slate-200'}>
+                      {flagLabel(light)}
+                    </strong>
+                    {light.fixtureType === 'flag_solid' || light.fixtureType === 'c_stand_flag'
+                      ? ' — blocks / removes light (negative fill).'
+                      : light.fixtureType === 'flag_silk'
+                      ? ' — softens & diffuses the light passing through it.'
+                      : light.fixtureType === 'flag_net'
+                      ? ' — reduces intensity in a wash without changing color or softness.'
+                      : ' — shapes light with a long blade (kicks, forehead shadows).'}
+                    {' '}Flags do not emit light, so they have no beam, color temp, or intensity.
+                  </div>
+                </>
+              ) : (
+                /* ---------- EMITTING LIGHT CONTROLS ---------- */
+                <>
+                  {/* Color Temperature */}
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="opacity-60">Color Temp (Kelvin)</span>
+                      <span className="font-mono text-amber-500 font-bold">
+                        {light.colorTemp > 0 ? `${light.colorTemp}K` : 'RGB Gel'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 mb-2">
+                      {[2700, 3200, 4500, 5600].map((k) => (
+                        <button
+                          key={k}
+                          onClick={() => updateElement(light.id, { colorTemp: k, rgbColor: undefined })}
+                          className={`py-1 text-[10px] font-mono rounded border ${
+                            light.colorTemp === k
+                              ? 'bg-amber-600 text-white border-amber-500 font-bold'
+                              : isLight ? 'bg-slate-50 text-slate-700 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
+                          }`}
+                        >
+                          {k}K
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="range"
+                      min={2000}
+                      max={7000}
+                      step={100}
+                      value={light.colorTemp || 5600}
+                      onChange={(e) => updateElement(light.id, { colorTemp: Number(e.target.value), rgbColor: undefined })}
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Gel Color (RGB / HSB) */}
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="opacity-60">Gel Color</span>
+                      <span className="font-mono font-bold uppercase">{gelHex}</span>
+                    </div>
+                    <input
+                      type="color"
+                      value={gelHex}
+                      onChange={(e) =>
+                        updateElement(light.id, { rgbColor: e.target.value, colorTemp: 0 })
+                      }
+                      className="w-full h-8 cursor-pointer rounded border bg-transparent"
+                    />
+                    {/* RGB values */}
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      {(
+                        [
+                          ['R', rgbParts.r, 255],
+                          ['G', rgbParts.g, 255],
+                          ['B', rgbParts.b, 255],
+                        ] as const
+                      ).map(([label, val, max]) => (
+                        <label key={label} className="block">
+                          <span className={`block text-[9px] opacity-60 mb-0.5 ${label === 'R' ? 'text-red-500' : label === 'G' ? 'text-green-500' : 'text-blue-500'}`}>
+                            {label} {val}
+                          </span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={max}
+                            value={val}
+                            onChange={(e) =>
+                              updateElement(light.id, {
+                                rgbColor: rgbToHex(
+                                  label === 'R' ? Number(e.target.value) : rgbParts.r,
+                                  label === 'G' ? Number(e.target.value) : rgbParts.g,
+                                  label === 'B' ? Number(e.target.value) : rgbParts.b
+                                ),
+                                colorTemp: 0,
+                              })
+                            }
+                            className="w-full accent-rose-500 cursor-pointer"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    {/* HSB values */}
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      {(
+                        [
+                          ['H', hsvParts.h, 360],
+                          ['S', hsvParts.s, 100],
+                          ['B', hsvParts.v, 100],
+                        ] as const
+                      ).map(([label, val, max]) => (
+                        <label key={label} className="block">
+                          <span className={`block text-[9px] opacity-60 mb-0.5 ${
+                            label === 'H' ? 'text-fuchsia-500' : label === 'S' ? 'text-cyan-500' : 'text-amber-500'
+                          }`}>
+                            {label} {val}
+                          </span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={max}
+                            value={val}
+                            onChange={(e) =>
+                              updateElement(light.id, {
+                                rgbColor: hsvToHex(
+                                  label === 'H' ? Number(e.target.value) : hsvParts.h,
+                                  label === 'S' ? Number(e.target.value) : hsvParts.s,
+                                  label === 'B' ? Number(e.target.value) : hsvParts.v
+                                ),
+                                colorTemp: 0,
+                              })
+                            }
+                            className="w-full accent-fuchsia-500 cursor-pointer"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-[9px] opacity-50 mt-1">
+                      Set a gel via any slider or the color picker to switch this fixture to RGB mode (overrides Kelvin).
+                    </p>
+                  </div>
+
+                  {/* Light Intensity */}
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="opacity-60">Intensity (Dimmer)</span>
+                      <span className="font-mono font-bold">{light.intensity}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={light.intensity}
+                      onChange={(e) => updateElement(light.id, { intensity: Number(e.target.value) })}
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Per-light beam visibility */}
+                  <div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <PillToggle
+                        on={light.beamVisible !== false}
+                        onClick={() => updateElement(light.id, { beamVisible: light.beamVisible === false })}
+                        label="Light beam"
+                        isLight={isLight}
+                      />
+                      <PillToggle
+                        on={light.hasBarnDoors === true}
+                        onClick={() => updateElement(light.id, { hasBarnDoors: light.hasBarnDoors !== true })}
+                        label="Barn doors"
+                        isLight={isLight}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Beam Throw & Beam Angle */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="opacity-60 block mb-1">Beam Angle ({light.beamAngle}°)</label>
+                      <input
+                        type="range"
+                        min={10}
+                        max={160}
+                        value={light.beamAngle}
+                        onChange={(e) => updateElement(light.id, { beamAngle: Number(e.target.value) })}
+                        className="w-full accent-amber-500 cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label className="opacity-60 block mb-1">Throw Distance</label>
+                      <input
+                        type="range"
+                        min={60}
+                        max={400}
+                        value={light.throwDistance}
+                        onChange={(e) => updateElement(light.id, { throwDistance: Number(e.target.value) })}
+                        className="w-full accent-amber-500 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           );
         })()}
@@ -2057,6 +2368,220 @@ export const InspectorPanel: React.FC = () => {
               <div className="p-2.5 bg-sky-500/10 border border-sky-500/30 rounded-lg text-[11px] text-sky-600">
                 <span className="font-semibold block mb-0.5">Natural Sunlight Simulation</span>
                 Acts as an ambient daylight portal on the floor plan and camera coverage preview.
+              </div>
+
+              <PillToggle
+                on={win.beamVisible !== false}
+                onClick={() =>
+                  updateElement(win.id, {
+                    beamVisible: win.beamVisible === false,
+                  })
+                }
+                label="Sunlight cone"
+                isLight={isLight}
+              />
+            </div>
+          );
+        })()}
+
+        {/* 10. TEXT SPECIFIC INSPECTOR */}
+        {el.type === 'text' && (() => {
+          const txt = el as TextElement;
+          const txtInputClass = `w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`;
+          return (
+            <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+              <div>
+                <label className="opacity-60 block mb-1">Text Content</label>
+                <textarea
+                  value={txt.text}
+                  onChange={(e) => updateElement(txt.id, { text: e.target.value })}
+                  rows={2}
+                  className={txtInputClass}
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="opacity-60">Font Size (px)</span>
+                  <span className="font-mono font-bold">{txt.fontSize || 16}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={8}
+                  max={96}
+                  step={1}
+                  value={txt.fontSize || 16}
+                  onChange={(e) => updateElement(txt.id, { fontSize: Number(e.target.value) })}
+                  className="w-full accent-sky-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <PillToggle
+                  on={(txt.fontWeight || 'normal') === 'bold'}
+                  onClick={() => updateElement(txt.id, { fontWeight: txt.fontWeight === 'bold' ? 'normal' : 'bold' })}
+                  label="Bold"
+                  isLight={isLight}
+                />
+                <PillToggle
+                  on={(txt.fontStyle || 'normal') === 'italic'}
+                  onClick={() => updateElement(txt.id, { fontStyle: txt.fontStyle === 'italic' ? 'normal' : 'italic' })}
+                  label="Italic"
+                  isLight={isLight}
+                />
+                <PillToggle
+                  on={txt.underline === true}
+                  onClick={() => updateElement(txt.id, { underline: txt.underline !== true })}
+                  label="Underline"
+                  isLight={isLight}
+                />
+                <PillToggle
+                  on={txt.strikethrough === true}
+                  onClick={() => updateElement(txt.id, { strikethrough: txt.strikethrough !== true })}
+                  label="Strikethrough"
+                  isLight={isLight}
+                />
+              </div>
+
+              <div>
+                <label className="opacity-60 block mb-1">Font Family</label>
+                <select
+                  value={txt.fontFamily || 'sans-serif'}
+                  onChange={(e) => updateElement(txt.id, { fontFamily: e.target.value })}
+                  className={txtInputClass}
+                >
+                  <option value="sans-serif">Sans-Serif</option>
+                  <option value="serif">Serif</option>
+                  <option value="monospace">Monospace</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="Verdana, sans-serif">Verdana</option>
+                  <option value="Impact, sans-serif">Impact</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="opacity-60 block mb-1">Text Alignment</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {(['left', 'center', 'right'] as const).map((align) => (
+                    <button
+                      key={align}
+                      onClick={() => updateElement(txt.id, { textAlign: align })}
+                      className={`py-1.5 text-[10px] font-semibold rounded border capitalize ${
+                        (txt.textAlign || 'center') === align
+                          ? 'bg-sky-600 text-white border-sky-500'
+                          : isLight
+                          ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                          : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      {align}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="opacity-60">Text Color</span>
+                  <span className="font-mono font-bold uppercase">{txt.color || '#94a3b8'}</span>
+                </div>
+                <input
+                  type="color"
+                  value={(txt.color || '#94a3b8').startsWith('#') ? txt.color || '#94a3b8' : `#${txt.color}`}
+                  onChange={(e) => updateElement(txt.id, { color: e.target.value })}
+                  className="w-full h-8 cursor-pointer rounded border bg-transparent"
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 11. ARROW SPECIFIC INSPECTOR */}
+        {el.type === 'arrow' && (() => {
+          const arr = el as ArrowElement;
+          const arrowColor = arr.color || '#f97316';
+          const strokeWidth = arr.strokeWidth || 2.5;
+          const headStyle = arr.headStyle || 'single';
+          const dashStyle = arr.dashStyle || 'solid';
+          const optionBtn = (active: boolean) =>
+            `py-1.5 text-[10px] font-semibold rounded border capitalize ${
+              active
+                ? 'bg-sky-600 text-white border-sky-500'
+                : isLight
+                ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'
+            }`;
+
+          return (
+            <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+              <div>
+                <label className="opacity-60 block mb-1">Label (optional)</label>
+                <input
+                  type="text"
+                  value={arr.label || ''}
+                  onChange={(e) => updateElement(arr.id, { label: e.target.value })}
+                  placeholder="e.g. Camera move, Actor blocking…"
+                  className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="opacity-60">Arrow Color</span>
+                  <span className="font-mono font-bold uppercase">{arrowColor}</span>
+                </div>
+                <input
+                  type="color"
+                  value={arrowColor}
+                  onChange={(e) => updateElement(arr.id, { color: e.target.value })}
+                  className="w-full h-8 cursor-pointer rounded border bg-transparent"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="opacity-60">Line Weight</span>
+                  <span className="font-mono font-bold">{strokeWidth}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={8}
+                  step={0.5}
+                  value={strokeWidth}
+                  onChange={(e) => updateElement(arr.id, { strokeWidth: Number(e.target.value) })}
+                  className="w-full accent-sky-500 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="opacity-60 block mb-1">Arrowhead</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {(['single', 'double', 'open'] as const).map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => updateElement(arr.id, { headStyle: style })}
+                      className={optionBtn(headStyle === style)}
+                    >
+                      {style}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="opacity-60 block mb-1">Line Style</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {(['solid', 'dashed', 'dotted'] as const).map((dash) => (
+                    <button
+                      key={dash}
+                      onClick={() => updateElement(arr.id, { dashStyle: dash })}
+                      className={optionBtn(dashStyle === dash)}
+                    >
+                      {dash}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           );

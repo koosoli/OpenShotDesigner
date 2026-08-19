@@ -3,6 +3,7 @@ import {
   CameraHeight,
   CameraMovement,
   CameraRigType,
+  FlagSize,
   LightFixtureType,
   PropType,
   SceneSetup,
@@ -165,6 +166,7 @@ export const LIGHT_FIXTURES: {
   defaultBeam: number;
   defaultTemp: number;
   defaultModel: string;
+  isFlag?: boolean;
 }[] = [
   {
     type: 'fresnel',
@@ -223,11 +225,65 @@ export const LIGHT_FIXTURES: {
     defaultModel: '4x4 Foamcore / Beadboard Bounce',
   },
   {
-    type: 'c_stand_flag',
+    type: 'hmi',
+    name: 'HMI Daylight (Joker / Par)',
+    defaultBeam: 40,
+    defaultTemp: 5600,
+    defaultModel: 'ARRI M18 / Joker Bug 800W HMI',
+  },
+  {
+    type: 'par_can',
+    name: 'Par Can (Beam Projector)',
+    defaultBeam: 20,
+    defaultTemp: 3200,
+    defaultModel: 'PAR64 1kW / Source 4 PAR',
+  },
+  {
+    type: 'kino_flo',
+    name: 'Kino Flo Fluorescent Panel',
+    defaultBeam: 140,
+    defaultTemp: 5600,
+    defaultModel: 'Kino Flo Diva-Lite 400 / 4Bank',
+  },
+  {
+    type: 'flag_solid',
     name: 'C-Stand Solid Flag (Negative Fill)',
     defaultBeam: 0,
     defaultTemp: 0,
     defaultModel: 'Matthews 24x36 Solid Flag',
+    isFlag: true,
+  },
+  {
+    type: 'flag_silk',
+    name: 'C-Stand Silk Flag (Diffusion)',
+    defaultBeam: 0,
+    defaultTemp: 0,
+    defaultModel: 'Matthews 24x36 Silk Flag',
+    isFlag: true,
+  },
+  {
+    type: 'flag_net',
+    name: 'C-Stand Net Flag (Cut ½–1 Stop)',
+    defaultBeam: 0,
+    defaultTemp: 0,
+    defaultModel: 'Matthews 24x36 Single Net Flag',
+    isFlag: true,
+  },
+  {
+    type: 'flag_cutter',
+    name: 'C-Stand Cutter Flag (Shape Light)',
+    defaultBeam: 0,
+    defaultTemp: 0,
+    defaultModel: 'Matthews 18x48 Cutter Flag',
+    isFlag: true,
+  },
+  {
+    type: 'c_stand_flag',
+    name: 'C-Stand Flag (Legacy Solid)',
+    defaultBeam: 0,
+    defaultTemp: 0,
+    defaultModel: 'Matthews 24x36 Solid Flag',
+    isFlag: true,
   },
   {
     type: 'overhead_diffusion',
@@ -237,6 +293,41 @@ export const LIGHT_FIXTURES: {
     defaultModel: '8x8 Silent Frost Silk Frame',
   },
 ];
+
+/** Standard C-stand flag fabric sizes → SVG panel dimensions (pixels). */
+export const FLAG_SIZE_PRESETS: { value: string; label: string; w: number; h: number }[] = [
+  { value: '4x4', label: '4×4"', w: 8, h: 8 },
+  { value: '6x6', label: '6×6"', w: 12, h: 12 },
+  { value: '12x12', label: '12×12"', w: 24, h: 24 },
+  { value: '12x18', label: '12×18"', w: 24, h: 36 },
+  { value: '18x18', label: '18×18"', w: 36, h: 36 },
+  { value: '18x24', label: '18×24"', w: 36, h: 48 },
+  { value: '24x24', label: '24×24"', w: 48, h: 48 },
+  { value: '24x36', label: '24×36"', w: 48, h: 72 },
+  { value: '30x36', label: '30×36"', w: 60, h: 72 },
+  { value: '36x36', label: '36×36"', w: 72, h: 72 },
+  { value: '36x48', label: '36×48"', w: 72, h: 96 },
+  { value: '42x42', label: '42×42"', w: 84, h: 84 },
+  { value: '48x48', label: '48×48"', w: 96, h: 96 },
+  { value: '48x60', label: '48×60"', w: 96, h: 120 },
+];
+
+export const DEFAULT_FLAG_SIZE = '24x36';
+
+/** Returns the SVG panel dimensions (w, h) for a flag element. */
+export function getFlagPanelDims(light: {
+  fixtureType: LightFixtureType;
+  flagSize?: FlagSize;
+}): { w: number; h: number } {
+  const size =
+    FLAG_SIZE_PRESETS.find((s) => s.value === (light.flagSize || DEFAULT_FLAG_SIZE)) ||
+    FLAG_SIZE_PRESETS.find((s) => s.value === DEFAULT_FLAG_SIZE)!;
+  if (light.fixtureType === 'flag_cutter') {
+    // Cutter is an elongated blade, but it still scales with the selected size.
+    return { w: Math.max(10, size.w * 0.6), h: Math.max(10, size.h * 1.6) };
+  }
+  return { w: size.w, h: size.h };
+}
 
 export const PROP_CATALOG: {
   type: PropType;

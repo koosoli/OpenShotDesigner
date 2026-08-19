@@ -8,6 +8,7 @@ interface WallLayerProps {
   selectedIds: string[];
   snappedWallId?: string | null;
   showLightBeams: boolean;
+  showDoorWindowLabels: boolean;
   onSelect: (id: string, e: React.PointerEvent) => void;
 }
 
@@ -18,6 +19,7 @@ export const WallLayer: React.FC<WallLayerProps> = ({
   selectedIds,
   snappedWallId,
   showLightBeams,
+  showDoorWindowLabels,
   onSelect,
 }) => {
   return (
@@ -107,7 +109,7 @@ export const WallLayer: React.FC<WallLayerProps> = ({
             onPointerDown={(e) => onSelect(win.id, e)}
           >
             {/* Sunlight throw indicator */}
-            {showLightBeams && (
+            {showLightBeams && win.beamVisible !== false && (
               <path
                 d={`M ${-w / 2} 0 L ${-w / 2 - 40} 80 L ${w / 2 + 40} 80 L ${w / 2} 0 Z`}
                 fill="rgba(253, 224, 71, 0.08)"
@@ -146,16 +148,18 @@ export const WallLayer: React.FC<WallLayerProps> = ({
               strokeWidth={1.5}
             />
             {/* Label */}
-            <text
-              x={0}
-              y={-d / 2 - 6}
-              fill="#94a3b8"
-              fontSize="10"
-              textAnchor="middle"
-              className="select-none font-mono"
-            >
-              WINDOW
-            </text>
+            {showDoorWindowLabels && (
+              <text
+                x={0}
+                y={-d / 2 - 6}
+                fill="#94a3b8"
+                fontSize="10"
+                textAnchor="middle"
+                className="select-none font-mono"
+              >
+                WINDOW
+              </text>
+            )}
           </g>
         );
       })}
@@ -164,7 +168,16 @@ export const WallLayer: React.FC<WallLayerProps> = ({
       {doors.map((door) => {
         const isSelected = selectedIds.includes(door.id);
         const w = door.width || 60;
-        const swing = door.swingAngle || 90;
+        const swing = Math.min(180, door.swingAngle || 90);
+        const open = door.isOpen !== false;
+        const rad = (swing * Math.PI) / 180;
+        const leftHinge = door.swingDirection !== 'right'; // hinge at the left end
+        const hingeX = leftHinge ? 0 : w;
+        const otherX = w - hingeX; // far end of the leaf when closed
+
+        // Open leaf endpoint (rotated about the hinge).
+        const openX = hingeX + (otherX - hingeX) * Math.cos(rad);
+        const openY = leftHinge ? (otherX - hingeX) * Math.sin(rad) : -(otherX - hingeX) * Math.sin(rad);
 
         return (
           <g
@@ -173,36 +186,50 @@ export const WallLayer: React.FC<WallLayerProps> = ({
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(door.id, e)}
           >
-            {/* Swing Arc */}
-            <path
-              d={`M 0 0 A ${w} ${w} 0 0 1 ${w} ${w}`}
-              fill="none"
-              stroke={isSelected ? '#38bdf8' : 'rgba(148, 163, 184, 0.4)'}
-              strokeWidth={1.5}
-              strokeDasharray="3 3"
-            />
-            {/* Door Panel */}
+            {/* Door frame / threshold (hidden when the closed leaf covers it) */}
             <line
               x1={0}
               y1={0}
               x2={w}
               y2={0}
+              stroke={isSelected ? '#38bdf8' : '#94a3b8'}
+              strokeWidth={1}
+              strokeOpacity={open ? 0.55 : 0}
+            />
+            {open && swing > 2 && (
+              /* Swing Arc */
+              <path
+                d={`M ${otherX} 0 A ${w} ${w} 0 0 ${leftHinge ? 1 : 0} ${openX} ${openY}`}
+                fill="none"
+                stroke={isSelected ? '#38bdf8' : 'rgba(148, 163, 184, 0.4)'}
+                strokeWidth={1.5}
+                strokeDasharray="3 3"
+              />
+            )}
+            {/* Door Leaf */}
+            <line
+              x1={hingeX}
+              y1={0}
+              x2={open ? openX : otherX}
+              y2={open ? openY : 0}
               stroke={isSelected ? '#38bdf8' : '#e2e8f0'}
               strokeWidth={4}
               strokeLinecap="round"
             />
             {/* Hinge Point */}
-            <circle cx={0} cy={0} r={4} fill="#f59e0b" />
-            <text
-              x={w / 2}
-              y={-8}
-              fill="#94a3b8"
-              fontSize="10"
-              textAnchor="middle"
-              className="select-none font-mono"
-            >
-              DOOR
-            </text>
+            <circle cx={hingeX} cy={0} r={4} fill="#f59e0b" />
+            {showDoorWindowLabels && (
+              <text
+                x={w / 2}
+                y={-8}
+                fill="#94a3b8"
+                fontSize="10"
+                textAnchor="middle"
+                className="select-none font-mono"
+              >
+                DOOR
+              </text>
+            )}
           </g>
         );
       })}

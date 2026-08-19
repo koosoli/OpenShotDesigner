@@ -21,7 +21,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
 }) => {
   const el = selectedElement;
   const rotation = Math.round(el.rotation || 0);
-  const isLinear = el.type === 'wall' || el.type === 'track' || el.type === 'measurement';
+  const isLinear = el.type === 'wall' || el.type === 'track' || el.type === 'measurement' || el.type === 'arrow';
 
   if (isLinear && onEndpointDragStart) {
     const x1 = el.x;

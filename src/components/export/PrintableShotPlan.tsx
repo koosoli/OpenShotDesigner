@@ -2,12 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
+  ArrowElement,
   BackgroundImage,
   CameraElement,
   DoorElement,
   FloorPlanElement,
   LightElement,
+  MeasurementElement,
   PropElement,
+  TextElement,
   TrackElement,
   WallElement,
   WindowElement,
@@ -16,6 +19,9 @@ import { getCameraFovPolygon, getLightBeamPolygon, getSmoothSplinePath, kelvinTo
 import { ASPECT_RATIOS } from '../../constants/presets';
 import { exportProjectToCsv, exportShotListToCsv } from '../../utils/exportShotList';
 import { exportSvgAsPng } from '../../utils/exportFloorPlanPng';
+import { FlagFixtureIcon, flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
+import { FixtureGlyph } from '../canvas/FixtureGlyph';
+import { ArrowGlyph } from '../canvas/ArrowGlyph';
 import {
   AppWindow,
   ArrowRight,
@@ -61,6 +67,9 @@ export const PrintableShotPlan: React.FC = () => {
   const windows = activeSetup.elements.filter((e) => e.type === 'window') as WindowElement[];
   const props = activeSetup.elements.filter((e) => e.type === 'prop') as PropElement[];
   const tracks = activeSetup.elements.filter((e) => e.type === 'track') as TrackElement[];
+  const measurements = activeSetup.elements.filter((e) => e.type === 'measurement') as MeasurementElement[];
+  const texts = activeSetup.elements.filter((e) => e.type === 'text') as TextElement[];
+  const arrows = activeSetup.elements.filter((e) => e.type === 'arrow') as ArrowElement[];
   const backgroundImages = (activeSetup.backgroundImages || []).filter((i) => i.visible) as BackgroundImage[];
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
@@ -435,6 +444,152 @@ export const PrintableShotPlan: React.FC = () => {
                     );
                   })}
 
+                  {/* 3.5 Draw Dolly Tracks */}
+                  {tracks.map((track) => {
+                    const x1 = track.x;
+                    const y1 = track.y;
+                    const x2 = track.x2 ?? track.x + 240;
+                    const y2 = track.y2 ?? track.y;
+                    const dist = Math.max(20, Math.hypot(x2 - x1, y2 - y1));
+                    const angle = Math.atan2(y2 - y1, x2 - x1);
+                    const isCurved = !!track.isCurved;
+                    const curveOffset = track.curveOffset || 60;
+
+                    if (isCurved) {
+                      const midX = (x1 + x2) / 2;
+                      const midY = (y1 + y2) / 2;
+                      const normalX = -(y2 - y1) / dist;
+                      const normalY = (x2 - x1) / dist;
+                      const ctrlX = midX + normalX * curveOffset;
+                      const ctrlY = midY + normalY * curveOffset;
+                      const steps = Math.max(4, Math.floor(dist / 30));
+                      const pts: { x: number; y: number; nx: number; ny: number }[] = [];
+                      for (let i = 0; i <= steps; i++) {
+                        const t = i / steps;
+                        const px = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * ctrlX + t * t * x2;
+                        const py = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * ctrlY + t * t * y2;
+                        const tx = 2 * (1 - t) * (ctrlX - x1) + 2 * t * (x2 - ctrlX);
+                        const ty = 2 * (1 - t) * (ctrlY - y1) + 2 * t * (y2 - ctrlY);
+                        const tLen = Math.hypot(tx, ty) || 1;
+                        pts.push({ x: px, y: py, nx: -ty / tLen, ny: tx / tLen });
+                      }
+                      const inner = pts
+                        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${(p.x - p.nx * 12).toFixed(1)} ${(p.y - p.ny * 12).toFixed(1)}`)
+                        .join(' ');
+                      const outer = pts
+                        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${(p.x + p.nx * 12).toFixed(1)} ${(p.y + p.ny * 12).toFixed(1)}`)
+                        .join(' ');
+                      return (
+                        <g key={track.id}>
+                          <path d={inner} fill="none" stroke="#475569" strokeWidth={3} strokeLinecap="round" />
+                          <path d={outer} fill="none" stroke="#475569" strokeWidth={3} strokeLinecap="round" />
+                          {pts.map((p, i) => (
+                            <line
+                              key={i}
+                              x1={p.x - p.nx * 16}
+                              y1={p.y - p.ny * 16}
+                              x2={p.x + p.nx * 16}
+                              y2={p.y + p.ny * 16}
+                              stroke="#334155"
+                              strokeWidth={2}
+                            />
+                          ))}
+                        </g>
+                      );
+                    }
+
+                    const sleeperCount = Math.max(2, Math.floor(dist / 25));
+                    const cos = Math.cos(angle);
+                    const sin = Math.sin(angle);
+                    const px = -sin * 14;
+                    const py = cos * 14;
+                    return (
+                      <g key={track.id}>
+                        <line x1={x1 + px} y1={y1 + py} x2={x2 + px} y2={y2 + py} stroke="#475569" strokeWidth={3} strokeLinecap="round" />
+                        <line x1={x1 - px} y1={y1 - py} x2={x2 - px} y2={y2 - py} stroke="#475569" strokeWidth={3} strokeLinecap="round" />
+                        {Array.from({ length: sleeperCount + 1 }).map((_, i) => {
+                          const t = i / sleeperCount;
+                          const sx = x1 + (x2 - x1) * t;
+                          const sy = y1 + (y2 - y1) * t;
+                          return (
+                            <line key={i} x1={sx + px} y1={sy + py} x2={sx - px} y2={sy - py} stroke="#334155" strokeWidth={2} />
+                          );
+                        })}
+                      </g>
+                    );
+                  })}
+
+                  {/* 3.6 Draw Measurements */}
+                  {measurements.map((m) => {
+                    const x1 = m.x;
+                    const y1 = m.y;
+                    const x2 = m.x2 ?? m.x + 150;
+                    const y2 = m.y2 ?? m.y;
+                    const midX = (x1 + x2) / 2;
+                    const midY = (y1 + y2) / 2;
+                    const pixelsPerUnit = activeSetup.gridSettings?.pixelsPerUnit || 50;
+                    const dist = Math.hypot(x2 - x1, y2 - y1);
+                    const label = `${Math.round((dist / pixelsPerUnit) * 10) / 10} ${m.unit}`;
+                    return (
+                      <g key={m.id}>
+                        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#d97706" strokeWidth={2} strokeDasharray="6 3" />
+                        <circle cx={x1} cy={y1} r={4} fill="#d97706" />
+                        <circle cx={x2} cy={y2} r={4} fill="#d97706" />
+                        <g transform={`translate(${midX}, ${midY - 12})`}>
+                          <rect x={-34} y={-9} width={68} height={18} rx={3} fill="#0f172a" stroke="#d97706" strokeWidth={1} />
+                          <text x={0} y={4} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#f59e0b" fontFamily="monospace">
+                            {label}
+                          </text>
+                        </g>
+                      </g>
+                    );
+                  })}
+
+                  {/* 3.7 Draw Arrows */}
+                  {arrows.map((a) => (
+                    <g key={a.id}>
+                      <ArrowGlyph
+                        x1={a.x}
+                        y1={a.y}
+                        x2={a.x2 ?? a.x + 150}
+                        y2={a.y2 ?? a.y}
+                        color={a.color || '#f97316'}
+                        strokeWidth={a.strokeWidth || 2.5}
+                        headStyle={a.headStyle}
+                        dashStyle={a.dashStyle}
+                      />
+                      {a.label && (
+                        <g transform={`translate(${(a.x + (a.x2 ?? a.x + 150)) / 2}, ${(a.y + (a.y2 ?? a.y)) / 2 - 12})`}>
+                          <rect x={-38} y={-9} width={76} height={18} rx={3} fill="#0f172a" stroke="#f97316" strokeWidth={1} />
+                          <text x={0} y={4} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#fb923c" fontFamily="monospace">
+                            {a.label}
+                          </text>
+                        </g>
+                      )}
+                    </g>
+                  ))}
+
+                  {/* 3.8 Draw Text Annotations */}
+                  {texts.map((txt) => (
+                    <g key={txt.id} transform={`translate(${txt.x}, ${txt.y})`}>
+                      <text
+                        x={0}
+                        y={0}
+                        textAnchor={txt.textAlign === 'left' ? 'start' : txt.textAlign === 'right' ? 'end' : 'middle'}
+                        fontSize={txt.fontSize || 16}
+                        fill={txt.color || '#94a3b8'}
+                        fontFamily={txt.fontFamily || 'sans-serif'}
+                        fontWeight={txt.fontWeight || 'normal'}
+                        fontStyle={txt.fontStyle || 'normal'}
+                        textDecoration={[txt.underline ? 'underline' : null, txt.strikethrough ? 'line-through' : null]
+                          .filter(Boolean)
+                          .join(' ') || undefined}
+                      >
+                        {txt.text}
+                      </text>
+                    </g>
+                  ))}
+
                   {/* 4. Draw Props & Furniture */}
                   {props.map((prop) => (
                     <g
@@ -467,24 +622,36 @@ export const PrintableShotPlan: React.FC = () => {
 
                   {/* 5. Draw Light Beams & Fixtures */}
                   {lights.map((l) => {
-                    const beamPath = getLightBeamPolygon(
-                      { x: l.x, y: l.y },
-                      l.rotation || 0,
-                      l.beamAngle || 60,
-                      l.throwDistance || 220
-                    );
+                    const isFlag = isFlagFixture(l.fixtureType);
+                    const lightColor = l.rgbColor || kelvinToRgb(l.colorTemp || 5600);
+                    const beamAngle = l.beamAngle || 60;
+                    const throwDist = l.throwDistance || 220;
+                    const isOmni = l.fixtureType === 'practical' || beamAngle >= 350;
+                    const showBeam = !isFlag && l.beamVisible !== false && beamAngle > 0 && !isOmni;
+                    const beamPath = showBeam
+                      ? getLightBeamPolygon({ x: l.x, y: l.y }, l.rotation || 0, beamAngle, throwDist)
+                      : '';
                     return (
                       <g key={l.id}>
-                        <path d={beamPath} fill="#fef3c7" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 3" opacity="0.6" />
+                        {showBeam && (
+                          <path d={beamPath} fill="#fef3c7" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 3" opacity="0.6" />
+                        )}
                         <g transform={`translate(${l.x}, ${l.y}) rotate(${l.rotation || 0})`}>
-                          <polygon points="12,0 -8,-10 -4,0 -8,10" fill="#d97706" />
-                          <circle cx="0" cy="0" r="10" fill="#f59e0b" stroke="#ffffff" strokeWidth="2" />
-                          <text x="0" y="3.5" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#ffffff">
-                            L
-                          </text>
-                          <text x="0" y="-14" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#0f172a">
-                            {l.name}
-                          </text>
+                          {isFlag ? (
+                            <>
+                              <FlagFixtureIcon light={l} />
+                              <text x="0" y={-10} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#0f172a" fontFamily="sans-serif">
+                                {l.name}
+                              </text>
+                            </>
+                          ) : (
+                            <>
+                              <FixtureGlyph fixtureType={l.fixtureType} color={lightColor} />
+                              <text x="0" y={isOmni ? 24 : -18} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#0f172a" fontFamily="sans-serif">
+                                {l.name}
+                              </text>
+                            </>
+                          )}
                         </g>
                       </g>
                     );
@@ -707,7 +874,11 @@ export const PrintableShotPlan: React.FC = () => {
                     {lights.map((l) => (
                       <div key={l.id} className="flex justify-between font-mono">
                         <strong>{l.name}</strong>
-                        <span>{l.colorTemp > 0 ? `${l.colorTemp}K` : 'RGB'} ({l.intensity}%)</span>
+                        <span>
+                          {isFlagFixture(l.fixtureType)
+                            ? flagLabel(l)
+                            : `${l.colorTemp > 0 ? `${l.colorTemp}K` : 'RGB'} (${l.intensity}%)`}
+                        </span>
                       </div>
                     ))}
                   </div>

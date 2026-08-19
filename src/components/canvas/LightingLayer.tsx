@@ -1,7 +1,10 @@
 import React from 'react';
 import { LightElement } from '../../types';
 import { getLightBeamPolygon, kelvinToRgb } from '../../utils/geometry';
+import { LIGHT_FIXTURES } from '../../constants/presets';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
+import { FlagFixtureIcon, flagLabel, getFlagSelectionRadius, isFlagFixture } from './FlagFixtureIcon';
+import { FixtureGlyph } from './FixtureGlyph';
 
 interface LightingLayerProps {
   lights: LightElement[];
@@ -17,12 +20,14 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
   displaySettings,
 }) => {
   const showLightLabel = displaySettings.showLabels && displaySettings.showLightLabels;
+  const showLightName = displaySettings.showLabels && displaySettings.showLightNameLabels;
   const showBeams = displaySettings.showLightBeams;
 
   return (
     <g className="lighting-layer">
       {lights.map((light) => {
         const isSelected = selectedIds.includes(light.id);
+        const isFlag = isFlagFixture(light.fixtureType);
         const color = light.rgbColor || kelvinToRgb(light.colorTemp || 5600);
         const intensity = (light.intensity || 80) / 100;
         const throwDist = light.throwDistance || 200;
@@ -59,8 +64,8 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
               </radialGradient>
             </defs>
 
-            {/* Beam Cone Throw */}
-            {showBeams && beamAngle > 0 && !isOmni && (
+            {/* Beam Cone Throw (flags never emit light; per-light beamVisible can hide it) */}
+            {showBeams && !isFlag && light.beamVisible !== false && beamAngle > 0 && !isOmni && (
               <g className="pointer-events-none">
                 <path
                   d={beamPath}
@@ -84,7 +89,7 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
             )}
 
             {/* Omni Bulb Glow */}
-            {showBeams && isOmni && (
+            {showBeams && !isFlag && light.beamVisible !== false && isOmni && (
               <circle
                 cx={0}
                 cy={0}
@@ -100,7 +105,7 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
               <circle
                 cx={0}
                 cy={0}
-                r={24}
+                r={isFlag ? getFlagSelectionRadius(light) : 24}
                 fill="none"
                 stroke="#38bdf8"
                 strokeWidth={2}
@@ -109,125 +114,82 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
             )}
 
             {/* Fixture Body depending on type */}
-            {light.fixtureType === 'tube_light' ? (
-              <g>
-                <rect
-                  x={-6}
-                  y={-24}
-                  width={12}
-                  height={48}
-                  fill={color}
-                  stroke="#0f172a"
-                  strokeWidth={1.5}
-                  rx={6}
-                />
-                <circle cx={0} cy={0} r={4} fill="#ffffff" />
-              </g>
-            ) : light.fixtureType === 'led_panel' || light.fixtureType === 'softbox' ? (
-              <g>
-                <rect
-                  x={-8}
-                  y={-18}
-                  width={16}
-                  height={36}
-                  fill="#1e293b"
-                  stroke={isSelected ? '#38bdf8' : '#cbd5e1'}
-                  strokeWidth={2}
-                  rx={2}
-                />
-                <rect
-                  x={-4}
-                  y={-14}
-                  width={8}
-                  height={28}
-                  fill={color}
-                  opacity={0.9}
-                />
-              </g>
-            ) : light.fixtureType === 'reflector' ? (
-              <g>
-                <rect
-                  x={-4}
-                  y={-20}
-                  width={8}
-                  height={40}
-                  fill="#ffffff"
-                  stroke="#64748b"
-                  strokeWidth={2}
-                />
-                <line x1={0} y1={-20} x2={0} y2={20} stroke="#94a3b8" strokeWidth={1} />
-              </g>
-            ) : light.fixtureType === 'c_stand_flag' ? (
-              <g>
-                <rect
-                  x={-4}
-                  y={-22}
-                  width={8}
-                  height={44}
-                  fill="#020617"
-                  stroke="#475569"
-                  strokeWidth={2}
-                />
-              </g>
+            {isFlag ? (
+              <FlagFixtureIcon key={light.flagSize || '24x36'} light={light} selected={isSelected} />
             ) : (
-              /* Fresnel / Standard Spot */
-              <g>
-                {/* Yoke / Stand */}
-                <path
-                  d="M -12 -12 L -6 0 L -12 12"
-                  fill="none"
-                  stroke="#94a3b8"
-                  strokeWidth={2}
-                />
-                {/* Barrel */}
-                <polygon
-                  points="-8,-10 10,-6 10,6 -8,10"
-                  fill="#1e293b"
-                  stroke={isSelected ? '#38bdf8' : '#e2e8f0'}
-                  strokeWidth={1.5}
-                />
-                {/* Lens */}
-                <line
-                  x1={10}
-                  y1={-6}
-                  x2={10}
-                  y2={6}
-                  stroke={color}
-                  strokeWidth={3}
-                />
-              </g>
+              <FixtureGlyph fixtureType={light.fixtureType} color={color} selected={isSelected} />
             )}
 
             {/* Label badge */}
-            {showLightLabel && (
-              <g
-                transform={`rotate(${-light.rotation}) translate(0, 24) scale(${displaySettings.labelScale})`}
-                opacity={displaySettings.labelOpacity}
-                className="pointer-events-none"
-              >
-                <rect
-                  x={-45}
-                  y={-8}
-                  width={90}
-                  height={16}
-                  fill="rgba(15, 23, 42, 0.85)"
-                  stroke="rgba(255, 255, 255, 0.15)"
-                  rx={3}
-                />
-                <text
-                  x={0}
-                  y={4}
-                  fill={displaySettings.lightLabelColor ?? '#e2e8f0'}
-                  fontSize="9"
-                  textAnchor="middle"
-                  fontWeight="500"
-                  className="select-none font-sans"
+            {showLightLabel && (() => {
+              const fixtureName = light.name || LIGHT_FIXTURES.find((f) => f.type === light.fixtureType)?.name || 'Light';
+              const showName = showLightName && !isFlag;
+              return (
+                <g
+                  transform={`rotate(${-light.rotation}) translate(0, ${showName ? 28 : 24}) scale(${displaySettings.labelScale})`}
+                  opacity={displaySettings.labelOpacity}
+                  className="pointer-events-none"
                 >
-                  {light.colorTemp > 0 ? `${light.colorTemp}K` : 'RGB'}{' '}
-                  {light.intensity}%
-                </text>
-              </g>
-            )}
+                  {showName ? (
+                    <>
+                      <rect
+                        x={-62}
+                        y={-11}
+                        width={124}
+                        height={22}
+                        fill="rgba(15, 23, 42, 0.85)"
+                        stroke="rgba(255, 255, 255, 0.15)"
+                        rx={3}
+                      />
+                      <text
+                        x={0}
+                        y={0}
+                        fill={displaySettings.lightLabelColor ?? '#e2e8f0'}
+                        fontSize="9"
+                        textAnchor="middle"
+                        fontWeight="600"
+                        className="select-none font-sans"
+                      >
+                        {fixtureName}
+                      </text>
+                      <text
+                        x={0}
+                        y={11}
+                        fill={displaySettings.lightLabelColor ?? '#94a3b8'}
+                        fontSize="7"
+                        textAnchor="middle"
+                        className="select-none font-mono"
+                      >
+                        {`${light.colorTemp > 0 ? `${light.colorTemp}K` : 'RGB'} · ${light.intensity}%`}
+                      </text>
+                    </>
+                  ) : (
+                    <>
+                      <rect
+                        x={-45}
+                        y={-8}
+                        width={90}
+                        height={16}
+                        fill="rgba(15, 23, 42, 0.85)"
+                        stroke="rgba(255, 255, 255, 0.15)"
+                        rx={3}
+                      />
+                      <text
+                        x={0}
+                        y={4}
+                        fill={displaySettings.lightLabelColor ?? '#e2e8f0'}
+                        fontSize="9"
+                        textAnchor="middle"
+                        fontWeight="500"
+                        className="select-none font-sans"
+                      >
+                        {isFlag ? flagLabel(light) : `${light.colorTemp > 0 ? `${light.colorTemp}K` : 'RGB'} ${light.intensity}%`}
+                      </text>
+                    </>
+                  )}
+                </g>
+              );
+            })()}
           </g>
         );
       })}

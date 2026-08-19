@@ -27,7 +27,7 @@ import { WallLayer } from './WallLayer';
 import { Move, ZoomIn, ZoomOut, Check, X, Keyboard, Scan } from 'lucide-react';
 
 interface DragState {
-  type: 'move' | 'rotate' | 'pan' | 'box_select' | 'endpoint_start' | 'endpoint_end' | 'draw_wall' | 'draw_measure' | 'waypoint' | 'waypoint_rotate';
+  type: 'move' | 'rotate' | 'pan' | 'box_select' | 'endpoint_start' | 'endpoint_end' | 'draw_wall' | 'draw_measure' | 'draw_arrow' | 'waypoint' | 'waypoint_rotate';
   startMouse: Vector2D;
   startElements: Map<string, FloorPlanElement>;
   selectedIds: string[];
@@ -72,6 +72,9 @@ export const FloorPlanCanvas: React.FC = () => {
     setActiveRightTab,
     displaySettings,
     duplicateSelected,
+    copySelectedElements,
+    pasteElements,
+    commitCurrentState,
     setCanvasViewport,
   } = useFloorPlan();
 
@@ -106,6 +109,10 @@ export const FloorPlanCanvas: React.FC = () => {
   const canvasOffsetRef = useRef(canvasOffset);
   canvasScaleRef.current = canvasScale;
   canvasOffsetRef.current = canvasOffset;
+
+  // True when the current drag actually changed element positions (used to push
+  // exactly ONE history entry on release, so Ctrl+Z undoes a whole gesture).
+  const dragChangedRef = useRef(false);
 
   // Convert client viewport coordinates to Canvas space
   const screenToCanvas = useCallback(
@@ -262,6 +269,7 @@ export const FloorPlanCanvas: React.FC = () => {
     return activeSetup.shots.find((s) => s.cameraId === camera.id) || null;
   };
   const measurements = activeSetup.elements.filter((e) => e.type === 'measurement');
+  const arrows = activeSetup.elements.filter((e) => e.type === 'arrow');
   const texts = activeSetup.elements.filter((e) => e.type === 'text');
 
   // Storyboard thumbnails: shots that have a storyboard attached, shown near
@@ -459,6 +467,31 @@ export const FloorPlanCanvas: React.FC = () => {
       return;
     }
 
+    // 2c. Arrow Tool - drag to draw an arrow between two points
+    if (activeTool === 'arrow') {
+      const arrowId = addElement({
+        type: 'arrow',
+        x: drawPos.x,
+        y: drawPos.y,
+        x2: drawPos.x,
+        y2: drawPos.y,
+        color: '#f97316',
+        strokeWidth: 2.5,
+        headStyle: 'single',
+        dashStyle: 'solid',
+      } as any);
+
+      setDragState({
+        type: 'draw_arrow',
+        startMouse: { x: e.clientX, y: e.clientY },
+        startElements: new Map(),
+        selectedIds: [arrowId],
+        activeElementId: arrowId,
+      });
+      selectElement(arrowId);
+      return;
+    }
+
     // 3. Other insert tools (Actor, Camera, Light, Prop, Track, etc.)
     if (activeTool !== 'select') {
       const newId = addElement({
@@ -522,7 +555,7 @@ export const FloorPlanCanvas: React.FC = () => {
       return;
     }
 
-    if (activeTool === 'wall' || activeTool === 'measure') {
+    if (activeTool === 'wall' || activeTool === 'measure' || activeTool === 'arrow') {
       // Connect wall to clicked element / start measuring from clicked element
       handlePointerDown(e);
       return;
@@ -645,6 +678,16 @@ export const FloorPlanCanvas: React.FC = () => {
 
     if (!dragState) return;
 
+    // Safety net: if the drag button is no longer held (the pointerup was
+    // missed — e.g. it raced ahead of a pending render, or fired outside the
+    // window), place the item NOW instead of letting it keep following the
+    // cursor. handlePointerUp is idempotent, so this is safe to call here.
+    const leftHeld = (e.buttons & 1) !== 0;
+    if (dragState.type === 'pan' ? e.buttons === 0 : !leftHeld) {
+      handlePointerUp();
+      return;
+    }
+
     if (dragState.type === 'pan' && dragState.startOffset) {
       const dx = e.clientX - dragState.startMouse.x;
       const dy = e.clientY - dragState.startMouse.y;
@@ -730,6 +773,7 @@ export const FloorPlanCanvas: React.FC = () => {
         updates.push({ id, updates: updateObj });
       });
 
+      dragChangedRef.current = true;
       updateMultipleElements(updates, false);
       return;
     }
@@ -746,6 +790,7 @@ export const FloorPlanCanvas: React.FC = () => {
         angle = Math.round(angle / 5) * 5;
       }
 
+      dragChangedRef.current = true;
       updateElement(dragState.activeElementId, { rotation: (angle + 360) % 360 }, false);
       return;
     }
@@ -754,14 +799,17 @@ export const FloorPlanCanvas: React.FC = () => {
       (dragState.type === 'endpoint_start' ||
         dragState.type === 'endpoint_end' ||
         dragState.type === 'draw_wall' ||
-        dragState.type === 'draw_measure') &&
+        dragState.type === 'draw_measure' ||
+        dragState.type === 'draw_arrow') &&
       dragState.activeElementId
     ) {
       const drawPos = getDrawingCursorPos(mouseCanvas);
 
       if (dragState.type === 'endpoint_start') {
+        dragChangedRef.current = true;
         updateElement(dragState.activeElementId, { x: drawPos.x, y: drawPos.y }, false);
       } else {
+        dragChangedRef.current = true;
         updateElement(dragState.activeElementId, { x2: drawPos.x, y2: drawPos.y } as any, false);
       }
       return;
@@ -780,6 +828,7 @@ export const FloorPlanCanvas: React.FC = () => {
         const newPath = (el as any).path.map((wp: any) =>
           wp.id === dragState.waypointId ? { ...wp, x: nextX, y: nextY } : wp
         );
+        dragChangedRef.current = true;
         updateElement(dragState.activeElementId, { path: newPath } as any, false);
       }
       return;
@@ -800,6 +849,7 @@ export const FloorPlanCanvas: React.FC = () => {
           const newPath = (el as any).path.map((w: any) =>
             w.id === dragState.waypointId ? { ...w, rotation: (angle + 360) % 360 } : w
           );
+          dragChangedRef.current = true;
           updateElement(dragState.activeElementId, { path: newPath } as any, false);
         }
       }
@@ -820,6 +870,17 @@ export const FloorPlanCanvas: React.FC = () => {
       }
       setTool('select');
     }
+    if (dragState?.type === 'draw_arrow') {
+      // Finish arrow: a zero-length click gets a sensible default 150px arrow to the right
+      const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
+      if (el && 'x2' in el) {
+        const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
+        if (length < 5) {
+          updateElement(el.id, { x2: el.x + 150, y2: el.y } as any, false);
+        }
+      }
+      setTool('select');
+    }
     if (dragState?.type === 'draw_wall') {
       // If user dragged a significant wall length, finish wall; if clicked in place, leave connected wall mode active
       const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
@@ -831,14 +892,46 @@ export const FloorPlanCanvas: React.FC = () => {
         }
       }
     }
+
+    // Drags that modified EXISTING elements get pushed into history exactly
+    // once here, so one gesture = one undo step. (draw_wall / draw_measure are
+    // excluded: they already pushed a creation entry, and undo reverts them by
+    // removing the whole element.)
+    if (
+      dragChangedRef.current &&
+      dragState &&
+      ['move', 'rotate', 'endpoint_start', 'endpoint_end', 'waypoint', 'waypoint_rotate'].includes(dragState.type)
+    ) {
+      commitCurrentState();
+    }
+    dragChangedRef.current = false;
     setDragState(null);
     setBoxSelection(null);
   };
+
+  // Finalize any in-progress drag when the button is released ANYWHERE (even
+  // outside the canvas), so a dropped item is always placed and never stays
+  // stuck to the cursor. handlePointerUp is idempotent, so the container's own
+  // onPointerUp firing first is harmless.
+  useEffect(() => {
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, [handlePointerUp]);
 
   // Keyboard Shortcuts (Delete, Space, Undo, Redo, Esc, Enter)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Holding Ctrl+Z (or C/V/D/Y) auto-repeats keydown events; ignore repeats
+      // so a single physical press only ever triggers ONE undo/redo/copy/paste.
+      if (e.repeat && ['z', 'y', 'c', 'v', 'd'].includes(e.key)) {
         return;
       }
 
@@ -873,6 +966,16 @@ export const FloorPlanCanvas: React.FC = () => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
         e.preventDefault();
         duplicateSelected();
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+        e.preventDefault();
+        copySelectedElements();
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+        e.preventDefault();
+        pasteElements();
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
@@ -928,7 +1031,7 @@ export const FloorPlanCanvas: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedElementIds, deleteSelectedElements, clearSelection, undo, redo, activeSetup.elements, updateMultipleElements, setTool, selectedBackgroundId, removeBackgroundImage, setSelectedBackgroundId, duplicateSelected]);
+  }, [selectedElementIds, deleteSelectedElements, clearSelection, undo, redo, activeSetup.elements, updateMultipleElements, setTool, selectedBackgroundId, removeBackgroundImage, setSelectedBackgroundId, duplicateSelected, copySelectedElements, pasteElements]);
 
   const selectedElement =
     selectedElementIds.length === 1
@@ -963,7 +1066,7 @@ export const FloorPlanCanvas: React.FC = () => {
         {/* Transform layer for Canvas scale and Pan offset */}
         <g transform={`translate(${canvasOffset.x}, ${canvasOffset.y}) scale(${canvasScale})`}>
           {/* 1. Vector Grid & Axes */}
-          <GridLayer gridSettings={gridSettings} visible={displaySettings.showGrid} />
+          <GridLayer gridSettings={gridSettings} visible={displaySettings.showGrid} dark={!isLightMode} />
 
           {/* 2. Scalable Reference Blueprint / Screenshot Layers (multiple supported) */}
           <BackgroundLayer
@@ -985,6 +1088,7 @@ export const FloorPlanCanvas: React.FC = () => {
             propsList={propsList}
             tracks={tracks}
             measurements={measurements as any}
+            arrows={arrows as any}
             texts={texts as any}
             selectedIds={selectedElementIds}
             onSelect={handleElementSelect}
@@ -1009,6 +1113,7 @@ export const FloorPlanCanvas: React.FC = () => {
             selectedIds={selectedElementIds}
             snappedWallId={nearestWallInfo?.wallId}
             showLightBeams={displaySettings.showLightBeams}
+            showDoorWindowLabels={displaySettings.showDoorWindowLabels}
             onSelect={handleElementSelect}
           />
 
@@ -1245,6 +1350,8 @@ export const FloorPlanCanvas: React.FC = () => {
               <>Click and drag to draw a wall, or click points to draw <strong>Connected Rooms</strong></>
             ) : activeTool === 'measure' ? (
               <><strong>Click and drag</strong> between two points to measure distance (Esc to cancel)</>
+            ) : activeTool === 'arrow' ? (
+              <><strong>Click and drag</strong> to draw an arrow (Esc to cancel)</>
             ) : (
               <>Click on canvas to place <strong>{activeTool.toUpperCase()}</strong> (Press Esc to cancel)</>
             )}
@@ -1283,6 +1390,8 @@ export const FloorPlanCanvas: React.FC = () => {
                     ['Del / Backspace', 'Delete selected elements (or reference image)'],
                     ['Shift + Click', 'Multi-select elements'],
                     ['Ctrl/Cmd + D', 'Duplicate selection'],
+                    ['Ctrl/Cmd + C', 'Copy selected elements'],
+                    ['Ctrl/Cmd + V', 'Paste copied elements'],
                     ['Arrow Keys', 'Nudge selection (Shift = 10px)'],
                     ['Esc', 'Deselect / cancel current tool'],
                   ],
@@ -1331,6 +1440,21 @@ export const FloorPlanCanvas: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Tiny scale indicator pinned to the bottom-left corner (5 units at current zoom) */}
+      <div className="absolute bottom-2.5 left-3 z-30 flex items-center gap-1.5 opacity-50 pointer-events-none select-none">
+        <div className="flex items-center">
+          <div className="w-px h-[6px] bg-slate-400" />
+          <div
+            className="h-[2px] bg-slate-400"
+            style={{ width: Math.max(16, gridSettings.pixelsPerUnit * canvasScale * 5) }}
+          />
+          <div className="w-px h-[6px] bg-slate-400" />
+        </div>
+        <span className="text-[9px] leading-none font-mono text-slate-400">
+          5{gridSettings.unit === 'm' ? 'm' : 'ft'}
+        </span>
+      </div>
     </div>
   );
 };

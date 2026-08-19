@@ -46,15 +46,20 @@ export const TopNavbar: React.FC = () => {
 
   const { gridSettings } = activeSetup;
 
-  // Handle Export JSON Project file
+  // Handle Export JSON Project file.
+  // Uses a Blob download so projects with many embedded (base64 data-URL)
+  // storyboard images export reliably regardless of size.
   const handleExportJson = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(project, null, 2));
+    const json = JSON.stringify(project, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
     const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('href', url);
     downloadAnchor.setAttribute('download', `${project.title.toLowerCase().replace(/\s+/g, '_')}_openshotdesigner.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    URL.revokeObjectURL(url);
   };
 
   // Handle Import JSON Project file
