@@ -1,5 +1,6 @@
 import { Project, SceneSetup } from '../types';
-import { SAMPLE_SCENES } from '../constants/presets';
+import { SAMPLE_SCENES, SAMPLE_SCREENPLAY } from '../constants/presets';
+import { parseSampleScreenplay, sampleMarksFor } from './sampleContent';
 
 /**
  * Project library: several productions live side by side in this browser.
@@ -112,9 +113,19 @@ export interface NewProjectOptions {
 }
 
 export const createProject = (options: NewProjectOptions = {}): Project => {
-  const setups = options.withSampleScenes
+  const withSamples = !!options.withSampleScenes;
+  const setups = withSamples
     ? (JSON.parse(JSON.stringify(SAMPLE_SCENES)) as SceneSetup[])
     : [blankSetup()];
+
+  // The examples come pre-lined, so the script tab isn't empty on first run.
+  let scriptLines;
+  if (withSamples) {
+    scriptLines = parseSampleScreenplay();
+    setups.forEach((setup) => {
+      setup.scriptMarks = sampleMarksFor(setup.id, scriptLines!, setup.sceneNumber);
+    });
+  }
 
   return {
     id: newProjectId(),
@@ -124,6 +135,9 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     date: new Date().toISOString().split('T')[0],
     setups,
     activeSetupId: setups[0].id,
+    ...(withSamples
+      ? { scriptTitle: 'Sample scene', scriptText: SAMPLE_SCREENPLAY, scriptLines }
+      : {}),
   };
 };
 

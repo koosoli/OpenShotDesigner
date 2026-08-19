@@ -3,6 +3,7 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { ActorElement, CameraElement, PropElement } from '../../types';
 import { isPointInCameraFov } from '../../utils/geometry';
 import { loadStoryboardImageFile } from '../../utils/image';
+import { setFramePatch, slotsOf, START_SLOT } from '../../utils/storyboardFrames';
 import {
   APERTURES,
   ASPECT_RATIOS,
@@ -80,6 +81,8 @@ export const ViewfinderModal: React.FC = () => {
   const [saveNote, setSaveNote] = useState<string | null>(null);
   /** The still grabbed on capture: the finder freezes on it until retake. */
   const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
+  /** Which keyframe a capture lands on (camera start, a waypoint, the end). */
+  const [captureSlot, setCaptureSlot] = useState<string>(START_SLOT);
   /** Set once the live <video> has real pixels (metadata loaded). */
   const [videoReady, setVideoReady] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
@@ -254,7 +257,11 @@ export const ViewfinderModal: React.FC = () => {
 
   // True when the frame carries real imagery (live feed or attached art), in
   // which case the simulated silhouettes would only get in the way.
-  const showsRealImage = !!liveStream || !!frozenFrame || (showStoryboard && !!targetShot?.storyboardImage);
+  // Keyframes this shot can be boarded on, and the one being worked on now
+  const frameSlots = targetShot ? slotsOf(targetShot, selectedCamera) : [];
+  const activeSlot = frameSlots.find((slot) => slot.key === captureSlot) || frameSlots[0];
+  const shownStoryboard = activeSlot?.frame?.image || targetShot?.storyboardImage;
+  const showsRealImage = !!liveStream || !!frozenFrame || (showStoryboard && !!shownStoryboard);
 
   const framingNotes = () => {
     const subjectNames = visibleActors.map((a) => a.actor.name || a.actor.characterLetter).join(', ');
@@ -367,9 +374,11 @@ export const ViewfinderModal: React.FC = () => {
    * dead end.
    */
   const saveStoryboardImage = (image: string) => {
+    const slotName = activeSlot?.label ? `${activeSlot.label.toLowerCase()} frame` : 'storyboard';
+
     if (targetShot) {
-      updateShot(targetShot.id, { storyboardImage: image, storyboardFit: 'cover' });
-      setSaveNote(`Storyboard saved to shot ${targetShot.shotNumber}.`);
+      updateShot(targetShot.id, setFramePatch(targetShot, captureSlot, { image, fit: 'cover' }));
+      setSaveNote(`Saved as the ${slotName} of shot ${targetShot.shotNumber}.`);
     } else {
       addShot({
         cameraId: selectedCamera.id,
@@ -524,12 +533,12 @@ export const ViewfinderModal: React.FC = () => {
             )}
 
             {/* Attached storyboard art, shown as the frame's backing plate */}
-            {!liveStream && showStoryboard && targetShot?.storyboardImage && (
+            {!liveStream && showStoryboard && shownStoryboard && (
               <img
-                src={targetShot.storyboardImage}
-                alt={`Storyboard for shot ${targetShot.shotNumber}`}
+                src={shownStoryboard}
+                alt={`Storyboard for shot ${targetShot?.shotNumber}`}
                 className="absolute inset-0 w-full h-full z-[5]"
-                style={{ objectFit: targetShot.storyboardFit || 'cover' }}
+                style={{ objectFit: activeSlot?.frame?.fit || 'cover' }}
               />
             )}
 
@@ -694,10 +703,12 @@ export const ViewfinderModal: React.FC = () => {
                   }`}
                 >
                   {frozenFrame
-                    ? 'CAPTURED FRAME'
+                    ? `CAPTURED ${activeSlot?.short || 'FRAME'}`
                     : liveStream
                       ? 'LIVE CAMERA'
-                      : `STORYBOARD ${targetShot?.shotNumber || ''}`}
+                      : `STORYBOARD ${targetShot?.shotNumber || ''}${
+                          activeSlot?.short ? ` · ${activeSlot.short}` : ''
+                        }`}
                 </span>
               </div>
             )}
@@ -928,6 +939,34 @@ export const ViewfinderModal: React.FC = () => {
               onChange={handleCameraPhoto}
               className="hidden"
             />
+            {/* Which camera keyframe is being boarded */}
+            {frameSlots.length > 1 && (
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wide">Frame</span>
+                <div className="flex items-center rounded-lg border border-slate-700 overflow-hidden">
+                  {frameSlots.map((slot) => (
+                    <button
+                      key={slot.key}
+                      onClick={() => setCaptureSlot(slot.key)}
+                      title={`Board the frame at ${slot.label.toLowerCase()} of the move${
+                        slot.frame?.image ? ' (already boarded)' : ''
+                      }`}
+                      className={`px-2 py-1 text-[11px] font-semibold flex items-center gap-1 ${
+                        captureSlot === slot.key
+                          ? slot.short === 'END'
+                            ? 'bg-amber-500 text-black'
+                            : 'bg-violet-600 text-white'
+                          : 'bg-slate-950 text-slate-300'
+                      }`}
+                    >
+                      {slot.label}
+                      {slot.frame?.image && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Live camera: shoot the storyboard through the finder's guides */}
             {liveStream ? (
               <>

@@ -9,7 +9,8 @@ export type ElementType =
   | 'track'
   | 'text'
   | 'measurement'
-  | 'arrow';
+  | 'arrow'
+  | 'shape';
 
 export interface Vector2D {
   x: number;
@@ -267,6 +268,36 @@ export interface ArrowElement extends BaseElement {
   label?: string;
 }
 
+export type ShapeType =
+  | 'rectangle'
+  | 'circle'
+  | 'ellipse'
+  | 'triangle'
+  | 'diamond'
+  | 'pentagon'
+  | 'hexagon'
+  | 'star';
+
+/** A free-form graphic: blocking zone, set piece footprint, callout area. */
+export interface ShapeElement extends BaseElement {
+  type: 'shape';
+  shapeType: ShapeType;
+  width: number;
+  height: number;
+  /** Fill colour; `filled: false` leaves the shape as an outline only. */
+  color: string;
+  filled?: boolean;
+  /** Fill opacity, 0 – 1. */
+  opacity?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
+  strokeOpacity?: number;
+  dashStyle?: 'solid' | 'dashed' | 'dotted';
+  /** Rounded corners, rectangles only. */
+  cornerRadius?: number;
+  label?: string;
+}
+
 export type FloorPlanElement =
   | ActorElement
   | CameraElement
@@ -278,7 +309,8 @@ export type FloorPlanElement =
   | TrackElement
   | TextElement
   | MeasurementElement
-  | ArrowElement;
+  | ArrowElement
+  | ShapeElement;
 
 export type ShotSize =
   | 'ELS' // Extreme Long Shot
@@ -310,6 +342,15 @@ export type CameraMovement =
 
 export type ShotStatus = 'planned' | 'rehearsed' | 'ready' | 'taken' | 'omitted';
 
+/** A single storyboard frame attached to one camera keyframe. */
+export interface StoryboardFrame {
+  image: string;
+  fit?: 'cover' | 'contain';
+  /** Where its thumbnail sits on the floor plan. */
+  canvasPosition?: Vector2D;
+  note?: string;
+}
+
 export interface Shot {
   id: string;
   sceneNumber: string;
@@ -329,6 +370,15 @@ export interface Shot {
   storyboardFit?: 'cover' | 'contain';
   storyboardPosition?: { x: number; y: number };
   storyboardCanvasPosition?: { x: number; y: number };
+  /**
+   * One storyboard frame per camera keyframe, keyed by waypoint id ('start' for
+   * the camera's base position). See utils/storyboardFrames.
+   */
+  storyboardFrames?: Record<string, StoryboardFrame>;
+  /** Legacy single end frame, folded into `storyboardFrames` when read. */
+  storyboardImageEnd?: string;
+  storyboardFitEnd?: 'cover' | 'contain';
+  storyboardCanvasPositionEnd?: { x: number; y: number };
   framingDescription: string;
   actionScriptNotes?: string;
   status: ShotStatus;
@@ -489,4 +539,5 @@ export type ActiveTool =
   | 'track'
   | 'measure'
   | 'arrow'
-  | 'text';
+  | 'text'
+  | 'shape';

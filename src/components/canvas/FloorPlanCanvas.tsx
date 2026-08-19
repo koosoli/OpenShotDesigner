@@ -7,6 +7,7 @@ import {
   FloorPlanElement,
   LightElement,
   PropElement,
+  ShapeElement,
   Shot,
   TrackElement,
   Vector2D,
@@ -15,12 +16,14 @@ import {
 } from '../../types';
 import { findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
 import { ASPECT_RATIOS } from '../../constants/presets';
+import { boardedFrames, setFramePatch, START_SLOT } from '../../utils/storyboardFrames';
 import { ActorElementView } from './ActorElementView';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CameraElementView } from './CameraElementView';
 import { GridLayer } from './GridLayer';
 import { LightingLayer } from './LightingLayer';
 import { PropsLayer } from './PropsLayer';
+import { ShapesLayer } from './ShapesLayer';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
@@ -359,9 +362,13 @@ export const FloorPlanCanvas: React.FC = () => {
   // their camera on the floor plan.
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
+  const shapes = activeSetup.elements.filter((e) => e.type === 'shape') as ShapeElement[];
   const storyboardThumbs = cameras
     .map((c) => ({ camera: c, shot: getShotForCamera(c) }))
-    .filter((item): item is { camera: CameraElement; shot: Shot } => !!item.shot?.storyboardImage);
+    .filter(
+      (item): item is { camera: CameraElement; shot: Shot } =>
+        !!item.shot && boardedFrames(item.shot, item.camera).length > 0
+    );
 
   // Collect all wall corner vertices for magnetic snapping
   const wallVertices: Vector2D[] = [];
@@ -446,6 +453,14 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const canvasPos = screenToCanvas(e.clientX, e.clientY);
     const drawPos = getDrawingCursorPos(canvasPos);
+
+    // Shape tool: click to drop the current shape at that point
+    if (activeTool === 'shape') {
+      const newId = addElement({ type: 'shape', x: drawPos.x, y: drawPos.y });
+      selectElement(newId);
+      setTool('select');
+      return;
+    }
 
     // 1. Door or Window Tool - Instant reliable placement with wall alignment
     if (activeTool === 'door' || activeTool === 'window') {
@@ -1175,6 +1190,13 @@ export const FloorPlanCanvas: React.FC = () => {
           />
 
           {/* 3. Props, Furniture, Rigs, Tracks, Measurements */}
+          <ShapesLayer
+            shapes={shapes}
+            selectedIds={selectedElementIds}
+            onSelect={handleElementSelect}
+            canvasScale={canvasScale}
+          />
+
           <PropsLayer
             propsList={propsList}
             tracks={tracks}
@@ -1315,12 +1337,16 @@ export const FloorPlanCanvas: React.FC = () => {
           ))}
 
           {/* 9b. Storyboard Thumbnails (attached to their camera, draggable) */}
+          {displaySettings.showStoryboardThumbs && (
           <StoryboardThumbLayer
             items={storyboardThumbs}
             canvasScale={canvasScale}
             aspectRatio={sceneAspectRatio}
             isInteractive={activeTool === 'select'}
-            onDragThumb={(shotId, pos) => updateShot(shotId, { storyboardCanvasPosition: pos })}
+            onDragThumb={(shotId, slotKey, pos) => {
+              const shot = activeSetup.shots.find((item) => item.id === shotId);
+              if (shot) updateShot(shotId, setFramePatch(shot, slotKey, { canvasPosition: pos }));
+            }}
             // Select only — going through handleElementSelect would also start a
             // camera move drag, which fought with the thumbnail's own drag.
             onSelectCamera={(camId) => selectElement(camId)}
@@ -1330,14 +1356,18 @@ export const FloorPlanCanvas: React.FC = () => {
                 .sort((a, b) => a.distance - b.distance)[0];
               if (!target || target.distance > 110) return;
               const targetShot = getShotForCamera(target.camera);
-              if (targetShot && sourceShot.storyboardImage) {
-                updateShot(targetShot.id, {
-                  storyboardImage: sourceShot.storyboardImage,
-                  storyboardFit: sourceShot.storyboardFit || 'cover',
-                });
+              if (targetShot && targetShot.id !== sourceShot.id && sourceShot.storyboardImage) {
+                updateShot(
+                  targetShot.id,
+                  setFramePatch(targetShot, START_SLOT, {
+                    image: sourceShot.storyboardImage,
+                    fit: sourceShot.storyboardFit || 'cover',
+                  })
+                );
               }
             }}
           />
+          )}
 
           {/* 10. Interactive Transform Handles (Rotation & Linear Endpoints) */}
           {selectedElement && (

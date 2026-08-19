@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { ActiveTool } from '../../types';
+import { ActiveTool, ShapeType } from '../../types';
 import { CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import { loadBackgroundImageFile } from '../../utils/image';
 import { useBreakpoint } from '../../utils/useMediaQuery';
@@ -14,6 +14,7 @@ import {
   MousePointer,
   MoveHorizontal,
   MoveUpRight,
+  Circle,
   Ruler,
   Search,
   BrickWall,
@@ -32,7 +33,18 @@ interface ToolItem {
   hasSubmenu?: boolean;
 }
 
-type Submenu = 'prop' | 'light' | 'camera' | 'overflow';
+type Submenu = 'prop' | 'light' | 'camera' | 'shape' | 'overflow';
+
+const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
+  { value: 'rectangle', label: 'Rectangle' },
+  { value: 'circle', label: 'Circle' },
+  { value: 'ellipse', label: 'Ellipse' },
+  { value: 'triangle', label: 'Triangle' },
+  { value: 'diamond', label: 'Diamond' },
+  { value: 'pentagon', label: 'Pentagon' },
+  { value: 'hexagon', label: 'Hexagon' },
+  { value: 'star', label: 'Star' },
+];
 
 /** Tools that stay on the bar when there is no room for the full palette. */
 const PRIMARY_TOOL_IDS: ActiveTool[] = ['select', 'pan', 'actor', 'camera', 'light', 'wall'];
@@ -47,6 +59,8 @@ export const LeftToolbar: React.FC = () => {
     setLightFixture,
     activeCameraRig,
     setCameraRig,
+    activeShapeType,
+    setShapeType,
     setQuickSearchOpen,
     theme,
     addBackgroundImage,
@@ -159,6 +173,13 @@ export const LeftToolbar: React.FC = () => {
       label: 'Furniture & Props',
       shortcut: 'P',
       icon: <Table className="w-4 h-4 text-purple-500" />,
+      hasSubmenu: true,
+    },
+    {
+      id: 'shape',
+      label: 'Shape (zone / area)',
+      shortcut: 'S',
+      icon: <Circle className="w-4 h-4 text-cyan-500" />,
       hasSubmenu: true,
     },
     {
@@ -336,6 +357,29 @@ export const LeftToolbar: React.FC = () => {
                       <span className="text-[10px] opacity-60 font-mono">
                         {f.isFlag ? 'Flag' : 'Light'}
                       </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ---- SHAPE FLYOUT ---- */}
+            {tool.id === 'shape' && openSubmenu === 'shape' && (
+              <div className={`${flyoutBase} w-52`}>
+                <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1">Shapes</div>
+                <div className="space-y-1">
+                  {SHAPE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setShapeType(option.value);
+                        setTool('shape');
+                        setOpenSubmenu(null);
+                      }}
+                      className={listButtonClass(activeShapeType === option.value && activeTool === 'shape')}
+                    >
+                      <span>{option.label}</span>
+                      <Circle className="w-3 h-3 opacity-40 flex-shrink-0" />
                     </button>
                   ))}
                 </div>

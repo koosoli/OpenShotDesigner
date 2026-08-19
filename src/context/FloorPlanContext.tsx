@@ -12,6 +12,8 @@ import {
   PropElement,
   PropType,
   SceneSetup,
+  ShapeElement,
+  ShapeType,
   ScriptLine,
   ScriptMark,
   Shot,
@@ -23,8 +25,10 @@ import {
   LIGHT_FIXTURES,
   PROP_CATALOG,
   SAMPLE_SCENES,
+  SAMPLE_SCREENPLAY,
 } from '../constants/presets';
 import { calculateFovAngle } from '../utils/geometry';
+import { parseSampleScreenplay, sampleMarksFor } from '../utils/sampleContent';
 import {
   NewProjectOptions,
   ProjectSummary,
@@ -62,6 +66,7 @@ interface FloorPlanContextType {
   activePropSubtype: PropType;
   activeLightFixture: LightFixtureType;
   activeCameraRig: CameraRigType;
+  activeShapeType: ShapeType;
   historyIndex: number;
   historyLength: number;
   playback: {
@@ -89,6 +94,7 @@ interface FloorPlanContextType {
   setPropSubtype: (type: PropType) => void;
   setLightFixture: (type: LightFixtureType) => void;
   setCameraRig: (rig: CameraRigType) => void;
+  setShapeType: (shape: ShapeType) => void;
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
   activeRightTab: 'shots' | 'storyboard' | 'script' | 'inspector';
@@ -262,6 +268,8 @@ export interface DisplaySettings {
   showWaypoints: boolean;
   showFovCones: boolean;
   showLightBeams: boolean;
+  /** Storyboard thumbnails pinned next to their camera on the floor plan. */
+  showStoryboardThumbs: boolean;
   showGrid: boolean;
   // Shot info shown on the camera label
   showShotSizeOnCamera: boolean;
@@ -290,6 +298,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   lightLabelColor: null,
   showWaypoints: true,
   showFovCones: true,
+  showStoryboardThumbs: true,
   showLightBeams: true,
   showGrid: true,
   showShotSizeOnCamera: false,
@@ -448,6 +457,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [activePropSubtype, setActivePropSubtype] = useState<PropType>('table_rect');
   const [activeLightFixture, setActiveLightFixture] = useState<LightFixtureType>('fresnel');
   const [activeCameraRig, setActiveCameraRig] = useState<CameraRigType>('Tripod');
+  const [activeShapeType, setActiveShapeType] = useState<ShapeType>('rectangle');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
       const savedTheme = migrateStorageKey(LEGACY_STORAGE_KEYS.theme, STORAGE_KEYS.theme);
@@ -825,6 +835,25 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...(fixture.isFlag ? { flagSize: '24x36' as const } : {}),
         ...partial,
       };
+    } else if (partial.type === 'shape') {
+      const requested = (partial as Partial<ShapeElement>).shapeType || activeShapeType;
+      newElement = {
+        ...baseDefaults,
+        type: 'shape',
+        name: partial.name || `${requested.charAt(0).toUpperCase()}${requested.slice(1)}`,
+        shapeType: requested,
+        width: 180,
+        height: requested === 'circle' ? 180 : 120,
+        color: '#38bdf8',
+        filled: true,
+        opacity: 0.3,
+        strokeColor: '#0ea5e9',
+        strokeWidth: 2,
+        strokeOpacity: 1,
+        dashStyle: 'solid',
+        cornerRadius: requested === 'rectangle' ? 8 : 0,
+        ...partial,
+      } as ShapeElement;
     } else if (partial.type === 'wall') {
       newElement = {
         ...baseDefaults,
@@ -2626,19 +2655,56 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setProject((prev) => ({ ...prev, ...updates }));
   };
 
+  /**
+   * Add one of the example scenes to this project. Everything in it is re-ided
+   * so loading a template twice can't collide, and the sample screenplay comes
+   * with it (lined against the template's shots) unless the project already has
+   * a script of its own.
+   */
   const loadTemplateScene = (templateIndex: number) => {
     const template = SAMPLE_SCENES[templateIndex];
     if (!template) return;
 
-    const newSetupId = `setup-${Date.now()}`;
-    const clonedSetup: SceneSetup = {
-      ...JSON.parse(JSON.stringify(template)),
-      id: newSetupId,
-    };
+    const newSetupId = `setup-${Date.now().toString(36)}`;
+    const clone: SceneSetup = JSON.parse(JSON.stringify(template));
+    const suffix = Date.now().toString(36);
+
+    // Fresh ids, with every reference remapped
+    const elementIdMap = new Map<string, string>();
+    clone.elements.forEach((element) => elementIdMap.set(element.id, `${element.id}-${suffix}`));
+    const shotIdMap = new Map<string, string>();
+    clone.shots.forEach((shot) => shotIdMap.set(shot.id, `${shot.id}-${suffix}`));
+
+    clone.id = newSetupId;
+    clone.elements = clone.elements.map((element) => {
+      const next: any = { ...element, id: elementIdMap.get(element.id)! };
+      if (next.associatedShotId) next.associatedShotId = shotIdMap.get(next.associatedShotId) || next.associatedShotId;
+      if (next.lookAtTargetId) next.lookAtTargetId = elementIdMap.get(next.lookAtTargetId) || next.lookAtTargetId;
+      return next;
+    });
+    clone.shots = clone.shots.map((shot) => ({
+      ...shot,
+      id: shotIdMap.get(shot.id)!,
+      cameraId: elementIdMap.get(shot.cameraId) || shot.cameraId,
+      subjectActorIds: (shot.subjectActorIds || []).map((id) => elementIdMap.get(id) || id),
+    }));
+
+    // Decided outside the updater: React may run a state updater twice, and a
+    // second parse would hand the linings line ids that aren't in the script.
+    const existingLines = project.scriptLines || [];
+    const hasScript = existingLines.length > 0;
+    // Only bring the sample screenplay in when there is nothing to overwrite
+    const lines = hasScript ? existingLines : parseSampleScreenplay();
+    clone.scriptMarks = sampleMarksFor(template.id, lines, clone.sceneNumber, (shotId) =>
+      shotIdMap.get(shotId)
+    );
 
     setProject((prev) => ({
       ...prev,
-      setups: [...prev.setups, clonedSetup],
+      scriptTitle: hasScript ? prev.scriptTitle : 'Sample scene',
+      scriptText: hasScript ? prev.scriptText : SAMPLE_SCREENPLAY,
+      scriptLines: lines,
+      setups: [...prev.setups, clone],
       activeSetupId: newSetupId,
     }));
   };
@@ -2777,6 +2843,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setPropSubtype: setActivePropSubtype,
         setLightFixture: setActiveLightFixture,
         setCameraRig: setActiveCameraRig,
+        activeShapeType,
+        setShapeType: setActiveShapeType,
         quickSearchOpen,
         setQuickSearchOpen,
         selectElement,

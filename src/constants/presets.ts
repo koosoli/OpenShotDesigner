@@ -408,16 +408,75 @@ export const CAMERA_COLOR_PALETTE = [
 ];
 
 // Sample Scenes for Film Students & Directors
+/**
+ * A page of screenplay that matches the two sample scenes, so a new project
+ * started from the templates can be lined straight away.
+ */
+export const SAMPLE_SCREENPLAY = `1   INT. LIVING ROOM - NIGHT   1
+
+Rain on the window. ALEX sits on the sofa, a ledger open on the
+coffee table. SARAH watches him from the armchair.
+
+ALEX
+You want to tell me where it went?
+
+SARAH
+I don't know what you're talking about.
+
+He turns a page. Slowly. Lets the silence do the work.
+
+ALEX
+Forty thousand, Sarah. It doesn't just
+walk out of a building.
+
+She stands, crosses to the door and stops with her hand on the
+handle.
+
+SARAH
+Ask your brother.
+
+She leaves. Alex doesn't move.
+
+CUT TO:
+
+2   INT. INTERROGATION ROOM - NIGHT   2
+
+One lamp over a metal table. MARCUS, cuffed, sweating. DET.
+MILLER sits opposite, jacket off.
+
+MILLER
+Twelve minutes. That's how long you were
+in that stairwell.
+
+MARCUS
+I was having a smoke.
+
+Miller stands, walks around behind him, and lets him feel it.
+
+MILLER
+Then you won't mind telling me who was
+holding the door.
+
+Marcus says nothing. The blinds cut the light across his face.
+`;
+
 export const SAMPLE_SCENES: SceneSetup[] = [
+  /**
+   * Template 1 — the coverage every dialogue scene starts from: a master and
+   * two matching over-the-shoulders. Furniture sits along one axis so the two
+   * actors read clearly, and the cameras stand clear of the playing area so the
+   * plan stays readable at a glance.
+   */
   {
     id: 'setup-dialogue-classic',
-    name: 'Classic Dialogue (Shot-Reverse-Shot + Master)',
+    name: 'Dialogue — Master + Shot / Reverse',
     sceneNumber: '1',
     scriptPage: 'p. 1-3',
     location: 'INT. LIVING ROOM - NIGHT',
     timeOfDay: 'Night INT',
     currentBeat: 1,
     totalBeats: 3,
+    aspectRatio: '2.39:1',
     canvasScale: 1,
     canvasOffset: { x: 50, y: 50 },
     gridSettings: {
@@ -428,58 +487,17 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       pixelsPerUnit: 30,
     },
     elements: [
-      // Walls for a living room
-      {
-        id: 'wall-1',
-        type: 'wall',
-        name: 'North Wall',
-        x: 100,
-        y: 100,
-        x2: 700,
-        y2: 100,
-        thickness: 12,
-        rotation: 0,
-      },
-      {
-        id: 'wall-2',
-        type: 'wall',
-        name: 'West Wall',
-        x: 100,
-        y: 100,
-        x2: 100,
-        y2: 550,
-        thickness: 12,
-        rotation: 0,
-      },
-      {
-        id: 'wall-3',
-        type: 'wall',
-        name: 'South Wall',
-        x: 100,
-        y: 550,
-        x2: 700,
-        y2: 550,
-        thickness: 12,
-        rotation: 0,
-      },
-      {
-        id: 'wall-4',
-        type: 'wall',
-        name: 'East Wall',
-        x: 700,
-        y: 100,
-        x2: 700,
-        y2: 550,
-        thickness: 12,
-        rotation: 0,
-      },
-      // Door & Window
+      // ---- Room -------------------------------------------------------------
+      { id: 'wall-n', type: 'wall', name: 'North', x: 120, y: 120, x2: 760, y2: 120, thickness: 12, rotation: 0 },
+      { id: 'wall-w', type: 'wall', name: 'West', x: 120, y: 120, x2: 120, y2: 540, thickness: 12, rotation: 0 },
+      { id: 'wall-s', type: 'wall', name: 'South', x: 120, y: 540, x2: 760, y2: 540, thickness: 12, rotation: 0 },
+      { id: 'wall-e', type: 'wall', name: 'East', x: 760, y: 120, x2: 760, y2: 540, thickness: 12, rotation: 0 },
       {
         id: 'door-1',
         type: 'door',
-        name: 'Entry Door',
-        x: 700,
-        y: 350,
+        name: 'Door',
+        x: 760,
+        y: 460,
         rotation: 90,
         width: 60,
         swingAngle: 90,
@@ -488,94 +506,91 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'window-1',
         type: 'window',
-        name: 'Large Bay Window',
-        x: 400,
-        y: 100,
+        name: 'Window',
+        x: 440,
+        y: 120,
         rotation: 0,
         width: 140,
         depth: 15,
       },
-      // Table & Chairs
+
+      // ---- Set dressing: one clean seating axis ------------------------------
+      {
+        id: 'prop-sofa',
+        type: 'prop',
+        propType: 'sofa',
+        name: 'Sofa',
+        x: 330,
+        y: 220,
+        rotation: 0,
+        width: 170,
+        height: 60,
+        color: '#334155',
+      },
       {
         id: 'prop-table',
         type: 'prop',
-        propType: 'table_rect',
-        name: 'Coffee Table',
-        x: 400,
-        y: 320,
+        propType: 'table_coffee',
+        name: 'Coffee table',
+        x: 330,
+        y: 335,
         rotation: 0,
         width: 120,
         height: 60,
         color: '#78350f',
       },
       {
-        id: 'prop-sofa',
-        type: 'prop',
-        propType: 'sofa',
-        name: 'Main Sofa',
-        x: 400,
-        y: 220,
-        rotation: 0,
-        width: 160,
-        height: 55,
-        color: '#334155',
-      },
-      {
         id: 'prop-chair',
         type: 'prop',
-        propType: 'chair',
+        propType: 'armchair',
         name: 'Armchair',
-        x: 400,
-        y: 420,
+        x: 330,
+        y: 450,
         rotation: 180,
-        width: 50,
-        height: 50,
+        width: 60,
+        height: 60,
         color: '#475569',
       },
-      // Actor 1 (Alex - Sitting on Sofa)
+
+      // ---- Cast: seated just in front of their furniture ---------------------
       {
         id: 'actor-alex',
         type: 'actor',
         name: 'ALEX',
         characterLetter: 'A',
         color: '#3b82f6',
-        x: 400,
-        y: 240,
-        rotation: 90, // facing South towards Sarah
+        x: 330,
+        y: 268,
+        rotation: 90,
         isStanding: false,
-        actionNotes: 'Confronts Sarah about the missing ledger, remains seated.',
-        path: [
-          { id: 'wp-a1', x: 400, y: 240, rotation: 90, beat: 1 },
-          { id: 'wp-a2', x: 400, y: 240, rotation: 90, beat: 2 },
-          { id: 'wp-a3', x: 400, y: 220, rotation: 90, beat: 3 },
-        ],
+        actionNotes: 'Stays seated through the scene.',
+        path: [],
       },
-      // Actor 2 (Sarah - Seated in Armchair, then walks to door)
       {
         id: 'actor-sarah',
         type: 'actor',
         name: 'SARAH',
         characterLetter: 'S',
         color: '#ef4444',
-        x: 400,
-        y: 400,
-        rotation: 270, // facing North towards Alex
+        x: 330,
+        y: 402,
+        rotation: 270,
         isStanding: false,
-        actionNotes: 'Defensive, stands up on Beat 2 and walks toward door.',
+        actionNotes: 'Stands on beat 2 and leaves through the door on beat 3.',
         path: [
-          { id: 'wp-s1', x: 400, y: 400, rotation: 270, beat: 1 },
-          { id: 'wp-s2', x: 480, y: 380, rotation: 320, beat: 2 },
-          { id: 'wp-s3', x: 620, y: 350, rotation: 0, beat: 3 },
+          { id: 'wp-s2', x: 470, y: 450, rotation: 340, beat: 2, dialogueCue: 'stands, crosses right' },
+          { id: 'wp-s3', x: 690, y: 470, rotation: 0, beat: 3, dialogueCue: 'exits through the door' },
         ],
       },
-      // Lighting setup (Three-point lighting + practical)
+
+      // ---- Three-point light, named for the plan not the truck --------------
       {
         id: 'light-key',
         type: 'light',
-        name: 'Key Light (SkyPanel S60)',
+        name: 'Key',
         fixtureType: 'softbox',
-        x: 240,
-        y: 260,
+        x: 170,
+        y: 250,
         rotation: 35,
         colorTemp: 4500,
         intensity: 85,
@@ -586,24 +601,24 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'light-fill',
         type: 'light',
-        name: 'Fill Light (Foamcore Bounce)',
+        name: 'Fill (bounce)',
         fixtureType: 'reflector',
-        x: 550,
-        y: 260,
-        rotation: 145,
+        x: 520,
+        y: 300,
+        rotation: 160,
         colorTemp: 4500,
         intensity: 40,
         beamAngle: 90,
         throwDistance: 180,
-        fixtureModel: '4x4 White Beadboard Bounce',
+        fixtureModel: '4x4 white beadboard',
       },
       {
-        id: 'light-back',
+        id: 'light-rim',
         type: 'light',
-        name: 'Hair / Rim Light (Titan Tube)',
+        name: 'Rim',
         fixtureType: 'tube_light',
-        x: 400,
-        y: 130,
+        x: 330,
+        y: 155,
         rotation: 90,
         colorTemp: 5600,
         intensity: 60,
@@ -611,72 +626,67 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         throwDistance: 150,
         fixtureModel: 'Astera Titan Tube',
       },
-      // Camera A: Master Wide Shot (establishing the room and both subjects)
+
+      // ---- Coverage: A wide from the side, B and C the reverse pair ---------
       {
         id: 'cam-a',
         type: 'camera',
         name: 'Cam A',
         cameraLabel: 'A',
         color: '#0284c7',
-        x: 180,
-        y: 320,
-        rotation: 0, // facing East
+        x: 165,
+        y: 335,
+        rotation: 0,
         focalLength: 24,
         sensorFormat: 'Super35',
         fovAngle: calculateFovAngle(24, 'Super35'),
         aspectRatio: '2.39:1',
         cameraHeight: 'Eye Level',
         rigType: 'Tripod',
-        throwDistance: 320,
+        throwDistance: 340,
         associatedShotId: 'shot-1a',
         cameraModel: 'ARRI Alexa Mini LF',
         path: [],
       },
-      // Camera B: Over-the-Shoulder on Sarah (favoring Alex CU)
       {
         id: 'cam-b',
         type: 'camera',
         name: 'Cam B',
         cameraLabel: 'B',
         color: '#dc2626',
-        x: 480,
-        y: 450,
-        rotation: 295,
+        x: 470,
+        y: 480,
+        rotation: 243,
         focalLength: 50,
         sensorFormat: 'Super35',
         fovAngle: calculateFovAngle(50, 'Super35'),
         aspectRatio: '2.39:1',
         cameraHeight: 'Eye Level',
-        rigType: 'Dana Dolly',
-        throwDistance: 280,
+        rigType: 'Tripod',
+        throwDistance: 300,
         associatedShotId: 'shot-1b',
         cameraModel: 'ARRI Alexa Mini LF',
         path: [],
       },
-      // Camera C: Over-the-Shoulder on Alex (favoring Sarah CU & Dolly push)
       {
         id: 'cam-c',
         type: 'camera',
         name: 'Cam C',
         cameraLabel: 'C',
         color: '#16a34a',
-        x: 480,
+        x: 470,
         y: 190,
-        rotation: 65,
+        rotation: 115,
         focalLength: 85,
         sensorFormat: 'Super35',
         fovAngle: calculateFovAngle(85, 'Super35'),
         aspectRatio: '2.39:1',
         cameraHeight: 'Eye Level',
         rigType: 'Dana Dolly',
-        throwDistance: 300,
+        throwDistance: 320,
         associatedShotId: 'shot-1c',
         cameraModel: 'ARRI Alexa Mini LF',
-        path: [
-          { id: 'wp-c1', x: 480, y: 190, rotation: 65, beat: 1 },
-          { id: 'wp-c2', x: 530, y: 220, rotation: 80, beat: 2 },
-          { id: 'wp-c3', x: 580, y: 260, rotation: 95, beat: 3 },
-        ],
+        path: [{ id: 'wp-c2', x: 415, y: 255, rotation: 122, beat: 2, dialogueCue: 'push in as she denies it' }],
       },
     ],
     shots: [
@@ -684,7 +694,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         id: 'shot-1a',
         sceneNumber: '1',
         shotNumber: '1/1',
-        name: 'Master Wide - Living Room Confrontation',
+        name: 'Master — the room and both of them',
         cameraId: 'cam-a',
         cameraLabel: 'A',
         shotSize: 'WS',
@@ -694,11 +704,11 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         aspectRatio: '2.39:1',
         frameRate: 24,
         subjectActorIds: ['actor-alex', 'actor-sarah'],
-        equipmentNotes: 'ARRI Alexa Mini + Zeiss Supreme 24mm on Sachtler 18 Tripod',
-        framingDescription: 'Deep profile wide showing Alex on sofa (left-center) and Sarah in armchair (right-center), doorway in deep background.',
-        actionScriptNotes: 'Holds through entire dialogue exchange; establishes room geography and tension.',
+        equipmentNotes: '24mm on sticks',
+        framingDescription: 'Profile two-shot: Alex on the sofa, Sarah in the armchair, door in the background.',
+        actionScriptNotes: 'Runs the whole scene — the safety and the geography.',
         status: 'ready',
-        takesCount: 3,
+        takesCount: 0,
         estDurationSeconds: 45,
         order: 1,
       },
@@ -706,9 +716,9 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         id: 'shot-1b',
         sceneNumber: '1',
         shotNumber: '1/2',
-        name: 'Alex OTS / Medium Close-Up',
+        name: 'OTS Alex',
         cameraId: 'cam-b',
-        cameraLabel: 'A',
+        cameraLabel: 'B',
         shotSize: 'MCU',
         lensMm: 50,
         cameraAngle: 'Eye Level',
@@ -716,9 +726,9 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         aspectRatio: '2.39:1',
         frameRate: 24,
         subjectActorIds: ['actor-alex'],
-        equipmentNotes: 'Cooke S4/i 50mm Prime, T2.0 for shallow depth of field isolating Alex.',
-        framingDescription: 'Sarah dirty shoulder in soft foreground right, Alex framed in sharp focus on the left third.',
-        actionScriptNotes: 'Delivers line: "Where did you put it, Sarah?" Captures micro-expressions of guilt.',
+        equipmentNotes: '50mm at T2',
+        framingDescription: "Over Sarah's shoulder, Alex on the left third.",
+        actionScriptNotes: 'His side of the argument.',
         status: 'planned',
         takesCount: 0,
         estDurationSeconds: 25,
@@ -728,9 +738,9 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         id: 'shot-1c',
         sceneNumber: '1',
         shotNumber: '1/3',
-        name: 'Sarah OTS / Push-In Close-Up & Stand',
+        name: 'OTS Sarah — push in',
         cameraId: 'cam-c',
-        cameraLabel: 'A',
+        cameraLabel: 'C',
         shotSize: 'CU',
         lensMm: 85,
         cameraAngle: 'Eye Level',
@@ -738,9 +748,9 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         aspectRatio: '2.39:1',
         frameRate: 24,
         subjectActorIds: ['actor-sarah'],
-        equipmentNotes: 'Dana Dolly on 6ft speed rail with 85mm Prime, fluid pan follow.',
-        framingDescription: 'Tight close up on Sarah. Dolly slowly pushes in as she denies the theft, panning with her as she stands.',
-        actionScriptNotes: 'Sarah: "I don\'t know what you are talking about." Stands on Beat 2 and exits.',
+        equipmentNotes: '85mm on a Dana Dolly',
+        framingDescription: "Over Alex's shoulder, tightening on Sarah as she denies it.",
+        actionScriptNotes: 'Push in across beat 2, then she stands and goes.',
         status: 'planned',
         takesCount: 0,
         estDurationSeconds: 30,
@@ -748,15 +758,22 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       },
     ],
   },
+
+  /**
+   * Template 2 — one table, two people, hard light. Deliberately sparse: a
+   * single practical over the table plus a slash of light through the blinds,
+   * and two cameras that never cross the line.
+   */
   {
     id: 'setup-noir-interrogation',
-    name: 'Noir Interrogation (Dramatic Key & Window Shadow)',
+    name: 'Interrogation — hard key, two cameras',
     sceneNumber: '2',
     scriptPage: 'p. 8-10',
-    location: 'INT. POLICE INTERROGATION ROOM - NIGHT',
+    location: 'INT. INTERROGATION ROOM - NIGHT',
     timeOfDay: 'Night INT',
     currentBeat: 1,
     totalBeats: 2,
+    aspectRatio: '2.39:1',
     canvasScale: 1,
     canvasOffset: { x: 50, y: 50 },
     gridSettings: {
@@ -767,71 +784,33 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       pixelsPerUnit: 25,
     },
     elements: [
-      {
-        id: 'noir-wall-n',
-        type: 'wall',
-        name: 'North Wall',
-        x: 150,
-        y: 120,
-        x2: 650,
-        y2: 120,
-        thickness: 12,
-        rotation: 0,
-      },
-      {
-        id: 'noir-wall-w',
-        type: 'wall',
-        name: 'West Wall (Two-way mirror)',
-        x: 150,
-        y: 120,
-        x2: 150,
-        y2: 500,
-        thickness: 12,
-        rotation: 0,
-      },
-      {
-        id: 'noir-wall-s',
-        type: 'wall',
-        name: 'South Wall',
-        x: 150,
-        y: 500,
-        x2: 650,
-        y2: 500,
-        thickness: 12,
-        rotation: 0,
-      },
-      {
-        id: 'noir-wall-e',
-        type: 'wall',
-        name: 'East Wall',
-        x: 650,
-        y: 120,
-        x2: 650,
-        y2: 500,
-        thickness: 12,
-        rotation: 0,
-      },
+      // ---- Room -------------------------------------------------------------
+      { id: 'noir-wall-n', type: 'wall', name: 'North', x: 160, y: 140, x2: 660, y2: 140, thickness: 12, rotation: 0 },
+      { id: 'noir-wall-w', type: 'wall', name: 'Mirror wall', x: 160, y: 140, x2: 160, y2: 520, thickness: 12, rotation: 0 },
+      { id: 'noir-wall-s', type: 'wall', name: 'South', x: 160, y: 520, x2: 660, y2: 520, thickness: 12, rotation: 0 },
+      { id: 'noir-wall-e', type: 'wall', name: 'East', x: 660, y: 140, x2: 660, y2: 520, thickness: 12, rotation: 0 },
       {
         id: 'noir-door',
         type: 'door',
-        name: 'Heavy Steel Door',
-        x: 650,
-        y: 200,
+        name: 'Door',
+        x: 660,
+        y: 210,
         rotation: 90,
         width: 60,
         swingAngle: 90,
         swingDirection: 'left',
       },
-      // Table & 2 Chairs
+
+      // ---- One table, two chairs -------------------------------------------
       {
         id: 'noir-table',
         type: 'prop',
         propType: 'desk',
-        name: 'Metal Interrogation Table',
-        x: 400,
-        y: 310,
+        name: 'Table',
+        x: 410,
+        y: 330,
         rotation: 0,
-        width: 140,
+        width: 150,
         height: 70,
         color: '#334155',
       },
@@ -839,96 +818,94 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         id: 'noir-chair-suspect',
         type: 'prop',
         propType: 'chair',
-        name: 'Suspect Chair (Bolted)',
-        x: 330,
-        y: 310,
+        name: 'Suspect chair',
+        x: 285,
+        y: 330,
         rotation: 90,
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         color: '#475569',
       },
       {
         id: 'noir-chair-detective',
         type: 'prop',
         propType: 'chair',
-        name: 'Detective Chair',
-        x: 470,
-        y: 310,
+        name: 'Detective chair',
+        x: 535,
+        y: 330,
         rotation: 270,
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         color: '#475569',
       },
-      // Suspect
+
+      // ---- Cast -------------------------------------------------------------
       {
         id: 'actor-suspect',
         type: 'actor',
-        name: 'SUSPECT (MARCUS)',
+        name: 'MARCUS',
         characterLetter: 'M',
         color: '#ef4444',
-        x: 330,
-        y: 310,
-        rotation: 0, // facing East at Detective
+        x: 320,
+        y: 330,
+        rotation: 0,
         isStanding: false,
-        actionNotes: 'Handcuffed to the table, looking defiant and sweaty.',
+        actionNotes: 'Cuffed to the table, holds still all scene.',
         path: [],
       },
-      // Detective
       {
         id: 'actor-detective',
         type: 'actor',
-        name: 'DET. MILLER',
+        name: 'MILLER',
         characterLetter: 'D',
         color: '#3b82f6',
-        x: 470,
-        y: 310,
-        rotation: 180, // facing West at Suspect
+        x: 500,
+        y: 330,
+        rotation: 180,
         isStanding: false,
-        actionNotes: 'Paces around Marcus on Beat 2.',
-        path: [
-          { id: 'wp-d1', x: 470, y: 310, rotation: 180, beat: 1 },
-          { id: 'wp-d2', x: 330, y: 230, rotation: 90, beat: 2 },
-        ],
+        actionNotes: 'Gets up on beat 2 and comes round behind Marcus.',
+        path: [{ id: 'wp-d2', x: 330, y: 240, rotation: 135, beat: 2, dialogueCue: 'circles behind him' }],
       },
-      // Overhead Single Hard Key Lamp
+
+      // ---- Two sources only -------------------------------------------------
       {
-        id: 'noir-light-top',
+        id: 'noir-light-practical',
         type: 'light',
-        name: 'Overhead Practical Lamp (Single bulb)',
+        name: 'Practical over table',
         fixtureType: 'spotlight',
-        x: 400,
-        y: 310,
+        x: 410,
+        y: 250,
         rotation: 90,
         colorTemp: 3000,
         intensity: 95,
         beamAngle: 60,
-        throwDistance: 160,
-        fixtureModel: 'Overhead Enamel Shade 500W',
+        throwDistance: 170,
+        fixtureModel: 'Enamel shade, 500W',
       },
-      // Leko hard rim through mirror
       {
-        id: 'noir-light-rim',
+        id: 'noir-light-blinds',
         type: 'light',
-        name: 'Leko Hard Rim (Venetian Blind Gobo)',
+        name: 'Blinds slash',
         fixtureType: 'spotlight',
-        x: 180,
-        y: 450,
+        x: 195,
+        y: 470,
         rotation: 315,
         colorTemp: 5600,
         intensity: 80,
         beamAngle: 26,
         throwDistance: 320,
-        fixtureModel: 'ETC Source 4 Leko with Venetian Gobo',
+        fixtureModel: 'Source Four with venetian gobo',
       },
-      // Camera A: Detective POV / Suspect Low Angle Close-up
+
+      // ---- Coverage ---------------------------------------------------------
       {
         id: 'noir-cam-a',
         type: 'camera',
         name: 'Cam A',
         cameraLabel: 'A',
         color: '#0284c7',
-        x: 440,
-        y: 310,
+        x: 590,
+        y: 330,
         rotation: 180,
         focalLength: 35,
         sensorFormat: 'Super35',
@@ -936,19 +913,19 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         aspectRatio: '2.39:1',
         cameraHeight: 'Low Angle',
         rigType: 'Tripod',
-        throwDistance: 200,
+        throwDistance: 300,
         associatedShotId: 'shot-2a',
+        cameraModel: 'ARRI Alexa Mini LF',
         path: [],
       },
-      // Camera B: Dutch Angle Profile
       {
         id: 'noir-cam-b',
         type: 'camera',
         name: 'Cam B',
         cameraLabel: 'B',
         color: '#dc2626',
-        x: 400,
-        y: 470,
+        x: 410,
+        y: 480,
         rotation: 270,
         focalLength: 28,
         sensorFormat: 'Super35',
@@ -956,8 +933,9 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         aspectRatio: '2.39:1',
         cameraHeight: 'Eye Level',
         rigType: 'Handheld',
-        throwDistance: 260,
+        throwDistance: 280,
         associatedShotId: 'shot-2b',
+        cameraModel: 'ARRI Alexa Mini LF',
         path: [],
       },
     ],
@@ -966,7 +944,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         id: 'shot-2a',
         sceneNumber: '2',
         shotNumber: '2/1',
-        name: 'Suspect Low Angle Push-In',
+        name: 'Marcus — low angle push in',
         cameraId: 'noir-cam-a',
         cameraLabel: 'A',
         shotSize: 'CU',
@@ -976,11 +954,11 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         aspectRatio: '2.39:1',
         frameRate: 24,
         subjectActorIds: ['actor-suspect'],
-        equipmentNotes: '35mm Prime at T1.5, heavy top down shadow in eye sockets.',
-        framingDescription: 'Intimidating low angle close up framing Marcus trapped in pool of hard light.',
-        actionScriptNotes: 'Marcus sweats under interrogation, refusing to answer.',
+        equipmentNotes: '35mm at T1.5',
+        framingDescription: 'Low angle close-up, Marcus alone in the pool of light.',
+        actionScriptNotes: 'He says nothing.',
         status: 'ready',
-        takesCount: 2,
+        takesCount: 0,
         estDurationSeconds: 30,
         order: 1,
       },
@@ -988,19 +966,19 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         id: 'shot-2b',
         sceneNumber: '2',
         shotNumber: '2/2',
-        name: 'Noir Dutch Angle Two-Shot',
+        name: 'Two-shot — handheld',
         cameraId: 'noir-cam-b',
-        cameraLabel: 'A',
+        cameraLabel: 'B',
         shotSize: 'MS',
         lensMm: 28,
-        cameraAngle: 'Eye Level',
+        cameraAngle: 'Dutch Angle',
         movement: 'Handheld',
         aspectRatio: '2.39:1',
         frameRate: 24,
         subjectActorIds: ['actor-suspect', 'actor-detective'],
-        equipmentNotes: 'Handheld with 15-degree Dutch tilt to induce psychological unease.',
-        framingDescription: 'Both characters in profile with extreme contrast shadows and venetian blind slashes across wall.',
-        actionScriptNotes: 'Miller circles Marcus like a predator.',
+        equipmentNotes: '28mm handheld, slight dutch',
+        framingDescription: 'Both in profile, blind slashes across the back wall.',
+        actionScriptNotes: 'Miller circles him on beat 2.',
         status: 'planned',
         takesCount: 0,
         estDurationSeconds: 40,

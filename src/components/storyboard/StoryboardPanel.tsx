@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
+  ArrowRight,
   Camera,
   GripVertical,
   Image as ImageIcon,
@@ -15,10 +16,16 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { AspectRatio, CameraElement, Shot } from '../../types';
 import { ASPECT_RATIOS } from '../../constants/presets';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
+import { FrameSlot, setFramePatch, slotsOf } from '../../utils/storyboardFrames';
 import { loadStoryboardImageFile } from '../../utils/image';
 
+/** A moving shot is boarded on each of its camera's keyframes. */
+export const shotHasMove = (shot: Shot): boolean =>
+  !!shot.movement && shot.movement !== 'Static';
+
 /**
- * Storyboard-only view of the active scene: one frame per shot.
+ * Storyboard-only view of the active scene: one frame per shot (two for shots
+ * with a camera move).
  *
  * It is the same data as the shot list — adding a frame here also creates the
  * shot and drops its camera on the floor plan, and shots created anywhere else
@@ -43,7 +50,7 @@ export const StoryboardPanel: React.FC = () => {
   const isLight = theme === 'light';
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [uploadShotId, setUploadShotId] = useState<string | null>(null);
+  const [uploadTarget, setUploadTarget] = useState<{ shotId: string; slotKey: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Board order is its own thing — see orderedStoryboardShots.
@@ -52,10 +59,19 @@ export const StoryboardPanel: React.FC = () => {
   const ratioValue = (activeSetup.aspectRatio || '16:9') as AspectRatio;
   const ratio = ASPECT_RATIOS.find((entry) => entry.value === ratioValue)?.ratio || 16 / 9;
 
-  const handleImageFile = (shotId: string, file: File) => {
+  const setImage = (shot: Shot, slotKey: string, image: string | undefined) =>
+    updateShot(shot.id, setFramePatch(shot, slotKey, image ? { image, fit: 'cover' } : null));
+
+  const toggleFit = (shot: Shot, slot: FrameSlot) =>
+    updateShot(
+      shot.id,
+      setFramePatch(shot, slot.key, { fit: slot.frame?.fit === 'contain' ? 'cover' : 'contain' })
+    );
+
+  const handleImageFile = (shot: Shot, slotKey: string, file: File) => {
     // Downscaled on the way in so a phone-sized photo can't blow the quota.
     loadStoryboardImageFile(file)
-      .then((dataUrl) => updateShot(shotId, { storyboardImage: dataUrl, storyboardFit: 'cover' }))
+      .then((dataUrl) => setImage(shot, slotKey, dataUrl))
       .catch(() => alert('That image could not be read.'));
   };
 
@@ -76,6 +92,103 @@ export const StoryboardPanel: React.FC = () => {
     isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-700 text-slate-200'
   }`;
 
+  /** One storyboard frame: the art (or a blank drop target) plus its controls. */
+  const renderFrame = (shot: Shot, slot: FrameSlot, showLabel: boolean) => {
+    const image = slot.frame?.image;
+    const fit = slot.frame?.fit || 'cover';
+
+    return (
+      <div
+        key={slot.key}
+        className={`relative w-full ${isLight ? 'bg-slate-200' : 'bg-slate-950'}`}
+        style={{ aspectRatio: String(ratio) }}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          const file = event.dataTransfer?.files?.[0];
+          if (file && file.type.startsWith('image/')) {
+            event.preventDefault();
+            event.stopPropagation();
+            handleImageFile(shot, slot.key, file);
+          }
+        }}
+      >
+        {image ? (
+          <img
+            src={image}
+            alt={`${slot.label} frame for shot ${shot.shotNumber}`}
+            className="absolute inset-0 w-full h-full"
+            style={{ objectFit: fit }}
+          />
+        ) : (
+          // A keyframe without artwork keeps its frame — blank on purpose
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              setUploadTarget({ shotId: shot.id, slotKey: slot.key });
+              fileInputRef.current?.click();
+            }}
+            className={`absolute inset-0 flex flex-col items-center justify-center gap-1 text-[10px] ${
+              isLight ? 'text-slate-400 hover:text-slate-600' : 'text-slate-600 hover:text-slate-400'
+            }`}
+          >
+            <Upload className="w-4 h-4" />
+            <span>{showLabel ? slot.label : 'Drop or click to add art'}</span>
+          </button>
+        )}
+
+        {showLabel && (
+          <span
+            className={`absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${
+              slot.short === 'END'
+                ? 'bg-amber-500 text-black'
+                : slot.short === 'START'
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-sky-600 text-white'
+            }`}
+          >
+            {slot.short || slot.label}
+          </span>
+        )}
+
+        {image && (
+          <div className="absolute bottom-1.5 right-1.5 flex gap-1">
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleFit(shot, slot);
+              }}
+              title={fit === 'contain' ? 'Fill the frame' : 'Fit the whole image'}
+              className="px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold"
+            >
+              {fit === 'contain' ? 'Fit' : 'Fill'}
+            </button>
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                setUploadTarget({ shotId: shot.id, slotKey: slot.key });
+                fileInputRef.current?.click();
+              }}
+              title="Replace image"
+              className="p-1 rounded-md bg-black/60 text-white"
+            >
+              <Upload className="w-3 h-3" />
+            </button>
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                setImage(shot, slot.key, undefined);
+              }}
+              title="Remove image"
+              className="p-1 rounded-md bg-black/60 text-white"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className={`h-full flex flex-col min-h-0 ${isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}`}>
       {/* Header */}
@@ -85,8 +198,8 @@ export const StoryboardPanel: React.FC = () => {
             <ImageIcon className="w-4 h-4 text-violet-500" /> Storyboard
           </h2>
           <p className="text-[10px] opacity-60 mt-0.5">
-            {shots.length} frame{shots.length === 1 ? '' : 's'} · drag to arrange the board (the shot list keeps its
-            own order)
+            {shots.length} shot{shots.length === 1 ? '' : 's'} · one frame per camera keyframe · drag to arrange the
+            board (the shot list keeps its own order)
           </p>
         </div>
 
@@ -143,6 +256,8 @@ export const StoryboardPanel: React.FC = () => {
               const isSelected = selectedShotId === shot.id;
               const isDragging = draggedIndex === index;
               const isDragOver = dragOverIndex === index && draggedIndex !== index;
+              // One slot per camera keyframe (start + each waypoint)
+              const slots = slotsOf(shot, camera);
 
               return (
                 <div
@@ -165,42 +280,25 @@ export const StoryboardPanel: React.FC = () => {
                     isSelected ? 'ring-2 ring-sky-500/70' : ''
                   } ${isDragging ? 'opacity-40' : ''} ${isDragOver ? 'ring-2 ring-violet-500' : ''}`}
                 >
-                  {/* Frame */}
-                  <div
-                    className={`relative w-full ${isLight ? 'bg-slate-200' : 'bg-slate-950'}`}
-                    style={{ aspectRatio: String(ratio) }}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => {
-                      const file = event.dataTransfer?.files?.[0];
-                      if (file && file.type.startsWith('image/')) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleImageFile(shot.id, file);
-                      }
-                    }}
-                  >
-                    {shot.storyboardImage ? (
-                      <img
-                        src={shot.storyboardImage}
-                        alt={`Storyboard for shot ${shot.shotNumber}`}
-                        className="absolute inset-0 w-full h-full"
-                        style={{ objectFit: shot.storyboardFit || 'cover' }}
-                      />
-                    ) : (
-                      // A shot without artwork keeps its frame — blank on purpose
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setUploadShotId(shot.id);
-                          fileInputRef.current?.click();
-                        }}
-                        className={`absolute inset-0 flex flex-col items-center justify-center gap-1 text-[10px] ${
-                          isLight ? 'text-slate-400 hover:text-slate-600' : 'text-slate-600 hover:text-slate-400'
-                        }`}
+                  {/* One frame per camera keyframe */}
+                  <div className="relative">
+                    {slots.length > 1 ? (
+                      <div
+                        className="grid gap-px bg-slate-700/40"
+                        style={{ gridTemplateColumns: `repeat(${Math.min(slots.length, 3)}, minmax(0, 1fr))` }}
                       >
-                        <Upload className="w-4 h-4" />
-                        <span>Drop or click to add art</span>
-                      </button>
+                        {slots.map((slot) => renderFrame(shot, slot, true))}
+                      </div>
+                    ) : (
+                      renderFrame(shot, slots[0], false)
+                    )}
+
+                    {/* What the move is, between the keyframes */}
+                    {slots.length > 1 && shotHasMove(shot) && (
+                      <span className="absolute top-1 left-1/2 -translate-x-1/2 z-10 px-1.5 py-0.5 rounded-full bg-black/75 text-white text-[9px] font-bold flex items-center gap-1 pointer-events-none">
+                        <ArrowRight className="w-3 h-3" />
+                        {shot.movement}
+                      </span>
                     )}
 
                     <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
@@ -245,44 +343,6 @@ export const StoryboardPanel: React.FC = () => {
                         <GripVertical className="w-3.5 h-3.5" />
                       </div>
                     </div>
-
-                    {shot.storyboardImage && (
-                      <div className="absolute bottom-1.5 right-1.5 flex gap-1">
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            updateShot(shot.id, {
-                              storyboardFit: shot.storyboardFit === 'contain' ? 'cover' : 'contain',
-                            });
-                          }}
-                          title={shot.storyboardFit === 'contain' ? 'Fill the frame' : 'Fit the whole image'}
-                          className="px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold"
-                        >
-                          {shot.storyboardFit === 'contain' ? 'Fit' : 'Fill'}
-                        </button>
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setUploadShotId(shot.id);
-                            fileInputRef.current?.click();
-                          }}
-                          title="Replace image"
-                          className="p-1 rounded-md bg-black/60 text-white"
-                        >
-                          <Upload className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            updateShot(shot.id, { storyboardImage: undefined });
-                          }}
-                          title="Remove image"
-                          className="p-1 rounded-md bg-black/60 text-white"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
                   </div>
 
                   {/* Description, editable from the board */}
@@ -348,8 +408,9 @@ export const StoryboardPanel: React.FC = () => {
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];
-          if (file && uploadShotId) handleImageFile(uploadShotId, file);
-          setUploadShotId(null);
+          const shot = uploadTarget && shots.find((item) => item.id === uploadTarget.shotId);
+          if (file && uploadTarget && shot) handleImageFile(shot, uploadTarget.slotKey, file);
+          setUploadTarget(null);
           event.target.value = '';
         }}
       />

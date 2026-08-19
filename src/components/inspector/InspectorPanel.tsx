@@ -8,6 +8,9 @@ import {
   FloorPlanElement,
   LightElement,
   PropElement,
+  ShapeElement,
+  Shot,
+  ShapeType,
   TextElement,
   WallElement,
   Waypoint,
@@ -29,9 +32,22 @@ import {
 import { flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
 import { hexToHsv, hexToRgbParts, hsvToHex, rgbToHex } from '../../utils/geometry';
 import { APERTURES, FRAME_RATES, ISO_VALUES, ND_FILTERS, SHUTTER_ANGLES } from '../../constants/presets';
+
+const SHAPE_TYPES: ShapeType[] = [
+  'rectangle',
+  'circle',
+  'ellipse',
+  'triangle',
+  'diamond',
+  'pentagon',
+  'hexagon',
+  'star',
+];
 import { loadLogoFile, loadStoryboardImageFile } from '../../utils/image';
+import { framesOf, setFramePatch, slotsOf } from '../../utils/storyboardFrames';
 import {
   Camera,
+  Circle,
   Compass,
   Copy,
   DoorClosed,
@@ -81,7 +97,7 @@ interface Bounds {
 
 /** Approximate 2D bounding box of an element on the floor plan, used for align/distribute. */
 function getElementBounds(el: FloorPlanElement): Bounds {
-  if (el.type === 'prop') {
+  if (el.type === 'prop' || el.type === 'shape') {
     const w = (el as any).width || 80;
     const h = (el as any).height || 50;
     return { minX: el.x - w / 2, minY: el.y - h / 2, maxX: el.x + w / 2, maxY: el.y + h / 2 };
@@ -412,8 +428,13 @@ const WaypointListEditor: React.FC<{
   baseRotation: number;
   accentClass: string;
   isLight: boolean;
-}> = ({ elementId, path, baseRotation, accentClass, isLight }) => {
-  const { updateElement } = useFloorPlan();
+  /** Cameras only: the shot whose storyboard this camera's beats belong to. */
+  boardShot?: Shot | null;
+}> = ({ elementId, path, baseRotation, accentClass, isLight, boardShot }) => {
+  const { updateElement, updateShot } = useFloorPlan();
+  const beatInputRef = React.useRef<HTMLInputElement>(null);
+  const [beatUploadSlot, setBeatUploadSlot] = useState<string | null>(null);
+  const boardedFrames = boardShot ? framesOf(boardShot) : {};
 
   const updateWaypoint = (wpId: string, updates: Partial<Waypoint>) => {
     const newPath = path.map((wp) => (wp.id === wpId ? { ...wp, ...updates } : wp));
@@ -470,6 +491,27 @@ const WaypointListEditor: React.FC<{
                 isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
               }`}
             />
+            {/* Board this beat: attach a storyboard frame for this waypoint */}
+            {boardShot && (
+              <button
+                onClick={() => {
+                  setBeatUploadSlot(wp.id);
+                  beatInputRef.current?.click();
+                }}
+                title={
+                  boardedFrames[wp.id]?.image
+                    ? `Replace the storyboard frame for beat ${wp.beat}`
+                    : `Add a storyboard frame for beat ${wp.beat}`
+                }
+                className={`p-1 rounded transition-colors ${
+                  boardedFrames[wp.id]?.image
+                    ? 'text-violet-500 hover:bg-violet-500/15'
+                    : 'text-slate-400 hover:text-violet-400 hover:bg-violet-500/10'
+                }`}
+              >
+                <ImageIcon className="w-3 h-3" />
+              </button>
+            )}
             <button
               onClick={() => removeWaypoint(wp.id)}
               title="Delete waypoint"
@@ -480,8 +522,29 @@ const WaypointListEditor: React.FC<{
           </div>
         );
       })}
+      {boardShot && (
+        <input
+          ref={beatInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file && beatUploadSlot) {
+              loadStoryboardImageFile(file)
+                .then((dataUrl) =>
+                  updateShot(boardShot.id, setFramePatch(boardShot, beatUploadSlot, { image: dataUrl, fit: 'cover' }))
+                )
+                .catch(() => alert('That image could not be read.'));
+            }
+            setBeatUploadSlot(null);
+            e.target.value = '';
+          }}
+        />
+      )}
       <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
         Tip: drag a numbered marker to reposition it, or drag its small circle handle to rotate its facing.
+        {boardShot ? ' The picture button boards that beat.' : ''}
       </p>
     </div>
   );
@@ -1057,6 +1120,7 @@ export const InspectorPanel: React.FC = () => {
                   <PillToggle on={displaySettings.showWaypoints} onClick={() => updateDisplaySettings({ showWaypoints: !displaySettings.showWaypoints })} label="Waypoint markers & paths" isLight={isLight} />
                   <PillToggle on={displaySettings.showFovCones} onClick={() => updateDisplaySettings({ showFovCones: !displaySettings.showFovCones })} label="Camera FOV cones" isLight={isLight} />
                   <PillToggle on={displaySettings.showLightBeams} onClick={() => updateDisplaySettings({ showLightBeams: !displaySettings.showLightBeams })} label="Light beams" isLight={isLight} />
+                  <PillToggle on={displaySettings.showStoryboardThumbs} onClick={() => updateDisplaySettings({ showStoryboardThumbs: !displaySettings.showStoryboardThumbs })} label="Storyboard frames" isLight={isLight} />
                   <PillToggle on={displaySettings.showDoorWindowLabels} onClick={() => updateDisplaySettings({ showDoorWindowLabels: !displaySettings.showDoorWindowLabels })} label="Door / window labels" isLight={isLight} />
                   <PillToggle on={displaySettings.showGrid} onClick={() => updateDisplaySettings({ showGrid: !displaySettings.showGrid })} label="Grid & axes" isLight={isLight} />
                 </div>
@@ -1844,6 +1908,11 @@ export const InspectorPanel: React.FC = () => {
 
               {/* Editable waypoint list */}
               <WaypointListEditor
+                boardShot={
+                  activeSetup.shots.find((shot) => shot.id === cam.associatedShotId) ||
+                  activeSetup.shots.find((shot) => shot.cameraId === cam.id) ||
+                  null
+                }
                 elementId={cam.id}
                 path={cam.path || []}
                 baseRotation={cam.rotation}
@@ -1851,34 +1920,50 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               />
 
-              {/* Storyboard Reference (only the shot corresponding to this camera) */}
+              {/* Storyboard frames — one per keyframe this camera holds */}
               {(() => {
                 const linkedShot =
                   activeSetup.shots.find((s) => s.id === cam.associatedShotId) ||
                   activeSetup.shots.find((s) => s.cameraId === cam.id);
                 if (!linkedShot) return null;
+
+                const slots = slotsOf(linkedShot, cam);
+                const sceneRatio =
+                  ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
+
                 return (
                   <div className={`pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-2 flex items-center gap-1.5">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-1 flex items-center gap-1.5">
                       <ImageIcon className="w-3.5 h-3.5 text-violet-500" />
-                      Storyboard Reference
+                      Storyboard — Shot {linkedShot.shotNumber}
                     </h4>
-                    <StoryboardField
-                      label={`Storyboard for Shot ${linkedShot.shotNumber}`}
-                      value={linkedShot.storyboardImage}
-                      onChange={(url) =>
-                        updateShot(linkedShot.id, { storyboardImage: url || undefined })
-                      }
-                      aspectRatio={
-                        ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio ||
-                        16 / 9
-                      }
-                      fit={linkedShot.storyboardFit}
-                      position={linkedShot.storyboardPosition}
-                      onFitChange={(fit) => updateShot(linkedShot.id, { storyboardFit: fit })}
-                      onPositionChange={(pos) => updateShot(linkedShot.id, { storyboardPosition: pos })}
-                      isLight={isLight}
-                    />
+                    <p className={`text-[10px] mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      {slots.length > 1
+                        ? `One frame per keyframe of this move (${slots.map((slot) => slot.label).join(' → ')}).`
+                        : 'Add a waypoint to this camera to board the move beat by beat.'}
+                    </p>
+
+                    <div className="space-y-3">
+                      {slots.map((slot) => (
+                        <StoryboardField
+                          key={slot.key}
+                          label={slots.length > 1 ? `${slot.label} frame` : `Storyboard for Shot ${linkedShot.shotNumber}`}
+                          value={slot.frame?.image}
+                          onChange={(url) =>
+                            updateShot(
+                              linkedShot.id,
+                              setFramePatch(linkedShot, slot.key, url ? { image: url, fit: 'cover' } : null)
+                            )
+                          }
+                          aspectRatio={sceneRatio}
+                          fit={slot.frame?.fit}
+                          onFitChange={(fit) =>
+                            updateShot(linkedShot.id, setFramePatch(linkedShot, slot.key, { fit }))
+                          }
+                          isLight={isLight}
+                        />
+                      ))}
+                    </div>
                   </div>
                 );
               })()}
@@ -2640,6 +2725,223 @@ export const InspectorPanel: React.FC = () => {
         })()}
 
         {/* 11. ARROW SPECIFIC INSPECTOR */}
+        {el.type === 'shape' && (() => {
+          const shape = el as ShapeElement;
+          const fill = shape.color || '#38bdf8';
+          const strokeColor = shape.strokeColor || fill;
+          const fillOpacity = shape.opacity ?? 0.3;
+          const strokeWidth = shape.strokeWidth ?? 2;
+          const strokeOpacity = shape.strokeOpacity ?? 1;
+          const dashStyle = shape.dashStyle || 'solid';
+          const filled = shape.filled !== false;
+          const optionBtn = (active: boolean) =>
+            `py-1.5 text-[10px] font-semibold rounded border capitalize ${
+              active
+                ? 'bg-sky-600 text-white border-sky-500'
+                : isLight
+                ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'
+            }`;
+
+          return (
+            <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+              <h4 className="text-[11px] font-bold uppercase tracking-wider opacity-60 flex items-center gap-1.5">
+                <Circle className="w-3.5 h-3.5 text-cyan-500" /> Shape
+              </h4>
+
+              <div>
+                <label className="opacity-60 block mb-1">Type</label>
+                <select
+                  value={shape.shapeType}
+                  onChange={(e) => updateElement(shape.id, { shapeType: e.target.value as ShapeType })}
+                  className={selectClass}
+                >
+                  {SHAPE_TYPES.map((value) => (
+                    <option key={value} value={value}>
+                      {value.charAt(0).toUpperCase() + value.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="opacity-60 block mb-1">Label (optional)</label>
+                <input
+                  type="text"
+                  value={shape.label || ''}
+                  onChange={(e) => updateElement(shape.id, { label: e.target.value })}
+                  placeholder="e.g. Hot zone, carpet, shadow…"
+                  className={`w-full border rounded p-1.5 text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="opacity-60">Width</span>
+                    <span className="font-mono font-bold">{Math.round(shape.width)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={20}
+                    max={900}
+                    value={shape.width}
+                    onChange={(e) => updateElement(shape.id, { width: Number(e.target.value) })}
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="opacity-60">Height</span>
+                    <span className="font-mono font-bold">{Math.round(shape.height)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={20}
+                    max={900}
+                    value={shape.height}
+                    onChange={(e) => updateElement(shape.id, { height: Number(e.target.value) })}
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="opacity-60">Fill</span>
+                  <button
+                    onClick={() => updateElement(shape.id, { filled: !filled })}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                      filled
+                        ? 'bg-sky-600 text-white border-sky-500'
+                        : isLight
+                        ? 'bg-slate-100 text-slate-500 border-slate-300'
+                        : 'bg-slate-950 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    {filled ? 'Filled' : 'Outline only'}
+                  </button>
+                </div>
+                <input
+                  type="color"
+                  value={fill}
+                  onChange={(e) => updateElement(shape.id, { color: e.target.value })}
+                  className="w-full h-8 cursor-pointer rounded border bg-transparent"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="opacity-60">Fill Opacity</span>
+                  <span className="font-mono font-bold">{Math.round(fillOpacity * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={fillOpacity}
+                  onChange={(e) => updateElement(shape.id, { opacity: Number(e.target.value) })}
+                  className="w-full accent-sky-500 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="opacity-60">Outline Color</span>
+                  <span className="font-mono font-bold uppercase">{strokeColor}</span>
+                </div>
+                <input
+                  type="color"
+                  value={strokeColor}
+                  onChange={(e) => updateElement(shape.id, { strokeColor: e.target.value })}
+                  className="w-full h-8 cursor-pointer rounded border bg-transparent"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="opacity-60">Outline</span>
+                    <span className="font-mono font-bold">{strokeWidth}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    step={0.5}
+                    value={strokeWidth}
+                    onChange={(e) => updateElement(shape.id, { strokeWidth: Number(e.target.value) })}
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="opacity-60">Outline Opacity</span>
+                    <span className="font-mono font-bold">{Math.round(strokeOpacity * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={strokeOpacity}
+                    onChange={(e) => updateElement(shape.id, { strokeOpacity: Number(e.target.value) })}
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="opacity-60 block mb-1">Outline Style</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {(['solid', 'dashed', 'dotted'] as const).map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => updateElement(shape.id, { dashStyle: style })}
+                      className={optionBtn(dashStyle === style)}
+                    >
+                      {style}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {shape.shapeType === 'rectangle' && (
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="opacity-60">Corner Radius</span>
+                    <span className="font-mono font-bold">{shape.cornerRadius ?? 0}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={80}
+                    value={shape.cornerRadius ?? 0}
+                    onChange={(e) => updateElement(shape.id, { cornerRadius: Number(e.target.value) })}
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                </div>
+              )}
+
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="opacity-60">Rotation</span>
+                  <span className="font-mono font-bold">{Math.round(shape.rotation || 0)}°</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  value={shape.rotation || 0}
+                  onChange={(e) => updateElement(shape.id, { rotation: Number(e.target.value) })}
+                  className="w-full accent-sky-500 cursor-pointer"
+                />
+              </div>
+            </div>
+          );
+        })()}
+
         {el.type === 'arrow' && (() => {
           const arr = el as ArrowElement;
           const arrowColor = arr.color || '#f97316';

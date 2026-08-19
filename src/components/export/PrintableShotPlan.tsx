@@ -10,6 +10,7 @@ import {
   LightElement,
   MeasurementElement,
   PropElement,
+  ShapeElement,
   TextElement,
   TrackElement,
   WallElement,
@@ -22,8 +23,10 @@ import { exportSvgAsPng } from '../../utils/exportFloorPlanPng';
 import { FlagFixtureIcon, flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
 import { FixtureGlyph } from '../canvas/FixtureGlyph';
 import { ArrowGlyph } from '../canvas/ArrowGlyph';
+import { ShapesLayer } from '../canvas/ShapesLayer';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
+import { slotsOf } from '../../utils/storyboardFrames';
 import {
   AppWindow,
   ArrowRight,
@@ -85,6 +88,7 @@ export const PrintableShotPlan: React.FC = () => {
   const measurements = activeSetup.elements.filter((e) => e.type === 'measurement') as MeasurementElement[];
   const texts = activeSetup.elements.filter((e) => e.type === 'text') as TextElement[];
   const arrows = activeSetup.elements.filter((e) => e.type === 'arrow') as ArrowElement[];
+  const shapes = activeSetup.elements.filter((e) => e.type === 'shape') as ShapeElement[];
   const backgroundImages = (activeSetup.backgroundImages || []).filter((i) => i.visible) as BackgroundImage[];
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
@@ -104,6 +108,16 @@ export const PrintableShotPlan: React.FC = () => {
     minY = Math.min(...activeSetup.elements.map((e) => e.y)) - 60;
     maxX = Math.max(...activeSetup.elements.map((e) => (e as any).x2 || e.x + ((e as any).width || 80))) + 60;
     maxY = Math.max(...activeSetup.elements.map((e) => (e as any).y2 || e.y + ((e as any).height || 80))) + 60;
+
+    // Blocking beats live away from the element itself — keep them in frame
+    activeSetup.elements.forEach((element) => {
+      ((element as any).path || []).forEach((wp: { x: number; y: number }) => {
+        minX = Math.min(minX, wp.x - 60);
+        minY = Math.min(minY, wp.y - 60);
+        maxX = Math.max(maxX, wp.x + 60);
+        maxY = Math.max(maxY, wp.y + 60);
+      });
+    });
   }
   for (const img of backgroundImages) {
     minX = Math.min(minX, img.x - 20);
@@ -113,14 +127,17 @@ export const PrintableShotPlan: React.FC = () => {
   }
   if (showStoryboards) {
     for (const shot of activeSetup.shots) {
-      if (!shot.storyboardImage) continue;
       const cam = cameras.find((c) => c.id === shot.cameraId);
       if (!cam) continue;
-      const pos = shot.storyboardCanvasPosition || { x: cam.x + 110, y: cam.y - 60 };
-      minX = Math.min(minX, pos.x - 60);
-      minY = Math.min(minY, pos.y - 60);
-      maxX = Math.max(maxX, pos.x + 60);
-      maxY = Math.max(maxY, pos.y + 60);
+      slotsOf(shot, cam).forEach((slot, index) => {
+        if (!slot.frame?.image) return;
+        const pos =
+          slot.frame.canvasPosition || { x: slot.anchor.x + 110, y: slot.anchor.y - 60 + index * 20 };
+        minX = Math.min(minX, pos.x - 60);
+        minY = Math.min(minY, pos.y - 60);
+        maxX = Math.max(maxX, pos.x + 60);
+        maxY = Math.max(maxY, pos.y + 60);
+      });
     }
   }
   const viewBoxWidth = Math.max(800, maxX - minX);
@@ -598,6 +615,9 @@ export const PrintableShotPlan: React.FC = () => {
                     );
                   })}
 
+                  {/* 3.6b Draw free-form shapes (zones, areas) */}
+                  <ShapesLayer shapes={shapes} selectedIds={[]} onSelect={() => {}} canvasScale={1} />
+
                   {/* 3.7 Draw Arrows */}
                   {arrows.map((a) => (
                     <g key={a.id}>
@@ -725,14 +745,77 @@ export const PrintableShotPlan: React.FC = () => {
                           strokeDasharray="6 4"
                           strokeOpacity="0.6"
                         />
-                        {pts.map((p, i) => (
-                          <g key={i} transform={`translate(${p.x}, ${p.y})`}>
-                            <circle cx={0} cy={0} r={i === 0 ? 5 : 4} fill={i === 0 ? '#0f172a' : '#ffffff'} stroke="#0284c7" strokeWidth={1.5} />
-                            <text x={0} y={i === 0 ? -9 : 13} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#0284c7" fontFamily="sans-serif">
-                              {i === 0 ? 'S' : `B${cWps[i - 1]?.beat ?? i + 1}`}
-                            </text>
-                          </g>
-                        ))}
+                        {pts.map((p, i) => {
+                          const wp = i === 0 ? null : cWps[i - 1];
+                          // Each beat prints the camera's facing at that position
+                          const facing = wp?.rotation ?? c.rotation ?? 0;
+                          const cue = wp?.dialogueCue;
+                          // Ghost camera: the body and its coverage at this beat
+                          const ghostFov = wp
+                            ? getCameraFovPolygon(
+                                { x: 0, y: 0 },
+                                0,
+                                c.fovAngle || 45,
+                                (c.coneDistance || 280) * 0.7
+                              )
+                            : null;
+                          return (
+                            <g key={i} transform={`translate(${p.x}, ${p.y})`}>
+                              {ghostFov && (
+                                <g transform={`rotate(${facing})`} opacity={0.45}>
+                                  <path
+                                    d={ghostFov.pathString}
+                                    fill="#bae6fd"
+                                    fillOpacity={0.5}
+                                    stroke="#0284c7"
+                                    strokeWidth={1}
+                                    strokeDasharray="3 3"
+                                  />
+                                  <rect x={-10} y={-8} width={16} height={16} rx={2} fill="#ffffff" stroke="#0284c7" strokeWidth={1.5} />
+                                  <polygon points="6,-6 14,-9 14,9 6,6" fill="#0284c7" opacity={0.7} />
+                                </g>
+                              )}
+                              <g transform={`rotate(${facing})`}>
+                                <polygon points="16,0 4,-6 4,6" fill="#0284c7" opacity={i === 0 ? 0.9 : 0.7} />
+                              </g>
+                              <circle
+                                cx={0}
+                                cy={0}
+                                r={i === 0 ? 6 : 5}
+                                fill={i === 0 ? '#0f172a' : '#ffffff'}
+                                stroke="#0284c7"
+                                strokeWidth={1.5}
+                              />
+                              <text
+                                x={0}
+                                y={3}
+                                textAnchor="middle"
+                                fontSize="7"
+                                fontWeight="bold"
+                                fill={i === 0 ? '#ffffff' : '#0284c7'}
+                                fontFamily="sans-serif"
+                              >
+                                {i === 0 ? c.cameraLabel : `${wp?.beat ?? i + 1}`}
+                              </text>
+                              <text
+                                x={0}
+                                y={i === 0 ? -10 : 16}
+                                textAnchor="middle"
+                                fontSize="8"
+                                fontWeight="bold"
+                                fill="#0284c7"
+                                fontFamily="sans-serif"
+                              >
+                                {i === 0 ? `CAM ${c.cameraLabel} START` : `B${wp?.beat ?? i + 1} · ${facing}°`}
+                              </text>
+                              {cue && (
+                                <text x={0} y={25} textAnchor="middle" fontSize="7" fill="#475569" fontFamily="sans-serif">
+                                  {cue.length > 26 ? `${cue.slice(0, 26)}…` : cue}
+                                </text>
+                              )}
+                            </g>
+                          );
+                        })}
                       </g>
                     );
                   })}
@@ -750,14 +833,63 @@ export const PrintableShotPlan: React.FC = () => {
                           strokeDasharray="6 4"
                           strokeOpacity="0.6"
                         />
-                        {pts.map((p, i) => (
-                          <g key={i} transform={`translate(${p.x}, ${p.y})`}>
-                            <circle cx={0} cy={0} r={i === 0 ? 5 : 4} fill={i === 0 ? '#0f172a' : '#ffffff'} stroke="#059669" strokeWidth={1.5} />
-                            <text x={0} y={i === 0 ? -9 : 13} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#059669" fontFamily="sans-serif">
-                              {i === 0 ? 'S' : `B${aWps[i - 1]?.beat ?? i + 1}`}
-                            </text>
-                          </g>
-                        ))}
+                        {pts.map((p, i) => {
+                          const wp = i === 0 ? null : aWps[i - 1];
+                          const cue = wp?.dialogueCue;
+                          const facing = wp?.rotation ?? a.rotation ?? 0;
+                          return (
+                            <g key={i} transform={`translate(${p.x}, ${p.y})`}>
+                              {/* Ghost actor: where the performer stands on this beat */}
+                              {wp && (
+                                <g transform={`rotate(${facing})`} opacity={0.45}>
+                                  <path
+                                    d="M -6 -18 C 0 -19, 10 -16, 12 -12 C 14 -7, 14 7, 12 12 C 10 16, 0 19, -6 18 C -14 14, -14 -14, -6 -18 Z"
+                                    fill="#ffffff"
+                                    stroke="#059669"
+                                    strokeWidth={1.5}
+                                  />
+                                  <circle cx={0} cy={0} r={10} fill="#a7f3d0" stroke="#059669" strokeWidth={1.5} />
+                                  <polygon points="11,-3 16,0 11,3" fill="#059669" />
+                                </g>
+                              )}
+                              <circle
+                                cx={0}
+                                cy={0}
+                                r={i === 0 ? 6 : 5}
+                                fill={i === 0 ? '#0f172a' : '#ffffff'}
+                                stroke="#059669"
+                                strokeWidth={1.5}
+                              />
+                              <text
+                                x={0}
+                                y={3}
+                                textAnchor="middle"
+                                fontSize="7"
+                                fontWeight="bold"
+                                fill={i === 0 ? '#ffffff' : '#059669'}
+                                fontFamily="sans-serif"
+                              >
+                                {i === 0 ? a.characterLetter : `${wp?.beat ?? i + 1}`}
+                              </text>
+                              <text
+                                x={0}
+                                y={i === 0 ? -10 : 16}
+                                textAnchor="middle"
+                                fontSize="8"
+                                fontWeight="bold"
+                                fill="#059669"
+                                fontFamily="sans-serif"
+                              >
+                                {i === 0 ? `${a.name || a.characterLetter} START` : `B${wp?.beat ?? i + 1}`}
+                              </text>
+                              {cue && (
+                                <text x={0} y={25} textAnchor="middle" fontSize="7" fill="#475569" fontFamily="sans-serif">
+                                  {cue.length > 26 ? `${cue.slice(0, 26)}…` : cue}
+                                </text>
+                              )}
+                            </g>
+                          );
+                        })}
                       </g>
                     );
                   })}
@@ -824,21 +956,30 @@ export const PrintableShotPlan: React.FC = () => {
                   {/* 8. Storyboard Thumbnails on the Blueprint (near their camera) */}
                   {showStoryboards &&
                     activeSetup.shots
-                      .filter((s) => !!s.storyboardImage)
-                      .map((shot) => {
+                      .flatMap((shot) => {
                         const cam = cameras.find((c) => c.id === shot.cameraId);
+                        // One thumbnail per boarded keyframe, at its own position
+                        return slotsOf(shot, cam)
+                          .filter((slot) => !!slot.frame?.image)
+                          .map((slot, index) => ({ shot, cam, slot, index }));
+                      })
+                      .map(({ shot, cam, slot, index }) => {
                         if (!cam) return null;
-                        const pos = shot.storyboardCanvasPosition || { x: cam.x + 110, y: cam.y - 60 };
+                        const pos =
+                          slot.frame?.canvasPosition || {
+                            x: slot.anchor.x + 110,
+                            y: slot.anchor.y - 60 + index * 20,
+                          };
                         const sbW = 56;
                         const sbH = sbW / sceneAspectRatio;
-                        const sbClip = `print-sb-${shot.id}`;
-                        const isCover = shot.storyboardFit !== 'contain';
+                        const sbClip = `print-sb-${shot.id}-${slot.key}`;
+                        const isCover = slot.frame?.fit !== 'contain';
                         return (
-                          <g key={`${shot.id}-sb`}>
-                            {/* Leader line from camera */}
+                          <g key={`${shot.id}-${slot.key}-sb`}>
+                            {/* Leader line from the camera position it belongs to */}
                             <line
-                              x1={cam.x}
-                              y1={cam.y}
+                              x1={slot.anchor.x}
+                              y1={slot.anchor.y}
                               x2={pos.x}
                               y2={pos.y}
                               stroke="#a78bfa"
@@ -863,7 +1004,7 @@ export const PrintableShotPlan: React.FC = () => {
                                 strokeWidth="1.5"
                               />
                               <image
-                                href={shot.storyboardImage}
+                                href={slot.frame!.image}
                                 x={-sbW / 2}
                                 y={-sbH / 2}
                                 width={sbW}
@@ -881,6 +1022,7 @@ export const PrintableShotPlan: React.FC = () => {
                                 fontFamily="sans-serif"
                               >
                                 SB {shot.shotNumber}
+                                {slot.short ? ` ${slot.short}` : ''}
                               </text>
                             </g>
                           </g>
@@ -888,6 +1030,13 @@ export const PrintableShotPlan: React.FC = () => {
                       })}
                 </svg>
               </div>
+
+              <p className="text-[10px] text-slate-500 mt-2">
+                Blocking beats: <span className="font-bold text-sky-700">blue</span> = camera moves — the ghost body
+                and its coverage cone show where the camera sits and looks on each beat —{' '}
+                <span className="font-bold text-emerald-700">green</span> = actor blocking, with a ghost figure at every
+                beat. Beat numbers match the timeline.
+              </p>
 
               {/* Blueprint Legend Bar */}
               <div className="grid grid-cols-3 gap-3 mt-3 text-xs">
@@ -964,33 +1113,65 @@ export const PrintableShotPlan: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {orderedStoryboardShots(activeSetup).map((shot) => {
                     const cam = cameras.find((camera) => camera.id === shot.cameraId);
+                    // One printed frame per camera keyframe
+                    const frameSlots = slotsOf(shot, cam);
+                    const hasMove = frameSlots.length > 1;
                     return (
                       <div
                         key={shot.id}
                         className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid"
                       >
-                        <div
-                          className="relative w-full bg-slate-100 border-b border-slate-300"
-                          style={{ aspectRatio: String(sceneAspectRatio) }}
-                        >
-                          {shot.storyboardImage ? (
-                            <img
-                              src={shot.storyboardImage}
-                              alt=""
-                              className="absolute inset-0 w-full h-full"
-                              style={{ objectFit: shot.storyboardFit || 'cover' }}
-                            />
-                          ) : (
-                            // Shots without artwork still print their frame, so
-                            // the board can be drawn in by hand on set.
-                            <span className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
-                              (no storyboard)
-                            </span>
-                          )}
+                        <div className="relative border-b border-slate-300">
+                          {/* A move prints both frames: where it starts and ends */}
+                          <div
+                            className={hasMove ? 'grid gap-px bg-slate-300' : ''}
+                            style={
+                              hasMove
+                                ? { gridTemplateColumns: `repeat(${Math.min(frameSlots.length, 3)}, minmax(0, 1fr))` }
+                                : undefined
+                            }
+                          >
+                            {frameSlots.map((slot) => {
+                              const image = slot.frame?.image;
+                              const fit = slot.frame?.fit || 'cover';
+                              return (
+                                <div
+                                  key={slot.key}
+                                  className="relative w-full bg-slate-100"
+                                  style={{ aspectRatio: String(sceneAspectRatio) }}
+                                >
+                                  {image ? (
+                                    <img
+                                      src={image}
+                                      alt=""
+                                      className="absolute inset-0 w-full h-full"
+                                      style={{ objectFit: fit }}
+                                    />
+                                  ) : (
+                                    // Shots without artwork still print their frame,
+                                    // so the board can be drawn in by hand on set.
+                                    <span className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
+                                      (no storyboard)
+                                    </span>
+                                  )}
+                                  {hasMove && slot.short && (
+                                    <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded bg-slate-900 text-white text-[8px] font-mono font-bold">
+                                      {slot.short}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                           <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-slate-900 text-white text-[10px] font-mono font-bold">
                             {shot.shotNumber}
                             {cam ? ` · ${(cam.cameraLabel || 'A').toUpperCase()}` : ''}
                           </span>
+                          {hasMove && (
+                            <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-amber-500 text-black text-[9px] font-bold">
+                              {shot.movement}
+                            </span>
+                          )}
                         </div>
                         <div className="p-1.5">
                           <p className="text-[11px] font-bold text-slate-900 leading-snug">{shot.name}</p>

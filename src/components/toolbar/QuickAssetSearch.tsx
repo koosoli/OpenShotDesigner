@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { FloorPlanElement } from '../../types';
+import { FloorPlanElement, ShapeType } from '../../types';
 import { CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import {
   BrickWall,
   Camera,
+  Circle,
   DoorClosed,
   Flag,
   Lightbulb,
@@ -18,6 +19,17 @@ import {
   User,
   X,
 } from 'lucide-react';
+
+const SHAPE_ASSETS: { value: ShapeType; label: string; keywords: string }[] = [
+  { value: 'rectangle', label: 'Rectangle', keywords: 'square box block rect' },
+  { value: 'circle', label: 'Circle', keywords: 'round dot pool' },
+  { value: 'ellipse', label: 'Ellipse', keywords: 'oval round' },
+  { value: 'triangle', label: 'Triangle', keywords: 'wedge cone' },
+  { value: 'diamond', label: 'Diamond', keywords: 'rhombus marker' },
+  { value: 'pentagon', label: 'Pentagon', keywords: 'polygon five' },
+  { value: 'hexagon', label: 'Hexagon', keywords: 'polygon six' },
+  { value: 'star', label: 'Star', keywords: 'marker highlight' },
+];
 
 interface QuickAsset {
   id: string;
@@ -69,6 +81,19 @@ function buildAssetList(): QuickAsset[] {
       group: 'Cameras & Rigs',
       icon: CAMERA_ICON,
       buildPartial: () => ({ type: 'camera', rigType: rig.value } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
+    });
+  });
+
+  // Basic shapes (blocking zones, areas, callouts)
+  SHAPE_ASSETS.forEach((shape) => {
+    assets.push({
+      id: `shape-${shape.value}`,
+      label: `${shape.label} (shape)`,
+      keywords: `${shape.label} shape zone area geometry ${shape.keywords} outline fill opacity`,
+      group: 'Shapes',
+      icon: <Circle className="w-4 h-4 text-cyan-500" />,
+      buildPartial: () =>
+        ({ type: 'shape', shapeType: shape.value } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
     });
   });
 

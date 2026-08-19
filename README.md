@@ -34,7 +34,7 @@ Line a speech in the script and a camera lands on the floor plan, a row appears 
 ### Projects
 
 - **Project dashboard** — every production you have worked on in this browser, with scene and shot counts, whether it carries a screenplay, and when it was last saved. Reachable any time from the grid button in the top bar (or "All projects" in the overflow menu on small screens).
-- **Start in seconds** — name the production and press Create for an empty stage, or tick the box to start from the bundled example scenes.
+- **Start in seconds** — name the production and press Create for an empty stage, or tick the box to start from the two example scenes: a dialogue master + shot/reverse and a two-camera interrogation, complete with a **page of screenplay already lined** against their shots, so every view has something to look at on the first run.
 - **Manage them** — open, rename, duplicate, download as a project file, or delete, straight from the dashboard.
 - **Import lands beside your work** — importing a `.json` project file adds it as its own project instead of overwriting the one you have open.
 - **Safe storage** — each project is stored under its own key, so one production with heavy embedded storyboards can't push the others out. Projects made in earlier single-project versions are moved into the library automatically on first run.
@@ -53,9 +53,10 @@ Line a speech in the script and a camera lands on the floor plan, a row appears 
 ### Floor plan & blocking
 
 - **Top-down floor plan canvas** — drag actors, cameras, and props onto a scaled room; move, resize, and rotate anything.
-- **Waypoint animation** — set multiple waypoints for actors and cameras, add rotation per waypoint, and watch a ghost preview of the move along the path.
+- **Waypoint animation** — set multiple waypoints for actors and cameras, add rotation per waypoint, and watch a ghost preview of the move along the path. Beats print on the blueprint too: a **ghost camera** with its coverage cone and a **ghost figure** for the actor at every beat, plus the facing angle, the character letter, and any dialogue/action cue underneath.
 - **Camera coverage** — FOV cones with configurable angle, focal length, and distance; easy match-frame blocking.
-- **Storyboard thumbnails on the plan** — a shot's artwork sits beside its camera on a leader line and can be dragged anywhere on the canvas; drop one onto another camera to copy the frame across.
+- **Storyboard thumbnails on the plan** — a shot's artwork sits beside its camera on a leader line and can be dragged anywhere on the canvas (pointer capture, so a fast drag can't slip off); drop one onto another camera to copy the frame across. Hide them all with **Storyboard frames** in the scene inspector's display toggles.
+- **Basic shapes** — rectangle, circle, ellipse, triangle, diamond, pentagon, hexagon and star for blocking zones, carpets, light pools or callout areas. Place them from the tool palette or the quick search, then set fill colour and opacity, outline colour, weight, opacity and dash, corner radius, size, rotation and a label in the inspector.
 - **Reference images** — overlay set photos or blueprints as background images, with drag, resize, aspect-lock, opacity, and per-image visibility toggles.
 - **Props & lighting** — furniture presets (tables, chairs, doors, windows…), light sources with beam wedges, C-stand flags, and measurement lines.
 - **Display & label controls** — toggle per-category labels, colors, and declutter options (waypoints, paths, FOV cones, light beams).
@@ -84,6 +85,7 @@ Line a speech in the script and a camera lands on the floor plan, a row appears 
 - **A tab of its own** — "Board" sits between Shot List and Script: the scene as a wall of frames, one per shot.
 - **Same data as everything else** — "Add frame" creates a shot *and* drops its camera on the floor plan; shots added in the shot list or lined from the script appear here automatically, blank until artwork is attached.
 - **Artwork** — drop an image on a frame (or click it to browse), toggle fill/fit, replace, or clear it. Frames without art stay blank on purpose. Each frame also has a viewfinder button, so you can open that shot's finder and shoot the frame with the device camera.
+- **A frame per camera keyframe** — a shot gets one frame for every position its camera holds: **Start**, one per waypoint (**Beat 2**, **Beat 3**…), and **End**. They sit side by side on the card with the move named above them, are boarded independently, and all of them print. Frames can be added from three places: the board, the **camera inspector** (one uploader per keyframe), or the picture button on each waypoint row. On the floor plan every frame's thumbnail hangs off the camera position it belongs to, and the viewfinder has a Frame switch (with a green dot on the keyframes already boarded) so a capture lands exactly where you mean. Adding or removing a waypoint never re-shuffles the artwork already attached.
 - **Rearrange freely** — drag a frame by its handle to arrange the board. The board keeps its **own** order: rearranging frames never reshuffles the shot list.
 - **Descriptions in place** — edit the shot name and description on the frame; they are the same fields the shot list and lined script show.
 - **Aspect ratio** — switch the whole board between 16:9, 2.39:1, 1.85:1, 4:3, and 9:16; frames (and the storyboard thumbnails on the floor plan) reframe to match.
