@@ -42,15 +42,18 @@ export const TopNavbar: React.FC = () => {
     openViewfinder,
     openExportModal,
     openDashboard,
+    displaySettings,
+    updateDisplaySettings,
   } = useFloorPlan();
 
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isSetupsOpen, setIsSetupsOpen] = useState(false);
+  const [isViewingOptionsOpen, setIsViewingOptionsOpen] = useState(false);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isCompact } = useBreakpoint();
 
-  const { gridSettings } = activeSetup;
+  const gridSettings = activeSetup?.gridSettings || { size: 30, snap: true, showGrid: false, unit: 'm', pixelsPerUnit: 30 };
 
   // Handle Export JSON Project file.
   // Uses a Blob download so projects with many embedded (base64 data-URL)
@@ -341,22 +344,6 @@ export const TopNavbar: React.FC = () => {
               <Magnet className="w-3.5 h-3.5" />
             </button>
 
-            {/* Grid Unit Toggle (Feet vs Meters) */}
-            <button
-              onClick={() =>
-                setGridSettings({
-                  unit: gridSettings.unit === 'm' ? 'ft' : 'm',
-                  pixelsPerUnit: gridSettings.unit === 'm' ? 25 : 30,
-                })
-              }
-              title="Toggle Grid Units"
-              className={`px-2 py-1 text-xs font-mono font-bold rounded-lg border transition-colors ${
-                isLight ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white'
-              }`}
-            >
-              {gridSettings.unit.toUpperCase()}
-            </button>
-
             {/* Light / Dark Mode Toggle */}
             <button
               id="btn-toggle-theme"
@@ -368,6 +355,181 @@ export const TopNavbar: React.FC = () => {
             >
               {isLight ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
+
+            {/* Viewing Options Popover */}
+            <div className="relative">
+              <button
+                onClick={() => setIsViewingOptionsOpen(!isViewingOptionsOpen)}
+                title="Viewing options & category opacity"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5 text-sky-400" />
+                <span>Viewing Options</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </button>
+
+              {isViewingOptionsOpen && (
+                <div
+                  className={`absolute right-0 top-full mt-1.5 w-72 border rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-1 space-y-3.5 ${
+                    isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-sky-500">
+                      Viewing & Opacity Controls
+                    </span>
+                    <button
+                      onClick={() => setIsViewingOptionsOpen(false)}
+                      className="text-slate-400 hover:text-slate-200"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Toggles */}
+                  <div className="space-y-2 text-xs">
+                    {/* Grid toggle */}
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-semibold">Show Canvas Grid</span>
+                      <input
+                        type="checkbox"
+                        checked={displaySettings.showGrid}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          updateDisplaySettings({ showGrid: val });
+                          setGridSettings({ showGrid: val });
+                        }}
+                        className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
+                      />
+                    </label>
+
+                    {/* Snap to grid */}
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-semibold">Snap Objects to Grid</span>
+                      <input
+                        type="checkbox"
+                        checked={gridSettings.snap}
+                        onChange={(e) => setGridSettings({ snap: e.target.checked })}
+                        className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
+                      />
+                    </label>
+
+                    {/* Waypoint dialogue/action cues */}
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-semibold">Show Waypoint Cues / Dialogue</span>
+                      <input
+                        type="checkbox"
+                        checked={displaySettings.showWaypointCues === true}
+                        onChange={(e) => updateDisplaySettings({ showWaypointCues: e.target.checked })}
+                        className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
+                      />
+                    </label>
+
+                    {/* Lined script shot types (WS, CU...) */}
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-semibold">Show Shot Types (WS, CU...) in Script</span>
+                      <input
+                        type="checkbox"
+                        checked={displaySettings.showShotSizeInScript !== false}
+                        onChange={(e) => updateDisplaySettings({ showShotSizeInScript: e.target.checked })}
+                        className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
+                      />
+                    </label>
+
+                    {/* Light Label Details Section */}
+                    <div className="border-t pt-2 space-y-1.5">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Light Label Elements
+                      </div>
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span>Light Function / Role (Key, Fill...)</span>
+                        <input
+                          type="checkbox"
+                          checked={displaySettings.showLightRoleLabels !== false}
+                          onChange={(e) => updateDisplaySettings({ showLightRoleLabels: e.target.checked })}
+                          className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span>Fixture Name / Model</span>
+                        <input
+                          type="checkbox"
+                          checked={displaySettings.showLightNameLabels !== false}
+                          onChange={(e) => updateDisplaySettings({ showLightNameLabels: e.target.checked })}
+                          className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span>Color Temp (Kelvin)</span>
+                        <input
+                          type="checkbox"
+                          checked={displaySettings.showLightKelvinLabels === true}
+                          onChange={(e) => updateDisplaySettings({ showLightKelvinLabels: e.target.checked })}
+                          className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span>Dim Level (%)</span>
+                        <input
+                          type="checkbox"
+                          checked={displaySettings.showLightIntensityLabels === true}
+                          onChange={(e) => updateDisplaySettings({ showLightIntensityLabels: e.target.checked })}
+                          className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Category Opacity Sliders */}
+                  <div className="border-t pt-2.5 space-y-2.5">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Category Opacity Sliders
+                    </div>
+
+                    {[
+                      { key: 'actors', label: 'Actors & Talent' },
+                      { key: 'cameras', label: 'Cameras & Cones' },
+                      { key: 'lights', label: 'Lights & Beams' },
+                      { key: 'props', label: 'Props & Furniture' },
+                      { key: 'architecture', label: 'Walls & Doors' },
+                      { key: 'shapes', label: 'Basic Shapes' },
+                    ].map(({ key, label }) => {
+                      const currentVal = Math.round(
+                        ((displaySettings.categoryOpacity as any)?.[key] ?? 1.0) * 100
+                      );
+                      return (
+                        <div key={key} className="space-y-1">
+                          <div className="flex justify-between text-[11px] font-medium">
+                            <span>{label}</span>
+                            <span className="font-mono text-sky-400">{currentVal}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={currentVal}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) / 100;
+                              updateDisplaySettings({
+                                categoryOpacity: {
+                                  ...displaySettings.categoryOpacity,
+                                  [key]: val,
+                                },
+                              });
+                            }}
+                            className="w-full accent-sky-500 h-1.5 bg-slate-700 rounded-lg cursor-pointer"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Viewfinder Button */}
             <button

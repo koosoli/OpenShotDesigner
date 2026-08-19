@@ -118,6 +118,8 @@ interface LinedScriptPageProps {
   isLight: boolean;
   /** Print/export rendering: white paper, no hover affordances. */
   print?: boolean;
+  /** Display shot size badge (WS, CU, MCU...) inside shot bubbles (default true). */
+  showShotSize?: boolean;
   selection?: { from: number; to: number } | null;
   selectedShotId?: string | null;
   onLinePointerDown?: (event: React.PointerEvent, lineId: string) => void;
@@ -135,6 +137,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
   fontSize,
   isLight,
   print = false,
+  showShotSize = true,
   selection = null,
   selectedShotId = null,
   onLinePointerDown,
@@ -386,10 +389,11 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
             const shot = shotFor(mark);
             const isActive = selectedShotId === mark.shotId;
             const label = shot?.shotNumber || mark.label;
+            const shotSize = shot?.shotSize || (mark as any).shotSize || '';
             // The lining shows what the user wrote for it; if they never wrote
-            // one it falls back to the shot's framing note, trimmed so a pasted
-            // action line can't run across the page.
-            const rawDescription = mark.description || shot?.framingDescription || '';
+            // one it falls back to the shot's framing note or shot size (WS, CU...),
+            // trimmed so a pasted action line can't run across the page.
+            const rawDescription = mark.description || shot?.framingDescription || (shotSize ? shotSize : '');
             const description =
               rawDescription.length > 42 ? `${rawDescription.slice(0, 42).trimEnd()}…` : rawDescription;
             const centre = LANE_WIDTH / 2;
@@ -440,8 +444,8 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                 <button
                   onClick={() => onSelectMark?.(mark)}
                   disabled={!onSelectMark}
-                  title={`${label}${description ? ` — ${description}` : ''}`}
-                  className="absolute -top-3 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full border text-[9px] font-bold whitespace-nowrap"
+                  title={`${label}${shotSize ? ` (${shotSize})` : ''}${description ? ` — ${description}` : ''}`}
+                  className="absolute -top-3 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full border text-[9px] font-bold whitespace-nowrap flex items-center gap-1"
                   style={{
                     borderColor: mark.color,
                     color: mark.color,
@@ -449,7 +453,12 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                     boxShadow: isActive ? `0 0 0 2px ${mark.color}55` : undefined,
                   }}
                 >
-                  {label}
+                  <span>{label}</span>
+                  {showShotSize && shotSize ? (
+                    <span className="opacity-90 font-mono text-[8px] font-black bg-slate-500/20 px-1 py-0.2 rounded border border-current/20">
+                      {shotSize}
+                    </span>
+                  ) : null}
                 </button>
 
                 <svg width={LANE_WIDTH} height={height} className="overflow-visible">

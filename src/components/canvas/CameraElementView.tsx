@@ -10,6 +10,7 @@ interface CameraElementViewProps {
   currentBeat: number;
   isPlaying: boolean;
   onSelect: (id: string, e: React.PointerEvent) => void;
+  onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   onOpenViewfinder?: (id: string) => void;
   onWaypointDragStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   onWaypointRotateStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
@@ -24,6 +25,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
   currentBeat,
   isPlaying: _isPlaying,
   onSelect,
+  onDoubleClick,
   onOpenViewfinder,
   onWaypointDragStart,
   onWaypointRotateStart,
@@ -50,7 +52,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
 
   const showCameraLabel = displaySettings.showLabels && displaySettings.showCameraLabels;
   const labelScale = displaySettings.labelScale;
-  const labelOpacity = displaySettings.labelOpacity;
+  const labelOpacity = (displaySettings.labelOpacity ?? 1) * (displaySettings.labelCategoryOpacity?.cameras ?? 1);
   const labelColor = displaySettings.cameraLabelColor;
 
   const camDisplayName = camera.name && camera.name.trim() ? camera.name : `CAM ${camera.cameraLabel || 'A'}`;
@@ -90,8 +92,11 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
   ];
   const splinePathString = getSmoothSplinePath(trajectoryPoints);
 
+  const cameraOpacity = (displaySettings.categoryOpacity?.cameras ?? 1.0) * (camera.opacity ?? 1.0);
+  const showCues = displaySettings.showWaypointCues === true;
+
   return (
-    <g className="camera-element">
+    <g className="camera-element" opacity={cameraOpacity}>
       {/* 1. Camera Movement Trajectory & Ghost Instances (behind the camera) */}
       {hasPath && displaySettings.showWaypoints && (
         <g className="camera-path pointer-events-none">
@@ -148,6 +153,10 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
         transform={`translate(${position.x}, ${position.y}) rotate(${rotation})`}
         className="cursor-pointer"
         onPointerDown={(e) => onSelect(camera.id, e)}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onDoubleClick?.(camera.id, e);
+        }}
       >
         {displaySettings.showFovCones && (
           <g className="pointer-events-none">
@@ -484,7 +493,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
                 </text>
 
                 {/* Dialogue cue near waypoint */}
-                {wp.dialogueCue && (
+                {showCues && wp.dialogueCue && !wp.hideCue && (
                   <g transform="translate(16, -10)" className="pointer-events-none">
                     <rect
                       x={-4}

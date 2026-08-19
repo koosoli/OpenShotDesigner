@@ -10,6 +10,10 @@ interface WallLayerProps {
   showLightBeams: boolean;
   showDoorWindowLabels: boolean;
   onSelect: (id: string, e: React.PointerEvent) => void;
+  onDoubleClick?: (id: string, e: React.MouseEvent) => void;
+  categoryOpacity?: { architecture?: number };
+  labelOpacity?: number;
+  labelColor?: string | null;
 }
 
 export const WallLayer: React.FC<WallLayerProps> = ({
@@ -21,9 +25,13 @@ export const WallLayer: React.FC<WallLayerProps> = ({
   showLightBeams,
   showDoorWindowLabels,
   onSelect,
+  onDoubleClick,
+  categoryOpacity,
+  labelOpacity = 1,
+  labelColor,
 }) => {
   return (
-    <g className="wall-layer">
+    <g className="wall-layer" opacity={categoryOpacity?.architecture ?? 1.0}>
       {/* 1. Walls */}
       {walls.map((wall) => {
         const isSelected = selectedIds.includes(wall.id);
@@ -39,6 +47,10 @@ export const WallLayer: React.FC<WallLayerProps> = ({
             key={wall.id}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(wall.id, e)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onDoubleClick?.(wall.id, e);
+            }}
           >
             {/* Hit area */}
             <line
@@ -107,6 +119,10 @@ export const WallLayer: React.FC<WallLayerProps> = ({
             transform={`translate(${win.x}, ${win.y}) rotate(${win.rotation})`}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(win.id, e)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onDoubleClick?.(win.id, e);
+            }}
           >
             {/* Sunlight throw indicator */}
             {showLightBeams && win.beamVisible !== false && (
@@ -152,9 +168,10 @@ export const WallLayer: React.FC<WallLayerProps> = ({
               <text
                 x={0}
                 y={-d / 2 - 6}
-                fill="#94a3b8"
+                fill={labelColor ?? '#94a3b8'}
                 fontSize="10"
                 textAnchor="middle"
+                opacity={labelOpacity}
                 className="select-none font-mono"
               >
                 WINDOW
@@ -185,47 +202,78 @@ export const WallLayer: React.FC<WallLayerProps> = ({
             transform={`translate(${door.x}, ${door.y}) rotate(${door.rotation})`}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(door.id, e)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onDoubleClick?.(door.id, e);
+            }}
           >
-            {/* Door frame / threshold (hidden when the closed leaf covers it) */}
+            {/* Door opening threshold gap line */}
             <line
               x1={0}
               y1={0}
               x2={w}
               y2={0}
-              stroke={isSelected ? '#38bdf8' : '#94a3b8'}
-              strokeWidth={1}
-              strokeOpacity={open ? 0.55 : 0}
+              stroke="#0f172a"
+              strokeWidth={14}
+              strokeLinecap="butt"
+            />
+            {/* Door frame jambs (left & right posts) */}
+            <rect x={-5} y={-8} width={7} height={16} rx={1.5} fill="#d97706" stroke="#0f172a" strokeWidth={1.5} />
+            <rect x={w - 2} y={-8} width={7} height={16} rx={1.5} fill="#d97706" stroke="#0f172a" strokeWidth={1.5} />
+
+            <line
+              x1={0}
+              y1={0}
+              x2={w}
+              y2={0}
+              stroke={isSelected ? '#38bdf8' : '#d97706'}
+              strokeWidth={2}
+              strokeOpacity={open ? 0.7 : 0}
             />
             {open && swing > 2 && (
-              /* Swing Arc */
+              /* Pronounced Swing Arc */
               <path
                 d={`M ${otherX} 0 A ${w} ${w} 0 0 ${leftHinge ? 1 : 0} ${openX} ${openY}`}
                 fill="none"
-                stroke={isSelected ? '#38bdf8' : 'rgba(148, 163, 184, 0.4)'}
-                strokeWidth={1.5}
-                strokeDasharray="3 3"
+                stroke={isSelected ? '#38bdf8' : '#f59e0b'}
+                strokeWidth={2}
+                strokeDasharray="4 3"
+                strokeOpacity={0.85}
               />
             )}
-            {/* Door Leaf */}
+            {/* Bold Door Leaf */}
             <line
               x1={hingeX}
               y1={0}
               x2={open ? openX : otherX}
               y2={open ? openY : 0}
-              stroke={isSelected ? '#38bdf8' : '#e2e8f0'}
-              strokeWidth={4}
+              stroke={isSelected ? '#38bdf8' : '#fbbf24'}
+              strokeWidth={5}
               strokeLinecap="round"
             />
             {/* Hinge Point */}
-            <circle cx={hingeX} cy={0} r={4} fill="#f59e0b" />
+            <circle cx={hingeX} cy={0} r={4.5} fill="#d97706" stroke="#0f172a" strokeWidth={1.5} />
+            {/* Handle / Knob indicator near door edge */}
+            {open && (
+              <circle
+                cx={hingeX + (openX - hingeX) * 0.85}
+                cy={openY * 0.85}
+                r={3}
+                fill="#0f172a"
+                stroke="#ffffff"
+                strokeWidth={1}
+              />
+            )}
             {showDoorWindowLabels && (
               <text
                 x={w / 2}
-                y={-8}
-                fill="#94a3b8"
+                y={-10}
+                fill={labelColor ?? '#f59e0b'}
                 fontSize="10"
+                fontWeight="bold"
                 textAnchor="middle"
-                className="select-none font-mono"
+                opacity={labelOpacity}
+                className="select-none font-mono drop-shadow-sm"
               >
                 DOOR
               </text>

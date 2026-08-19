@@ -18,8 +18,7 @@ import {
   Ruler,
   Search,
   BrickWall,
-  PanelTop,
-  Table,
+  Armchair,
   Type,
   User,
   MoreHorizontal,
@@ -37,6 +36,7 @@ type Submenu = 'prop' | 'light' | 'camera' | 'shape' | 'overflow';
 
 const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
   { value: 'rectangle', label: 'Rectangle' },
+  { value: 'line', label: 'Line Segment' },
   { value: 'circle', label: 'Circle' },
   { value: 'ellipse', label: 'Ellipse' },
   { value: 'triangle', label: 'Triangle' },
@@ -48,6 +48,23 @@ const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
 
 /** Tools that stay on the bar when there is no room for the full palette. */
 const PRIMARY_TOOL_IDS: ActiveTool[] = ['select', 'pan', 'actor', 'camera', 'light', 'wall'];
+
+const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-sky-500' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="12" y1="3" x2="12" y2="21" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="2" y1="21" x2="22" y2="21" strokeWidth="2.5" />
+  </svg>
+);
 
 export const LeftToolbar: React.FC = () => {
   const {
@@ -166,13 +183,13 @@ export const LeftToolbar: React.FC = () => {
       id: 'window',
       label: 'Window (Wall Snap)',
       shortcut: 'N',
-      icon: <PanelTop className="w-4 h-4 text-sky-500" />,
+      icon: <ArchitecturalWindowIcon className="w-4 h-4 text-sky-500" />,
     },
     {
       id: 'prop',
       label: 'Furniture & Props',
       shortcut: 'P',
-      icon: <Table className="w-4 h-4 text-purple-500" />,
+      icon: <Armchair className="w-4 h-4 text-purple-500" />,
       hasSubmenu: true,
     },
     {
@@ -227,7 +244,11 @@ export const LeftToolbar: React.FC = () => {
     overflowTools.splice(overflowTools.indexOf(active), 1, displaced);
   }
 
-  const flyoutBase = `absolute left-full top-0 ml-2 border rounded-xl shadow-2xl p-2.5 z-50 animate-in fade-in slide-in-from-left-1 max-h-[80vh] overflow-y-auto custom-scrollbar ${
+  const [propSearch, setPropSearch] = useState('');
+  const [lightSearch, setLightSearch] = useState('');
+
+  const leftOffset = isCompact ? 'left-12' : 'left-14';
+  const flyoutBase = `fixed ${leftOffset} top-14 ml-2 border rounded-xl shadow-2xl p-2.5 z-50 animate-in fade-in slide-in-from-left-1 max-h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar overscroll-contain ${
     isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
   }`;
 
@@ -239,6 +260,20 @@ export const LeftToolbar: React.FC = () => {
         ? 'text-slate-700 hover:bg-slate-100'
         : 'text-slate-300 hover:bg-slate-800'
     }`;
+
+  const filteredProps = PROP_CATALOG.filter(
+    (p) =>
+      !propSearch ||
+      p.name.toLowerCase().includes(propSearch.toLowerCase()) ||
+      p.category.toLowerCase().includes(propSearch.toLowerCase())
+  );
+
+  const filteredLights = LIGHT_FIXTURES.filter(
+    (f) =>
+      !lightSearch ||
+      f.name.toLowerCase().includes(lightSearch.toLowerCase()) ||
+      f.type.toLowerCase().includes(lightSearch.toLowerCase())
+  );
 
   return (
     <aside
@@ -302,63 +337,150 @@ export const LeftToolbar: React.FC = () => {
 
             {/* ---- PROPS FLYOUT ---- */}
             {tool.id === 'prop' && openSubmenu === 'prop' && (
-              <div className={`${flyoutBase} w-56`}>
-                <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1">
-                  Props & Set Dressing
+              <div className={`${flyoutBase} w-68 pb-6`}>
+                <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1 tracking-wider border-b border-slate-700/50 pb-1.5 flex items-center justify-between">
+                  <span>Props & Set Dressing</span>
+                  <span className="font-mono text-[9px] text-sky-400">{filteredProps.length} items</span>
                 </div>
-                <div className="space-y-1">
-                  {PROP_CATALOG.map((prop) => (
-                    <button
-                      key={prop.type}
-                      onClick={() => {
-                        setPropSubtype(prop.type);
-                        setTool('prop');
-                        setOpenSubmenu(null);
-                      }}
-                      className={listButtonClass(
-                        activePropSubtype === prop.type && activeTool === 'prop'
-                      )}
-                    >
-                      <span>{prop.name}</span>
-                      <span className="text-[10px] opacity-60 font-mono">{prop.category}</span>
-                    </button>
+
+                {/* Filter input */}
+                <div className="px-1 py-1 mb-1">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={propSearch}
+                      onChange={(e) => setPropSearch(e.target.value)}
+                      placeholder="Filter props (e.g. car, gun)..."
+                      className={`w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border placeholder:text-slate-500 focus:outline-none focus:border-sky-500 ${
+                        isLight ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-800/80 border-slate-700 text-slate-200'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3 py-1">
+                  {Object.entries(
+                    filteredProps.reduce<Record<string, typeof filteredProps>>((acc, prop) => {
+                      (acc[prop.category] = acc[prop.category] || []).push(prop);
+                      return acc;
+                    }, {})
+                  ).map(([category, items]) => (
+                    <div key={category} className="space-y-1">
+                      <div className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 flex items-center gap-1.5 uppercase tracking-wider">
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500/70" />
+                        <span>{category}</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        {items.map((prop) => (
+                          <button
+                            key={prop.type}
+                            onClick={() => {
+                              setPropSubtype(prop.type);
+                              setTool('prop');
+                              setOpenSubmenu(null);
+                              setPropSearch('');
+                            }}
+                            className={listButtonClass(
+                              activePropSubtype === prop.type && activeTool === 'prop'
+                            )}
+                          >
+                            <span className="truncate">{prop.name}</span>
+                            {prop.category === 'Weapons & Explosives' ? (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-950/60 text-rose-400 border border-rose-800/40 font-mono">
+                                {prop.type === 'bomb' ? 'Explosive' : 'Weapon'}
+                              </span>
+                            ) : prop.category === 'Documents & Hand Props' ? (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-950/60 text-amber-400 border border-amber-800/40 font-mono">
+                                Document
+                              </span>
+                            ) : (
+                              <span className="text-[9px] opacity-50 font-mono">{prop.category.split(' ')[0]}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
+                  {filteredProps.length === 0 && (
+                    <div className="text-center py-4 text-xs text-slate-500">
+                      No props match "{propSearch}"
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {/* ---- LIGHT FIXTURE FLYOUT ---- */}
             {tool.id === 'light' && openSubmenu === 'light' && (
-              <div className={`${flyoutBase} w-64`}>
-                <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1">
-                  Light Fixtures
+              <div className={`${flyoutBase} w-72 pb-6`}>
+                <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1 tracking-wider border-b border-slate-700/50 pb-1.5 flex items-center justify-between">
+                  <span>Lighting & Grip Fixtures</span>
+                  <span className="font-mono text-[9px] text-amber-400">{filteredLights.length} items</span>
                 </div>
-                <div className="space-y-1">
-                  {LIGHT_FIXTURES.map((f) => (
+
+                {/* Filter input */}
+                <div className="px-1 py-1 mb-1">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={lightSearch}
+                      onChange={(e) => setLightSearch(e.target.value)}
+                      placeholder="Filter lights (e.g. softbox, tube)..."
+                      className={`w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border placeholder:text-slate-500 focus:outline-none focus:border-amber-500 ${
+                        isLight ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-800/80 border-slate-700 text-slate-200'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 py-1">
+                  {filteredLights.map((f) => (
                     <button
                       key={f.type}
                       onClick={() => {
                         setLightFixture(f.type);
                         setTool('light');
                         setOpenSubmenu(null);
+                        setLightSearch('');
                       }}
                       className={listButtonClass(
                         activeLightFixture === f.type && activeTool === 'light'
                       )}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 truncate">
                         {f.isFlag ? (
-                          <Flag className="w-3.5 h-3.5 text-slate-400" />
+                          <Flag className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                         ) : (
-                          <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                          <Lightbulb className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                         )}
-                        <span>{f.name}</span>
+                        <span className="truncate">{f.name}</span>
                       </span>
-                      <span className="text-[10px] opacity-60 font-mono">
-                        {f.isFlag ? 'Flag' : 'Light'}
+                      <span className="text-[9px] font-mono flex-shrink-0 ml-1.5">
+                        {f.type === 'softbox' ? (
+                          <span className="px-1.5 py-0.2 rounded bg-amber-950/60 text-amber-300 border border-amber-800/40">
+                            Softbox
+                          </span>
+                        ) : f.type === 'tube_light' ? (
+                          <span className="px-1.5 py-0.2 rounded bg-sky-950/60 text-sky-300 border border-sky-800/40">
+                            Tube
+                          </span>
+                        ) : f.isFlag ? (
+                          <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                            Flag
+                          </span>
+                        ) : (
+                          <span className="opacity-50">Light</span>
+                        )}
                       </span>
                     </button>
                   ))}
+                  {filteredLights.length === 0 && (
+                    <div className="text-center py-4 text-xs text-slate-500">
+                      No fixtures match "{lightSearch}"
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -244,6 +244,26 @@ interface FloorPlanContextType {
   setCanvasViewport: (width: number, height: number) => void;
 }
 
+export interface CategoryOpacitySettings {
+  actors: number;
+  cameras: number;
+  lights: number;
+  props: number;
+  architecture: number;
+  shapes: number;
+  tracks: number;
+}
+
+export interface LabelCategoryOpacitySettings {
+  actors: number;
+  cameras: number;
+  props: number;
+  tracks: number;
+  lights: number;
+  doorWindows: number;
+  measurements: number;
+}
+
 export interface DisplaySettings {
   // Master label switch
   showLabels: boolean;
@@ -256,6 +276,9 @@ export interface DisplaySettings {
   showTrackLabels: boolean;
   showLightLabels: boolean;
   showLightNameLabels: boolean;
+  showLightRoleLabels: boolean;
+  showLightKelvinLabels: boolean;
+  showLightIntensityLabels: boolean;
   showMeasurementLabels: boolean;
   showDoorWindowLabels: boolean;
   // Per-category label color overrides (null = use element's own color)
@@ -264,19 +287,27 @@ export interface DisplaySettings {
   propLabelColor: string | null;
   trackLabelColor: string | null;
   lightLabelColor: string | null;
+  doorWindowLabelColor: string | null;
+  measurementLabelColor: string | null;
+  // Per-category label opacity overrides (0 - 1)
+  labelCategoryOpacity: LabelCategoryOpacitySettings;
   // Decluttering toggles
   showWaypoints: boolean;
+  showWaypointCues: boolean; // toggle dialogue / action cues on floorplan waypoints (default true)
   showFovCones: boolean;
   showLightBeams: boolean;
   /** Storyboard thumbnails pinned next to their camera on the floor plan. */
   showStoryboardThumbs: boolean;
   showGrid: boolean;
+  showShotSizeInScript: boolean; // show WS / CU in script (default true)
   // Shot info shown on the camera label
   showShotSizeOnCamera: boolean;
   showShotLensOnCamera: boolean;
   showShotAngleOnCamera: boolean;
   showShotNumberOnCamera: boolean;
   showLensFovLabel: boolean;
+  // Category Opacity Controls
+  categoryOpacity: CategoryOpacitySettings;
 }
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -289,6 +320,9 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showTrackLabels: true,
   showLightLabels: true,
   showLightNameLabels: true,
+  showLightRoleLabels: true,
+  showLightKelvinLabels: false,
+  showLightIntensityLabels: false,
   showMeasurementLabels: true,
   showDoorWindowLabels: true,
   actorLabelColor: null,
@@ -296,16 +330,38 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   propLabelColor: null,
   trackLabelColor: null,
   lightLabelColor: null,
+  doorWindowLabelColor: null,
+  measurementLabelColor: null,
+  labelCategoryOpacity: {
+    actors: 1.0,
+    cameras: 1.0,
+    props: 1.0,
+    tracks: 1.0,
+    lights: 1.0,
+    doorWindows: 1.0,
+    measurements: 1.0,
+  },
   showWaypoints: true,
+  showWaypointCues: false,
   showFovCones: true,
   showStoryboardThumbs: true,
   showLightBeams: true,
-  showGrid: true,
+  showGrid: false, // Default grid to hidden as requested
+  showShotSizeInScript: true,
   showShotSizeOnCamera: false,
   showShotLensOnCamera: false,
   showShotAngleOnCamera: false,
   showShotNumberOnCamera: true,
   showLensFovLabel: false,
+  categoryOpacity: {
+    actors: 1.0,
+    cameras: 1.0,
+    lights: 1.0,
+    props: 1.0,
+    architecture: 1.0,
+    shapes: 1.0,
+    tracks: 1.0,
+  },
 };
 
 const FloorPlanContext = createContext<FloorPlanContextType | null>(null);
@@ -484,7 +540,23 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const parsed = JSON.parse(saved);
         // Light names became default-on; migrate any previously-saved "off".
         if (parsed.showLightNameLabels === false) parsed.showLightNameLabels = true;
-        return { ...DEFAULT_DISPLAY_SETTINGS, ...parsed };
+        // Kelvin and Dim level labels default to OFF; migrate any legacy saved true settings
+        if (parsed._v !== 2) {
+          parsed.showLightKelvinLabels = false;
+          parsed.showLightIntensityLabels = false;
+          parsed._v = 2;
+          try {
+            localStorage.setItem(STORAGE_KEYS.display, JSON.stringify(parsed));
+          } catch {}
+        }
+        return {
+          ...DEFAULT_DISPLAY_SETTINGS,
+          ...parsed,
+          labelCategoryOpacity: {
+            ...DEFAULT_DISPLAY_SETTINGS.labelCategoryOpacity,
+            ...(parsed.labelCategoryOpacity || {}),
+          },
+        };
       }
     } catch {}
     return DEFAULT_DISPLAY_SETTINGS;
@@ -492,7 +564,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateDisplaySettings = (updates: Partial<DisplaySettings>) => {
     setDisplaySettings((prev) => {
-      const next = { ...prev, ...updates };
+      const next = { ...prev, ...updates, _v: 2 };
       try {
         localStorage.setItem(STORAGE_KEYS.display, JSON.stringify(next));
       } catch {}
@@ -656,9 +728,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
-    // Selecting on the canvas opens the inspector — unless the user is reading
-    // the lined script, where the selection is shown by highlighting instead.
-    if (activeRightTab !== 'script' && activeRightTab !== 'storyboard') setActiveRightTab('inspector');
+    const el = activeSetup.elements.find((e) => e.id === id);
+    const isCamera = el?.type === 'camera';
+
+    // Selecting on the canvas opens the inspector — unless:
+    // 1. The user is reading the lined script or storyboard.
+    // 2. The element is a camera, which only opens inspector on double-click unless inspector is already open.
+    if (activeRightTab !== 'script' && activeRightTab !== 'storyboard') {
+      if (!isCamera || activeRightTab === 'inspector') {
+        setActiveRightTab('inspector');
+      }
+    }
     setSelectedBackgroundId(null);
 
     if (multi) {
@@ -668,7 +748,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } else {
       setSelectedElementIds([id]);
       // If it's a camera, sync selected shot!
-      const el = activeSetup.elements.find((e) => e.id === id);
       if (el && el.type === 'camera') {
         const cam = el as CameraElement;
         if (cam.associatedShotId) {
@@ -687,7 +766,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const selectElements = (ids: string[]) => {
     setSelectedElementIds(ids);
     if (ids.length > 0) {
-      if (activeRightTab !== 'script' && activeRightTab !== 'storyboard') setActiveRightTab('inspector');
+      const allCameras = ids.every((id) => activeSetup.elements.find((e) => e.id === id)?.type === 'camera');
+      if (activeRightTab !== 'script' && activeRightTab !== 'storyboard') {
+        if (!allCameras || activeRightTab === 'inspector') {
+          setActiveRightTab('inspector');
+        }
+      }
       setSelectedBackgroundId(null);
     }
   };
@@ -831,7 +915,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         intensity: 80,
         beamAngle: fixture.defaultBeam,
         throwDistance: 220,
-        fixtureModel: fixture.defaultModel,
+        brand: partial.brand,
+        fixtureModel: partial.fixtureModel,
         ...(fixture.isFlag ? { flagSize: '24x36' as const } : {}),
         ...partial,
       };
@@ -2541,9 +2626,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       gridSettings: {
         size: 30,
         snap: true,
-        showGrid: true,
-        unit: 'ft',
-        pixelsPerUnit: 25,
+        showGrid: false,
+        unit: 'm',
+        pixelsPerUnit: 30,
       },
     };
 

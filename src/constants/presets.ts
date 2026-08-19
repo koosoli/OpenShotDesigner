@@ -167,6 +167,39 @@ export const CAMERA_MOVEMENTS: { value: CameraMovement; label: string }[] = [
   { value: 'Zoom', label: 'Optical / Crash Zoom' },
 ];
 
+export const LIGHT_ROLES: {
+  value: import('../types').LightRole;
+  label: string;
+  description: string;
+  color: string;
+}[] = [
+  { value: 'key', label: 'Key Light', description: 'Primary subject illumination source', color: '#f59e0b' },
+  { value: 'fill', label: 'Fill Light', description: 'Softens shadows created by key light', color: '#38bdf8' },
+  { value: 'negative_fill', label: 'Negative Fill / Floppy', description: 'Blocks light, deepens shadows & contrast', color: '#64748b' },
+  { value: 'kicker', label: 'Kicker / Side Light', description: 'Highlight along side of face/body', color: '#eab308' },
+  { value: 'backlight', label: 'Backlight / Rim Light', description: 'Separates subject from background', color: '#a855f7' },
+  { value: 'background', label: 'Background / Set Light', description: 'Illuminates set walls & props', color: '#10b981' },
+  { value: 'hair', label: 'Hair Light', description: 'Top/rear light accentuating hair detail', color: '#ec4899' },
+  { value: 'eye', label: 'Eye Light / Catchlight', description: 'Creates reflection in subject eyes', color: '#06b6d4' },
+  { value: 'accent', label: 'Accent / Top Light', description: 'Highlights specific set elements', color: '#f97316' },
+  { value: 'practical', label: 'Practical Light', description: 'Visible in-camera lamp or bulb', color: '#fbbf24' },
+  { value: 'bounce', label: 'Bounce / Ambient', description: 'Diffused indirect fill light', color: '#94a3b8' },
+  { value: 'unassigned', label: 'Unassigned', description: 'General production lighting', color: '#cbd5e1' },
+];
+
+export const LIGHTING_BRANDS = [
+  { brand: 'ARRI', models: ['SkyPanel S60-C', 'SkyPanel S30-C', 'SkyPanel S360-C', 'Orbiter', 'M18 HMI', 'M40 HMI', 'L7-C LED Fresnel', 'L5-C LED Fresnel', '1K Tungsten Fresnel', '300W Tungsten Fresnel'] },
+  { brand: 'Aputure', models: ['LS 600d Pro', 'LS 600c Pro', 'LS 1200d Pro', 'LS 300d II', 'Nova P600c', 'Nova P300c', 'Electro Storm CS15', 'Electro Storm XT26', 'Amaran 200d', 'B7c Practical Bulb'] },
+  { brand: 'Nanlite', models: ['Forza 720B', 'Forza 500', 'Forza 300B', 'Pavotube II 30X', 'Pavotube II 15X', 'Compac 200'] },
+  { brand: 'Astera', models: ['Titan Tube FP1', 'Helios Tube FP2', 'Hyperion Tube FP3', 'AX5 TriplePAR', 'NYX Bulb FP5', 'LeoFresnel'] },
+  { brand: 'Quasar Science', models: ['Double Rainbow', 'Rainbow 2', 'Crossfade X'] },
+  { brand: 'Kino Flo', models: ['Celeb 850', 'Freestyle 31', 'Diva-Lite 400', '4Bank 4ft'] },
+  { brand: 'Creamsource', models: ['Vortex8', 'Vortex4', 'Micro Colour'] },
+  { brand: 'Litepanels', models: ['Gemini 2x1 RGBW', 'Gemini 1x1 RGBW', 'Astra 6X'] },
+  { brand: 'Matthews / Grip', models: ['C-Stand 40" w/ Arm', 'Solid Floppy 4x4', 'Silk 4x4', 'Single Net 4x4', 'Double Net 4x4', 'Cutter 18x48'] },
+  { brand: 'Generic / Custom', models: ['Custom Fixture'] },
+];
+
 export const LIGHT_FIXTURES: {
   type: LightFixtureType;
   name: string;
@@ -183,6 +216,20 @@ export const LIGHT_FIXTURES: {
     defaultModel: 'ARRI 1K Tungsten Fresnel',
   },
   {
+    type: 'softbox',
+    name: 'Softbox / Dome Diffuser',
+    defaultBeam: 90,
+    defaultTemp: 5600,
+    defaultModel: 'Aputure Light Storm 600d + Light Dome',
+  },
+  {
+    type: 'tube_light',
+    name: 'Light Tube / Astera Pixel Tube',
+    defaultBeam: 160,
+    defaultTemp: 5600,
+    defaultModel: 'Astera Titan Tube FP1 / Quasar Science',
+  },
+  {
     type: 'led_panel',
     name: 'Soft LED Panel',
     defaultBeam: 110,
@@ -190,25 +237,11 @@ export const LIGHT_FIXTURES: {
     defaultModel: 'ARRI SkyPanel S60-C',
   },
   {
-    type: 'softbox',
-    name: 'Bowens Softbox Dome',
-    defaultBeam: 90,
-    defaultTemp: 5600,
-    defaultModel: 'Aputure Light Storm 600d + Light Dome',
-  },
-  {
     type: 'spotlight',
     name: 'Hard Leko / Ellipsoidal',
     defaultBeam: 19,
     defaultTemp: 5600,
     defaultModel: 'ETC Source Four / Aputure Spotlight Mount',
-  },
-  {
-    type: 'tube_light',
-    name: 'Pixel LED Tube',
-    defaultBeam: 160,
-    defaultTemp: 5600,
-    defaultModel: 'Astera Titan Tube FP1',
   },
   {
     type: 'china_ball',
@@ -286,10 +319,18 @@ export const LIGHT_FIXTURES: {
   },
   {
     type: 'c_stand_flag',
-    name: 'C-Stand Flag (Legacy Solid)',
+    name: 'C-Stand + 40" Grip Arm',
     defaultBeam: 0,
     defaultTemp: 0,
-    defaultModel: 'Matthews 24x36 Solid Flag',
+    defaultModel: 'Matthews 40" C-Stand with Grip Arm',
+    isFlag: true,
+  },
+  {
+    type: 'tripod',
+    name: 'Heavy-Duty Tripod Stand (Baby/Combo)',
+    defaultBeam: 0,
+    defaultTemp: 0,
+    defaultModel: 'Matthews Heavy Duty Baby Stand / Combo Tripod',
     isFlag: true,
   },
   {
@@ -339,7 +380,7 @@ export function getFlagPanelDims(light: {
 export const PROP_CATALOG: {
   type: PropType;
   name: string;
-  category: 'Living' | 'Dining & Office' | 'Bedroom' | 'Studio & Stage' | 'Vehicles' | 'Architecture' | 'Generic';
+  category: 'Living' | 'Dining & Office' | 'Bedroom' | 'Studio & Stage' | 'Vehicles' | 'Weapons & Explosives' | 'Documents & Hand Props' | 'Architecture' | 'Generic';
   defaultWidth: number;
   defaultHeight: number;
   defaultColor: string;
@@ -369,20 +410,30 @@ export const PROP_CATALOG: {
   { type: 'wardrobe', name: 'Wardrobe / Closet', category: 'Bedroom', defaultWidth: 140, defaultHeight: 60, defaultColor: '#52525b' },
 
   // Studio & Stage Equipment
-  { type: 'c_stand', name: 'C-Stand + Arm Grip', category: 'Studio & Stage', defaultWidth: 40, defaultHeight: 40, defaultColor: '#64748b' },
   { type: 'sound_boom', name: 'Sound Boom Operator', category: 'Studio & Stage', defaultWidth: 50, defaultHeight: 50, defaultColor: '#d97706' },
+  { type: 'c_stand', name: 'C-Stand + 40" Grip Arm', category: 'Studio & Stage', defaultWidth: 50, defaultHeight: 50, defaultColor: '#64748b' },
+  { type: 'tripod', name: 'Generic Heavy-Duty Tripod Stand', category: 'Studio & Stage', defaultWidth: 45, defaultHeight: 45, defaultColor: '#475569' },
   { type: 'director_chair', name: "Director's Folding Chair", category: 'Studio & Stage', defaultWidth: 45, defaultHeight: 45, defaultColor: '#1e293b' },
   { type: 'apple_box', name: 'Apple Box (Full/Half)', category: 'Studio & Stage', defaultWidth: 40, defaultHeight: 30, defaultColor: '#b45309' },
   { type: 'camera_cart', name: 'Camera Magliner Cart', category: 'Studio & Stage', defaultWidth: 110, defaultHeight: 55, defaultColor: '#475569' },
   { type: 'green_screen', name: 'Chroma Green / Seamless Backdrop', category: 'Studio & Stage', defaultWidth: 240, defaultHeight: 20, defaultColor: '#16a34a' },
 
-  // Vehicles
-  { type: 'car', name: 'Sedan Passenger Car', category: 'Vehicles', defaultWidth: 180, defaultHeight: 360, defaultColor: '#2563eb' },
+  // Vehicles (Sized for 4 full actor blocking seats)
+  { type: 'car', name: 'Sedan Passenger Car (4-Door)', category: 'Vehicles', defaultWidth: 180, defaultHeight: 360, defaultColor: '#2563eb' },
   { type: 'vehicle_suv', name: 'SUV / 4x4 Vehicle', category: 'Vehicles', defaultWidth: 200, defaultHeight: 400, defaultColor: '#475569' },
   { type: 'vehicle_truck', name: 'Production Grip Truck', category: 'Vehicles', defaultWidth: 220, defaultHeight: 520, defaultColor: '#334155' },
-  { type: 'vehicle_police', name: 'Police Cruiser', category: 'Vehicles', defaultWidth: 190, defaultHeight: 380, defaultColor: '#0284c7' },
+  { type: 'vehicle_police', name: 'Police Cruiser (4-Door)', category: 'Vehicles', defaultWidth: 190, defaultHeight: 380, defaultColor: '#0284c7' },
+
+  // Weapons & Explosives
+  { type: 'gun', name: 'Handgun / Pistol Firearm', category: 'Weapons & Explosives', defaultWidth: 44, defaultHeight: 32, defaultColor: '#1e293b' },
+  { type: 'rifle', name: 'Tactical Rifle / Shotgun', category: 'Weapons & Explosives', defaultWidth: 95, defaultHeight: 26, defaultColor: '#0f172a' },
+  { type: 'bomb', name: 'Time Bomb / Explosive C4', category: 'Weapons & Explosives', defaultWidth: 46, defaultHeight: 34, defaultColor: '#dc2626' },
+
+  // Documents & Hand Props
+  { type: 'letter', name: 'Sealed Letter / Envelope', category: 'Documents & Hand Props', defaultWidth: 36, defaultHeight: 24, defaultColor: '#f8fafc' },
 
   // Architecture & Generic
+  { type: 'tree', name: 'Scenic Tree / Foliage', category: 'Architecture', defaultWidth: 120, defaultHeight: 120, defaultColor: '#15803d' },
   { type: 'stairs', name: 'Staircase Flight', category: 'Architecture', defaultWidth: 100, defaultHeight: 180, defaultColor: '#475569' },
   { type: 'box', name: 'Generic Box / Block', category: 'Generic', defaultWidth: 60, defaultHeight: 60, defaultColor: '#64748b' },
   { type: 'circle', name: 'Generic Pillar / Circle', category: 'Generic', defaultWidth: 50, defaultHeight: 50, defaultColor: '#64748b' },
@@ -482,7 +533,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
     gridSettings: {
       size: 30,
       snap: true,
-      showGrid: true,
+      showGrid: false,
       unit: 'm',
       pixelsPerUnit: 30,
     },
@@ -779,9 +830,9 @@ export const SAMPLE_SCENES: SceneSetup[] = [
     gridSettings: {
       size: 30,
       snap: true,
-      showGrid: true,
-      unit: 'ft',
-      pixelsPerUnit: 25,
+      showGrid: false,
+      unit: 'm',
+      pixelsPerUnit: 30,
     },
     elements: [
       // ---- Room -------------------------------------------------------------

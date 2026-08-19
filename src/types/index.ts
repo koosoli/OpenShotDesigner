@@ -24,6 +24,7 @@ export interface Waypoint {
   rotation?: number;
   beat: number; // 1-indexed beat number (e.g. Beat 1 = start, Beat 2 = intermediate, Beat 3 = final)
   dialogueCue?: string;
+  hideCue?: boolean;
 }
 
 export interface BaseElement {
@@ -35,6 +36,7 @@ export interface BaseElement {
   name: string;
   locked?: boolean;
   visible?: boolean;
+  opacity?: number;
 }
 
 export interface ActorElement extends BaseElement {
@@ -113,6 +115,7 @@ export type LightFixtureType =
   | 'par_can'
   | 'kino_flo'
   | 'c_stand_flag'
+  | 'tripod'
   | 'flag_solid'
   | 'flag_silk'
   | 'flag_net'
@@ -136,6 +139,21 @@ export type FlagSize =
   | '48x60';
 export type FlagNetValue = 'single' | 'double';
 
+export type LightRole =
+  | 'key'
+  | 'fill'
+  | 'negative_fill'
+  | 'kicker'
+  | 'backlight'
+  | 'background'
+  | 'hair'
+  | 'eye'
+  | 'accent'
+  | 'practical'
+  | 'bounce'
+  | 'ambient'
+  | 'unassigned';
+
 export interface LightElement extends BaseElement {
   type: 'light';
   fixtureType: LightFixtureType;
@@ -147,9 +165,13 @@ export interface LightElement extends BaseElement {
   beamVisible?: boolean; // false hides this light's beam cone/glow (default true)
   hasBarnDoors?: boolean;
   hasDiffusionGrid?: boolean;
+  brand?: string; // e.g. "ARRI", "Aputure", "Nanlite", "Astera", "Kino Flo"
   fixtureModel?: string; // e.g. "Aputure 600d", "ARRI Skypanel S60"
+  lightRole?: LightRole; // Key, Fill, Negative Fill, Kicker, Backlight, Background, etc.
   flagSize?: FlagSize; // fabric size for C-stand flags (18×24", 24×36", ...)
   netValue?: FlagNetValue; // single (≈½ stop) vs double (≈1 stop) net
+  labelColor?: string; // per-fixture custom label color (e.g. #ffffff, #f59e0b)
+  roleColor?: string; // custom color for this fixture's function/role tag (e.g. #f59e0b)
 }
 
 export interface WallElement extends BaseElement {
@@ -204,11 +226,17 @@ export type PropType =
   | 'vehicle_suv'
   | 'vehicle_truck'
   | 'vehicle_police'
+  | 'gun'
+  | 'rifle'
+  | 'bomb'
+  | 'letter'
   | 'stairs'
   | 'plant'
+  | 'tree'
   | 'tv'
   | 'sound_boom'
   | 'c_stand'
+  | 'tripod'
   | 'box'
   | 'circle';
 
@@ -276,7 +304,8 @@ export type ShapeType =
   | 'diamond'
   | 'pentagon'
   | 'hexagon'
-  | 'star';
+  | 'star'
+  | 'line';
 
 /** A free-form graphic: blocking zone, set piece footprint, callout area. */
 export interface ShapeElement extends BaseElement {

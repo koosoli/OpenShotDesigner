@@ -12,6 +12,7 @@ interface PropsLayerProps {
   texts: TextElement[];
   selectedIds: string[];
   onSelect: (id: string, e: React.PointerEvent) => void;
+  onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   onUpdateText?: (id: string, newText: string) => void;
   pixelsPerUnit?: number;
   displaySettings: DisplaySettings;
@@ -25,6 +26,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
   texts,
   selectedIds,
   onSelect,
+  onDoubleClick,
   onUpdateText,
   pixelsPerUnit = 30,
   displaySettings,
@@ -36,7 +38,10 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
   const showPropLabel = displaySettings.showLabels && displaySettings.showPropLabels;
   const showMeasurementLabel = displaySettings.showLabels && displaySettings.showMeasurementLabels;
   const labelScale = displaySettings.labelScale;
-  const labelOpacity = displaySettings.labelOpacity;
+  const masterLabelOpacity = displaySettings.labelOpacity ?? 1;
+  const propLabelOpacity = masterLabelOpacity * (displaySettings.labelCategoryOpacity?.props ?? 1);
+  const trackLabelOpacity = masterLabelOpacity * (displaySettings.labelCategoryOpacity?.tracks ?? 1);
+  const measurementLabelOpacity = masterLabelOpacity * (displaySettings.labelCategoryOpacity?.measurements ?? 1);
 
   const handleStartEditText = (txt: TextElement) => {
     setEditingTextId(txt.id);
@@ -106,6 +111,10 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
               key={track.id}
               className="cursor-pointer"
               onPointerDown={(e) => onSelect(track.id, e)}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                onDoubleClick?.(track.id, e);
+              }}
             >
               {/* Rails */}
               <path d={innerRailD} fill="none" stroke={isSelected ? '#38bdf8' : '#94a3b8'} strokeWidth={3} strokeLinecap="round" />
@@ -126,7 +135,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
 
               {/* Label */}
               {showTrackLabel && (
-                <g transform={`translate(${ctrlX}, ${ctrlY - 14}) scale(${labelScale})`} opacity={labelOpacity}>
+                <g transform={`translate(${ctrlX}, ${ctrlY - 14}) scale(${labelScale})`} opacity={trackLabelOpacity}>
                   <rect x={-45} y={-9} width={90} height={18} rx={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={1} />
                   <text x={0} y={3.5} fill={displaySettings.trackLabelColor ?? '#38bdf8'} fontSize="9" fontWeight="bold" textAnchor="middle" className="select-none font-mono">
                     CURVED TRACK
@@ -146,6 +155,10 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
             transform={`translate(${x1}, ${y1}) rotate(${angle})`}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(track.id, e)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onDoubleClick?.(track.id, e);
+            }}
           >
             {/* Rails */}
             <line x1={0} y1={-12} x2={dist} y2={-12} stroke={isSelected ? '#38bdf8' : '#94a3b8'} strokeWidth={3} strokeLinecap="round" />
@@ -153,7 +166,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
 
             {/* Sleepers */}
             {Array.from({ length: sleeperCount + 1 }).map((_, i) => {
-              const sx = (dist / sleeperCount) * i;
+              const sx = i * (dist / sleeperCount);
               return (
                 <line
                   key={i}
@@ -166,14 +179,17 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 />
               );
             })}
+
+            {/* Label */}
             {showTrackLabel && (
               <text
                 x={dist / 2}
-                y={-20}
-                fill={displaySettings.trackLabelColor ?? '#94a3b8'}
-                fontSize={10 * labelScale}
+                y={-18}
+                fill={displaySettings.trackLabelColor ?? '#38bdf8'}
+                fontSize="10"
                 textAnchor="middle"
-                opacity={labelOpacity}
+                opacity={trackLabelOpacity}
+                transform={`scale(${labelScale})`}
                 className="select-none font-mono"
               >
                 DOLLY TRACK ({Math.round(dist / 25)}ft)
@@ -189,13 +205,19 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
         const w = prop.width || 80;
         const h = prop.height || 60;
         const color = prop.color || '#475569';
+        const propOpacity = (displaySettings.categoryOpacity?.props ?? 1.0) * (prop.opacity ?? 1.0);
 
         return (
           <g
             key={prop.id}
             transform={`translate(${prop.x}, ${prop.y}) rotate(${prop.rotation})`}
+            opacity={propOpacity}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(prop.id, e)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onDoubleClick?.(prop.id, e);
+            }}
           >
             {/* Selection highlight border */}
             {isSelected && (
@@ -247,6 +269,46 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 <rect x={-w / 2 + 3} y={-h / 2 + 3} width={10} height={h - 6} fill="#1e293b" rx={3} />
                 <rect x={w / 2 - 13} y={-h / 2 + 3} width={10} height={h - 6} fill="#1e293b" rx={3} />
               </g>
+            ) : prop.propType === 'chair' ? (
+              <g className="prop-chair">
+                {/* 4 Leg post ends */}
+                <circle cx={-w * 0.36} cy={-h * 0.36} r={2.5} fill="#0f172a" />
+                <circle cx={w * 0.36} cy={-h * 0.36} r={2.5} fill="#0f172a" />
+                <circle cx={-w * 0.36} cy={h * 0.36} r={2.5} fill="#0f172a" />
+                <circle cx={w * 0.36} cy={h * 0.36} r={2.5} fill="#0f172a" />
+                {/* Padded Seat cushion */}
+                <rect x={-w * 0.42} y={-h * 0.42} width={w * 0.84} height={h * 0.84} rx={6} fill={color} stroke="#1e293b" strokeWidth={1.5} />
+                {/* Curved ergonomic backrest */}
+                <path d={`M ${-w * 0.4} ${-h * 0.32} C ${-w * 0.2} ${-h * 0.48}, ${w * 0.2} ${-h * 0.48}, ${w * 0.4} ${-h * 0.32}`} fill="none" stroke="#0f172a" strokeWidth={4} strokeLinecap="round" />
+              </g>
+            ) : prop.propType === 'bar_stool' ? (
+              <g className="prop-bar-stool">
+                {/* Footrest Ring Base */}
+                <circle cx={0} cy={0} r={w * 0.46} fill="none" stroke="#94a3b8" strokeWidth={2} />
+                {/* 4 Radial Base Spokes */}
+                <line x1={-w * 0.46} y1={0} x2={w * 0.46} y2={0} stroke="#64748b" strokeWidth={1.5} />
+                <line x1={0} y1={-w * 0.46} x2={0} y2={w * 0.46} stroke="#64748b" strokeWidth={1.5} />
+                {/* Padded Round Seat Cushion */}
+                <circle cx={0} cy={0} r={w * 0.36} fill={color} stroke="#0f172a" strokeWidth={2} />
+                {/* Cushion Stitching Rim & Center Tuft */}
+                <circle cx={0} cy={0} r={w * 0.24} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth={1} strokeDasharray="3 2" />
+                <circle cx={0} cy={0} r={3} fill="#0f172a" />
+                {/* Low curved backrest arch */}
+                <path d={`M ${-w * 0.3} ${-w * 0.12} C ${-w * 0.15} ${-w * 0.36}, ${w * 0.15} ${-w * 0.36}, ${w * 0.3} ${-w * 0.12}`} fill="none" stroke="#0f172a" strokeWidth={3} strokeLinecap="round" />
+              </g>
+            ) : prop.propType === 'bar_counter' ? (
+              <g className="prop-bar-counter">
+                {/* Main Counter Surface */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={4} fill={color} stroke="#0f172a" strokeWidth={2} />
+                {/* Front Customer Overhang / Drink Rail */}
+                <rect x={-w / 2 + 2} y={-h / 2 + 2} width={w - 4} height={h * 0.32} rx={2} fill="rgba(255,255,255,0.12)" stroke="#0f172a" strokeWidth={1} />
+                {/* Brass/Chrome Customer Footrest Line */}
+                <line x1={-w / 2 + 6} y1={-h / 2 - 4} x2={w / 2 - 6} y2={-h / 2 - 4} stroke="#eab308" strokeWidth={2.5} strokeLinecap="round" />
+                {/* Bartender work area: Speed rail, sink & ice bin */}
+                <rect x={-w * 0.35} y={h * 0.05} width={w * 0.22} height={h * 0.35} rx={2} fill="#334155" stroke="#0f172a" strokeWidth={1} />
+                <circle cx={-w * 0.24} cy={h * 0.22} r={3} fill="#0f172a" />
+                <rect x={w * 0.05} y={h * 0.05} width={w * 0.3} height={h * 0.35} rx={2} fill="#0f172a" stroke="#475569" strokeWidth={1} />
+              </g>
             ) : prop.propType === 'table_round' || prop.propType === 'circle' ? (
               <circle cx={0} cy={0} r={w / 2} fill={color} stroke="#1e293b" strokeWidth={2} />
             ) : prop.propType === 'table_coffee' ? (
@@ -258,11 +320,11 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
               <g>
                 {/* Center table */}
                 <rect x={-w / 2 + 15} y={-h / 2 + 10} width={w - 30} height={h - 20} fill={color} stroke="#1e293b" strokeWidth={2} rx={3} />
-                {/* Flanking chairs */}
-                <rect x={-w / 2} y={-h / 4} width={12} height={h / 2} fill="#334155" rx={2} />
-                <rect x={w / 2 - 12} y={-h / 4} width={12} height={h / 2} fill="#334155" rx={2} />
-                <rect x={-w / 4} y={-h / 2} width={w / 2} height={10} fill="#334155" rx={2} />
-                <rect x={-w / 4} y={h / 2 - 10} width={w / 2} height={10} fill="#334155" rx={2} />
+                {/* Flanking chairs with curved backrests */}
+                <rect x={-w / 2} y={-h / 4} width={12} height={h / 2} fill="#334155" stroke="#0f172a" strokeWidth={1} rx={3} />
+                <rect x={w / 2 - 12} y={-h / 4} width={12} height={h / 2} fill="#334155" stroke="#0f172a" strokeWidth={1} rx={3} />
+                <rect x={-w / 4} y={-h / 2} width={w / 2} height={10} fill="#334155" stroke="#0f172a" strokeWidth={1} rx={3} />
+                <rect x={-w / 4} y={h / 2 - 10} width={w / 2} height={10} fill="#334155" stroke="#0f172a" strokeWidth={1} rx={3} />
               </g>
             ) : prop.propType === 'bed' || prop.propType === 'bed_king' ? (
               <g>
@@ -289,11 +351,36 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 <line x1={-w / 2 + 4} y1={0} x2={w / 2 - 4} y2={0} stroke="#38bdf8" strokeWidth={4} strokeLinecap="round" />
               </g>
             ) : prop.propType === 'director_chair' ? (
-              <g>
-                <rect x={-12} y={-10} width={24} height={20} fill="#78350f" stroke="#451a03" rx={2} />
-                <line x1={-12} y1={-10} x2={12} y2={10} stroke="#cbd5e1" strokeWidth={2} />
-                <line x1={-12} y1={10} x2={12} y2={-10} stroke="#cbd5e1" strokeWidth={2} />
-                <line x1={-14} y1={-10} x2={-14} y2={10} stroke="#451a03" strokeWidth={3} strokeLinecap="round" />
+              <g className="prop-director-chair">
+                {/* Scissor Cross-Legs */}
+                <line x1={-w * 0.36} y1={-h * 0.36} x2={w * 0.36} y2={h * 0.36} stroke="#b45309" strokeWidth={2.5} strokeLinecap="round" />
+                <line x1={-w * 0.36} y1={h * 0.36} x2={w * 0.36} y2={-h * 0.36} stroke="#b45309" strokeWidth={2.5} strokeLinecap="round" />
+                {/* Stretched Canvas Seat */}
+                <rect x={-w * 0.34} y={-h * 0.32} width={w * 0.68} height={h * 0.64} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                <line x1={-w * 0.34} y1={-h * 0.24} x2={w * 0.34} y2={-h * 0.24} stroke="#475569" strokeWidth={1} strokeDasharray="2 2" />
+                <line x1={-w * 0.34} y1={h * 0.24} x2={w * 0.34} y2={h * 0.24} stroke="#475569" strokeWidth={1} strokeDasharray="2 2" />
+                {/* Wooden Armrests (left & right) */}
+                <rect x={-w * 0.44} y={-h * 0.38} width={6} height={h * 0.76} rx={2} fill="#d97706" stroke="#78350f" strokeWidth={1.2} />
+                <rect x={w * 0.44 - 6} y={-h * 0.38} width={6} height={h * 0.76} rx={2} fill="#d97706" stroke="#78350f" strokeWidth={1.2} />
+                {/* Stretched Canvas Backrest */}
+                <rect x={-w * 0.36} y={-h * 0.46} width={w * 0.72} height={6} rx={1.5} fill="#0f172a" stroke="#475569" strokeWidth={1} />
+              </g>
+            ) : prop.propType === 'camera_cart' ? (
+              <g className="prop-camera-cart">
+                {/* 4 Large Pneumatic Caster Wheels */}
+                <rect x={-w / 2 - 4} y={-h / 2 + 6} width={8} height={20} rx={3} fill="#0f172a" />
+                <rect x={w / 2 - 4} y={-h / 2 + 6} width={8} height={20} rx={3} fill="#0f172a" />
+                <rect x={-w / 2 - 4} y={h / 2 - 26} width={8} height={20} rx={3} fill="#0f172a" />
+                <rect x={w / 2 - 4} y={h / 2 - 26} width={8} height={20} rx={3} fill="#0f172a" />
+                {/* Aluminum Lower / Upper Deck */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={4} fill="#334155" stroke="#0f172a" strokeWidth={2} />
+                <rect x={-w / 2 + 4} y={-h / 2 + 4} width={w - 8} height={h - 8} rx={2} fill="#1e293b" stroke="#64748b" strokeWidth={1} />
+                {/* Equipment dividers */}
+                <rect x={-w / 2 + 8} y={-h / 2 + 8} width={w * 0.44} height={h - 16} rx={2} fill="#0f172a" />
+                <rect x={w * 0.04} y={-h / 2 + 8} width={w * 0.44} height={h - 16} rx={2} fill="#0f172a" />
+                {/* Dual Push Handles (Front & Rear) */}
+                <rect x={-w / 2 - 8} y={-h * 0.25} width={8} height={h * 0.5} rx={2} fill="#64748b" stroke="#0f172a" strokeWidth={1} />
+                <rect x={w / 2} y={-h * 0.25} width={8} height={h * 0.5} rx={2} fill="#64748b" stroke="#0f172a" strokeWidth={1} />
               </g>
             ) : prop.propType === 'apple_box' ? (
               <g>
@@ -302,21 +389,129 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 <rect x={-6} y={h / 2 - 8} width={12} height={4} fill="#78350f" rx={1} />
               </g>
             ) : prop.propType === 'c_stand' ? (
-              <g>
-                {/* Turtle base legs */}
-                <line x1={0} y1={0} x2={-16} y2={-12} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />
-                <line x1={0} y1={0} x2={-16} y2={12} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />
-                <line x1={0} y1={0} x2={20} y2={0} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />
-                <circle cx={0} cy={0} r={4} fill="#38bdf8" />
+              <g className="prop-c-stand">
+                {/* 1. Medium Leg (Top-Left 135°) */}
+                <path d="M 0 0 C -10 -12, -20 -22, -32 -16" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+                <rect x={-35} y={-18} width={6} height={4} rx={1} fill="#0f172a" />
+
+                {/* 2. Small Low Leg (Bottom-Left 225°) */}
+                <path d="M 0 0 C -10 12, -20 22, -32 16" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+                <rect x={-35} y={14} width={6} height={4} rx={1} fill="#0f172a" />
+
+                {/* 3. Big High Leg (Front Load Leg extending 0° directly under the grip arm) */}
+                <path d="M 0 0 C 12 -4, 24 -6, 36 -1" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+                <rect x={35} y={-3} width={5} height={4} rx={1} fill="#0f172a" />
+
+                {/* Center Base Hub Casting & Spring-Loaded Riser Receiver */}
+                <circle cx={0} cy={0} r={7} fill="#1e293b" stroke="#94a3b8" strokeWidth={2} />
+                <circle cx={0} cy={0} r={3.5} fill="#475569" />
+
+                {/* Center 2.5" Gobo Knuckle Head (Matthews Grip Head) */}
+                <rect x={-5} y={-6} width={10} height={12} rx={2.5} fill="#0f172a" stroke="#94a3b8" strokeWidth={1.5} />
+                {/* Ergonomic Aluminum T-Handle Brake Lever */}
+                <line x1={-9} y1={0} x2={9} y2={0} stroke="#38bdf8" strokeWidth={2.5} strokeLinecap="round" />
+                <circle cx={-9} cy={0} r={1.5} fill="#ffffff" />
+                <circle cx={9} cy={0} r={1.5} fill="#ffffff" />
+
+                {/* 40" Stainless Steel Solid Grip Arm */}
+                <line x1={0} y1={0} x2={52} y2={0} stroke="#0f172a" strokeWidth={3.5} strokeLinecap="round" />
+                <line x1={0} y1={0} x2={52} y2={0} stroke="#cbd5e1" strokeWidth={2} strokeLinecap="round" />
+                <line x1={2} y1={-0.5} x2={50} y2={-0.5} stroke="#ffffff" strokeWidth={0.8} strokeLinecap="round" />
+
+                {/* End 2.5" Grip Head Knuckle on Arm Tip */}
+                <rect x={46} y={-5} width={8} height={10} rx={2} fill="#0f172a" stroke="#94a3b8" strokeWidth={1.5} />
+                <line x1={50} y1={-7} x2={50} y2={7} stroke="#38bdf8" strokeWidth={2} strokeLinecap="round" />
+                {/* 5/8" Baby Pin Stud Tip */}
+                <circle cx={55} cy={0} r={2} fill="#f59e0b" stroke="#0f172a" strokeWidth={0.6} />
+              </g>
+            ) : prop.propType === 'tripod' ? (
+              <g className="prop-tripod-stand">
+                {/* 3 Splayed Tubular Legs at 120° offsets */}
+                <line x1={0} y1={0} x2={-24} y2={-16} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+                <rect x={-27} y={-18} width={6} height={4} rx={1} fill="#0f172a" />
+                <line x1={0} y1={0} x2={-24} y2={16} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+                <rect x={-27} y={14} width={6} height={4} rx={1} fill="#0f172a" />
+                <line x1={0} y1={0} x2={28} y2={0} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+                <rect x={27} y={-2} width={4} height={4} rx={1} fill="#0f172a" />
+
+                {/* Central Spreader Spider Braces */}
+                <polygon points="-12,-8 -12,8 14,0" fill="none" stroke="#475569" strokeWidth={1.5} />
+
+                {/* Center Riser Base Casting */}
+                <circle cx={0} cy={0} r={7} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+                <line x1={-5} y1={0} x2={5} y2={0} stroke="#38bdf8" strokeWidth={2} strokeLinecap="round" />
+                <circle cx={0} cy={0} r={3} fill="#f59e0b" stroke="#0f172a" strokeWidth={0.8} />
               </g>
             ) : prop.propType === 'sound_boom' ? (
-              <g>
-                <circle cx={0} cy={0} r={14} fill="#eab308" stroke="#0f172a" strokeWidth={2} />
-                <line x1={0} y1={0} x2={42} y2={0} stroke="#eab308" strokeWidth={3} strokeLinecap="round" />
-                <ellipse cx={46} cy={0} rx={9} ry={6} fill="#1e293b" />
-                <text x={0} y={4} fill="#000" fontSize="10" textAnchor="middle" fontWeight="bold">
-                  BOOM
-                </text>
+              <g className="prop-sound-boom-op">
+                {/* Directional Supercardioid Sound Pickup Cone / Range Waves */}
+                <path
+                  d="M 62 -18 Q 80 0 62 18"
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth={1.5}
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.65}
+                />
+                <path
+                  d="M 74 -26 Q 98 0 74 26"
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  strokeOpacity={0.4}
+                />
+
+                {/* 1. Telescopic Carbon-Fiber Boom Pole */}
+                <line x1={-6} y1={-8} x2={56} y2={0} stroke="#1e293b" strokeWidth={3.5} strokeLinecap="round" />
+                <line x1={-6} y1={-8} x2={56} y2={0} stroke="#475569" strokeWidth={1.5} strokeLinecap="round" />
+                {/* Telescoping Section Knurled Collars */}
+                <circle cx={14} cy={-5} r={2.5} fill="#f59e0b" />
+                <circle cx={34} cy={-2.5} r={2.2} fill="#f59e0b" />
+
+                {/* 2. Rycote Shockmount Cradle & Zeppelin Blimp / Deadcat Windshield */}
+                <rect x={48} y={-3} width={8} height={6} rx={1} fill="#0f172a" stroke="#64748b" strokeWidth={0.75} />
+                <line x1={52} y1={-6} x2={52} y2={6} stroke="#f59e0b" strokeWidth={1.5} strokeLinecap="round" />
+                {/* Zeppelin Blimp Microphone Capsule */}
+                <rect x={46} y={-7} width={24} height={14} rx={7} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                {/* Windshield mesh / acoustic slots */}
+                <line x1={51} y1={-5} x2={51} y2={5} stroke="#64748b" strokeWidth={1} />
+                <line x1={57} y1={-6} x2={57} y2={6} stroke="#64748b" strokeWidth={1} />
+                <line x1={63} y1={-5} x2={63} y2={5} stroke="#64748b" strokeWidth={1} />
+                {/* Front dome tip */}
+                <circle cx={70} cy={0} r={2} fill="#f59e0b" />
+
+                {/* 3. Operator Torso / Shoulders */}
+                <ellipse cx={-12} cy={0} rx={14} ry={20} fill={color} stroke="#0f172a" strokeWidth={2} />
+
+                {/* 4. Audio Mixer Bag / Harness (Strapped across chest) */}
+                <rect x={-2} y={-11} width={10} height={22} rx={2} fill="#0f172a" stroke="#475569" strokeWidth={1.2} />
+                {/* Mixer LED VU meters / Potentiometers */}
+                <rect x={0} y={-8} width={2} height={6} fill="#22c55e" />
+                <rect x={0} y={2} width={2} height={6} fill="#22c55e" />
+                <circle cx={5} cy={-5} r={1.5} fill="#f59e0b" />
+                <circle cx={5} cy={0} r={1.5} fill="#94a3b8" />
+                <circle cx={5} cy={5} r={1.5} fill="#f59e0b" />
+                {/* Harness Straps */}
+                <line x1={-18} y1={-10} x2={-2} y2={-7} stroke="#334155" strokeWidth={2} />
+                <line x1={-18} y1={10} x2={-2} y2={7} stroke="#334155" strokeWidth={2} />
+
+                {/* 5. Operator Arms reaching out gripping pole */}
+                <path d="M -10 -16 C -2 -16, 6 -14, 14 -7" fill="none" stroke={color} strokeWidth={5} strokeLinecap="round" />
+                <path d="M -10 16 C -2 16, 0 10, 6 0" fill="none" stroke={color} strokeWidth={5} strokeLinecap="round" />
+                {/* Hands / Gloves gripping the pole */}
+                <circle cx={14} cy={-7} r={3} fill="#fcd34d" stroke="#0f172a" strokeWidth={1} />
+                <circle cx={6} cy={0} r={3} fill="#fcd34d" stroke="#0f172a" strokeWidth={1} />
+
+                {/* 6. Operator Head & Audio Monitoring Headphones */}
+                <circle cx={-12} cy={0} r={9} fill="#fcd34d" stroke="#0f172a" strokeWidth={1.5} />
+                {/* Cap / Visor */}
+                <path d="M -19 -5 C -19 -10, -5 -10, -5 -5 Z" fill="#1e293b" />
+                {/* Headphone headband */}
+                <path d="M -12 -11 C -6 -11, -6 11, -12 11" fill="none" stroke="#0f172a" strokeWidth={3} strokeLinecap="round" />
+                {/* Over-ear headphone earcups (left & right) */}
+                <rect x={-15} y={-12} width={6} height={4} rx={1.5} fill="#0284c7" stroke="#0f172a" strokeWidth={1} />
+                <rect x={-15} y={8} width={6} height={4} rx={1.5} fill="#0284c7" stroke="#0f172a" strokeWidth={1} />
               </g>
             ) : prop.propType === 'green_screen' ? (
               <g>
@@ -347,29 +542,305 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 <circle cx={0} cy={0} r={w / 2} fill="#166534" stroke="#14532d" strokeWidth={2} />
                 <path d="M 0 0 C -8 -16, 8 -16, 0 0 C 16 -8, 16 8, 0 0 C 8 16, -8 16, 0 0 C -16 8, -16 -8, 0 0 Z" fill="#22c55e" />
               </g>
+            ) : prop.propType === 'tree' ? (
+              <g className="prop-scenic-tree">
+                {/* Outer Canopy Foliage Spread */}
+                <circle cx={0} cy={0} r={w * 0.48} fill="#15803d" fillOpacity={0.25} stroke="#166534" strokeWidth={1} strokeDasharray="4 3" />
+                
+                {/* Overlapping Organic Foliage Clusters */}
+                <circle cx={-w * 0.22} cy={-h * 0.22} r={w * 0.24} fill="#16a34a" fillOpacity={0.85} stroke="#15803d" strokeWidth={1.5} />
+                <circle cx={w * 0.22} cy={-h * 0.22} r={w * 0.24} fill="#15803d" fillOpacity={0.85} stroke="#166534" strokeWidth={1.5} />
+                <circle cx={-w * 0.25} cy={h * 0.18} r={w * 0.22} fill="#15803d" fillOpacity={0.85} stroke="#166534" strokeWidth={1.5} />
+                <circle cx={w * 0.22} cy={h * 0.2} r={w * 0.23} fill="#16a34a" fillOpacity={0.85} stroke="#15803d" strokeWidth={1.5} />
+                <circle cx={0} cy={-h * 0.28} r={w * 0.2} fill="#22c55e" fillOpacity={0.85} />
+                <circle cx={0} cy={h * 0.26} r={w * 0.2} fill="#15803d" fillOpacity={0.85} />
+                
+                {/* Center High-Density Foliage Crown */}
+                <circle cx={0} cy={0} r={w * 0.3} fill="#14532d" stroke="#052e16" strokeWidth={2} />
+                
+                {/* Radiating Main Wooden Tree Branches */}
+                <path d="M 0 0 L -18 -18 M 0 0 L 18 -18 M 0 0 L -20 16 M 0 0 L 20 16 M 0 0 L 0 -22 M 0 0 L 0 22" stroke="#78350f" strokeWidth={3} strokeLinecap="round" />
+                <path d="M -18 -18 L -28 -24 M 18 -18 L 28 -24 M -20 16 L -28 22 M 20 16 L 28 22" stroke="#92400e" strokeWidth={1.8} strokeLinecap="round" />
+                
+                {/* Center Trunk Core */}
+                <circle cx={0} cy={0} r={w * 0.1} fill="#78350f" stroke="#451a03" strokeWidth={2} />
+                <circle cx={0} cy={0} r={w * 0.05} fill="#451a03" />
+              </g>
             ) : prop.propType === 'car' || prop.propType === 'vehicle_suv' || prop.propType === 'vehicle_police' ? (
-              <g>
-                {/* Vehicle chassis */}
-                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} stroke="#0f172a" strokeWidth={2} rx={16} />
-                {/* Front windshield */}
+              <g className="prop-vehicle-4p">
+                {/* Wheels / Tires (4 corners) */}
+                <rect x={-w / 2 - 3} y={-h / 2 + 35} width={7} height={40} rx={3} fill="#0f172a" />
+                <rect x={w / 2 - 4} y={-h / 2 + 35} width={7} height={40} rx={3} fill="#0f172a" />
+                <rect x={-w / 2 - 3} y={h / 2 - 75} width={7} height={40} rx={3} fill="#0f172a" />
+                <rect x={w / 2 - 4} y={h / 2 - 75} width={7} height={40} rx={3} fill="#0f172a" />
+
+                {/* Side Mirrors */}
+                <polygon points={`${-w / 2},${-h / 2 + 82} ${-w / 2 - 12},${-h / 2 + 90} ${-w / 2 - 12},${-h / 2 + 104} ${-w / 2},${-h / 2 + 100}`} fill={color} stroke="#0f172a" strokeWidth={1.5} />
+                <polygon points={`${w / 2},${-h / 2 + 82} ${w / 2 + 12},${-h / 2 + 90} ${w / 2 + 12},${-h / 2 + 104} ${w / 2},${-h / 2 + 100}`} fill={color} stroke="#0f172a" strokeWidth={1.5} />
+
+                {/* Vehicle outer body chassis */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} stroke="#0f172a" strokeWidth={2.5} rx={22} />
+
+                {/* Hood feature lines & grille */}
+                <path d={`M ${-w * 0.3} ${-h / 2 + 10} L ${-w * 0.26} ${-h / 2 + 70} M ${w * 0.3} ${-h / 2 + 10} L ${w * 0.26} ${-h / 2 + 70}`} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} />
+
+                {/* 4-Actor Interior Passenger Cabin */}
+                <rect x={-w / 2 + 12} y={-h / 2 + 78} width={w - 24} height={h * 0.54} rx={10} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+
+                {/* Front Windshield (curved tinted glass) */}
                 <path
-                  d={`M ${-w / 2 + 18} ${-h / 2 + 35} L ${w / 2 - 18} ${-h / 2 + 35} L ${w / 2 - 25} ${-h / 2 + 65} L ${-w / 2 + 25} ${-h / 2 + 65} Z`}
-                  fill="#0f172a"
+                  d={`M ${-w / 2 + 16} ${-h / 2 + 76} L ${w / 2 - 16} ${-h / 2 + 76} L ${w / 2 - 24} ${-h / 2 + 102} L ${-w / 2 + 24} ${-h / 2 + 102} Z`}
+                  fill="#0284c7"
+                  fillOpacity={0.4}
+                  stroke="#38bdf8"
+                  strokeWidth={1}
                 />
-                {/* Rear windshield */}
+
+                {/* Dashboard & Steering wheel (Front Left Driver seat) */}
+                <rect x={-w / 2 + 16} y={-h / 2 + 94} width={w - 32} height={10} rx={2} fill="#0f172a" />
+                <circle cx={-w * 0.24} cy={-h / 2 + 108} r={11} fill="none" stroke="#94a3b8" strokeWidth={2.5} />
+
+                {/* Center Console */}
+                <rect x={-w * 0.05} y={-h / 2 + 110} width={w * 0.1} height={h * 0.38} rx={3} fill="#0f172a" />
+
+                {/* 4 Dedicated Actor Bucket Seats (Spacious enough for 4 blocking actors) */}
+                {/* 1. Driver Seat (Front Left) */}
+                <g transform={`translate(${-w * 0.24}, ${-h / 2 + 130})`}>
+                  <rect x={-w * 0.18} y={-16} width={w * 0.36} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+                  <rect x={-w * 0.12} y={-23} width={w * 0.24} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
+                </g>
+
+                {/* 2. Front Passenger Seat (Front Right) */}
+                <g transform={`translate(${w * 0.24}, ${-h / 2 + 130})`}>
+                  <rect x={-w * 0.18} y={-16} width={w * 0.36} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+                  <rect x={-w * 0.12} y={-23} width={w * 0.24} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
+                </g>
+
+                {/* 3. Rear Left Passenger Seat */}
+                <g transform={`translate(${-w * 0.24}, ${-h / 2 + 225})`}>
+                  <rect x={-w * 0.18} y={-16} width={w * 0.36} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+                  <rect x={-w * 0.12} y={-23} width={w * 0.24} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
+                </g>
+
+                {/* 4. Rear Right Passenger Seat */}
+                <g transform={`translate(${w * 0.24}, ${-h / 2 + 225})`}>
+                  <rect x={-w * 0.18} y={-16} width={w * 0.36} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+                  <rect x={-w * 0.12} y={-23} width={w * 0.24} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
+                </g>
+
+                {/* Rear Windshield */}
                 <path
-                  d={`M ${-w / 2 + 22} ${h / 2 - 35} L ${w / 2 - 22} ${h / 2 - 35} L ${w / 2 - 25} ${h / 2 - 58} L ${-w / 2 + 25} ${h / 2 - 58} Z`}
-                  fill="#0f172a"
+                  d={`M ${-w / 2 + 22} ${h / 2 - 68} L ${w / 2 - 22} ${h / 2 - 68} L ${w / 2 - 18} ${h / 2 - 44} L ${-w / 2 + 18} ${h / 2 - 44} Z`}
+                  fill="#0284c7"
+                  fillOpacity={0.35}
+                  stroke="#38bdf8"
+                  strokeWidth={1}
                 />
-                {/* Headlights */}
-                <rect x={-w / 2 + 10} y={-h / 2 + 2} width={12} height={4} fill="#fef08a" rx={1} />
-                <rect x={w / 2 - 22} y={-h / 2 + 2} width={12} height={4} fill="#fef08a" rx={1} />
+
+                {/* Headlights (Front) */}
+                <rect x={-w / 2 + 12} y={-h / 2 + 2} width={18} height={6} rx={2} fill="#fef08a" stroke="#eab308" strokeWidth={1} />
+                <rect x={w / 2 - 30} y={-h / 2 + 2} width={18} height={6} rx={2} fill="#fef08a" stroke="#eab308" strokeWidth={1} />
+
+                {/* Taillights (Rear) */}
+                <rect x={-w / 2 + 12} y={h / 2 - 8} width={18} height={6} rx={2} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />
+                <rect x={w / 2 - 30} y={h / 2 - 8} width={18} height={6} rx={2} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />
+
+                {/* Police cruiser emergency lightbar */}
                 {prop.propType === 'vehicle_police' && (
-                  <g>
-                    <rect x={-14} y={-4} width={12} height={8} fill="#ef4444" rx={1} />
-                    <rect x={2} y={-4} width={12} height={8} fill="#3b82f6" rx={1} />
+                  <g transform="translate(0, -10)">
+                    <rect x={-28} y={-6} width={26} height={12} rx={2} fill="#ef4444" stroke="#0f172a" strokeWidth={1} />
+                    <rect x={2} y={-6} width={26} height={12} rx={2} fill="#3b82f6" stroke="#0f172a" strokeWidth={1} />
+                    <rect x={-3} y={-7} width={6} height={14} fill="#ffffff" />
                   </g>
                 )}
+              </g>
+            ) : prop.propType === 'vehicle_truck' ? (
+              <g className="prop-production-truck">
+                {/* Front Wheels (Steer tires) */}
+                <rect x={-w / 2 - 4} y={-h / 2 + 45} width={8} height={46} rx={3} fill="#0f172a" />
+                <rect x={w / 2 - 4} y={-h / 2 + 45} width={8} height={46} rx={3} fill="#0f172a" />
+                
+                {/* Dual Rear Wheels (4 tires: 2 on each side) */}
+                <rect x={-w / 2 - 8} y={h * 0.16} width={12} height={56} rx={3} fill="#0f172a" />
+                <rect x={w / 2 - 4} y={h * 0.16} width={12} height={56} rx={3} fill="#0f172a" />
+                
+                {/* Heavy Front Bumper & Tow Hooks */}
+                <rect x={-w / 2 - 2} y={-h / 2} width={w + 4} height={14} rx={3} fill="#334155" stroke="#0f172a" strokeWidth={2} />
+                
+                {/* Front Cab Body */}
+                <path
+                  d={`M ${-w / 2 + 8} ${-h / 2 + 10} L ${w / 2 - 8} ${-h / 2 + 10} L ${w / 2 - 4} ${-h / 2 + 115} L ${-w / 2 + 4} ${-h / 2 + 115} Z`}
+                  fill={color}
+                  stroke="#0f172a"
+                  strokeWidth={2}
+                />
+                
+                {/* Oversized Heavy Duty Side Mirrors with brackets */}
+                <rect x={-w / 2 - 16} y={-h / 2 + 60} width={14} height={26} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                <line x1={-w / 2 + 4} y1={-h / 2 + 73} x2={-w / 2 - 16} y2={-h / 2 + 73} stroke="#64748b" strokeWidth={2} />
+                <rect x={w / 2 + 2} y={-h / 2 + 60} width={14} height={26} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                <line x1={w / 2 - 4} y1={-h / 2 + 73} x2={w / 2 + 2} y2={-h / 2 + 73} stroke="#64748b" strokeWidth={2} />
+                
+                {/* Cab Windshield */}
+                <path
+                  d={`M ${-w / 2 + 16} ${-h / 2 + 35} L ${w / 2 - 16} ${-h / 2 + 35} L ${w / 2 - 18} ${-h / 2 + 68} L ${-w / 2 + 18} ${-h / 2 + 68} Z`}
+                  fill="#0284c7"
+                  fillOpacity={0.4}
+                  stroke="#38bdf8"
+                  strokeWidth={1.5}
+                />
+                
+                {/* Driver & Passenger Cab Seats */}
+                <rect x={-w * 0.38} y={-h / 2 + 75} width={w * 0.3} height={30} rx={4} fill="#1e293b" stroke="#475569" strokeWidth={1} />
+                <circle cx={-w * 0.23} cy={-h / 2 + 65} r={9} fill="none" stroke="#94a3b8" strokeWidth={2} />
+                <rect x={w * 0.08} y={-h / 2 + 75} width={w * 0.3} height={30} rx={4} fill="#1e293b" stroke="#475569" strokeWidth={1} />
+                
+                {/* Rear Cargo Box / Grip Box (Heavy corrugated body) */}
+                <rect x={-w / 2 - 2} y={-h / 2 + 115} width={w + 4} height={h * 0.66} rx={4} fill="#cbd5e1" stroke="#0f172a" strokeWidth={2.5} />
+                
+                {/* Roof Ribs / Corrugation */}
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <line
+                    key={i}
+                    x1={-w / 2 + 4}
+                    y1={-h / 2 + 140 + i * ((h * 0.66 - 50) / 8)}
+                    x2={w / 2 - 4}
+                    y2={-h / 2 + 140 + i * ((h * 0.66 - 50) / 8)}
+                    stroke="#94a3b8"
+                    strokeWidth={1.5}
+                  />
+                ))}
+                
+                {/* "GRIP TRUCK" Roof Banner */}
+                <rect x={-w * 0.35} y={h * 0.05} width={w * 0.7} height={20} rx={3} fill="#0f172a" />
+                <text x={0} y={h * 0.05 + 14} fill="#38bdf8" fontSize="10" fontWeight="bold" fontFamily="monospace" textAnchor="middle" className="select-none">
+                  GRIP TRUCK
+                </text>
+                
+                {/* Rear Hydraulic Liftgate / Ramp */}
+                <rect x={-w / 2} y={h / 2 - 12} width={w} height={14} rx={2} fill="#334155" stroke="#0f172a" strokeWidth={2} />
+                <line x1={-w / 2 + 6} y1={h / 2 - 5} x2={w / 2 - 6} y2={h / 2 - 5} stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 4" />
+                
+                {/* Rear Warning Taillights */}
+                <rect x={-w / 2 + 4} y={h / 2 - 10} width={12} height={5} rx={1} fill="#ef4444" />
+                <rect x={w / 2 - 16} y={h / 2 - 10} width={12} height={5} rx={1} fill="#ef4444" />
+              </g>
+            ) : prop.propType === 'gun' ? (
+              <g className="prop-handgun">
+                {/* 1. Slide Body */}
+                <rect x={-w / 2} y={-h * 0.38} width={w * 0.82} height={h * 0.32} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                
+                {/* 2. Front & Rear Sights */}
+                <rect x={-w / 2 + 2} y={-h * 0.38 - 3} width={3} height={3} fill="#f8fafc" />
+                <rect x={w * 0.24} y={-h * 0.38 - 3} width={3.5} height={3} fill="#94a3b8" />
+                
+                {/* 3. Barrel Crown / Muzzle */}
+                <rect x={-w / 2 - 2} y={-h * 0.38 + 2} width={2.5} height={h * 0.22} fill="#0f172a" rx={0.5} />
+                
+                {/* 4. Slide Serrations */}
+                <line x1={w * 0.12} y1={-h * 0.34} x2={w * 0.12} y2={-h * 0.1} stroke="#64748b" strokeWidth={1} />
+                <line x1={w * 0.17} y1={-h * 0.34} x2={w * 0.17} y2={-h * 0.1} stroke="#64748b" strokeWidth={1} />
+                <line x1={w * 0.22} y1={-h * 0.34} x2={w * 0.22} y2={-h * 0.1} stroke="#64748b" strokeWidth={1} />
+                
+                {/* 5. Ejection Port */}
+                <rect x={-w * 0.08} y={-h * 0.36} width={w * 0.18} height={h * 0.16} rx={1} fill="#0f172a" stroke="#334155" strokeWidth={0.75} />
+                
+                {/* 6. Lower Frame / Dustcover */}
+                <rect x={-w / 2 + 2} y={-h * 0.08} width={w * 0.46} height={h * 0.18} rx={1} fill="#334155" stroke="#0f172a" strokeWidth={1.2} />
+                
+                {/* 7. Trigger Guard & Trigger */}
+                <path
+                  d={`M ${-w * 0.14} ${-h * 0.08} C ${-w * 0.14} ${h * 0.24}, ${w * 0.08} ${h * 0.24}, ${w * 0.08} ${-h * 0.08}`}
+                  fill="#0f172a"
+                  fillOpacity={0.15}
+                  stroke="#0f172a"
+                  strokeWidth={1.5}
+                />
+                <path d={`M ${-w * 0.02} 0 C ${0} ${h * 0.08}, ${w * 0.04} ${h * 0.12}, ${w * 0.04} ${h * 0.16}`} fill="none" stroke="#94a3b8" strokeWidth={1.8} strokeLinecap="round" />
+                
+                {/* 8. Ergonomic Grip Handle */}
+                <path
+                  d={`M ${w * 0.06} ${-h * 0.08} L ${w * 0.34} ${h * 0.44} L ${w * 0.08} ${h * 0.48} L ${-w * 0.08} ${-h * 0.04} Z`}
+                  fill="#1e293b"
+                  stroke="#0f172a"
+                  strokeWidth={1.5}
+                />
+                
+                {/* 9. Textured Grip Panel */}
+                <polygon
+                  points={`${w * 0.08},${0} ${w * 0.3},${h * 0.38} ${w * 0.12},${h * 0.42} ${-w * 0.03},${h * 0.04}`}
+                  fill="#334155"
+                  stroke="#475569"
+                  strokeWidth={0.75}
+                />
+                <line x1={w * 0.06} y1={h * 0.1} x2={w * 0.2} y2={h * 0.14} stroke="#64748b" strokeWidth={0.8} />
+                <line x1={w * 0.08} y1={h * 0.2} x2={w * 0.22} y2={h * 0.24} stroke="#64748b" strokeWidth={0.8} />
+                <line x1={w * 0.1} y1={h * 0.3} x2={w * 0.24} y2={h * 0.34} stroke="#64748b" strokeWidth={0.8} />
+                
+                {/* 10. Magazine Baseplate */}
+                <rect x={w * 0.06} y={h * 0.44} width={w * 0.32} height={h * 0.1} rx={1.5} fill="#0f172a" stroke="#334155" strokeWidth={1} />
+                
+                {/* 11. Hammer & Beavertail */}
+                <path d={`M ${w * 0.3} ${-h * 0.16} C ${w * 0.4} ${-h * 0.22}, ${w * 0.44} ${-h * 0.14}, ${w * 0.34} ${-h * 0.04} Z`} fill="#334155" stroke="#0f172a" strokeWidth={1.2} />
+                <circle cx={w * 0.32} cy={-h * 0.2} r={3} fill="#64748b" stroke="#0f172a" strokeWidth={1} />
+              </g>
+            ) : prop.propType === 'rifle' ? (
+              <g className="prop-rifle">
+                {/* Barrel */}
+                <line x1={-w / 2} y1={0} x2={-w * 0.15} y2={0} stroke="#334155" strokeWidth={4} strokeLinecap="round" />
+                {/* Flash Hider */}
+                <rect x={-w / 2} y={-3.5} width={8} height={7} rx={1} fill="#0f172a" />
+                {/* Handguard */}
+                <rect x={-w * 0.38} y={-6} width={w * 0.28} height={12} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                {/* Receiver */}
+                <rect x={-w * 0.1} y={-7} width={w * 0.32} height={14} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                {/* Optical Scope */}
+                <rect x={-w * 0.05} y={-13} width={w * 0.22} height={6} rx={2} fill="#0f172a" stroke="#38bdf8" strokeWidth={1} />
+                {/* Magazine */}
+                <path d={`M ${-w * 0.02} 7 L ${w * 0.04} 20 L ${-w * 0.03} 20 L ${-w * 0.08} 7 Z`} fill="#0f172a" stroke="#334155" strokeWidth={1} />
+                {/* Pistol Grip */}
+                <path d={`M ${w * 0.12} 7 L ${w * 0.22} 18 L ${w * 0.15} 18 L ${w * 0.07} 7 Z`} fill="#334155" stroke="#0f172a" strokeWidth={1.5} />
+                {/* Stock */}
+                <rect x={w * 0.22} y={-5} width={w * 0.26} height={10} rx={3} fill="#334155" stroke="#0f172a" strokeWidth={1.5} />
+              </g>
+            ) : prop.propType === 'bomb' ? (
+              <g className="prop-bomb">
+                {/* 3 Red Dynamite Sticks */}
+                <rect x={-w / 2} y={-h / 2 + 2} width={w * 0.65} height={h * 0.26} rx={3} fill="#ef4444" stroke="#991b1b" strokeWidth={1} />
+                <rect x={-w / 2} y={-h * 0.13} width={w * 0.65} height={h * 0.26} rx={3} fill="#dc2626" stroke="#991b1b" strokeWidth={1} />
+                <rect x={-w / 2} y={h * 0.18} width={w * 0.65} height={h * 0.26} rx={3} fill="#b91c1c" stroke="#7f1d1d" strokeWidth={1} />
+                
+                {/* Bundling Tape Bands */}
+                <rect x={-w / 2 + 5} y={-h / 2} width={5} height={h} rx={1} fill="#0f172a" stroke="#334155" strokeWidth={0.5} />
+                <rect x={-w * 0.12} y={-h / 2} width={5} height={h} rx={1} fill="#0f172a" stroke="#334155" strokeWidth={0.5} />
+                
+                {/* Detonator Digital Timer Box */}
+                <rect x={w * 0.04} y={-h * 0.32} width={w * 0.44} height={h * 0.64} rx={3} fill="#0f172a" stroke="#475569" strokeWidth={1.5} />
+                {/* Timer LCD Screen */}
+                <rect x={w * 0.08} y={-h * 0.22} width={w * 0.36} height={h * 0.3} rx={1.5} fill="#450a0a" stroke="#7f1d1d" strokeWidth={0.75} />
+                <text x={w * 0.26} y={-h * 0.02} fill="#ef4444" fontSize="8" fontWeight="bold" fontFamily="monospace" textAnchor="middle" className="select-none">
+                  00:07
+                </text>
+                
+                {/* Blasting Wires */}
+                <path d={`M ${w * 0.04} ${-h * 0.1} C ${-w * 0.08} ${-h * 0.38}, ${-w * 0.22} ${-h * 0.38}, ${-w * 0.32} ${-h * 0.25}`} fill="none" stroke="#ef4444" strokeWidth={1.5} />
+                <path d={`M ${w * 0.04} ${h * 0.1} C ${-w * 0.08} ${h * 0.38}, ${-w * 0.22} ${h * 0.38}, ${-w * 0.32} ${h * 0.25}`} fill="none" stroke="#3b82f6" strokeWidth={1.5} />
+                <circle cx={-w * 0.32} cy={-h * 0.25} r={2} fill="#94a3b8" />
+                <circle cx={-w * 0.32} cy={h * 0.25} r={2} fill="#94a3b8" />
+              </g>
+            ) : prop.propType === 'letter' ? (
+              <g className="prop-letter">
+                {/* Envelope Body */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={2.5} fill="#f8fafc" stroke="#94a3b8" strokeWidth={1.5} />
+                {/* Flap fold creases */}
+                <path d={`M ${-w / 2} ${-h / 2} L 0 ${h * 0.16} L ${w / 2} ${-h / 2}`} fill="#f1f5f9" stroke="#64748b" strokeWidth={1} />
+                <line x1={-w / 2} y1={h / 2} x2={-w * 0.16} y2={0} stroke="#cbd5e1" strokeWidth={1} />
+                <line x1={w / 2} y1={h / 2} x2={w * 0.16} y2={0} stroke="#cbd5e1" strokeWidth={1} />
+                
+                {/* Red Wax Seal */}
+                <circle cx={0} cy={h * 0.14} r={4.5} fill="#dc2626" stroke="#991b1b" strokeWidth={1} />
+                <circle cx={0} cy={h * 0.14} r={2.5} fill="none" stroke="#fca5a5" strokeWidth={0.6} />
+                <circle cx={0} cy={h * 0.14} r={1} fill="#fca5a5" />
               </g>
             ) : (
               /* Default rectangular prop */
@@ -385,14 +856,21 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
               />
             )}
 
-            {/* Prop Label (always upright) */}
+            {/* Prop Label (always upright, positioned cleanly below the icon) */}
             {showPropLabel && (
-              <g transform={`rotate(${-prop.rotation})`} opacity={labelOpacity}>
+              <g
+                transform={`rotate(${-prop.rotation}) translate(0, ${Math.max(h / 2 + 14, 28)}) scale(${labelScale})`}
+                opacity={propLabelOpacity}
+              >
                 <text
                   x={0}
-                  y={4}
+                  y={0}
                   fill={displaySettings.propLabelColor ?? '#ffffff'}
-                  fontSize={10 * labelScale}
+                  stroke="rgba(15, 23, 42, 0.9)"
+                  strokeWidth={2.5}
+                  paintOrder="stroke fill"
+                  strokeLinejoin="round"
+                  fontSize={10}
                   fontWeight="600"
                   textAnchor="middle"
                   className="select-none font-sans pointer-events-none drop-shadow"
@@ -421,6 +899,10 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
             key={m.id}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(m.id, e)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onDoubleClick?.(m.id, e);
+            }}
           >
             {/* Guide line */}
             <line
@@ -429,23 +911,40 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
               x2={x2}
               y2={y2}
               stroke={isSelected ? '#38bdf8' : '#f59e0b'}
-              strokeWidth={2.5}
-              strokeDasharray="6 3"
+              strokeWidth={2}
+              strokeDasharray="6 4"
             />
-            {/* Endpoints */}
-            <circle cx={x1} cy={y1} r={5} fill="#f59e0b" stroke="#0f172a" strokeWidth={1.5} />
-            <circle cx={x2} cy={y2} r={5} fill="#f59e0b" stroke="#0f172a" strokeWidth={1.5} />
+            {/* Tick marks */}
+            <line
+              x1={x1 - (Math.sin(angle) * 8)}
+              y1={y1 + (Math.cos(angle) * 8)}
+              x2={x1 + (Math.sin(angle) * 8)}
+              y2={y1 - (Math.cos(angle) * 8)}
+              stroke={isSelected ? '#38bdf8' : '#f59e0b'}
+              strokeWidth={2}
+            />
+            <line
+              x1={x2 - (Math.sin(angle) * 8)}
+              y1={y2 + (Math.cos(angle) * 8)}
+              x2={x2 + (Math.sin(angle) * 8)}
+              y2={y2 - (Math.cos(angle) * 8)}
+              stroke={isSelected ? '#38bdf8' : '#f59e0b'}
+              strokeWidth={2}
+            />
 
-            {/* Dimension Badge - Always stays upright */}
+            {/* Dimension Badge */}
             {showMeasurementLabel && (
-              <g transform={`translate(${midX}, ${midY}) scale(${labelScale})`} opacity={labelOpacity}>
+              <g
+                transform={`translate(${midX}, ${midY}) rotate(${(angle * 180) / Math.PI}) scale(${labelScale})`}
+                opacity={measurementLabelOpacity}
+              >
                 <rect
-                  x={-34}
-                  y={-11}
-                  width={68}
-                  height={22}
+                  x={-32}
+                  y={-10}
+                  width={64}
+                  height={20}
                   fill="#0f172a"
-                  stroke="#f59e0b"
+                  stroke={isSelected ? '#38bdf8' : '#f59e0b'}
                   strokeWidth={1.5}
                   rx={4}
                   className="drop-shadow-md"
@@ -453,7 +952,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 <text
                   x={0}
                   y={4}
-                  fill="#f59e0b"
+                  fill={displaySettings.measurementLabelColor ?? '#f59e0b'}
                   fontSize="11"
                   textAnchor="middle"
                   fontWeight="bold"
@@ -479,7 +978,6 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
         const headStyle = a.headStyle || 'single';
         const angle = Math.atan2(y2 - y1, x2 - x1);
         const headLen = Math.max(10, 7 + sw * 2);
-        const half = 0.45;
 
         // Back off the line ends so open / double heads don't overlap the shaft
         const lineInsetEnd = headStyle === 'open' ? headLen * 0.7 : 0;
@@ -498,6 +996,10 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
             key={a.id}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(a.id, e)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onDoubleClick?.(a.id, e);
+            }}
           >
             {/* Invisible fat hit area so thin arrows are easy to select */}
             <line
@@ -566,6 +1068,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
             onPointerDown={(e) => onSelect(txt.id, e)}
             onDoubleClick={(e) => {
               e.stopPropagation();
+              onDoubleClick?.(txt.id, e);
               handleStartEditText(txt);
             }}
           >

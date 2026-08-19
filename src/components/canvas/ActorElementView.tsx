@@ -10,6 +10,7 @@ interface ActorElementViewProps {
   currentBeat: number;
   isPlaying: boolean;
   onSelect: (id: string, e: React.PointerEvent) => void;
+  onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   onWaypointDragStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   onWaypointRotateStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   displaySettings: DisplaySettings;
@@ -22,6 +23,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
   currentBeat,
   isPlaying: _isPlaying,
   onSelect,
+  onDoubleClick,
   onWaypointDragStart,
   onWaypointRotateStart,
   displaySettings,
@@ -47,7 +49,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
 
   const showActorLabel = displaySettings.showLabels && displaySettings.showActorLabels;
   const labelScale = displaySettings.labelScale;
-  const labelOpacity = displaySettings.labelOpacity;
+  const labelOpacity = (displaySettings.labelOpacity ?? 1) * (displaySettings.labelCategoryOpacity?.actors ?? 1);
   const labelColor = displaySettings.actorLabelColor;
 
   const trajectoryPoints: Vector2D[] = [
@@ -56,8 +58,11 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
   ];
   const splinePathString = getSmoothSplinePath(trajectoryPoints);
 
+  const actorOpacity = (displaySettings.categoryOpacity?.actors ?? 1.0) * (actor.opacity ?? 1.0);
+  const showCues = displaySettings.showWaypointCues === true;
+
   return (
-    <g className="actor-element">
+    <g className="actor-element" opacity={actorOpacity}>
       {/* 1. Waypoint Path Trail, Base Marker & Ghost Instances (behind the actor) */}
       {hasPath && displaySettings.showWaypoints && (
         <g className="actor-path pointer-events-none">
@@ -100,6 +105,10 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
         transform={`translate(${position.x}, ${position.y}) rotate(${rotation})`}
         className="cursor-pointer"
         onPointerDown={(e) => onSelect(actor.id, e)}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onDoubleClick?.(actor.id, e);
+        }}
       >
         <path
           d="M 0 0 L 36 -20 A 42 42 0 0 1 36 20 Z"
@@ -259,7 +268,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
                 </text>
 
                 {/* Dialogue snippet near waypoint */}
-                {wp.dialogueCue && (
+                {showCues && wp.dialogueCue && !wp.hideCue && (
                   <g transform="translate(16, -10)" className="pointer-events-none">
                     <rect
                       x={-4}

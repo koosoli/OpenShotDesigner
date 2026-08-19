@@ -25,18 +25,31 @@ import { LightingLayer } from './LightingLayer';
 import { PropsLayer } from './PropsLayer';
 import { ShapesLayer } from './ShapesLayer';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
-import { TransformControls } from './TransformControls';
+import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
-import { Move, ZoomIn, ZoomOut, Check, X, Keyboard, Scan } from 'lucide-react';
+import { Move, ZoomIn, ZoomOut, Check, X, Keyboard, Scan, Grid } from 'lucide-react';
 
 interface DragState {
-  type: 'move' | 'rotate' | 'pan' | 'box_select' | 'endpoint_start' | 'endpoint_end' | 'draw_wall' | 'draw_measure' | 'draw_arrow' | 'waypoint' | 'waypoint_rotate';
+  type:
+    | 'move'
+    | 'rotate'
+    | 'pan'
+    | 'box_select'
+    | 'endpoint_start'
+    | 'endpoint_end'
+    | 'resize_element'
+    | 'draw_wall'
+    | 'draw_measure'
+    | 'draw_arrow'
+    | 'waypoint'
+    | 'waypoint_rotate';
   startMouse: Vector2D;
   startElements: Map<string, FloorPlanElement>;
   selectedIds: string[];
   activeElementId?: string;
   startOffset?: Vector2D;
   endpointType?: 'start' | 'end';
+  handle?: ResizeHandle;
   waypointId?: string;
 }
 
@@ -47,6 +60,7 @@ export const FloorPlanCanvas: React.FC = () => {
     selectedShotId,
     highlightedElementId,
     activeTool,
+    activeShapeType,
     playback,
     theme,
     selectElement,
@@ -74,6 +88,8 @@ export const FloorPlanCanvas: React.FC = () => {
     openViewfinder,
     setActiveRightTab,
     displaySettings,
+    updateDisplaySettings,
+    setGridSettings,
     duplicateSelected,
     copySelectedElements,
     pasteElements,
@@ -106,7 +122,9 @@ export const FloorPlanCanvas: React.FC = () => {
   const [connectedWallStart, setConnectedWallStart] = useState<Vector2D | null>(null);
   const [wallChainFirstPoint, setWallChainFirstPoint] = useState<Vector2D | null>(null);
 
-  const { canvasScale, canvasOffset, gridSettings } = activeSetup;
+  const canvasScale = activeSetup?.canvasScale ?? 1;
+  const canvasOffset = activeSetup?.canvasOffset ?? { x: 50, y: 50 };
+  const gridSettings = activeSetup?.gridSettings || { size: 30, snap: true, showGrid: false, unit: 'm' as const, pixelsPerUnit: 30 };
 
   const canvasScaleRef = useRef(canvasScale);
   const canvasOffsetRef = useRef(canvasOffset);
@@ -590,6 +608,54 @@ export const FloorPlanCanvas: React.FC = () => {
       return;
     }
 
+    // 2d. Line Shape Tool - drag to draw a line between two points
+    if (activeTool === 'shape' && activeShapeType === 'line') {
+      const lineId = addElement({
+        type: 'shape',
+        shapeType: 'line',
+        x: drawPos.x,
+        y: drawPos.y,
+        width: 1,
+        height: 4,
+        strokeWidth: 4,
+        strokeColor: '#38bdf8',
+        filled: false,
+      } as any);
+
+      const startElementsMap = new Map<string, FloorPlanElement>();
+      const createdLine: ShapeElement = {
+        id: lineId,
+        type: 'shape',
+        name: 'Line',
+        shapeType: 'line',
+        x: drawPos.x,
+        y: drawPos.y,
+        rotation: 0,
+        width: 1,
+        height: 4,
+        color: '#38bdf8',
+        filled: false,
+        opacity: 0.3,
+        strokeColor: '#38bdf8',
+        strokeWidth: 4,
+        strokeOpacity: 1,
+        dashStyle: 'solid',
+        locked: false,
+      };
+      startElementsMap.set(lineId, createdLine);
+
+      setDragState({
+        type: 'endpoint_end',
+        startMouse: { x: e.clientX, y: e.clientY },
+        startElements: startElementsMap,
+        selectedIds: [lineId],
+        activeElementId: lineId,
+      });
+      selectElement(lineId);
+      setTool('select');
+      return;
+    }
+
     // 3. Other insert tools (Actor, Camera, Light, Prop, Track, etc.)
     if (activeTool !== 'select') {
       const newId = addElement({
@@ -622,9 +688,22 @@ export const FloorPlanCanvas: React.FC = () => {
     }
   };
 
+  // Double-click to open contextual inspector
+  const handleElementDoubleClick = (id: string, e?: React.SyntheticEvent) => {
+    if (e) e.stopPropagation();
+    selectElement(id);
+    setActiveRightTab('inspector');
+  };
+
   // Element Select & Drag
   const handleElementSelect = (id: string, e: React.PointerEvent) => {
     e.stopPropagation();
+
+    // Double-clicking ANY element on the floor plan opens its inspector immediately
+    if (e.detail >= 2) {
+      selectElement(id);
+      setActiveRightTab('inspector');
+    }
 
     // If door or window tool is active, place directly on clicked element (wall)
     if (activeTool === 'door' || activeTool === 'window') {
@@ -653,7 +732,7 @@ export const FloorPlanCanvas: React.FC = () => {
       return;
     }
 
-    if (activeTool === 'wall' || activeTool === 'measure' || activeTool === 'arrow') {
+    if (activeTool === 'wall' || activeTool === 'measure' || activeTool === 'arrow' || (activeTool === 'shape' && activeShapeType === 'line')) {
       // Connect wall to clicked element / start measuring from clicked element
       handlePointerDown(e);
       return;
@@ -732,6 +811,28 @@ export const FloorPlanCanvas: React.FC = () => {
       selectedIds: [activeId],
       activeElementId: activeId,
       endpointType: endpoint,
+    });
+  };
+
+  // 2D Shape & Prop Resize drag start
+  const handleResizeStart = (handle: ResizeHandle, e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (selectedElementIds.length === 0) return;
+
+    const activeId = selectedElementIds[0];
+    const el = activeSetup.elements.find((e2) => e2.id === activeId);
+    if (!el) return;
+
+    const startElementsMap = new Map<string, FloorPlanElement>();
+    startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
+
+    setDragState({
+      type: 'resize_element',
+      handle,
+      startMouse: { x: e.clientX, y: e.clientY },
+      startElements: startElementsMap,
+      selectedIds: [activeId],
+      activeElementId: activeId,
     });
   };
 
@@ -902,6 +1003,41 @@ export const FloorPlanCanvas: React.FC = () => {
       dragState.activeElementId
     ) {
       const drawPos = getDrawingCursorPos(mouseCanvas);
+      const orig = dragState.startElements.get(dragState.activeElementId);
+
+      // Line basic shape endpoint drag
+      if (orig && orig.type === 'shape' && (orig as any).shapeType === 'line') {
+        const shape = orig as any;
+        const rad = ((shape.rotation || 0) * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const half = (shape.width || 180) / 2;
+        const origP1 = { x: shape.x - half * cos, y: shape.y - half * sin };
+        const origP2 = { x: shape.x + half * cos, y: shape.y + half * sin };
+
+        const p1 = dragState.type === 'endpoint_start' ? drawPos : origP1;
+        const p2 = dragState.type === 'endpoint_end' ? drawPos : origP2;
+
+        const newLen = Math.max(15, Math.hypot(p2.x - p1.x, p2.y - p1.y));
+        let newAngle = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI;
+        if (e.shiftKey) {
+          newAngle = Math.round(newAngle / 45) * 45;
+        }
+        const newCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+        dragChangedRef.current = true;
+        updateElement(
+          dragState.activeElementId,
+          {
+            x: newCenter.x,
+            y: newCenter.y,
+            width: Math.round(newLen),
+            rotation: Math.round((newAngle + 360) % 360),
+          } as any,
+          false
+        );
+        return;
+      }
 
       if (dragState.type === 'endpoint_start') {
         dragChangedRef.current = true;
@@ -910,6 +1046,70 @@ export const FloorPlanCanvas: React.FC = () => {
         dragChangedRef.current = true;
         updateElement(dragState.activeElementId, { x2: drawPos.x, y2: drawPos.y } as any, false);
       }
+      return;
+    }
+
+    // 2D Shapes & Props interactive resize dragging
+    if (dragState.type === 'resize_element' && dragState.activeElementId && dragState.handle) {
+      const orig = dragState.startElements.get(dragState.activeElementId);
+      if (!orig) return;
+
+      const deltaScreenX = e.clientX - dragState.startMouse.x;
+      const deltaScreenY = e.clientY - dragState.startMouse.y;
+      const deltaCanvasX = deltaScreenX / canvasScale;
+      const deltaCanvasY = deltaScreenY / canvasScale;
+
+      const rotRad = -((orig.rotation || 0) * Math.PI) / 180;
+      const localDx = deltaCanvasX * Math.cos(rotRad) - deltaCanvasY * Math.sin(rotRad);
+      const localDy = deltaCanvasX * Math.sin(rotRad) + deltaCanvasY * Math.cos(rotRad);
+
+      const origW = (orig as any).width || 80;
+      const origH = (orig as any).height || 60;
+
+      let newW = origW;
+      let newH = origH;
+      let centerShiftX = 0;
+      let centerShiftY = 0;
+
+      const handle = dragState.handle;
+      if (handle.includes('e')) {
+        newW = Math.max(15, origW + localDx);
+        centerShiftX = (newW - origW) / 2;
+      }
+      if (handle.includes('w')) {
+        newW = Math.max(15, origW - localDx);
+        centerShiftX = -(newW - origW) / 2;
+      }
+      if (handle.includes('s')) {
+        newH = Math.max(15, origH + localDy);
+        centerShiftY = (newH - origH) / 2;
+      }
+      if (handle.includes('n')) {
+        newH = Math.max(15, origH - localDy);
+        centerShiftY = -(newH - origH) / 2;
+      }
+
+      if ((orig as any).shapeType === 'circle') {
+        const sz = Math.max(newW, newH);
+        newW = sz;
+        newH = sz;
+      }
+
+      const worldRotRad = ((orig.rotation || 0) * Math.PI) / 180;
+      const worldShiftX = centerShiftX * Math.cos(worldRotRad) - centerShiftY * Math.sin(worldRotRad);
+      const worldShiftY = centerShiftX * Math.sin(worldRotRad) + centerShiftY * Math.cos(worldRotRad);
+
+      dragChangedRef.current = true;
+      updateElement(
+        dragState.activeElementId,
+        {
+          x: orig.x + worldShiftX,
+          y: orig.y + worldShiftY,
+          width: Math.round(newW),
+          height: Math.round(newH),
+        } as any,
+        false
+      );
       return;
     }
 
@@ -1164,7 +1364,11 @@ export const FloorPlanCanvas: React.FC = () => {
         {/* Transform layer for Canvas scale and Pan offset */}
         <g transform={`translate(${canvasOffset.x}, ${canvasOffset.y}) scale(${canvasScale})`}>
           {/* 1. Vector Grid & Axes */}
-          <GridLayer gridSettings={gridSettings} visible={displaySettings.showGrid} dark={!isLightMode} />
+          <GridLayer
+            gridSettings={gridSettings}
+            visible={(displaySettings.showGrid === true) || (gridSettings.showGrid === true)}
+            dark={!isLightMode}
+          />
 
           {/* 2. Scalable Reference Blueprint / Screenshot Layers (multiple supported) */}
           <BackgroundLayer
@@ -1194,6 +1398,7 @@ export const FloorPlanCanvas: React.FC = () => {
             shapes={shapes}
             selectedIds={selectedElementIds}
             onSelect={handleElementSelect}
+            onDoubleClick={handleElementDoubleClick}
             canvasScale={canvasScale}
           />
 
@@ -1205,6 +1410,7 @@ export const FloorPlanCanvas: React.FC = () => {
             texts={texts as any}
             selectedIds={selectedElementIds}
             onSelect={handleElementSelect}
+            onDoubleClick={handleElementDoubleClick}
             onUpdateText={(id, newText) => updateElement(id, { text: newText } as any)}
             pixelsPerUnit={gridSettings.pixelsPerUnit}
             displaySettings={displaySettings}
@@ -1215,6 +1421,7 @@ export const FloorPlanCanvas: React.FC = () => {
             lights={lights}
             selectedIds={selectedElementIds}
             onSelect={handleElementSelect}
+            onDoubleClick={handleElementDoubleClick}
             displaySettings={displaySettings}
           />
 
@@ -1228,6 +1435,10 @@ export const FloorPlanCanvas: React.FC = () => {
             showLightBeams={displaySettings.showLightBeams}
             showDoorWindowLabels={displaySettings.showDoorWindowLabels}
             onSelect={handleElementSelect}
+            onDoubleClick={handleElementDoubleClick}
+            categoryOpacity={displaySettings.categoryOpacity}
+            labelOpacity={(displaySettings.labelOpacity ?? 1) * (displaySettings.labelCategoryOpacity?.doorWindows ?? 1)}
+            labelColor={displaySettings.doorWindowLabelColor}
           />
 
           {/* 6. Live Connected Wall Rubberband Preview */}
@@ -1312,6 +1523,7 @@ export const FloorPlanCanvas: React.FC = () => {
               currentBeat={playback.currentBeat}
               isPlaying={playback.isPlaying}
               onSelect={handleElementSelect}
+              onDoubleClick={handleElementDoubleClick}
               onWaypointDragStart={handleWaypointDragStart}
               onWaypointRotateStart={handleWaypointRotateStart}
               displaySettings={displaySettings}
@@ -1329,6 +1541,7 @@ export const FloorPlanCanvas: React.FC = () => {
               currentBeat={playback.currentBeat}
               isPlaying={playback.isPlaying}
               onSelect={handleElementSelect}
+              onDoubleClick={handleElementDoubleClick}
               onOpenViewfinder={openViewfinder}
               onWaypointDragStart={handleWaypointDragStart}
               onWaypointRotateStart={handleWaypointRotateStart}
@@ -1350,6 +1563,7 @@ export const FloorPlanCanvas: React.FC = () => {
             // Select only — going through handleElementSelect would also start a
             // camera move drag, which fought with the thumbnail's own drag.
             onSelectCamera={(camId) => selectElement(camId)}
+            onDoubleClickCamera={handleElementDoubleClick}
             onDropToCamera={(sourceShot, center) => {
               const target = cameras
                 .map((camera) => ({ camera, distance: Math.hypot(camera.x - center.x, camera.y - center.y) }))
@@ -1376,6 +1590,7 @@ export const FloorPlanCanvas: React.FC = () => {
               canvasScale={canvasScale}
               onRotateStart={handleRotateStart}
               onEndpointDragStart={handleEndpointDragStart}
+              onResizeStart={handleResizeStart}
               pixelsPerUnit={gridSettings.pixelsPerUnit}
               unit={gridSettings.unit}
             />
@@ -1449,6 +1664,31 @@ export const FloorPlanCanvas: React.FC = () => {
         >
           <Scan className="w-4 h-4" />
         </button>
+
+        <div className="w-[1px] h-5 bg-slate-700 mx-1" />
+
+        {/* Viewing Grid Overlay Toggle */}
+        {(() => {
+          const isGridOn = (displaySettings.showGrid === true) || (activeSetup.gridSettings?.showGrid === true);
+          return (
+            <button
+              id="btn-toggle-grid"
+              onClick={() => {
+                const next = !isGridOn;
+                updateDisplaySettings({ showGrid: next });
+                setGridSettings({ showGrid: next });
+              }}
+              title={`Toggle Viewing Grid Overlay (${isGridOn ? 'ON' : 'OFF'})`}
+              className={`p-2 rounded-lg transition-colors ${
+                isGridOn
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Grid className="w-4 h-4" />
+            </button>
+          );
+        })()}
       </div>
 
       {/* Connected Wall Active Finish Bar */}

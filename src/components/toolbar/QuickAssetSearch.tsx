@@ -11,14 +11,30 @@ import {
   Lightbulb,
   MoveHorizontal,
   MoveUpRight,
-  PanelTop,
   Ruler,
   Search,
-  Table,
+  Armchair,
   Type,
   User,
   X,
 } from 'lucide-react';
+
+const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-sky-500' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="12" y1="3" x2="12" y2="21" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="2" y1="21" x2="22" y2="21" strokeWidth="2.5" />
+  </svg>
+);
 
 const SHAPE_ASSETS: { value: ShapeType; label: string; keywords: string }[] = [
   { value: 'rectangle', label: 'Rectangle', keywords: 'square box block rect' },
@@ -53,9 +69,9 @@ function buildAssetList(): QuickAsset[] {
     assets.push({
       id: `prop-${p.type}`,
       label: p.name,
-      keywords: `${p.name} ${p.category} prop furniture set`,
-      group: 'Props & Set Dressing',
-      icon: <Table className="w-4 h-4 text-purple-500" />,
+      keywords: `${p.name} ${p.category} ${p.type} tree foliage scenic plant outdoor bush forest branch gun pistol firearm weapon handgun rifle bomb bomp c4 explosive dynamite timer letter envelope mail document note car vehicle auto prop furniture set`,
+      group: p.category === 'Weapons & Props' ? 'Weapons & Action Props' : 'Props & Set Dressing',
+      icon: <Armchair className="w-4 h-4 text-purple-500" />,
       buildPartial: () => ({ type: 'prop', propType: p.type } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
     });
   });
@@ -65,7 +81,7 @@ function buildAssetList(): QuickAsset[] {
     assets.push({
       id: `light-${f.type}`,
       label: f.name,
-      keywords: `${f.name} ${f.isFlag ? 'flag light control diffuser negative fill' : 'light lamp luminaire'}`,
+      keywords: `${f.name} ${f.type} softbox dome octa light tube tube light astera titan quasar led panel fresnel leko spotlight par can hmi china ball lantern practical bounce reflector ${f.isFlag ? 'flag light control diffuser negative fill grip c-stand' : 'light lamp luminaire fixture illumination'}`,
       group: 'Light Fixtures',
       icon: f.isFlag ? FLAG_ICON : LIGHT_ICON,
       buildPartial: () => ({ type: 'light', fixtureType: f.type } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
@@ -128,7 +144,7 @@ function buildAssetList(): QuickAsset[] {
       label: 'Window',
       keywords: 'window glass opening',
       group: 'Elements',
-      icon: <PanelTop className="w-4 h-4 text-sky-500" />,
+      icon: <ArchitecturalWindowIcon className="w-4 h-4 text-sky-500" />,
       buildPartial: () => ({ type: 'window' }),
     },
     {

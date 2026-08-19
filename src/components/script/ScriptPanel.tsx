@@ -40,6 +40,8 @@ export const ScriptPanel: React.FC = () => {
     deleteScriptMark,
     setScriptLines,
     openExportModal,
+    displaySettings,
+    updateDisplaySettings,
     theme,
   } = useFloorPlan();
 
@@ -403,6 +405,19 @@ export const ScriptPanel: React.FC = () => {
                 <Printer className="w-3.5 h-3.5" /> Export
               </button>
             )}
+            <button
+              onClick={() => updateDisplaySettings({ showShotSizeInScript: !displaySettings.showShotSizeInScript })}
+              title={displaySettings.showShotSizeInScript ? 'Hide shot sizes on linings' : 'Show shot sizes (WS, CU...) on linings'}
+              className={`px-2 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors ${
+                displaySettings.showShotSizeInScript
+                  ? 'bg-violet-600 text-white border-violet-500'
+                  : isLight
+                    ? 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                    : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+              }`}
+            >
+              Shot Sizes
+            </button>
             <div className={`flex items-center rounded-lg border ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
               <button onClick={() => setZoom((z) => Math.max(0.7, +(z - 0.1).toFixed(2)))} className="px-1.5 py-1.5" title="Smaller text">
                 <Minus className="w-3 h-3" />
@@ -505,6 +520,7 @@ export const ScriptPanel: React.FC = () => {
               shots={allShots}
               fontSize={fontSize}
               isLight={isLight}
+              showShotSize={displaySettings.showShotSizeInScript !== false}
               selection={textSelection ? null : selection}
               selectedShotId={selectedShotId}
               onLinePointerDown={handleLinePointerDown}

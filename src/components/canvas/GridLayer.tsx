@@ -14,12 +14,13 @@ export const GridLayer: React.FC<GridLayerProps> = ({
   gridSettings,
   width = 5000,
   height = 5000,
-  visible = true,
+  visible,
   dark = true,
 }) => {
   const { size, showGrid, unit, pixelsPerUnit } = gridSettings;
 
-  if (!showGrid || !visible) return null;
+  const isVisible = visible !== undefined ? visible : (showGrid === true);
+  if (!isVisible) return null;
 
   const majorGridStep = size * 5; // e.g. 5 meters or 5 feet
 

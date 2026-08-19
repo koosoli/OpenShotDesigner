@@ -5,7 +5,9 @@ interface ShapesLayerProps {
   shapes: ShapeElement[];
   selectedIds: string[];
   onSelect: (id: string, e: React.PointerEvent) => void;
+  onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   canvasScale: number;
+  categoryOpacity?: { shapes?: number };
 }
 
 /** Outline path for the shapes that aren't a plain rect/ellipse. */
@@ -43,8 +45,8 @@ const polygonPoints = (shape: ShapeElement): string => {
  * Free-form shapes on the floor plan: blocking zones, set pieces, light pools,
  * callout boxes. Drawn under the elements so they read as background graphics.
  */
-export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSelect, canvasScale }) => (
-  <g className="shapes-layer">
+export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSelect, onDoubleClick, canvasScale, categoryOpacity }) => (
+  <g className="shapes-layer" opacity={categoryOpacity?.shapes ?? 1.0}>
     {shapes.map((shape) => {
       if (shape.visible === false) return null;
 
@@ -74,6 +76,10 @@ export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, o
           key={shape.id}
           transform={`translate(${shape.x}, ${shape.y}) rotate(${shape.rotation || 0})`}
           onPointerDown={(e) => !shape.locked && onSelect(shape.id, e)}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            if (!shape.locked) onDoubleClick?.(shape.id, e);
+          }}
           style={{ cursor: shape.locked ? 'default' : 'move' }}
           className="shape-element"
         >
@@ -88,6 +94,32 @@ export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, o
               rx={shape.cornerRadius ?? 0}
               {...common}
             />
+          ) : shape.shapeType === 'line' ? (
+            <g>
+              {/* Hit target line */}
+              <line
+                x1={-shape.width / 2}
+                y1={0}
+                x2={shape.width / 2}
+                y2={0}
+                stroke="transparent"
+                strokeWidth={strokeWidth + 14}
+              />
+              <line
+                x1={-shape.width / 2}
+                y1={0}
+                x2={shape.width / 2}
+                y2={0}
+                stroke={stroke}
+                strokeWidth={strokeWidth}
+                strokeOpacity={shape.strokeOpacity ?? 1}
+                strokeDasharray={dash}
+                strokeLinecap="round"
+              />
+              {/* Endpoint caps */}
+              <circle cx={-shape.width / 2} cy={0} r={Math.max(3, strokeWidth)} fill={stroke} />
+              <circle cx={shape.width / 2} cy={0} r={Math.max(3, strokeWidth)} fill={stroke} />
+            </g>
           ) : (
             <polygon points={polygonPoints(shape)} {...common} />
           )}

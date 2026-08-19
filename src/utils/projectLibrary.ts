@@ -101,7 +101,7 @@ const blankSetup = (): SceneSetup => ({
   aspectRatio: '16:9',
   canvasScale: 1,
   canvasOffset: { x: 50, y: 50 },
-  gridSettings: { size: 30, snap: true, showGrid: true, unit: 'ft', pixelsPerUnit: 25 },
+  gridSettings: { size: 30, snap: true, showGrid: false, unit: 'm', pixelsPerUnit: 30 },
 });
 
 export interface NewProjectOptions {

@@ -283,10 +283,7 @@ export const StoryboardPanel: React.FC = () => {
                   {/* One frame per camera keyframe */}
                   <div className="relative">
                     {slots.length > 1 ? (
-                      <div
-                        className="grid gap-px bg-slate-700/40"
-                        style={{ gridTemplateColumns: `repeat(${Math.min(slots.length, 3)}, minmax(0, 1fr))` }}
-                      >
+                      <div className="flex flex-col gap-1.5 p-1 bg-slate-700/40">
                         {slots.map((slot) => renderFrame(shot, slot, true))}
                       </div>
                     ) : (
@@ -301,7 +298,7 @@ export const StoryboardPanel: React.FC = () => {
                       </span>
                     )}
 
-                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1 z-10">
                       <span className="px-1.5 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-mono font-bold">
                         {shot.shotNumber}
                       </span>
@@ -314,9 +311,14 @@ export const StoryboardPanel: React.FC = () => {
                           {(camera.cameraLabel || 'A').toUpperCase()}
                         </span>
                       )}
+                      {shot.movement && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-black text-[9px] font-bold shadow-xs">
+                          {shot.movement}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1 z-10">
                       {/* Shoot this frame with the device camera through the finder */}
                       {shot.cameraId && (
                         <button
@@ -380,7 +382,7 @@ export const StoryboardPanel: React.FC = () => {
 
                     <div className="flex items-center justify-between mt-auto pt-0.5">
                       <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                        {shot.shotSize} · {shot.lensMm}mm
+                        {shot.shotSize} · {shot.lensMm}mm{shot.movement ? ` · ${shot.movement}` : ''}
                       </span>
                       <button
                         onClick={(event) => {

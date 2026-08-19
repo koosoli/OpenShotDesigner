@@ -171,6 +171,46 @@ export function kelvinToRgb(kelvin: number): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+/** Convert color temperature in Kelvin to a valid #rrggbb hex string. */
+export function kelvinToHex(kelvin: number): string {
+  const stops: [number, [number, number, number]][] = [
+    [2000, [255, 125, 40]],
+    [2700, [255, 165, 90]],
+    [3200, [255, 192, 125]],
+    [4300, [255, 238, 210]],
+    [5600, [160, 202, 255]],
+    [6500, [130, 182, 255]],
+    [10000, [110, 168, 255]],
+  ];
+  const t = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], kelvin));
+  let i = 0;
+  while (i < stops.length - 2 && t > stops[i + 1][0]) i++;
+  const [t0, c0] = stops[i];
+  const [t1, c1] = stops[i + 1];
+  const f = (t - t0) / (t1 - t0);
+  const r = Math.round(c0[0] + (c1[0] - c0[0]) * f);
+  const g = Math.round(c0[1] + (c1[1] - c0[1]) * f);
+  const b = Math.round(c0[2] + (c1[2] - c0[2]) * f);
+  return rgbToHex(r, g, b);
+}
+
+/** Ensure any color string (hex, rgb(), or named) is converted to a valid 7-character #rrggbb hex string for <input type="color">. */
+export function ensureHexColor(colorStr?: string | null, fallback = '#ffffff'): string {
+  if (!colorStr) return fallback;
+  const s = colorStr.trim();
+  if (s.startsWith('#')) {
+    if (s.length === 4) {
+      return `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+    }
+    if (s.length === 7) return s;
+  }
+  const rgbMatch = s.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+  if (rgbMatch) {
+    return rgbToHex(Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3]));
+  }
+  return fallback;
+}
+
 /** Convert HSB/HSV (0-360, 0-100, 0-100) to a #rrggbb hex string. */
 export function hsvToHex(h: number, s: number, v: number): string {
   const hh = ((h % 360) + 360) % 360;

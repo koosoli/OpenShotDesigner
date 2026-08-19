@@ -14,7 +14,7 @@ import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { useBreakpoint } from './utils/useMediaQuery';
 import { AlertTriangle, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X } from 'lucide-react';
-
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const MainLayout: React.FC = () => {
   const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning } = useFloorPlan();
@@ -290,10 +290,13 @@ const MainLayout: React.FC = () => {
   );
 };
 
+
 export default function App() {
   return (
-    <FloorPlanProvider>
-      <MainLayout />
-    </FloorPlanProvider>
+    <ErrorBoundary>
+      <FloorPlanProvider>
+        <MainLayout />
+      </FloorPlanProvider>
+    </ErrorBoundary>
   );
 }

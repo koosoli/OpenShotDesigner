@@ -9,6 +9,7 @@ interface StoryboardThumbProps {
   isInteractive: boolean;
   onDragThumb: (shotId: string, slotKey: string, pos: Vector2D) => void;
   onSelectCamera: (cameraId: string) => void;
+  onDoubleClickCamera?: (cameraId: string) => void;
   onDropToCamera?: (shot: Shot, center: Vector2D) => void;
 }
 
@@ -134,6 +135,11 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
             <g
               transform={`translate(${pos.x}, ${pos.y})`}
               onPointerDown={handlePointerDown}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                onSelectCamera(camera.id);
+                onDoubleClickCamera?.(camera.id);
+              }}
               style={{
                 pointerEvents: canDrag ? 'auto' : 'none',
                 cursor: canDrag ? 'move' : 'default',

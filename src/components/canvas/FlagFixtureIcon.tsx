@@ -9,7 +9,8 @@ export function isFlagFixture(fixtureType: string): boolean {
     fixtureType === 'flag_silk' ||
     fixtureType === 'flag_net' ||
     fixtureType === 'flag_cutter' ||
-    fixtureType === 'c_stand_flag'
+    fixtureType === 'c_stand_flag' ||
+    fixtureType === 'tripod'
   );
 }
 
@@ -18,13 +19,16 @@ export function flagLabel(light: LightElement): string {
   const size = FLAG_SIZE_PRESETS.find((s) => s.value === (light.flagSize || '24x36'));
   const sizeLabel = light.fixtureType === 'flag_cutter' ? 'Cutter' : size ? size.label : '24×36"';
   switch (light.fixtureType) {
+    case 'c_stand_flag':
+      return 'C-Stand + Arm';
+    case 'tripod':
+      return 'Tripod Stand';
     case 'flag_silk':
       return `Silk ${sizeLabel}`;
     case 'flag_net':
       return `${light.netValue === 'double' ? 'Dbl' : 'Sng'} Net ${sizeLabel}`;
     case 'flag_cutter':
       return 'Cutter 18×48"';
-    case 'c_stand_flag':
     case 'flag_solid':
     default:
       return `Solid ${sizeLabel}`;
@@ -33,6 +37,9 @@ export function flagLabel(light: LightElement): string {
 
 /** Radius (px) to use for the selection ring around a flag element. */
 export function getFlagSelectionRadius(light: LightElement): number {
+  if (light.fixtureType === 'c_stand_flag' || light.fixtureType === 'tripod') {
+    return 48;
+  }
   const { w, h } = getFlagPanelDims(light);
   return Math.max(52, Math.hypot(w / 2, h / 2) + 16);
 }
@@ -43,14 +50,80 @@ interface FlagFixtureIconProps {
 }
 
 /**
- * Top-down rendering of a C-stand flag: a simple black fabric square (silk and
- * net get a translucent / woven treatment; cutters stay elongated) with a short
- * riser + gobo arm stub on the left edge so rotation is readable. Drawn centered
- * on the element origin so the caller can wrap it in a `translate(x,y)
- * rotate(rotation)` transform. All parts are clickable so the element can be
- * selected & dragged on the floor plan.
+ * Top-down rendering of a C-stand flag / grip stand:
+ * Drawn centered on the element origin.
  */
 export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selected }) => {
+  const frameStroke = selected ? '#38bdf8' : light.fixtureType === 'flag_silk' ? '#cbd5e1' : '#94a3b8';
+
+  if (light.fixtureType === 'c_stand_flag') {
+    return (
+      <g className="c-stand-grip-arm">
+        {/* Turtle base legs (Standard Grip Safety: High Big Leg under the arm load) */}
+        {/* 1. Medium Leg (Top-Left 135°) */}
+        <path d="M 0 0 C -10 -12, -20 -22, -32 -16" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+        <rect x={-35} y={-18} width={6} height={4} rx={1} fill="#0f172a" />
+
+        {/* 2. Small Low Leg (Bottom-Left 225°) */}
+        <path d="M 0 0 C -10 12, -20 22, -32 16" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+        <rect x={-35} y={14} width={6} height={4} rx={1} fill="#0f172a" />
+
+        {/* 3. Big High Leg (Front Load Leg extending 0° directly under the grip arm) */}
+        <path d="M 0 0 C 12 -4, 24 -6, 36 -1" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+        <rect x={35} y={-3} width={5} height={4} rx={1} fill="#0f172a" />
+
+        {/* Center Base Hub Casting & Spring-Loaded Riser Receiver */}
+        <circle cx={0} cy={0} r={7} fill="#1e293b" stroke={frameStroke} strokeWidth={2} />
+        <circle cx={0} cy={0} r={3.5} fill="#475569" />
+
+        {/* Center 2.5" Gobo Knuckle Head (Matthews Grip Head) */}
+        <rect x={-5} y={-6} width={10} height={12} rx={2.5} fill="#0f172a" stroke={frameStroke} strokeWidth={1.5} />
+        {/* Ergonomic Aluminum T-Handle Brake Lever */}
+        <line x1={-9} y1={0} x2={9} y2={0} stroke="#38bdf8" strokeWidth={2.5} strokeLinecap="round" />
+        <circle cx={-9} cy={0} r={1.5} fill="#ffffff" />
+        <circle cx={9} cy={0} r={1.5} fill="#ffffff" />
+
+        {/* 40" Stainless Steel Solid Grip Arm */}
+        <line x1={0} y1={0} x2={52} y2={0} stroke="#0f172a" strokeWidth={3.5} strokeLinecap="round" />
+        <line x1={0} y1={0} x2={52} y2={0} stroke="#cbd5e1" strokeWidth={2} strokeLinecap="round" />
+        <line x1={2} y1={-0.5} x2={50} y2={-0.5} stroke="#ffffff" strokeWidth={0.8} strokeLinecap="round" />
+
+        {/* End 2.5" Grip Head Knuckle on Arm Tip */}
+        <rect x={46} y={-5} width={8} height={10} rx={2} fill="#0f172a" stroke={frameStroke} strokeWidth={1.5} />
+        <line x1={50} y1={-7} x2={50} y2={7} stroke="#38bdf8" strokeWidth={2} strokeLinecap="round" />
+        {/* 5/8" Baby Pin Stud Tip */}
+        <circle cx={55} cy={0} r={2} fill="#f59e0b" stroke="#0f172a" strokeWidth={0.6} />
+      </g>
+    );
+  }
+
+  if (light.fixtureType === 'tripod') {
+    return (
+      <g className="tripod-stand-fixture">
+        {/* 3 Splayed Tubular Legs at 120° offsets */}
+        {/* Leg 1 (Top-Left) */}
+        <line x1={0} y1={0} x2={-24} y2={-16} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+        <rect x={-27} y={-18} width={6} height={4} rx={1} fill="#0f172a" />
+        {/* Leg 2 (Bottom-Left) */}
+        <line x1={0} y1={0} x2={-24} y2={16} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+        <rect x={-27} y={14} width={6} height={4} rx={1} fill="#0f172a" />
+        {/* Leg 3 (Right) */}
+        <line x1={0} y1={0} x2={28} y2={0} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
+        <rect x={27} y={-2} width={4} height={4} rx={1} fill="#0f172a" />
+
+        {/* Central Spreader Spider Braces (Triangle linking 3 legs) */}
+        <polygon points="-12,-8 -12,8 14,0" fill="none" stroke="#475569" strokeWidth={1.5} />
+
+        {/* Center Riser Base Casting */}
+        <circle cx={0} cy={0} r={7} fill="#1e293b" stroke={frameStroke} strokeWidth={2} />
+        {/* Locking T-Knob */}
+        <line x1={-5} y1={0} x2={5} y2={0} stroke="#38bdf8" strokeWidth={2} strokeLinecap="round" />
+        {/* 5/8" Brass Baby Pin / Top Stud */}
+        <circle cx={0} cy={0} r={3} fill="#f59e0b" stroke="#0f172a" strokeWidth={0.8} />
+      </g>
+    );
+  }
+
   const { w: panelW, h: panelH } = getFlagPanelDims(light);
   const net = light.netValue === 'double' ? ('double' as FlagNetValue) : ('single' as FlagNetValue);
 
@@ -64,7 +137,6 @@ export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selecte
   const poleLen = Math.max(8, Math.min(14, panelW * 0.22));
   const poleLeft = xL - poleLen;
 
-  const frameStroke = selected ? '#38bdf8' : light.fixtureType === 'flag_silk' ? '#cbd5e1' : '#94a3b8';
   const fill =
     light.fixtureType === 'flag_silk'
       ? 'rgba(226, 232, 240, 0.62)'
@@ -108,8 +180,11 @@ export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selecte
     }
   }
 
+  // C-Stand Turtle Base & 40" Gobo Arm holding the flag frame
+  const standX = xL - 22;
+
   return (
-    <g>
+    <g className="flag-fixture-with-cstand">
       <defs>
         {clipId && (
           <clipPath id={clipId}>
@@ -118,11 +193,40 @@ export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selecte
         )}
       </defs>
 
-      {/* Riser / gobo arm stub (orientation marker) */}
-      <line x1={poleLeft} y1={armY} x2={xL} y2={armY} stroke="#94a3b8" strokeWidth={3} strokeLinecap="round" />
-      <circle cx={poleLeft - 2} cy={armY} r={3.5} fill="#475569" stroke="#94a3b8" strokeWidth={1} />
+      {/* 1. Full C-Stand Turtle Base mounted to the left of the flag */}
+      <g transform={`translate(${standX}, ${armY})`}>
+        {/* Turtle base legs */}
+        {/* High Load Leg (pointing right towards the flag load) */}
+        <path d="M 0 0 C 6 -3, 14 -4, 20 0" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
+        <rect x={19} y={-2} width={3.5} height={4} rx={1} fill="#0f172a" />
 
-      {/* Black fabric square */}
+        {/* Medium Leg (Top-Left) */}
+        <path d="M 0 0 C -6 -7, -12 -12, -18 -8" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
+        <rect x={-20} y={-10} width={4} height={3.5} rx={1} fill="#0f172a" />
+
+        {/* Small Leg (Bottom-Left) */}
+        <path d="M 0 0 C -6 7, -12 12, -18 8" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
+        <rect x={-20} y={6} width={4} height={3.5} rx={1} fill="#0f172a" />
+
+        {/* Center Base Hub Casting */}
+        <circle cx={0} cy={0} r={4.5} fill="#1e293b" stroke="#94a3b8" strokeWidth={1.5} />
+        
+        {/* Main 2.5" Gobo Knuckle on Stand Column */}
+        <rect x={-3} y={-4} width={6} height={8} rx={1.5} fill="#0f172a" stroke="#94a3b8" strokeWidth={1.2} />
+        {/* Blue T-Brake Handle */}
+        <line x1={-6} y1={0} x2={6} y2={0} stroke="#38bdf8" strokeWidth={2} strokeLinecap="round" />
+
+        {/* 40" Stainless Steel Gobo Arm extending to flag frame */}
+        <line x1={0} y1={0} x2={22} y2={0} stroke="#0f172a" strokeWidth={3} strokeLinecap="round" />
+        <line x1={0} y1={0} x2={22} y2={0} stroke="#cbd5e1" strokeWidth={1.8} strokeLinecap="round" />
+        <line x1={1} y1={-0.3} x2={21} y2={-0.3} stroke="#ffffff" strokeWidth={0.6} strokeLinecap="round" />
+
+        {/* End 2.5" Gobo Knuckle Clamping onto Flag Mounting Pin */}
+        <rect x={19} y={-3.5} width={5.5} height={7} rx={1.2} fill="#0f172a" stroke="#94a3b8" strokeWidth={1} />
+        <line x1={22} y1={-5} x2={22} y2={5} stroke="#38bdf8" strokeWidth={1.5} strokeLinecap="round" />
+      </g>
+
+      {/* 2. Flag Panel (Solid / Silk / Net / Cutter) */}
       <rect x={xL} y={yT} width={panelW} height={panelH} rx={2} fill={fill} stroke={frameStroke} strokeWidth={2} />
       {light.fixtureType === 'flag_net' && <g clipPath={`url(#${clipId})`}>{netLines}</g>}
       {light.fixtureType === 'flag_silk' && silkWrinkles}
