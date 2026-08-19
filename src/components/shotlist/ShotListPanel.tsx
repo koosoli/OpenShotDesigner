@@ -74,7 +74,6 @@ export const ShotListPanel: React.FC = () => {
     selectedShotId,
     selectedElementIds,
     selectShot,
-    addShot,
     updateShot,
     deleteShot,
     reorderShots,
@@ -945,7 +944,7 @@ export const ShotListPanel: React.FC = () => {
           Drag rows or cards to reorder
         </span>
         <button
-          onClick={() => addShot()}
+          onClick={handleAddCameraAndShot}
           className="text-sky-500 hover:text-sky-600 font-bold flex items-center gap-1"
         >
           <Plus className="w-3.5 h-3.5" />
