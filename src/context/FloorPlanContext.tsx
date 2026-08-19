@@ -25,9 +25,23 @@ import {
   SAMPLE_SCENES,
 } from '../constants/presets';
 import { calculateFovAngle } from '../utils/geometry';
+import {
+  NewProjectOptions,
+  ProjectSummary,
+  cloneProject,
+  createProject as buildProject,
+  getActiveProjectId,
+  loadLibrary,
+  migrateSingleProject,
+  newProjectId,
+  readProject,
+  removeProject,
+  setActiveProjectId,
+  writeProject,
+} from '../utils/projectLibrary';
 
 /** Sections available in the export / print studio. */
-export type ExportSection = 'floorplan' | 'shotlist' | 'linedscript' | 'combined';
+export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'combined';
 
 /**
  * Collision-proof ids. `Date.now()` alone repeats when two shots are created
@@ -77,8 +91,8 @@ interface FloorPlanContextType {
   setCameraRig: (rig: CameraRigType) => void;
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
-  activeRightTab: 'shots' | 'script' | 'inspector';
-  setActiveRightTab: (tab: 'shots' | 'script' | 'inspector') => void;
+  activeRightTab: 'shots' | 'storyboard' | 'script' | 'inspector';
+  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'inspector') => void;
   selectElement: (id: string | null, multi?: boolean) => void;
   selectElements: (ids: string[]) => void;
   clearSelection: () => void;
@@ -105,6 +119,8 @@ interface FloorPlanContextType {
   updateShot: (id: string, updates: Partial<Shot>) => void;
   deleteShot: (id: string) => void;
   reorderShots: (arg1: number | Shot[], arg2?: number) => void;
+  /** Order of the storyboard board only — the shot list keeps its own order. */
+  setStoryboardOrder: (shotIds: string[]) => void;
   moveShot: (shotId: string, direction: 'up' | 'down') => void;
   moveShotToScene: (shotId: string, sourceSetupId: string, targetSetupId: string, targetIndex?: number) => void;
   renumberAllShots: (format?: 'scene_slash_number' | 'scene_alphabetic' | 'numeric' | 'alphabetic') => void;
@@ -152,6 +168,10 @@ interface FloorPlanContextType {
   createCameraOnly: (name: string, pos?: Vector2D) => string;
   createCameraForShot: (name: string, shotId: string, lensMm?: number, pos?: Vector2D) => string;
   setShotCameraLetter: (shotId: string, letter: string) => void;
+  /** Point a shot at an existing camera (no renaming, no new elements). */
+  assignCameraToShot: (shotId: string, cameraId: string | null) => void;
+  /** Add a camera with the next free letter (B, C, …) and shoot this shot on it. */
+  addCameraForShot: (shotId: string) => string;
   setShootMode: (mode: 'single_cam' | 'multi_cam') => void;
 
   // Background Screenshots / Reference Blueprints (multiple supported)
@@ -172,6 +192,18 @@ interface FloorPlanContextType {
   deleteSetup: (setupId: string) => void;
   updateSetupMeta: (updates: Partial<SceneSetup>) => void;
   updateProjectMeta: (updates: Partial<Project>) => void;
+
+  // Project library (dashboard): several productions in one browser
+  projects: ProjectSummary[];
+  activeProjectId: string;
+  isDashboardOpen: boolean;
+  openDashboard: () => void;
+  closeDashboard: () => void;
+  createNewProject: (options?: NewProjectOptions) => void;
+  openProjectById: (id: string) => void;
+  duplicateProject: (id: string) => void;
+  renameProject: (id: string, title: string) => void;
+  deleteProjectById: (id: string) => void;
   loadTemplateScene: (templateIndex: number) => void;
   loadProjectFromJson: (newProject: Project) => void;
 
@@ -204,7 +236,6 @@ interface FloorPlanContextType {
   closeExportModal: () => void;
   setCanvasTransform: (scale: number, offset: Vector2D) => void;
   setCanvasViewport: (width: number, height: number) => void;
-  createNewProject: () => void;
 }
 
 export interface DisplaySettings {
@@ -358,16 +389,23 @@ function findFreeSpawnPoint(
 }
 
 export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Initialize project state from localStorage or default template
+  // Open the project the user was last working on. Projects saved by earlier
+  // (single-project) versions are moved into the library on first run.
   const [project, setProject] = useState<Project>(() => {
     try {
-      const saved = migrateStorageKey(LEGACY_STORAGE_KEYS.project, STORAGE_KEYS.project);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.setups?.length > 0) return parsed;
-      }
+      // Pull anything the pre-library builds left behind into the library first
+      migrateStorageKey(LEGACY_STORAGE_KEYS.project, STORAGE_KEYS.project);
+      migrateSingleProject();
+
+      const activeId = getActiveProjectId();
+      const saved = activeId ? readProject(activeId) : null;
+      if (saved) return saved;
+
+      const mostRecent = loadLibrary()[0];
+      const fallback = mostRecent ? readProject(mostRecent.id) : null;
+      if (fallback) return fallback;
     } catch {
-      // ignore
+      // ignore and start fresh
     }
 
     return {
@@ -379,6 +417,23 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setups: SAMPLE_SCENES,
       activeSetupId: SAMPLE_SCENES[0].id,
     };
+  });
+
+  const [projects, setProjects] = useState<ProjectSummary[]>(() => {
+    try {
+      return loadLibrary();
+    } catch {
+      return [];
+    }
+  });
+  // First run (nothing saved yet) opens on the dashboard so the first thing the
+  // user does is name their production.
+  const [isDashboardOpen, setIsDashboardOpen] = useState(() => {
+    try {
+      return loadLibrary().length === 0;
+    } catch {
+      return false;
+    }
   });
 
   const activeSetup =
@@ -442,7 +497,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [exportSection, setExportSection] = useState<ExportSection>('floorplan');
 
   // Right Sidebar Tab State
-  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'script' | 'inspector'>('shots');
+  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'inspector'>('shots');
   const [scriptLinkShotId, setScriptLinkShotId] = useState<string | null>(null);
 
   // Playback engine
@@ -462,7 +517,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+      writeProject(project);
+      setActiveProjectId(project.id);
+      setProjects(loadLibrary());
       setStorageWarning(null);
     } catch {
       setStorageWarning(
@@ -591,7 +648,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // Selecting on the canvas opens the inspector — unless the user is reading
     // the lined script, where the selection is shown by highlighting instead.
-    if (activeRightTab !== 'script') setActiveRightTab('inspector');
+    if (activeRightTab !== 'script' && activeRightTab !== 'storyboard') setActiveRightTab('inspector');
     setSelectedBackgroundId(null);
 
     if (multi) {
@@ -620,7 +677,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const selectElements = (ids: string[]) => {
     setSelectedElementIds(ids);
     if (ids.length > 0) {
-      if (activeRightTab !== 'script') setActiveRightTab('inspector');
+      if (activeRightTab !== 'script' && activeRightTab !== 'storyboard') setActiveRightTab('inspector');
       setSelectedBackgroundId(null);
     }
   };
@@ -1620,6 +1677,25 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       (element) => element.id === shot.cameraId && element.type === 'camera'
     ) as CameraElement | undefined;
 
+    // The lined text becomes the shot's action: the storyboard frame and the
+    // shot list both read these fields, so lining a shot updates them too.
+    const coveredText = scriptLines
+      .slice(from, to + 1)
+      .map((line, index) => {
+        const isFirst = index === 0;
+        const isLast = from + index === to;
+        let text = line.text;
+        if (isLast && range.endOffset !== undefined) text = text.slice(0, range.endOffset);
+        if (isFirst && range.startOffset !== undefined) text = text.slice(range.startOffset);
+        return text;
+      })
+      .join('\n');
+    const flattened = coveredText.replace(/\s+/g, ' ').trim();
+    const actionSummary = flattened.length > 90 ? `${flattened.slice(0, 90).trimEnd()}…` : flattened;
+    // An untouched auto-name ("Shot 1/2", "Shot 1/2 - Insert Coverage") is
+    // replaced by the lined action; a name the user wrote is left alone.
+    const autoName = !shot.name || /^Shot\s+\S+(\s+-\s+(Coverage|Insert Coverage))?$/i.test(shot.name);
+
     const mark: ScriptMark = {
       id: newMarkId(),
       shotId,
@@ -1635,6 +1711,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     commitSetupById(owner.id, (setup) => ({
       ...setup,
+      shots: setup.shots.map((item) =>
+        item.id === shotId
+          ? {
+              ...item,
+              actionScriptNotes: coveredText.slice(0, 600),
+              name: autoName && actionSummary ? actionSummary : item.name,
+              framingDescription: item.framingDescription || actionSummary,
+            }
+          : item
+      ),
       // One lining per shot: re-lining a shot moves its existing stroke.
       scriptMarks: [...(setup.scriptMarks || []).filter((item) => item.shotId !== shotId), mark],
     }));
@@ -1848,6 +1934,212 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // floor plan linked: changing the letter here re-labels the shot's own
   // camera element (and renames it if it still uses the auto "Cam X" name) in
   // ONE commit, so the icon on the canvas shows the new letter.
+  /**
+   * Change which camera shoots a setup, **without moving the camera**.
+   *
+   * A shot's camera element is that setup's position on the floor plan; the
+   * letter says which physical camera stands there. So assigning a shot from A
+   * to B re-letters the camera that is already blocked for that shot instead of
+   * jumping the coverage to wherever B happens to sit. If other shots share the
+   * same camera element, it is copied in place for this shot only, so their
+   * blocking is untouched.
+   */
+  const assignCameraToShot = (shotId: string, cameraId: string | null) => {
+    const owner = project.setups.find((setup) => setup.shots.some((shot) => shot.id === shotId));
+    if (!owner) return;
+
+    let focusCameraId: string | null = null;
+
+    commitSetupById(owner.id, (setup) => {
+      const shot = setup.shots.find((item) => item.id === shotId);
+      if (!shot) return setup;
+
+      const current = setup.elements.find(
+        (element) => element.id === shot.cameraId && element.type === 'camera'
+      ) as CameraElement | undefined;
+
+      // "— No Camera —": unlink, and drop the position if nothing else uses it.
+      if (!cameraId) {
+        const shots = setup.shots.map((item) =>
+          item.id === shotId ? { ...item, cameraId: '', cameraLabel: 'A' } : item
+        );
+        const orphaned = current && !shots.some((item) => item.cameraId === current.id);
+        return {
+          ...setup,
+          elements: orphaned
+            ? setup.elements.filter((element) => element.id !== current!.id)
+            : setup.elements,
+          shots,
+        };
+      }
+
+      const target = setup.elements.find(
+        (element) => element.id === cameraId && element.type === 'camera'
+      ) as CameraElement | undefined;
+      if (!target) return setup;
+
+      const letter = (target.cameraLabel || 'A').toUpperCase();
+
+      // No camera blocked for this shot yet — link it to the picked one.
+      if (!current) {
+        focusCameraId = target.id;
+        return {
+          ...setup,
+          shots: setup.shots.map((item) =>
+            item.id === shotId
+              ? { ...item, cameraId: target.id, cameraLabel: letter, lensMm: target.focalLength ?? item.lensMm }
+              : item
+          ),
+        };
+      }
+
+      if ((current.cameraLabel || 'A').toUpperCase() === letter) {
+        focusCameraId = current.id;
+        return setup;
+      }
+
+      // Auto-generated names ("Cam A", "Camera A (Shot 1/2)") follow the letter.
+      const renameToLetter = (name: string, from: string) => {
+        const auto = new RegExp(`^((?:Cam|Camera) )${from}(\\s*\\(.*\\))?$`, 'i');
+        return auto.test(name) ? name.replace(auto, `$1${letter}$2`) : name;
+      };
+
+      const sharedWithOtherShots = setup.shots.some(
+        (item) => item.id !== shotId && item.cameraId === current.id
+      );
+
+      if (sharedWithOtherShots) {
+        // Copy the position for this shot alone so the other shots keep theirs.
+        const copyId = `el-camera-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        const copy: CameraElement = {
+          ...current,
+          id: copyId,
+          cameraLabel: letter,
+          color: target.color,
+          name: renameToLetter(current.name || `Cam ${letter}`, (current.cameraLabel || 'A').toUpperCase()),
+          associatedShotId: shotId,
+        };
+        focusCameraId = copyId;
+        return {
+          ...setup,
+          elements: [...setup.elements, copy],
+          shots: setup.shots.map((item) =>
+            item.id === shotId ? { ...item, cameraId: copyId, cameraLabel: letter } : item
+          ),
+        };
+      }
+
+      // Only this shot uses the camera: re-letter it where it stands.
+      focusCameraId = current.id;
+      return {
+        ...setup,
+        elements: setup.elements.map((element) =>
+          element.id === current.id
+            ? ({
+                ...element,
+                cameraLabel: letter,
+                color: target.color,
+                name: renameToLetter(current.name || `Cam ${letter}`, (current.cameraLabel || 'A').toUpperCase()),
+              } as CameraElement)
+            : element
+        ),
+        shots: setup.shots.map((item) =>
+          item.id === shotId ? { ...item, cameraId: current.id, cameraLabel: letter } : item
+        ),
+      };
+    });
+
+    setSelectedShotId(shotId);
+    if (focusCameraId) setSelectedElementIds([focusCameraId]);
+  };
+
+  /**
+   * Put this setup on a camera that doesn't exist yet (the next free letter).
+   * The camera stays exactly where the shot is already blocked; only when the
+   * shot has no camera at all is a new one placed on the canvas.
+   */
+  const addCameraForShot = (shotId: string): string => {
+    const owner = project.setups.find((setup) => setup.shots.some((shot) => shot.id === shotId));
+    if (!owner) return '';
+
+    const existingCams = owner.elements.filter((e) => e.type === 'camera') as CameraElement[];
+    const used = new Set(existingCams.map((cam) => (cam.cameraLabel || 'A').toUpperCase()));
+    let letter = 'B';
+    for (let i = 0; i < 26; i += 1) {
+      const candidate = String.fromCharCode(65 + i);
+      if (!used.has(candidate)) {
+        letter = candidate;
+        break;
+      }
+    }
+
+    const color = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
+    const shot = owner.shots.find((item) => item.id === shotId);
+    const current = owner.elements.find(
+      (element) => element.id === shot?.cameraId && element.type === 'camera'
+    ) as CameraElement | undefined;
+    const sharedWithOtherShots =
+      !!current && owner.shots.some((item) => item.id !== shotId && item.cameraId === current.id);
+
+    const newId = `el-camera-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    let focusCameraId = newId;
+
+    commitSetupById(owner.id, (setup) => {
+      // Re-letter in place when this shot owns its camera position.
+      if (current && !sharedWithOtherShots) {
+        focusCameraId = current.id;
+        return {
+          ...setup,
+          elements: setup.elements.map((element) =>
+            element.id === current.id
+              ? ({ ...element, cameraLabel: letter, color, name: `Cam ${letter}` } as CameraElement)
+              : element
+          ),
+          shots: setup.shots.map((item) =>
+            item.id === shotId ? { ...item, cameraLabel: letter } : item
+          ),
+        };
+      }
+
+      const focal = current?.focalLength ?? 35;
+      const spawn = current ? { x: current.x, y: current.y } : getNewCameraPosition();
+      const camera: CameraElement = {
+        id: newId,
+        type: 'camera',
+        name: `Cam ${letter}`,
+        x: spawn.x,
+        y: spawn.y,
+        rotation: current?.rotation ?? 0,
+        locked: false,
+        visible: true,
+        cameraLabel: letter,
+        color,
+        focalLength: focal,
+        sensorFormat: current?.sensorFormat ?? 'Super35',
+        fovAngle: calculateFovAngle(focal, current?.sensorFormat ?? 'Super35'),
+        aspectRatio: '16:9',
+        cameraHeight: current?.cameraHeight ?? 'Eye Level',
+        rigType: current?.rigType ?? activeCameraRig,
+        throwDistance: current?.throwDistance ?? 280,
+        path: [],
+        associatedShotId: shotId,
+        cameraModel: 'Cinema Camera',
+      };
+
+      return {
+        ...setup,
+        elements: [...setup.elements, camera],
+        shots: setup.shots.map((item) =>
+          item.id === shotId ? { ...item, cameraId: newId, cameraLabel: letter, lensMm: focal } : item
+        ),
+      };
+    });
+
+    setSelectedShotId(shotId);
+    setSelectedElementIds([focusCameraId]);
+    return focusCameraId;
+  };
+
   const setShotCameraLetter = (shotId: string, letter: string) => {
     const clean = letter.trim().toUpperCase() || 'A';
     const shot = activeSetup.shots.find((s) => s.id === shotId);
@@ -1982,6 +2274,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     commitSetupState(updatedSetup);
+  };
+
+  const setStoryboardOrder = (shotIds: string[]) => {
+    commitSetupState({ ...activeSetup, storyboardOrder: shotIds });
   };
 
   const moveShot = (shotId: string, direction: 'up' | 'down') => {
@@ -2262,6 +2558,70 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     commitSetupState(updatedSetup);
   };
 
+  /** Switch the workspace to another project, saving nothing in flight. */
+  const loadProjectIntoWorkspace = (next: Project) => {
+    setProject(next);
+    setActiveProjectId(next.id);
+    setSelectedElementIds([]);
+    setSelectedShotId(null);
+    setSelectedBackgroundId(null);
+    setActiveRightTab('shots');
+    setIsDashboardOpen(false);
+  };
+
+  const openDashboard = () => setIsDashboardOpen(true);
+  const closeDashboard = () => setIsDashboardOpen(false);
+
+  const createNewProject = (options?: NewProjectOptions) => {
+    const created = buildProject(options);
+    writeProject(created);
+    setProjects(loadLibrary());
+    loadProjectIntoWorkspace(created);
+  };
+
+  const openProjectById = (id: string) => {
+    if (id === project.id) {
+      setIsDashboardOpen(false);
+      return;
+    }
+    const next = readProject(id);
+    if (next) loadProjectIntoWorkspace(next);
+  };
+
+  const duplicateProject = (id: string) => {
+    const source = id === project.id ? project : readProject(id);
+    if (!source) return;
+    const copy = cloneProject(source);
+    writeProject(copy);
+    setProjects(loadLibrary());
+  };
+
+  const renameProject = (id: string, title: string) => {
+    const trimmed = title.trim() || 'Untitled project';
+    if (id === project.id) {
+      setProject((prev) => ({ ...prev, title: trimmed }));
+      return;
+    }
+    const target = readProject(id);
+    if (!target) return;
+    writeProject({ ...target, title: trimmed });
+    setProjects(loadLibrary());
+  };
+
+  const deleteProjectById = (id: string) => {
+    removeProject(id);
+    const remaining = loadLibrary();
+    setProjects(remaining);
+
+    // Deleting the open project drops the workspace onto the next one, or onto
+    // a brand new project if that was the last one.
+    if (id === project.id) {
+      const next = remaining.length ? readProject(remaining[0].id) : null;
+      if (next) loadProjectIntoWorkspace(next);
+      else createNewProject({ title: 'Untitled project' });
+    }
+  };
+
   const updateProjectMeta = (updates: Partial<Project>) => {
     setProject((prev) => ({ ...prev, ...updates }));
   };
@@ -2284,46 +2644,18 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const loadProjectFromJson = (newProject: Project) => {
-    if (newProject?.setups?.length > 0) {
-      setProject(newProject);
-    }
-  };
-
-  const createNewProject = () => {
-    const newSetup: SceneSetup = {
-      id: `setup-${Date.now()}`,
-      name: 'Master Setup',
-      sceneNumber: '1',
-      location: 'INT. STUDIO - DAY',
-      timeOfDay: 'Day INT',
-      elements: [],
-      shots: [],
-      currentBeat: 1,
-      totalBeats: 3,
-      canvasScale: 1,
-      canvasOffset: { x: 50, y: 50 },
-      gridSettings: {
-        size: 30,
-        snap: true,
-        showGrid: true,
-        unit: 'ft',
-        pixelsPerUnit: 25,
-      },
+    if (!newProject?.setups?.length) return;
+    // Imported files land in the library as their own project, so importing
+    // never overwrites what is already saved here.
+    const imported: Project = {
+      ...newProject,
+      id: projects.some((entry) => entry.id === newProject.id) || newProject.id === project.id
+        ? newProjectId()
+        : newProject.id || newProjectId(),
     };
-
-    const newProj: Project = {
-      id: 'proj-' + Date.now(),
-      title: 'New Film Production Project',
-      director: 'Director',
-      cinematographer: 'DP',
-      date: new Date().toISOString().split('T')[0],
-      setups: [newSetup],
-      activeSetupId: newSetup.id,
-    };
-
-    setProject(newProj);
-    setSelectedElementIds([]);
-    setSelectedShotId(null);
+    writeProject(imported);
+    setProjects(loadLibrary());
+    loadProjectIntoWorkspace(imported);
   };
 
   // Canvas View Controls
@@ -2482,6 +2814,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateShot,
         deleteShot,
         reorderShots,
+        setStoryboardOrder,
         moveShot,
         moveShotToScene,
         renumberAllShots,
@@ -2490,6 +2823,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         createCameraOnly,
         createCameraForShot,
         setShotCameraLetter,
+        assignCameraToShot,
+        addCameraForShot,
 
         backgroundImages,
         selectedBackgroundId,
@@ -2505,9 +2840,18 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         deleteSetup,
         updateSetupMeta,
         updateProjectMeta,
+        projects,
+        activeProjectId: project.id,
+        isDashboardOpen,
+        openDashboard,
+        closeDashboard,
+        createNewProject,
+        openProjectById,
+        duplicateProject,
+        renameProject,
+        deleteProjectById,
         loadTemplateScene,
         loadProjectFromJson,
-        createNewProject,
 
         undo,
         redo,

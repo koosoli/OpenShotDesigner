@@ -92,6 +92,11 @@ export interface CameraElement extends BaseElement {
   lookAtPoint?: Vector2D;
   associatedShotId?: string;
   cameraModel?: string;
+  /** Exposure settings shown on the viewfinder HUD and in exports. */
+  aperture?: string;
+  iso?: number;
+  shutterAngle?: number;
+  ndFilter?: string;
 }
 
 export type LightFixtureType =
@@ -433,6 +438,11 @@ export interface SceneSetup {
   scriptText?: string;
   scriptLines?: ScriptLine[];
   scriptMarks?: ScriptMark[];
+  /**
+   * Shot ids in storyboard order. The board can be arranged independently of
+   * the shot list; shots missing from this list simply follow at the end.
+   */
+  storyboardOrder?: string[];
   backgroundImage?: BackgroundImage | null;
   backgroundImages?: BackgroundImage[];
   currentBeat: number;
@@ -458,6 +468,9 @@ export interface Project {
   director: string;
   cinematographer: string;
   productionCompany?: string;
+  /** Production logo (data URL) stamped on exported plans and call sheets. */
+  logo?: string;
+  logoName?: string;
   date: string;
   setups: SceneSetup[];
   activeSetupId: string;

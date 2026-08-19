@@ -5,13 +5,15 @@ import { LeftToolbar } from './components/toolbar/LeftToolbar';
 import { FloorPlanCanvas } from './components/canvas/FloorPlanCanvas';
 import { TimelineBar } from './components/timeline/TimelineBar';
 import { ShotListPanel } from './components/shotlist/ShotListPanel';
+import { StoryboardPanel } from './components/storyboard/StoryboardPanel';
 import { ScriptPanel } from './components/script/ScriptPanel';
 import { InspectorPanel } from './components/inspector/InspectorPanel';
 import { ViewfinderModal } from './components/viewfinder/ViewfinderModal';
 import { PrintableShotPlan } from './components/export/PrintableShotPlan';
 import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
+import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { useBreakpoint } from './utils/useMediaQuery';
-import { AlertTriangle, Film, FileText, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { AlertTriangle, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 
 const MainLayout: React.FC = () => {
@@ -144,6 +146,22 @@ const MainLayout: React.FC = () => {
                 </button>
 
                 <button
+                  id="tab-storyboard"
+                  onClick={() => setActiveRightTab('storyboard')}
+                  title="Storyboard view"
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                    activeRightTab === 'storyboard'
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : isLight
+                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Board</span>
+                </button>
+
+                <button
                   id="tab-script"
                   onClick={() => setActiveRightTab('script')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
@@ -227,7 +245,15 @@ const MainLayout: React.FC = () => {
 
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
-              {activeRightTab === 'shots' ? <ShotListPanel /> : activeRightTab === 'script' ? <ScriptPanel /> : <InspectorPanel />}
+              {activeRightTab === 'shots' ? (
+                <ShotListPanel />
+              ) : activeRightTab === 'storyboard' ? (
+                <StoryboardPanel />
+              ) : activeRightTab === 'script' ? (
+                <ScriptPanel />
+              ) : (
+                <InspectorPanel />
+              )}
             </div>
           </aside>
         ) : (
@@ -259,6 +285,7 @@ const MainLayout: React.FC = () => {
       <ViewfinderModal />
       <PrintableShotPlan />
       <QuickAssetSearch />
+      <ProjectDashboard />
     </div>
   );
 };

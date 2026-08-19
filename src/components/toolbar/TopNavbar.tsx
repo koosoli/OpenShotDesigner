@@ -9,6 +9,7 @@ import {
   Eye,
   FolderOpen,
   Magnet,
+  LayoutGrid,
   MoreHorizontal,
   Moon,
   Plus,
@@ -40,6 +41,7 @@ export const TopNavbar: React.FC = () => {
     setGridSettings,
     openViewfinder,
     openExportModal,
+    openDashboard,
   } = useFloorPlan();
 
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
@@ -99,6 +101,15 @@ export const TopNavbar: React.FC = () => {
     >
       {/* 1. App Logo & Project Title */}
       <div className="flex items-center gap-3">
+        <button
+          onClick={openDashboard}
+          title="All projects (dashboard)"
+          className={`p-2 rounded-lg border transition-colors flex-shrink-0 ${
+            isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
+          }`}
+        >
+          <LayoutGrid className="w-4 h-4" />
+        </button>
 <div className="flex items-center gap-2">
             <img
               src={brandIcon}
@@ -436,6 +447,15 @@ export const TopNavbar: React.FC = () => {
                 <div className={`absolute right-0 top-full mt-1.5 w-52 border rounded-xl shadow-2xl p-1.5 z-50 space-y-0.5 ${
                   isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
                 }`}>
+                  <button
+                    onClick={() => {
+                      openDashboard();
+                      setIsOverflowOpen(false);
+                    }}
+                    className={overflowItemClass}
+                  >
+                    <span className="flex items-center gap-2"><LayoutGrid className="w-3.5 h-3.5" /> All projects</span>
+                  </button>
                   <button
                     onClick={() => {
                       setGridSettings({ snap: !gridSettings.snap });

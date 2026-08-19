@@ -23,6 +23,7 @@ import { FlagFixtureIcon, flagLabel, isFlagFixture } from '../canvas/FlagFixture
 import { FixtureGlyph } from '../canvas/FixtureGlyph';
 import { ArrowGlyph } from '../canvas/ArrowGlyph';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
+import { orderedStoryboardShots } from '../../utils/storyboardOrder';
 import {
   AppWindow,
   ArrowRight,
@@ -32,6 +33,7 @@ import {
   FileSpreadsheet,
   FileText,
   Film,
+  Image as ImageIcon,
   Layers,
   MapPin,
   Maximize2,
@@ -170,6 +172,16 @@ export const PrintableShotPlan: React.FC = () => {
                 Shot List Only
               </button>
               <button
+                onClick={() => setExportSection('storyboard')}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
+                  exportSection === 'storyboard'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Storyboard
+              </button>
+              <button
                 onClick={() => setExportSection('linedscript')}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                   exportSection === 'linedscript'
@@ -216,6 +228,7 @@ export const PrintableShotPlan: React.FC = () => {
                     if (floorPlanSvgRef.current) {
                       exportSvgAsPng(floorPlanSvgRef.current, {
                         scale: pngScale,
+                        logo: project.logo,
                         fileName: `FloorPlan_Scene_${activeSetup.sceneNumber || '1'}_${activeSetup.name.replace(/[^a-zA-Z0-9]/g, '_')}.png`,
                         title: project.title,
                         subtitle: `SCENE ${activeSetup.sceneNumber}: ${activeSetup.name}`,
@@ -294,8 +307,16 @@ export const PrintableShotPlan: React.FC = () => {
         >
           {/* 1. Header Block (Standard Film Production Slate) */}
           <div className="border-b-2 border-slate-900 pb-4 mb-6">
-            <div className="flex justify-between items-start">
-              <div>
+            <div className="flex justify-between items-start gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                {project.logo && (
+                  <img
+                    src={project.logo}
+                    alt=""
+                    className="h-14 w-auto max-w-[9rem] object-contain flex-shrink-0"
+                  />
+                )}
+                <div>
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 text-xs font-mono font-bold uppercase bg-slate-900 text-white rounded">
                     CINEMATOGRAPHY PLAN
@@ -305,6 +326,8 @@ export const PrintableShotPlan: React.FC = () => {
                       ? '• 2D FLOOR PLAN BLUEPRINT'
                       : exportSection === 'shotlist'
                       ? '• COVERAGE SHOT LIST'
+                      : exportSection === 'storyboard'
+                      ? '• STORYBOARD'
                       : exportSection === 'linedscript'
                       ? '• LINED SHOOTING SCRIPT'
                       : '• COMPLETE PRODUCTION CALL SHEET'}
@@ -316,6 +339,7 @@ export const PrintableShotPlan: React.FC = () => {
                 <h2 className="text-sm font-bold text-slate-700">
                   SCENE {activeSetup.sceneNumber}: {activeSetup.name}
                 </h2>
+                </div>
               </div>
               <div className="text-right text-xs text-slate-700 font-mono space-y-0.5">
                 <p><strong>DATE:</strong> {project.date || new Date().toISOString().split('T')[0]}</p>
@@ -917,6 +941,77 @@ export const PrintableShotPlan: React.FC = () => {
           )}
 
           {/* ========================================================================= */}
+          {/* SECTION S: STORYBOARD CONTACT SHEET                                        */}
+          {/* ========================================================================= */}
+          {(exportSection === 'storyboard' || (exportSection === 'combined' && showStoryboards)) && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-violet-600" />
+                  <span>Storyboard</span>
+                </h3>
+                <span className="font-mono text-xs font-bold text-slate-700">
+                  {activeSetup.shots.length} FRAME{activeSetup.shots.length === 1 ? '' : 'S'} ·{' '}
+                  {activeSetup.aspectRatio || '16:9'}
+                </span>
+              </div>
+
+              {activeSetup.shots.length === 0 ? (
+                <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                  No shots in this scene yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {orderedStoryboardShots(activeSetup).map((shot) => {
+                    const cam = cameras.find((camera) => camera.id === shot.cameraId);
+                    return (
+                      <div
+                        key={shot.id}
+                        className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid"
+                      >
+                        <div
+                          className="relative w-full bg-slate-100 border-b border-slate-300"
+                          style={{ aspectRatio: String(sceneAspectRatio) }}
+                        >
+                          {shot.storyboardImage ? (
+                            <img
+                              src={shot.storyboardImage}
+                              alt=""
+                              className="absolute inset-0 w-full h-full"
+                              style={{ objectFit: shot.storyboardFit || 'cover' }}
+                            />
+                          ) : (
+                            // Shots without artwork still print their frame, so
+                            // the board can be drawn in by hand on set.
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
+                              (no storyboard)
+                            </span>
+                          )}
+                          <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-slate-900 text-white text-[10px] font-mono font-bold">
+                            {shot.shotNumber}
+                            {cam ? ` · ${(cam.cameraLabel || 'A').toUpperCase()}` : ''}
+                          </span>
+                        </div>
+                        <div className="p-1.5">
+                          <p className="text-[11px] font-bold text-slate-900 leading-snug">{shot.name}</p>
+                          {shot.framingDescription && (
+                            <p className="text-[10px] text-slate-600 leading-snug mt-0.5">
+                              {shot.framingDescription}
+                            </p>
+                          )}
+                          <p className="text-[9px] font-mono text-slate-500 mt-1">
+                            {shot.shotSize} · {shot.lensMm}mm · {shot.movement}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ========================================================================= */}
           {/* SECTION L: LINED SHOOTING SCRIPT                                           */}
           {/* ========================================================================= */}
           {(exportSection === 'linedscript' || exportSection === 'combined') && (
@@ -1041,7 +1136,7 @@ export const PrintableShotPlan: React.FC = () => {
                             {shot.shotNumber}
                           </td>
                           <td className="p-2.5 font-bold">
-                            {linkedCam ? `Cam ${linkedCam.cameraLabel}` : '—'}
+                            {linkedCam ? linkedCam.cameraLabel : '—'}
                           </td>
                           <td className="p-2.5 font-bold uppercase">
                             {shot.shotSize}

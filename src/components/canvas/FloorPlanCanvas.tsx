@@ -1321,9 +1321,9 @@ export const FloorPlanCanvas: React.FC = () => {
             aspectRatio={sceneAspectRatio}
             isInteractive={activeTool === 'select'}
             onDragThumb={(shotId, pos) => updateShot(shotId, { storyboardCanvasPosition: pos })}
-            onSelectCamera={(camId) =>
-              handleElementSelect(camId, { stopPropagation: () => {}, shiftKey: false } as React.PointerEvent)
-            }
+            // Select only — going through handleElementSelect would also start a
+            // camera move drag, which fought with the thumbnail's own drag.
+            onSelectCamera={(camId) => selectElement(camId)}
             onDropToCamera={(sourceShot, center) => {
               const target = cameras
                 .map((camera) => ({ camera, distance: Math.hypot(camera.x - center.x, camera.y - center.y) }))

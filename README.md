@@ -10,20 +10,41 @@
 
 </div>
 
-A free, open-source 2D film floor plan, **lined script**, and shot list designer. Import your screenplay, line it for coverage, block scenes, plan camera moves, and export production-ready paperwork — entirely in your browser.
+A free, open-source prep suite for directors and DPs: **lined script**, **floor plan**, **shot list**, and **storyboard** in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, and export production-ready paperwork. No account, no backend — everything lives in your browser.
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
 ---
 
+## How it fits together
+
+A shot exists in four places at once, and every view edits the same thing:
+
+| View | What it is | How it connects |
+| --- | --- | --- |
+| **Script** | The screenplay, lined for coverage | Each lining *is* a shot |
+| **Board** | One storyboard frame per shot | Same shots, its own frame order |
+| **Shot List** | The production table / coverage cards | Same shots, its own running order |
+| **Floor plan** | Cameras, actors, props, lights | Each shot's camera is a position on the plan |
+
+Line a speech in the script and a camera lands on the floor plan, a row appears in the shot list, and a frame appears on the board. Delete that camera and all three go with it.
+
 ## Features
+
+### Projects
+
+- **Project dashboard** — every production you have worked on in this browser, with scene and shot counts, whether it carries a screenplay, and when it was last saved. Reachable any time from the grid button in the top bar (or "All projects" in the overflow menu on small screens).
+- **Start in seconds** — name the production and press Create for an empty stage, or tick the box to start from the bundled example scenes.
+- **Manage them** — open, rename, duplicate, download as a project file, or delete, straight from the dashboard.
+- **Import lands beside your work** — importing a `.json` project file adds it as its own project instead of overwriting the one you have open.
+- **Safe storage** — each project is stored under its own key, so one production with heavy embedded storyboards can't push the others out. Projects made in earlier single-project versions are moved into the library automatically on first run.
 
 ### Lined script
 
 - **Import a real screenplay** — `.fountain`, Final Draft `.fdx`, or plain `.txt`, plus a paste box for a quick scene. Everything is reformatted into **standard Hollywood layout** (Courier, 60-column page, scene headings flush left, dialogue and character cues on the proper indents).
 - **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or the Final Draft scene-number attribute. New shots inherit the detected scene number.
 - **Highlight anything to make a shot** — select as little as a single word or as much as several speeches; the selection becomes a shot with its own camera on the floor plan, and the classic **vertical lining line** is drawn beside the text with the shot number in a bubble.
-- **Line shots you already have** — the script icon on any shot in the shot list jumps to the script and asks you to highlight the covered text, or pick the shot from "Line existing shot…" in the selection bar.
+- **Line shots you already have** — the script icon on any shot in the shot list jumps to the script and asks you to highlight the covered text, or pick the shot from "Line existing shot…" in the selection bar. The lined text becomes that shot's action in the shot list and shows on its storyboard frame under "From script".
 - **Descriptions on the lining** — whatever you type (or set as the shot's framing note) is written along the line, the way it is on a hand-lined script.
 - **Proper lining conventions** — lines start and end on a crossbar, and only get an arrowhead when you mark the shot as *continuing on the next page*. Any stretch where the subject leaves frame can be drawn as a **squiggle**, down to a few words.
 - **Adjustable coverage** — drag the round handles on a selected lining to extend or shorten it, or grow it to the current selection.
@@ -34,29 +55,103 @@ A free, open-source 2D film floor plan, **lined script**, and shot list designer
 - **Top-down floor plan canvas** — drag actors, cameras, and props onto a scaled room; move, resize, and rotate anything.
 - **Waypoint animation** — set multiple waypoints for actors and cameras, add rotation per waypoint, and watch a ghost preview of the move along the path.
 - **Camera coverage** — FOV cones with configurable angle, focal length, and distance; easy match-frame blocking.
+- **Storyboard thumbnails on the plan** — a shot's artwork sits beside its camera on a leader line and can be dragged anywhere on the canvas; drop one onto another camera to copy the frame across.
 - **Reference images** — overlay set photos or blueprints as background images, with drag, resize, aspect-lock, opacity, and per-image visibility toggles.
 - **Props & lighting** — furniture presets (tables, chairs, doors, windows…), light sources with beam wedges, C-stand flags, and measurement lines.
 - **Display & label controls** — toggle per-category labels, colors, and declutter options (waypoints, paths, FOV cones, light beams).
 - **Multi-select & align** — select several elements to align or distribute them evenly.
+- **Production logo** — upload a logo in the inspector's Production Info; it is stamped on the printed plan, the call sheet, and the PNG title block.
+
+### Viewfinder & storyboard camera
+
+- **Simulated optical finder** — the framing for any camera, with rule of thirds, crosshair, 90% action / 80% title safe, and a cinema HUD.
+- **Shows the storyboard** — when the shot has artwork it fills the frame (toggle it with **Board**), so the drawing and the blocking can be compared side by side.
+- **Live camera** — opens the device's own camera (laptop webcam, phone or iPad, front/rear switchable) inside the frame, with every guide drawn on top. A round shutter sits on the picture; **Space** or **Enter** fires it too.
+- **Freeze, then keep** — capture locks the finder on the exact moment taken (**CAPTURED FRAME**, with **Retake** to go back live) and stores it, cropped to the camera's aspect ratio, as that shot's storyboard. If the camera has no shot yet, one is created for it automatically.
+- **Editable camera settings** — iris/T-stop, ISO, shutter angle (with the matching shutter speed), frame rate, ND, sensor, aspect ratio and camera height are editable from the HUD *and* from the camera inspector, and are stored per camera.
+- **Photos stay small** — every storyboard image (captured, dropped, or picked from a file) is downscaled on the way in, so a phone-sized photo can't blow the browser's storage.
 
 ### Shot list
 
 - **Cards or production table** — two views of the same list, with inline editing of shot number, name, camera, size, lens, movement, angle, takes, and status.
 - **All scenes on demand** — off by default; switch it on to see and edit every scene's shots in one list, each tagged with its scene. Selecting a shot from another scene switches to it.
 - **Insert between shots** — inserting after a shot always creates a *new* shot with its own camera on the floor plan (as a letter, `1A`, or with the rest renumbered) — it never overwrites the neighbouring setup.
+- **Camera assignment keeps your blocking** — the CAM dropdown lists every camera letter on the floor plan (A, B, C…) plus **"+ New camera"**. Switching a shot from A to B re-letters the camera already blocked for that shot **where it stands** — the camera never respawns somewhere else, and camera B's own position is untouched. If other shots share that camera position, it is copied in place for this shot alone.
 - **Synced with the canvas** — selecting a camera selects its shot, and deleting a camera removes its shots and their linings.
+
+### Storyboard board
+
+- **A tab of its own** — "Board" sits between Shot List and Script: the scene as a wall of frames, one per shot.
+- **Same data as everything else** — "Add frame" creates a shot *and* drops its camera on the floor plan; shots added in the shot list or lined from the script appear here automatically, blank until artwork is attached.
+- **Artwork** — drop an image on a frame (or click it to browse), toggle fill/fit, replace, or clear it. Frames without art stay blank on purpose. Each frame also has a viewfinder button, so you can open that shot's finder and shoot the frame with the device camera.
+- **Rearrange freely** — drag a frame by its handle to arrange the board. The board keeps its **own** order: rearranging frames never reshuffles the shot list.
+- **Descriptions in place** — edit the shot name and description on the frame; they are the same fields the shot list and lined script show.
+- **Aspect ratio** — switch the whole board between 16:9, 2.39:1, 1.85:1, 4:3, and 9:16; frames (and the storyboard thumbnails on the floor plan) reframe to match.
+- **Export from the tab** — the board's Export button opens the print studio straight on the storyboard contact sheet. The Script and Shot List tabs have the same shortcut to their own export.
 
 ### Small screens & touch
 
 - **Adaptive toolbars** — controls shrink on tablets; on phones the tool palette keeps the primary tools and moves the rest into a "More tools" flyout, and the navbar's secondary controls collapse into an overflow menu. The palette fits its height instead of scrolling.
-- **Bottom-sheet panels** — on phones the shot list / script / inspector become a bottom sheet with peek, half, and full heights.
-- **Touch gestures** — two-finger pinch to zoom and pan the floor plan, with the point under your fingers staying put.
+- **Bottom-sheet panels** — on phones the shot list / board / script / inspector become a bottom sheet with peek, half, and full heights.
+- **Touch gestures** — two-finger pinch to zoom and pan the floor plan, with the point under your fingers staying put. Tap the first and last line to select script text without a keyboard.
 
 ### Everything else
 
 - **Undo / redo** — full history with keyboard shortcuts.
-- **Export** — lined script, blueprint PNG (up to 3× with a stamped title block), print view (PDF via browser), CSV shot list (per scene or full production), and JSON project backup/restore.
 - **Dark & light themes** — everything persists locally in your browser.
+- **Exports** — lined script, storyboard, blueprint PNG, print/PDF, CSV and JSON; see the table below.
+
+## Usage
+
+1. **Create or open a project** from the dashboard (the grid button in the top bar) — it opens automatically the first time you run the app.
+2. **Choose the active scene** from the scene list, or add a new one.
+3. **Import your screenplay** in the Script tab (`.fountain`, `.fdx`, `.txt`, or paste it) — it is reformatted into standard screenplay layout.
+4. **Add a room** — draw a floor plan outline or drop a reference image.
+5. **Line the script** — highlight the text a shot covers and press **Make Shot**; a camera lands on the floor plan and a lining line appears next to the text. Use **Line existing shot…** to attach a shot you already created.
+6. **Block the scene** — drag elements, resize/rotate them, and add waypoints to plan moves.
+7. **Refine the coverage** — drag a lining's handles to extend it, add a squiggle where the subject is out of frame, and mark shots that continue onto the next page.
+8. **Fill the board** — drop artwork on the frames, or open the viewfinder and shoot them with your camera on the recce.
+9. **Polish & present** — tweak display settings, then export the lined script, storyboard, blueprint PNG, PDF, or CSV for your crew.
+
+## Lining a script — quick reference
+
+| Action | How |
+| --- | --- |
+| Make a shot from the script | Select any text (a word to several speeches) → **Make Shot** |
+| Line a shot that already exists | Script icon on the shot in the shot list, or **Line existing shot…** in the selection bar |
+| Select on touch | Tap the first line, tap the last line |
+| Extend / shorten a lining | Select the lining, drag the round handle at either end (or **Extend to selection**) |
+| Mark out-of-frame | Select the lining, highlight the stretch → **Squiggle selection** |
+| Continue onto the next page | Select the lining → **Continues next page** (adds the arrowhead) |
+| Describe the shot on the line | Type in the lining's description field, or set the shot's framing note |
+| Remove a lining | Hover the lining → trash icon (removes the shot too), or **Unline** to keep the shot |
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `?` | Toggle the keyboard shortcuts overlay |
+| `Ctrl/⌘ + Z` | Undo |
+| `Ctrl/⌘ + Shift + Z` | Redo |
+| `Delete` / `Backspace` | Delete selected element |
+| `Ctrl/⌘ + D` | Duplicate selected element(s) |
+| `R` | Rotate (per selected waypoint) |
+| `Shift + Space` | Quick asset search |
+| `Space` / `Enter` | Shutter, while the viewfinder's live camera is running |
+| `Esc` | Deselect / close overlays |
+
+## Export Formats
+
+| Format | What you get |
+| --- | --- |
+| **Lined script** | The screenplay with every scene's linings, shot bubbles, and descriptions. Prints the **lined portions only** by default (with `⋯` where material is skipped) — switch to "Full screenplay" for the whole script |
+| **Storyboard** | Contact sheet of the scene's frames in board order, with shot number, camera, description, and blank frames where there is no art yet |
+| **PNG** | High-resolution blueprint render (1×/2×/3×) with a title block carrying your production logo |
+| **Print view (PDF)** | Page-ready layout — print or "Save as PDF" from your browser |
+| **CSV** | Shot list spreadsheet (per scene, or all scenes in one file) |
+| **JSON** | Full project backup — import to restore or share |
+
+Everything is stored in your browser's `localStorage`, so **download a JSON backup** before clearing site data or moving to another machine.
 
 ## Tech Stack
 
@@ -98,66 +193,24 @@ To activate it:
 3. Under **Build and deployment → Source**, select **GitHub Actions**.
 4. Done — every push to `main` redeploys automatically to <https://koosoli.github.io/OpenShotDesigner/>.
 
-## Usage
-
-1. **Choose the active scene** from the scene list, or add a new one.
-2. **Import your screenplay** in the Script tab (`.fountain`, `.fdx`, `.txt`, or paste it) — it is reformatted into standard screenplay layout.
-3. **Add a room** — draw a floor plan outline or drop a reference image.
-4. **Line the script** — highlight the text a shot covers and press **Make Shot**; a camera lands on the floor plan and a lining line appears next to the text. Use **Line existing shot…** to attach a shot you already created.
-5. **Block the scene** — drag elements, resize/rotate them, and add waypoints to plan moves.
-6. **Refine the coverage** — drag a lining's handles to extend it, add a squiggle where the subject is out of frame, and mark shots that continue onto the next page.
-7. **Polish & present** — tweak display settings, then export the lined script, blueprint PNG, PDF, or CSV for your crew.
-
-## Lining a script — quick reference
-
-| Action | How |
-| --- | --- |
-| Make a shot from the script | Select any text (a word to several speeches) → **Make Shot** |
-| Line a shot that already exists | Script icon on the shot in the shot list, or **Line existing shot…** in the selection bar |
-| Select on touch | Tap the first line, tap the last line |
-| Extend / shorten a lining | Select the lining, drag the round handle at either end (or **Extend to selection**) |
-| Mark out-of-frame | Select the lining, highlight the stretch → **Squiggle selection** |
-| Continue onto the next page | Select the lining → **Continues next page** (adds the arrowhead) |
-| Describe the shot on the line | Type in the lining's description field, or set the shot's framing note |
-| Remove a lining | Hover the lining → trash icon (removes the shot too), or **Unline** to keep the shot |
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-| --- | --- |
-| `?` | Toggle the keyboard shortcuts overlay |
-| `Ctrl/⌘ + Z` | Undo |
-| `Ctrl/⌘ + Shift + Z` | Redo |
-| `Delete` / `Backspace` | Delete selected element |
-| `Ctrl/⌘ + D` | Duplicate selected element(s) |
-| `R` | Rotate (per selected waypoint) |
-| `Esc` | Deselect / close overlays |
-
-## Export Formats
-
-| Format | What you get |
-| --- | --- |
-| **Lined script** | The screenplay with every scene's linings, shot bubbles, and descriptions. Prints the **lined portions only** by default (with `⋯` where material is skipped) — switch to "Full screenplay" for the whole script |
-| **PNG** | High-resolution blueprint render (1×/2×/3×) with a title block |
-| **Print view (PDF)** | Page-ready layout — print or "Save as PDF" from your browser |
-| **CSV** | Shot list spreadsheet (per scene, or all scenes in one file) |
-| **JSON** | Full project backup — import to restore or share |
-
 ## Project Structure
 
 ```
 src/
 ├── components/
-│   ├── canvas/        # Floor plan canvas, actors, cameras, props, lighting, grid
+│   ├── canvas/        # Floor plan: actors, cameras, props, lighting, grid, storyboard thumbs
 │   ├── script/        # Screenplay parser, lined script page, script panel
-│   ├── toolbar/       # Top navbar, left tool palette
+│   ├── storyboard/    # Storyboard board tab
 │   ├── shotlist/      # Shot list (cards + production table)
-│   ├── inspector/     # Right sidebar: scene inspector, waypoints
-│   ├── export/        # Print view & export modal
-│   └── ...
+│   ├── viewfinder/    # Simulated finder + live device camera
+│   ├── inspector/     # Scene, element and production inspector
+│   ├── dashboard/     # Project dashboard (create / open / manage productions)
+│   ├── timeline/      # Blocking playback bar
+│   ├── toolbar/       # Top navbar, left tool palette, quick search
+│   └── export/        # Print & export studio
 ├── context/           # Global state (project, screenplay, selection, history)
-├── constants/         # Presets (framing, props, lighting)
-├── utils/             # Export helpers (PNG, CSV, JSON), responsive breakpoints
+├── constants/         # Presets (framing, props, lighting, exposure)
+├── utils/             # Project library, storyboard order, export helpers, image tools, breakpoints
 └── types/             # Shared TypeScript types
 ```
 

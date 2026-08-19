@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
 import { CAMERA_MOVEMENTS, SHOT_SIZES } from '../../constants/presets';
@@ -32,6 +33,8 @@ interface CamPickerProps {
   value: string;
   isLight: boolean;
   options: CamPickerOption[];
+  /** Letter the next created camera would get, shown in the "+ New camera" row. */
+  nextLetter: string;
   onPick: (cameraId: string | null) => void;
   compact?: boolean;
 }
@@ -41,7 +44,7 @@ interface CamPickerProps {
  * present on the floor plan plus "No Camera". Changing the selection only
  * re-links the shot to that camera — it never creates a new one.
  */
-const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, onPick, compact }) => {
+const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, nextLetter, onPick, compact }) => {
   return (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
       <select
@@ -62,6 +65,7 @@ const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, onPick, 
             {o.label}
           </option>
         ))}
+        <option value="__new__">+ New camera ({nextLetter})</option>
       </select>
       <ChevronDown className={`pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 ${value ? 'opacity-60' : ''}`} />
     </div>
@@ -84,6 +88,8 @@ export const ShotListPanel: React.FC = () => {
     sortShotsBy,
     createCameraAndShot,
     setShotCameraLetter,
+    assignCameraToShot,
+    addCameraForShot,
     openViewfinder,
     openExportModal,
     setActiveSetupId,
@@ -103,7 +109,7 @@ export const ShotListPanel: React.FC = () => {
   const [isRenumberMenuOpen, setIsRenumberMenuOpen] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [insertMenuShotId, setInsertMenuShotId] = useState<string | null>(null);
+  const [insertMenu, setInsertMenu] = useState<{ shotId: string; x: number; y: number } | null>(null);
   const shotListContainerRef = useRef<HTMLDivElement>(null);
 
   const cameras = activeSetup.elements.filter((e) => e.type === 'camera');
@@ -131,14 +137,24 @@ export const ShotListPanel: React.FC = () => {
   // letter (the CAM dropdown and the element name/label stay linked). It never
   // creates a new camera.
   const pickCamera = (shot: Shot, cameraId: string | null) => {
-    if (!cameraId) {
-      updateShot(shot.id, { cameraId: '', cameraLabel: 'A', lensMm: shot.lensMm });
+    // "+ New camera" adds camera B, C, … to the floor plan and shoots this
+    // setup on it; any other choice simply re-links the shot to that camera.
+    if (cameraId === '__new__') {
+      addCameraForShot(shot.id);
       return;
     }
-    const picked: any = cameras.find((c) => c.id === cameraId);
-    if (!picked) return;
-    setShotCameraLetter(shot.id, (picked.cameraLabel || 'A').toUpperCase());
+    assignCameraToShot(shot.id, cameraId);
   };
+
+  /** Letter the next new camera would take (A is the default first camera). */
+  const nextCameraLetter = (() => {
+    const used = new Set(cameras.map((c: any) => (c.cameraLabel || 'A').toUpperCase()));
+    for (let i = 0; i < 26; i += 1) {
+      const letter = String.fromCharCode(65 + i);
+      if (!used.has(letter)) return letter;
+    }
+    return 'Z';
+  })();
 
   const camPickerOptions: CamPickerOption[] = Array.from(camerasByLabel.values()).map((c: any) => ({
     id: c.id,
@@ -224,27 +240,48 @@ export const ShotListPanel: React.FC = () => {
     createCameraAndShot();
   };
 
+  /**
+   * The "+" on a row opens the insert-position choice. The menu is rendered in
+   * a portal on <body> and positioned from the button's screen rect — inside
+   * the panel it was being clipped by the scrolling list / table container.
+   */
   const renderInsertButton = (shot: Shot) => (
-    <div className="relative">
-      <button
-        onClick={(event) => {
-          event.stopPropagation();
-          setInsertMenuShotId((current) => current === shot.id ? null : shot.id);
-        }}
-        title="Insert a shot directly after this shot"
-        className="p-1 text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 rounded"
-      >
-        <Plus className="w-3.5 h-3.5" />
-      </button>
-      {insertMenuShotId === shot.id && (
-        <div className={`absolute right-0 top-full mt-1 z-[70] w-64 rounded-xl border shadow-2xl p-1.5 text-left ${
-          isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-800 border-slate-700 text-slate-100'
-        }`}>
+    <button
+      onClick={(event) => {
+        event.stopPropagation();
+        if (insertMenu?.shotId === shot.id) {
+          setInsertMenu(null);
+          return;
+        }
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        setInsertMenu({ shotId: shot.id, x: rect.right, y: rect.bottom });
+      }}
+      title="Insert a shot directly after this shot"
+      className="p-1 text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 rounded"
+    >
+      <Plus className="w-3.5 h-3.5" />
+    </button>
+  );
+
+  const insertMenuOverlay =
+    insertMenu &&
+    createPortal(
+      <>
+        <div className="fixed inset-0 z-[90]" onClick={() => setInsertMenu(null)} />
+        <div
+          className={`fixed z-[91] w-64 max-w-[calc(100vw-1rem)] rounded-xl border shadow-2xl p-1.5 text-left ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-800 border-slate-700 text-slate-100'
+          }`}
+          style={{
+            // Keep the menu on screen when the row sits near an edge
+            left: Math.max(8, Math.min(insertMenu.x - 256, window.innerWidth - 264)),
+            top: Math.min(insertMenu.y + 6, window.innerHeight - 150),
+          }}
+        >
           <button
-            onClick={(event) => {
-              event.stopPropagation();
-              insertShotAfter(shot.id);
-              setInsertMenuShotId(null);
+            onClick={() => {
+              insertShotAfter(insertMenu.shotId);
+              setInsertMenu(null);
             }}
             className="w-full px-2.5 py-2 rounded-lg hover:bg-sky-500 hover:text-white text-[11px]"
           >
@@ -252,10 +289,9 @@ export const ShotListPanel: React.FC = () => {
             <span className="block opacity-70 mt-0.5">Between 1 and 2 becomes 1A; shot 2 stays 2.</span>
           </button>
           <button
-            onClick={(event) => {
-              event.stopPropagation();
-              insertShotAfter(shot.id, { renumberRest: true });
-              setInsertMenuShotId(null);
+            onClick={() => {
+              insertShotAfter(insertMenu.shotId, { renumberRest: true });
+              setInsertMenu(null);
             }}
             className="w-full px-2.5 py-2 rounded-lg hover:bg-violet-500 hover:text-white text-[11px]"
           >
@@ -263,9 +299,9 @@ export const ShotListPanel: React.FC = () => {
             <span className="block opacity-70 mt-0.5">New shot becomes 2; old shot 2 and following shots shift up.</span>
           </button>
         </div>
-      )}
-    </div>
-  );
+      </>,
+      document.body
+    );
 
   return (
     <div
@@ -274,6 +310,8 @@ export const ShotListPanel: React.FC = () => {
         isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'
       }`}
     >
+      {insertMenuOverlay}
+
       {/* 1. Header & Quick Actions */}
       <div className={`p-3 border-b space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-900/90'}`}>
         <div className="flex items-center justify-between">
@@ -548,6 +586,7 @@ export const ShotListPanel: React.FC = () => {
                         isLight={isLight}
                         value={camPickerValue(shot)}
                         options={camPickerOptions}
+                        nextLetter={nextCameraLetter}
                         onPick={(id) => pickCamera(shot, id)}
                       />
                     </div>
@@ -907,6 +946,7 @@ export const ShotListPanel: React.FC = () => {
                           isLight={isLight}
                           value={camPickerValue(shot)}
                           options={camPickerOptions}
+                          nextLetter={nextCameraLetter}
                           onPick={(id) => pickCamera(shot, id)}
                         />
                       </td>

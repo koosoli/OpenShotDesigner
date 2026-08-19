@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CameraElement, Shot, Vector2D } from '../../types';
 
 interface StoryboardThumbProps {
@@ -29,10 +29,16 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
   const thumbW = 90;
   const thumbH = thumbW / ratio;
 
+  // The thumbnail follows the pointer from local state and is written to the
+  // shot once, on release. Committing on every move raced with the canvas's own
+  // drag handling and could snap the thumbnail back to where it started.
+  const [drag, setDrag] = useState<{ shotId: string; pos: Vector2D } | null>(null);
+
   return (
     <g className="storyboard-thumb-layer">
       {items.map(({ camera, shot }) => {
-        const pos = shot.storyboardCanvasPosition || { x: camera.x + 110, y: camera.y - 60 };
+        const storedPos = shot.storyboardCanvasPosition || { x: camera.x + 110, y: camera.y - 60 };
+        const pos = drag?.shotId === shot.id ? drag.pos : storedPos;
         const fit = shot.storyboardFit || 'cover';
         const canDrag = isInteractive;
         const clipId = `sb-clip-${shot.id}`;
@@ -40,11 +46,13 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
         const handlePointerDown = (e: React.PointerEvent) => {
           e.stopPropagation();
           e.preventDefault();
+          if (!canDrag) return;
           onSelectCamera(camera.id);
 
           const startMouse = { x: e.clientX, y: e.clientY };
-          const startPos = { ...pos };
+          const startPos = { ...storedPos };
           let finalPos = startPos;
+          let moved = false;
 
           const handlePointerMove = (moveEvent: PointerEvent) => {
             const dx = (moveEvent.clientX - startMouse.x) / canvasScale;
@@ -53,19 +61,22 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
               x: Math.round(startPos.x + dx),
               y: Math.round(startPos.y + dy),
             };
-            onDragThumb(shot.id, finalPos);
+            moved = true;
+            setDrag({ shotId: shot.id, pos: finalPos });
           };
 
           const handlePointerUp = () => {
-            onDropToCamera?.(shot, finalPos);
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
+            setDrag(null);
+            // A click that never moved shouldn't write anything.
+            if (!moved) return;
+            onDragThumb(shot.id, finalPos);
+            onDropToCamera?.(shot, finalPos);
           };
 
-          if (canDrag) {
-            window.addEventListener('pointermove', handlePointerMove);
-            window.addEventListener('pointerup', handlePointerUp);
-          }
+          window.addEventListener('pointermove', handlePointerMove);
+          window.addEventListener('pointerup', handlePointerUp);
         };
 
         return (

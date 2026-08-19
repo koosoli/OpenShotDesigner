@@ -38,6 +38,13 @@ export const CAMERA_HEIGHTS: { value: CameraHeight; label: string }[] = [
   { value: 'Overhead / Bird\'s Eye', label: 'Overhead / Bird\'s Eye' },
 ];
 
+/** Exposure / recording options shared by the viewfinder and the inspector. */
+export const APERTURES = ['f/1.2', 'f/1.4', 'f/2', 'f/2.8', 'f/4', 'f/5.6', 'f/8', 'f/11', 'f/16', 'f/22'];
+export const ISO_VALUES = [100, 200, 400, 640, 800, 1250, 1600, 3200, 6400, 12800];
+export const SHUTTER_ANGLES = [45, 90, 144, 172.8, 180, 270, 360];
+export const FRAME_RATES = [23.976, 24, 25, 29.97, 30, 48, 50, 60, 120];
+export const ND_FILTERS = ['None', '0.3', '0.6', '0.9', '1.2', '1.5', '1.8', '2.1'];
+
 export const CAMERA_RIGS: { value: CameraRigType; label: string; icon: string }[] = [
   { value: 'Tripod', label: 'Tripod (Locked off)', icon: 'camera' },
   { value: 'Dana Dolly', label: 'Dana Dolly / Rail Track', icon: 'rail-symbol' },

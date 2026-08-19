@@ -28,6 +28,8 @@ import {
 } from '../../constants/presets';
 import { flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
 import { hexToHsv, hexToRgbParts, hsvToHex, rgbToHex } from '../../utils/geometry';
+import { APERTURES, FRAME_RATES, ISO_VALUES, ND_FILTERS, SHUTTER_ANGLES } from '../../constants/presets';
+import { loadLogoFile, loadStoryboardImageFile } from '../../utils/image';
 import {
   Camera,
   Compass,
@@ -38,6 +40,7 @@ import {
   Flame,
   FlipHorizontal,
   Image as ImageIcon,
+  ImagePlus,
   Lightbulb,
   Lock,
   Maximize,
@@ -146,9 +149,10 @@ const StoryboardField: React.FC<{
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange(reader.result as string);
-    reader.readAsDataURL(file);
+    // Downscaled so big photos still fit in the browser's storage.
+    loadStoryboardImageFile(file)
+      .then((dataUrl) => onChange(dataUrl))
+      .catch(() => setImgError(true));
     e.target.value = '';
   };
 
@@ -484,6 +488,7 @@ const WaypointListEditor: React.FC<{
 };
 
 export const InspectorPanel: React.FC = () => {
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
   const {
     activeSetup,
     project,
@@ -512,6 +517,10 @@ export const InspectorPanel: React.FC = () => {
   } = useFloorPlan();
 
   const isLight = theme === 'light';
+  // Shared styling for the camera exposure dropdowns
+  const selectClass = `w-full border rounded px-1.5 py-1 text-[11px] ${
+    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+  }`;
 
   // Dedicated Reference Image inspector — shown when a background image is
   // selected on the canvas (separate from the Scene Setup inspector).
@@ -871,8 +880,64 @@ export const InspectorPanel: React.FC = () => {
                   />
                 </div>
               </div>
+              {/* Production logo — stamped on exported plans */}
+              <div>
+                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Logo</label>
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-16 h-12 rounded-lg border flex items-center justify-center overflow-hidden flex-shrink-0 ${
+                      isLight ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'
+                    }`}
+                  >
+                    {project.logo ? (
+                      <img src={project.logo} alt="Production logo" className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <ImagePlus className="w-4 h-4 opacity-40" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          loadLogoFile(file)
+                            .then(({ dataUrl, name }) => updateProjectMeta({ logo: dataUrl, logoName: name }))
+                            .catch(() => alert('Could not load that image as a logo.'));
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => logoInputRef.current?.click()}
+                        className={`px-2 py-1 rounded-lg border text-[11px] font-semibold ${
+                          isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+                        }`}
+                      >
+                        {project.logo ? 'Replace logo' : 'Upload logo'}
+                      </button>
+                      {project.logo && (
+                        <button
+                          onClick={() => updateProjectMeta({ logo: undefined, logoName: undefined })}
+                          className="px-2 py-1 rounded-lg border border-rose-500/50 text-rose-500 text-[11px] font-semibold"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className={`text-[10px] truncate ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {project.logoName || 'PNG with transparency works best'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-                These values appear in the header of the exported plan.
+                These values — logo included — appear in the header of the exported plan.
               </p>
             </div>
           </div>
@@ -1543,6 +1608,84 @@ export const InspectorPanel: React.FC = () => {
                       />
                     ))}
                   </div>
+                </div>
+              </div>
+
+              {/* Exposure & recording — same settings as the viewfinder HUD */}
+              <div className={`rounded-lg border p-2 space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/40'}`}>
+                <h5 className="text-[10px] font-bold uppercase tracking-wider opacity-60 flex items-center gap-1.5">
+                  <Sliders className="w-3 h-3 text-amber-500" /> Exposure & Recording
+                </h5>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="opacity-60 block mb-1">Iris / T-stop</label>
+                    <select
+                      value={cam.aperture || 'f/2.8'}
+                      onChange={(e) => updateElement(cam.id, { aperture: e.target.value })}
+                      className={selectClass}
+                    >
+                      {APERTURES.map((value) => (
+                        <option key={value} value={value}>{value}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="opacity-60 block mb-1">ISO</label>
+                    <select
+                      value={cam.iso ?? 800}
+                      onChange={(e) => updateElement(cam.id, { iso: Number(e.target.value) })}
+                      className={selectClass}
+                    >
+                      {ISO_VALUES.map((value) => (
+                        <option key={value} value={value}>{value}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="opacity-60 block mb-1">Shutter Angle</label>
+                    <select
+                      value={cam.shutterAngle ?? 180}
+                      onChange={(e) => updateElement(cam.id, { shutterAngle: Number(e.target.value) })}
+                      className={selectClass}
+                    >
+                      {SHUTTER_ANGLES.map((value) => (
+                        <option key={value} value={value}>{value}°</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="opacity-60 block mb-1">ND Filter</label>
+                    <select
+                      value={cam.ndFilter || 'None'}
+                      onChange={(e) => updateElement(cam.id, { ndFilter: e.target.value })}
+                      className={selectClass}
+                    >
+                      {ND_FILTERS.map((value) => (
+                        <option key={value} value={value}>{value}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {(() => {
+                    // Frame rate belongs to the shot this camera covers.
+                    const fpsShot =
+                      activeSetup.shots.find((shot) => shot.id === cam.associatedShotId) ||
+                      activeSetup.shots.find((shot) => shot.cameraId === cam.id);
+                    if (!fpsShot) return null;
+                    return (
+                      <div>
+                        <label className="opacity-60 block mb-1">Frame Rate (shot {fpsShot.shotNumber})</label>
+                        <select
+                          value={fpsShot.frameRate ?? 24}
+                          onChange={(e) => updateShot(fpsShot.id, { frameRate: Number(e.target.value) })}
+                          className={selectClass}
+                        >
+                          {FRAME_RATES.map((value) => (
+                            <option key={value} value={value}>{value} fps</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

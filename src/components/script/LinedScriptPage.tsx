@@ -386,9 +386,12 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
             const shot = shotFor(mark);
             const isActive = selectedShotId === mark.shotId;
             const label = shot?.shotNumber || mark.label;
-            // The description follows the shot so edits in the shot list show up
-            // on the lined script too.
-            const description = shot?.framingDescription || mark.description || '';
+            // The lining shows what the user wrote for it; if they never wrote
+            // one it falls back to the shot's framing note, trimmed so a pasted
+            // action line can't run across the page.
+            const rawDescription = mark.description || shot?.framingDescription || '';
+            const description =
+              rawDescription.length > 42 ? `${rawDescription.slice(0, 42).trimEnd()}…` : rawDescription;
             const centre = LANE_WIDTH / 2;
             const strokeWidth = isActive ? 2.4 : 1.6;
 

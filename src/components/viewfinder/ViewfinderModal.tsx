@@ -1,8 +1,18 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { ActorElement, CameraElement, PropElement } from '../../types';
 import { isPointInCameraFov } from '../../utils/geometry';
-import { FOCAL_LENGTH_PRESETS, SENSOR_FORMATS } from '../../constants/presets';
+import { loadStoryboardImageFile } from '../../utils/image';
+import {
+  APERTURES,
+  ASPECT_RATIOS,
+  FOCAL_LENGTH_PRESETS,
+  FRAME_RATES,
+  ISO_VALUES,
+  ND_FILTERS,
+  SENSOR_FORMATS,
+  SHUTTER_ANGLES,
+} from '../../constants/presets';
 import {
   Camera,
   ChevronLeft,
@@ -14,14 +24,33 @@ import {
   Maximize2,
   Minimize2,
   RotateCw,
+  Image as ImageIcon,
   Save,
   Smartphone,
+  SwitchCamera,
+  Video,
+  VideoOff,
   Shield,
   Sliders,
   Sparkles,
   User,
   X,
 } from 'lucide-react';
+
+const CAMERA_HEIGHTS: NonNullable<CameraElement['cameraHeight']>[] = [
+  'Ground',
+  'Knee',
+  'Waist',
+  'Eye Level',
+  'High',
+  'Low Angle',
+  'High Angle',
+  'Overhead / Bird\'s Eye',
+  'Dutch Angle',
+];
+
+const hudSelect =
+  'bg-slate-950 border border-slate-800 text-slate-200 rounded-md px-1.5 py-0.5 text-xs font-mono focus:outline-none focus:border-sky-500 cursor-pointer';
 
 export const ViewfinderModal: React.FC = () => {
   const {
@@ -32,16 +61,96 @@ export const ViewfinderModal: React.FC = () => {
     closeViewfinder,
     updateElement,
     updateShot,
+    addShot,
     selectedShotId,
   } = useFloorPlan();
 
   const [showRuleOfThirds, setShowRuleOfThirds] = useState(true);
   const [showCrosshair, setShowCrosshair] = useState(true);
   const [showSafeAreas, setShowSafeAreas] = useState(true);
-  const [aperture, setAperture] = useState<'f/1.4' | 'f/2.8' | 'f/5.6' | 'f/11'>('f/2.8');
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [photoFeedback, setPhotoFeedback] = useState(false);
+  const [showStoryboard, setShowStoryboard] = useState(true);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Live camera (laptop webcam, phone or iPad camera) shown inside the finder
+  // with every guide drawn on top, so a storyboard frame can be shot on the spot.
+  const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+  /** The still grabbed on capture: the finder freezes on it until retake. */
+  const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
+  /** Set once the live <video> has real pixels (metadata loaded). */
+  const [videoReady, setVideoReady] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+
+  const stopLiveCamera = () => {
+    setFrozenFrame(null);
+    setVideoReady(false);
+    setLiveStream((current) => {
+      current?.getTracks().forEach((track) => track.stop());
+      return null;
+    });
+  };
+
+  const startLiveCamera = async (mode: 'environment' | 'user' = facingMode) => {
+    setLiveError(null);
+    setFrozenFrame(null);
+    setVideoReady(false);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setLiveError('This browser cannot open a camera. Use “Photo file” instead.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: mode }, width: { ideal: 1920 } },
+        audio: false,
+      });
+      // Swap streams in one step so the old tracks always get released.
+      setLiveStream((current) => {
+        current?.getTracks().forEach((track) => track.stop());
+        return stream;
+      });
+      setFacingMode(mode);
+    } catch (error) {
+      setLiveError(
+        (error as DOMException)?.name === 'NotAllowedError'
+          ? 'Camera permission was declined — allow it in the browser and try again.'
+          : 'No camera available on this device.'
+      );
+    }
+  };
+
+  // Attach / release the stream, and never leave the camera running.
+  useEffect(() => {
+    if (videoRef.current && liveStream) {
+      videoRef.current.srcObject = liveStream;
+      videoRef.current.play().catch(() => undefined);
+    }
+  }, [liveStream]);
+
+  useEffect(() => {
+    if (!isViewfinderOpen) stopLiveCamera();
+  }, [isViewfinderOpen]);
+
+  useEffect(() => () => stopLiveCamera(), []);
+
+  // Space / Enter works as the shutter while the live picture is on screen.
+  useEffect(() => {
+    if (!liveStream) return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        if (!frozenFrame) captureLiveFrame();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   if (!isViewfinderOpen) return null;
 
@@ -128,40 +237,185 @@ export const ViewfinderModal: React.FC = () => {
     }
   };
 
+  // The shot this camera covers — where storyboard art is read from and saved to.
+  const targetShot =
+    activeSetup.shots.find((shot) => shot.id === selectedCamera.associatedShotId) ||
+    activeSetup.shots.find((shot) => shot.cameraId === selectedCamera.id) ||
+    activeSetup.shots.find((shot) => shot.id === selectedShotId);
+
+  // Exposure / recording settings: stored on the camera (and the shot's frame
+  // rate) so they survive, print, and travel with the project.
+  const aperture = selectedCamera.aperture || 'f/2.8';
+  const iso = selectedCamera.iso ?? 800;
+  const shutterAngle = selectedCamera.shutterAngle ?? 180;
+  const ndFilter = selectedCamera.ndFilter || 'None';
+  const frameRate = targetShot?.frameRate ?? 24;
+  const shutterSpeed = frameRate > 0 ? Math.round((360 / shutterAngle) * frameRate) : 0;
+
+  // True when the frame carries real imagery (live feed or attached art), in
+  // which case the simulated silhouettes would only get in the way.
+  const showsRealImage = !!liveStream || !!frozenFrame || (showStoryboard && !!targetShot?.storyboardImage);
+
+  const framingNotes = () => {
+    const subjectNames = visibleActors.map((a) => a.actor.name || a.actor.characterLetter).join(', ');
+    return `Shot on Cam ${selectedCamera.cameraLabel} (${focal}mm, ${selectedCamera.aspectRatio}). In frame: ${
+      subjectNames || 'Empty frame'
+    }.`;
+  };
+
+  /**
+   * "Save Framing to Shot" — and, while the live camera is running, it is also
+   * the shutter: it freezes the moment and stores it as the storyboard. Image
+   * and framing go into ONE updateShot call; two calls in a row would each
+   * start from the same stale setup and the second would drop the first.
+   */
   const handleSaveFramingToShot = () => {
-    const targetShot = activeSetup.shots.find((shot) => shot.id === selectedCamera.associatedShotId)
-      || activeSetup.shots.find((shot) => shot.cameraId === selectedCamera.id)
-      || activeSetup.shots.find((shot) => shot.id === selectedShotId);
+    if (!targetShot) {
+      // No shot on this camera yet: capture (or create) instead of refusing.
+      if (liveStream) {
+        const frame = frozenFrame || grabFrame();
+        if (!frame) {
+          setLiveError('The camera picture is not ready yet — wait until you can see it, then save.');
+          return;
+        }
+        setFrozenFrame(frame);
+        videoRef.current?.pause();
+        saveStoryboardImage(frame);
+      } else {
+        addShot({
+          cameraId: selectedCamera.id,
+          cameraLabel: selectedCamera.cameraLabel,
+          lensMm: focal,
+          framingDescription: framingNotes(),
+        });
+        setSaveNote(`Created a shot for Cam ${selectedCamera.cameraLabel}.`);
+      }
+      setSavedFeedback(true);
+      setTimeout(() => setSavedFeedback(false), 2200);
+      return;
+    }
+
+    const framing = {
+      cameraId: selectedCamera.id,
+      cameraLabel: selectedCamera.cameraLabel,
+      lensMm: focal,
+      framingDescription: targetShot.framingDescription || framingNotes(),
+    };
+
+    if (liveStream) {
+      const frame = frozenFrame || grabFrame();
+      if (!frame) {
+        setLiveError('The camera picture is not ready yet — wait until you can see it, then save.');
+        return;
+      }
+      setFrozenFrame(frame);
+      videoRef.current?.pause();
+      updateShot(targetShot.id, { ...framing, storyboardImage: frame, storyboardFit: 'cover' });
+      setShowStoryboard(true);
+      setPhotoFeedback(true);
+      setSaveNote(`Storyboard and framing saved to shot ${targetShot.shotNumber}.`);
+      setTimeout(() => setPhotoFeedback(false), 2200);
+    } else {
+      updateShot(targetShot.id, framing);
+    }
+    setSavedFeedback(true);
+    setTimeout(() => setSavedFeedback(false), 2200);
+  };
+
+  /**
+   * Grab the current live frame, cropped to the camera's aspect ratio exactly
+   * as it is composed in the finder, and store it as this shot's storyboard.
+   */
+  /** Grab the current frame as a JPEG cropped to the camera's aspect ratio. */
+  const grabFrame = (): string | null => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) return null;
+
+    const targetRatio =
+      ASPECT_RATIOS.find((entry) => entry.value === (selectedCamera.aspectRatio || '16:9'))?.ratio || 16 / 9;
+    const sourceRatio = video.videoWidth / video.videoHeight;
+
+    // Centre-crop the sensor image to the framing the user sees ("cover")
+    let sw = video.videoWidth;
+    let sh = video.videoHeight;
+    if (sourceRatio > targetRatio) sw = Math.round(video.videoHeight * targetRatio);
+    else sh = Math.round(video.videoWidth / targetRatio);
+    const sx = Math.round((video.videoWidth - sw) / 2);
+    const sy = Math.round((video.videoHeight - sh) / 2);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.min(1280, sw);
+    canvas.height = Math.max(1, Math.round(canvas.width / targetRatio));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    try {
+      return canvas.toDataURL('image/jpeg', 0.82);
+    } catch {
+      return null;
+    }
+  };
+
+  /**
+   * Capture freezes the finder on the exact moment that was taken and stores it
+   * on the shot. Every failure says why — a silent no-op is what made this look
+   * like nothing was being saved.
+   */
+  /**
+   * Store a storyboard image on this camera's shot. If the camera has no shot
+   * yet, one is created for it in the same commit — capturing must never be a
+   * dead end.
+   */
+  const saveStoryboardImage = (image: string) => {
     if (targetShot) {
-      const subjectNames = visibleActors.map((a) => a.actor.name || a.actor.characterLetter).join(', ');
-      const desc = `Shot on Cam ${selectedCamera.cameraLabel} (${focal}mm, ${selectedCamera.aspectRatio}). In frame: ${
-        subjectNames || 'Empty frame'
-      }.`;
-      updateShot(targetShot.id, {
+      updateShot(targetShot.id, { storyboardImage: image, storyboardFit: 'cover' });
+      setSaveNote(`Storyboard saved to shot ${targetShot.shotNumber}.`);
+    } else {
+      addShot({
         cameraId: selectedCamera.id,
         cameraLabel: selectedCamera.cameraLabel,
         lensMm: focal,
-        framingDescription: desc,
+        framingDescription: framingNotes(),
+        storyboardImage: image,
+        storyboardFit: 'cover',
       });
-      setSavedFeedback(true);
-      setTimeout(() => setSavedFeedback(false), 2200);
+      setSaveNote(`Created a shot for Cam ${selectedCamera.cameraLabel} and saved the storyboard to it.`);
     }
+    setShowStoryboard(true);
+    setPhotoFeedback(true);
+    setTimeout(() => setPhotoFeedback(false), 2200);
+  };
+
+  const captureLiveFrame = () => {
+    setLiveError(null);
+
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) {
+      setLiveError('The camera picture is not ready yet — wait until you can see it, then capture.');
+      return;
+    }
+
+    const frame = grabFrame();
+    if (!frame) {
+      setLiveError('That frame could not be read from the camera.');
+      return;
+    }
+
+    // Freeze first, so the moment taken is on screen whatever happens next.
+    setFrozenFrame(frame);
+    video.pause();
+    saveStoryboardImage(frame);
   };
 
   const handleCameraPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const targetShot = activeSetup.shots.find((shot) => shot.id === selectedCamera.associatedShotId)
-      || activeSetup.shots.find((shot) => shot.cameraId === selectedCamera.id)
-      || activeSetup.shots.find((shot) => shot.id === selectedShotId);
-    if (!targetShot) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      updateShot(targetShot.id, { storyboardImage: String(reader.result), storyboardFit: 'cover' });
-      setPhotoFeedback(true);
-      setTimeout(() => setPhotoFeedback(false), 2200);
-    };
-    reader.readAsDataURL(file);
+    setLiveError(null);
+    // Phone photos are many megabytes — downscale before storing, otherwise the
+    // project exceeds the browser's storage quota and nothing is kept.
+    loadStoryboardImageFile(file)
+      .then((dataUrl) => saveStoryboardImage(dataUrl))
+      .catch(() => setLiveError('That photo could not be read.'));
     event.target.value = '';
   };
 
@@ -240,10 +494,45 @@ export const ViewfinderModal: React.FC = () => {
         <div className="relative flex-1 bg-black flex items-center justify-center p-2 sm:p-4 min-h-[220px] sm:min-h-[360px] overflow-hidden">
           {/* Framed Monitor Screen */}
           <div
+            ref={frameRef}
             className={`relative w-full ${getAspectRatioStyle(
               selectedCamera.aspectRatio
             )} bg-slate-950 border-2 border-slate-700 shadow-2xl rounded-lg overflow-hidden flex items-center justify-center`}
           >
+            {/* Live camera feed — every guide below is drawn on top of it. The
+                element stays mounted while the camera runs so the stream is
+                never detached by an unrelated re-render. */}
+            {liveStream && (
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                autoPlay
+                onLoadedMetadata={(event) => {
+                  setVideoReady(true);
+                  // Some browsers ignore autoplay until play() is called explicitly
+                  (event.currentTarget as HTMLVideoElement).play().catch(() => undefined);
+                }}
+                onCanPlay={() => setVideoReady(true)}
+                className={`absolute inset-0 w-full h-full object-cover z-[5] ${frozenFrame ? 'invisible' : ''}`}
+              />
+            )}
+
+            {/* Frozen capture: the exact moment that was taken */}
+            {frozenFrame && (
+              <img src={frozenFrame} alt="Captured frame" className="absolute inset-0 w-full h-full object-cover z-[6]" />
+            )}
+
+            {/* Attached storyboard art, shown as the frame's backing plate */}
+            {!liveStream && showStoryboard && targetShot?.storyboardImage && (
+              <img
+                src={targetShot.storyboardImage}
+                alt={`Storyboard for shot ${targetShot.shotNumber}`}
+                className="absolute inset-0 w-full h-full z-[5]"
+                style={{ objectFit: targetShot.storyboardFit || 'cover' }}
+              />
+            )}
+
             {/* Cinematic Studio Horizon & Perspective Grid */}
             <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex flex-col justify-end pointer-events-none">
               {/* Ceiling grid lines */}
@@ -290,8 +579,8 @@ export const ViewfinderModal: React.FC = () => {
               </>
             )}
 
-            {/* Simulated 3D Props in FOV */}
-            {visibleProps.map(({ prop, normalizedX, distance }) => {
+            {/* Simulated 3D Props in FOV (hidden behind live video / artwork) */}
+            {!showsRealImage && visibleProps.map(({ prop, normalizedX, distance }) => {
               const scale = Math.max(0.3, Math.min(1.8, 160 / distance));
               const leftPercent = 50 + normalizedX * 42;
               return (
@@ -315,7 +604,7 @@ export const ViewfinderModal: React.FC = () => {
             })}
 
             {/* Simulated 3D Actor Silhouettes in FOV */}
-            {visibleActors.length === 0 && visibleProps.length === 0 ? (
+            {showsRealImage ? null : visibleActors.length === 0 && visibleProps.length === 0 ? (
               <div className="relative z-10 text-center text-slate-400 text-xs px-6 py-4 bg-slate-950/70 border border-slate-800 rounded-xl">
                 <Eye className="w-6 h-6 mx-auto text-sky-500 mb-1.5" />
                 <p className="font-mono font-bold text-slate-200">NO SUBJECTS IN FIELD OF VIEW</p>
@@ -374,6 +663,45 @@ export const ViewfinderModal: React.FC = () => {
               })
             )}
 
+            {/* Live camera: a proper shutter button, on the picture itself */}
+            {liveStream && !frozenFrame && (
+              <div className="absolute bottom-10 left-0 right-0 z-40 flex flex-col items-center gap-1.5">
+                <button
+                  onClick={captureLiveFrame}
+                  title="Take this frame as the storyboard (Space)"
+                  className={`w-14 h-14 rounded-full border-4 shadow-2xl flex items-center justify-center transition-transform active:scale-95 ${
+                    videoReady
+                      ? 'border-white bg-red-600 hover:bg-red-500'
+                      : 'border-slate-400 bg-slate-700 cursor-wait'
+                  }`}
+                >
+                  <Camera className="w-6 h-6 text-white" />
+                </button>
+                <span className="px-2 py-0.5 rounded bg-black/70 text-[10px] font-mono text-white">
+                  {videoReady
+                    ? `LIVE ${videoRef.current?.videoWidth || 0}×${videoRef.current?.videoHeight || 0} — press to capture`
+                    : 'Starting camera…'}
+                </span>
+              </div>
+            )}
+
+            {/* What the frame is showing right now */}
+            {showsRealImage && (
+              <div className="absolute top-12 left-4 z-30 pointer-events-none">
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                    frozenFrame ? 'bg-amber-500 text-black' : liveStream ? 'bg-red-600 text-white' : 'bg-violet-600 text-white'
+                  }`}
+                >
+                  {frozenFrame
+                    ? 'CAPTURED FRAME'
+                    : liveStream
+                      ? 'LIVE CAMERA'
+                      : `STORYBOARD ${targetShot?.shotNumber || ''}`}
+                </span>
+              </div>
+            )}
+
             {/* Cinematic Camera Telemetry HUD Overlay (Top) */}
             <div className="absolute top-3 left-4 right-4 flex items-center justify-between text-[11px] font-mono text-emerald-400 drop-shadow z-30 pointer-events-none">
               <div className="flex items-center gap-2 bg-black/60 px-2 py-1 rounded backdrop-blur-xs">
@@ -381,10 +709,13 @@ export const ViewfinderModal: React.FC = () => {
                 <span className="font-bold text-red-400">REC [00:02:14:08]</span>
               </div>
               <div className="flex items-center gap-3 text-slate-200 bg-black/60 px-2.5 py-1 rounded backdrop-blur-xs">
-                <span>FPS: 24.00</span>
-                <span>SHUTTER: 180°</span>
+                <span>FPS: {frameRate.toFixed(2)}</span>
+                <span>
+                  SHUTTER: {shutterAngle}° {shutterSpeed ? `(1/${shutterSpeed})` : ''}
+                </span>
                 <span className="text-amber-400 font-bold">{aperture}</span>
-                <span>ISO: 800</span>
+                <span>ISO: {iso}</span>
+                {ndFilter !== 'None' && <span className="text-emerald-400">ND {ndFilter}</span>}
                 <span className="text-sky-400 font-bold">{focal}mm</span>
               </div>
             </div>
@@ -401,6 +732,154 @@ export const ViewfinderModal: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {liveError && (
+          <div className="px-4 py-2 bg-rose-950/70 border-t border-rose-800 text-[11px] text-rose-200">
+            {liveError}
+          </div>
+        )}
+
+        {saveNote && !liveError && (
+          <div className="px-4 py-2 bg-emerald-950/70 border-t border-emerald-800 text-[11px] text-emerald-200 flex items-center justify-between gap-2">
+            <span>{saveNote}</span>
+            <button onClick={() => setSaveNote(null)} className="opacity-70 hover:opacity-100">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* 3a. Exposure & recording settings — everything on the HUD is editable */}
+        <div className="px-4 py-2 bg-slate-900 border-t border-slate-800 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          <span className="text-slate-400 font-medium">Exposure:</span>
+
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">Iris</span>
+            <select
+              value={aperture}
+              onChange={(e) => updateElement(selectedCamera.id, { aperture: e.target.value })}
+              className={hudSelect}
+            >
+              {APERTURES.map((value) => (
+                <option key={value} value={value} className="bg-slate-900">
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">ISO</span>
+            <select
+              value={iso}
+              onChange={(e) => updateElement(selectedCamera.id, { iso: Number(e.target.value) })}
+              className={hudSelect}
+            >
+              {ISO_VALUES.map((value) => (
+                <option key={value} value={value} className="bg-slate-900">
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">Shutter</span>
+            <select
+              value={shutterAngle}
+              onChange={(e) => updateElement(selectedCamera.id, { shutterAngle: Number(e.target.value) })}
+              className={hudSelect}
+            >
+              {SHUTTER_ANGLES.map((value) => (
+                <option key={value} value={value} className="bg-slate-900">
+                  {value}°
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">FPS</span>
+            <select
+              value={frameRate}
+              onChange={(e) => targetShot && updateShot(targetShot.id, { frameRate: Number(e.target.value) })}
+              disabled={!targetShot}
+              title={targetShot ? 'Frame rate for this shot' : 'This camera has no shot yet'}
+              className={`${hudSelect} ${targetShot ? '' : 'opacity-40 cursor-not-allowed'}`}
+            >
+              {FRAME_RATES.map((value) => (
+                <option key={value} value={value} className="bg-slate-900">
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">ND</span>
+            <select
+              value={ndFilter}
+              onChange={(e) => updateElement(selectedCamera.id, { ndFilter: e.target.value })}
+              className={hudSelect}
+            >
+              {ND_FILTERS.map((value) => (
+                <option key={value} value={value} className="bg-slate-900">
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">Sensor</span>
+            <select
+              value={selectedCamera.sensorFormat}
+              onChange={(e) =>
+                updateElement(selectedCamera.id, { sensorFormat: e.target.value as CameraElement['sensorFormat'] })
+              }
+              className={hudSelect}
+            >
+              {SENSOR_FORMATS.map((entry) => (
+                <option key={entry.value} value={entry.value} className="bg-slate-900">
+                  {entry.value}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">Ratio</span>
+            <select
+              value={selectedCamera.aspectRatio}
+              onChange={(e) =>
+                updateElement(selectedCamera.id, { aspectRatio: e.target.value as CameraElement['aspectRatio'] })
+              }
+              className={hudSelect}
+            >
+              {ASPECT_RATIOS.map((entry) => (
+                <option key={entry.value} value={entry.value} className="bg-slate-900">
+                  {entry.value}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">Height</span>
+            <select
+              value={selectedCamera.cameraHeight || 'Eye Level'}
+              onChange={(e) =>
+                updateElement(selectedCamera.id, { cameraHeight: e.target.value as CameraElement['cameraHeight'] })
+              }
+              className={hudSelect}
+            >
+              {CAMERA_HEIGHTS.map((value) => (
+                <option key={value} value={value} className="bg-slate-900">
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {/* 3. Live Optical Controls Bar */}
@@ -449,16 +928,98 @@ export const ViewfinderModal: React.FC = () => {
               onChange={handleCameraPhoto}
               className="hidden"
             />
+            {/* Live camera: shoot the storyboard through the finder's guides */}
+            {liveStream ? (
+              <>
+                {frozenFrame ? (
+                  <button
+                    onClick={() => {
+                      setFrozenFrame(null);
+                      setSaveNote(null);
+                      videoRef.current?.play().catch(() => undefined);
+                    }}
+                    title="Discard this frame and go back to the live picture"
+                    className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg border bg-slate-950 text-slate-200 border-slate-700 hover:text-white"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                    <span>Retake</span>
+                  </button>
+                ) : null}
+                {!frozenFrame && (
+                <button
+                  onClick={captureLiveFrame}
+                  title={
+                    targetShot
+                      ? 'Capture this frame as the shot\'s storyboard'
+                      : 'Capture — a shot is created for this camera automatically'
+                  }
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
+                    photoFeedback ? 'bg-emerald-600 text-white' : 'bg-violet-600 hover:bg-violet-500 text-white'
+                  }`}
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{photoFeedback ? 'Storyboard attached!' : 'Capture frame'}</span>
+                </button>
+                )}
+                {!frozenFrame && (
+                <button
+                  onClick={() => startLiveCamera(facingMode === 'environment' ? 'user' : 'environment')}
+                  title="Switch between the front and rear camera"
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border bg-slate-950 text-slate-300 border-slate-800 hover:text-white"
+                >
+                  <SwitchCamera className="w-3.5 h-3.5" />
+                </button>
+                )}
+                <button
+                  onClick={() => {
+                    setFrozenFrame(null);
+                    stopLiveCamera();
+                  }}
+                  title="Stop the camera"
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border bg-slate-950 text-rose-400 border-rose-500/40 hover:text-rose-300"
+                >
+                  <VideoOff className="w-3.5 h-3.5" />
+                  <span>Stop</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => startLiveCamera()}
+                title="Open this device's camera inside the viewfinder (webcam, phone or iPad) and shoot the storyboard through these guides"
+                className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm bg-violet-600 hover:bg-violet-500 text-white"
+              >
+                <Video className="w-3.5 h-3.5" />
+                <span>Live camera</span>
+              </button>
+            )}
+
             <button
               onClick={() => cameraInputRef.current?.click()}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
-                photoFeedback ? 'bg-emerald-600 text-white' : 'bg-violet-600 hover:bg-violet-500 text-white'
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                photoFeedback
+                  ? 'bg-emerald-600 text-white border-emerald-500'
+                  : 'bg-slate-950 text-slate-300 border-slate-800 hover:text-white'
               }`}
-              title="On iPad and mobile this opens the rear camera and attaches the photo to this camera's shot"
+              title="Attach a photo from a file (on iPad and mobile this opens the camera app)"
             >
               <Smartphone className="w-3.5 h-3.5" />
-              <span>{photoFeedback ? 'Storyboard attached!' : 'Take storyboard photo'}</span>
+              <span>Photo file</span>
             </button>
+
+            {targetShot?.storyboardImage && !liveStream && (
+              <button
+                onClick={() => setShowStoryboard((shown) => !shown)}
+                title="Show or hide the attached storyboard inside the finder"
+                className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                  showStoryboard
+                    ? 'bg-slate-800 text-violet-300 border-violet-500/50'
+                    : 'bg-slate-950 text-slate-400 border-slate-800'
+                }`}
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>Board</span>
+              </button>
+            )}
             <button
               onClick={() => setShowRuleOfThirds(!showRuleOfThirds)}
               className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
@@ -505,7 +1066,9 @@ export const ViewfinderModal: React.FC = () => {
               }`}
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{savedFeedback ? 'Framing Saved!' : 'Save Framing to Shot'}</span>
+              <span>
+                {savedFeedback ? 'Saved to shot!' : liveStream ? 'Capture & save to shot' : 'Save Framing to Shot'}
+              </span>
             </button>
           </div>
         </div>
