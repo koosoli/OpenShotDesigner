@@ -8,6 +8,7 @@ interface StoryboardThumbProps {
   isInteractive: boolean;
   onDragThumb: (shotId: string, pos: Vector2D) => void;
   onSelectCamera: (cameraId: string) => void;
+  onDropToCamera?: (shot: Shot, center: Vector2D) => void;
 }
 
 /**
@@ -22,6 +23,7 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
   isInteractive,
   onDragThumb,
   onSelectCamera,
+  onDropToCamera,
 }) => {
   const ratio = aspectRatio > 0 ? aspectRatio : 16 / 9;
   const thumbW = 90;
@@ -42,17 +44,20 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
 
           const startMouse = { x: e.clientX, y: e.clientY };
           const startPos = { ...pos };
+          let finalPos = startPos;
 
           const handlePointerMove = (moveEvent: PointerEvent) => {
             const dx = (moveEvent.clientX - startMouse.x) / canvasScale;
             const dy = (moveEvent.clientY - startMouse.y) / canvasScale;
-            onDragThumb(shot.id, {
+            finalPos = {
               x: Math.round(startPos.x + dx),
               y: Math.round(startPos.y + dy),
-            });
+            };
+            onDragThumb(shot.id, finalPos);
           };
 
           const handlePointerUp = () => {
+            onDropToCamera?.(shot, finalPos);
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
           };

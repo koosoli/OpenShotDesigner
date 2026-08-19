@@ -12,6 +12,8 @@ import {
   PropElement,
   PropType,
   SceneSetup,
+  ScriptLine,
+  ScriptMark,
   Shot,
   Vector2D,
 } from '../types';
@@ -23,6 +25,18 @@ import {
   SAMPLE_SCENES,
 } from '../constants/presets';
 import { calculateFovAngle } from '../utils/geometry';
+
+/** Sections available in the export / print studio. */
+export type ExportSection = 'floorplan' | 'shotlist' | 'linedscript' | 'combined';
+
+/**
+ * Collision-proof ids. `Date.now()` alone repeats when two shots are created
+ * within the same millisecond, which made a freshly inserted shot reuse an
+ * existing shot's id and appear to overwrite it.
+ */
+let idCounter = 0;
+const newShotId = () => `shot-${Date.now().toString(36)}-${(idCounter++).toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+const newMarkId = () => `mark-${Date.now().toString(36)}-${(idCounter++).toString(36)}`;
 
 interface FloorPlanContextType {
   project: Project;
@@ -46,6 +60,8 @@ interface FloorPlanContextType {
   isViewfinderOpen: boolean;
   viewfinderCameraId: string | null;
   isExportModalOpen: boolean;
+  /** Which tab the export modal opens on (floor plan, shot list, lined script). */
+  exportSection: ExportSection;
   theme: 'dark' | 'light';
   displaySettings: DisplaySettings;
   storageWarning: string | null;
@@ -61,8 +77,8 @@ interface FloorPlanContextType {
   setCameraRig: (rig: CameraRigType) => void;
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
-  activeRightTab: 'shots' | 'inspector';
-  setActiveRightTab: (tab: 'shots' | 'inspector') => void;
+  activeRightTab: 'shots' | 'script' | 'inspector';
+  setActiveRightTab: (tab: 'shots' | 'script' | 'inspector') => void;
   selectElement: (id: string | null, multi?: boolean) => void;
   selectElements: (ids: string[]) => void;
   clearSelection: () => void;
@@ -94,6 +110,45 @@ interface FloorPlanContextType {
   renumberAllShots: (format?: 'scene_slash_number' | 'scene_alphabetic' | 'numeric' | 'alphabetic') => void;
   sortShotsBy: (criteria: 'custom' | 'shotNumber' | 'camera' | 'lens' | 'status') => void;
   createCameraAndShot: (pos?: Vector2D) => { cameraId: string; shotId: string };
+
+  // Lined script: highlight a range of screenplay lines -> shot + vertical line
+  createShotFromScriptRange: (range: {
+    startLineId: string;
+    endLineId: string;
+    /** Character offsets for word-level linings (optional). */
+    startOffset?: number;
+    endOffset?: number;
+    sceneNumber?: string;
+    description?: string;
+    shotSize?: Shot['shotSize'];
+    text?: string;
+  }) => string;
+  /** The production's screenplay — shared by every scene / setup. */
+  scriptLines: ScriptLine[];
+  scriptTitle?: string;
+  /** Linings from every scene, so one lined script shows the whole coverage. */
+  allScriptMarks: ScriptMark[];
+  /** Shots from every scene (needed to label linings that belong elsewhere). */
+  allShots: Shot[];
+  /** Which setup a lining belongs to (used to jump scenes when it is clicked). */
+  setupIdForMark: (markId: string) => string | null;
+  /**
+   * "Line this shot" flow started from the shot list: the id of the shot that
+   * is waiting for the user to highlight the screenplay it covers.
+   */
+  scriptLinkShotId: string | null;
+  startScriptLinking: (shotId: string) => void;
+  cancelScriptLinking: () => void;
+  /** Line a shot that already exists over a stretch of the screenplay. */
+  linkShotToScriptRange: (
+    shotId: string,
+    range: { startLineId: string; endLineId: string; startOffset?: number; endOffset?: number }
+  ) => void;
+  updateScriptMark: (markId: string, updates: Partial<ScriptMark>) => void;
+  /** Write a lining's description onto both the mark and its shot in one step. */
+  setLiningDescription: (markId: string, text: string) => void;
+  deleteScriptMark: (markId: string, options?: { deleteShot?: boolean }) => void;
+  setScriptLines: (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string }) => void;
   createCameraOnly: (name: string, pos?: Vector2D) => string;
   createCameraForShot: (name: string, shotId: string, lensMm?: number, pos?: Vector2D) => string;
   setShotCameraLetter: (shotId: string, letter: string) => void;
@@ -144,7 +199,8 @@ interface FloorPlanContextType {
   openViewfinder: (cameraId?: string) => void;
   closeViewfinder: () => void;
   setViewfinderCameraId: (id: string | null) => void;
-  openExportModal: () => void;
+  openExportModal: (section?: ExportSection) => void;
+  setExportSection: (section: ExportSection) => void;
   closeExportModal: () => void;
   setCanvasTransform: (scale: number, offset: Vector2D) => void;
   setCanvasViewport: (width: number, height: number) => void;
@@ -383,9 +439,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isViewfinderOpen, setIsViewfinderOpen] = useState(false);
   const [viewfinderCameraId, setViewfinderCameraId] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportSection, setExportSection] = useState<ExportSection>('floorplan');
 
   // Right Sidebar Tab State
-  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'inspector'>('shots');
+  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'script' | 'inspector'>('shots');
+  const [scriptLinkShotId, setScriptLinkShotId] = useState<string | null>(null);
 
   // Playback engine
   const [isPlaying, setIsPlaying] = useState(false);
@@ -531,8 +589,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
-    // When an element on the canvas is selected, open the inspector tab
-    setActiveRightTab('inspector');
+    // Selecting on the canvas opens the inspector — unless the user is reading
+    // the lined script, where the selection is shown by highlighting instead.
+    if (activeRightTab !== 'script') setActiveRightTab('inspector');
     setSelectedBackgroundId(null);
 
     if (multi) {
@@ -561,7 +620,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const selectElements = (ids: string[]) => {
     setSelectedElementIds(ids);
     if (ids.length > 0) {
-      setActiveRightTab('inspector');
+      if (activeRightTab !== 'script') setActiveRightTab('inspector');
       setSelectedBackgroundId(null);
     }
   };
@@ -636,7 +695,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const sensor = partial.sensorFormat || 'Super35';
 
       // Auto create a linked shot with format SceneNumber/ShotNumber (e.g. 1/1, 1/2)
-      const shotId = `shot-${Date.now()}`;
+      const shotId = newShotId();
       const shotNumber = `${activeSetup.sceneNumber || '1'}/${activeSetup.shots.length + 1}`;
 
       const createdCamera: CameraElement = {
@@ -890,13 +949,18 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteElementById = (id: string) => {
     const updatedElements = activeSetup.elements.filter((e) => e.id !== id);
-    // If it's a camera, remove or unlink shot
+    // If it's a camera, its shots go with it — and so do their linings, so the
+    // lined script never keeps a stroke for a shot that no longer exists.
+    const removedShotIds = new Set(
+      activeSetup.shots.filter((s) => s.cameraId === id).map((s) => s.id)
+    );
     const updatedShots = activeSetup.shots.filter((s) => s.cameraId !== id);
 
     const updatedSetup: SceneSetup = {
       ...activeSetup,
       elements: updatedElements,
       shots: updatedShots,
+      scriptMarks: (activeSetup.scriptMarks || []).filter((mark) => !removedShotIds.has(mark.shotId)),
     };
 
     setSelectedElementIds((prev) => prev.filter((i) => i !== id));
@@ -910,12 +974,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (selectedElementIds.length === 0) return;
     const idsSet = new Set(selectedElementIds);
     const updatedElements = activeSetup.elements.filter((e) => !idsSet.has(e.id));
+    const removedShotIds = new Set(
+      activeSetup.shots.filter((s) => idsSet.has(s.cameraId)).map((s) => s.id)
+    );
     const updatedShots = activeSetup.shots.filter((s) => !idsSet.has(s.cameraId));
 
     const updatedSetup: SceneSetup = {
       ...activeSetup,
       elements: updatedElements,
       shots: updatedShots,
+      scriptMarks: (activeSetup.scriptMarks || []).filter((mark) => !removedShotIds.has(mark.shotId)),
     };
 
     setSelectedElementIds([]);
@@ -1002,13 +1070,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (pasted.type === 'camera') {
         const cam = pasted as CameraElement;
         const linkedShot = activeSetup.shots.find((s) => s.id === el.associatedShotId);
-        const newShotId = `shot-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-        cam.associatedShotId = newShotId;
+        const copiedShotId = newShotId();
+        cam.associatedShotId = copiedShotId;
         if (linkedShot) {
           const order = activeSetup.shots.length + newShotsAdded + 1;
           const copiedShot: Shot = {
             ...linkedShot,
-            id: newShotId,
+            id: copiedShotId,
             cameraId: newId,
             cameraLabel: cam.cameraLabel,
             shotNumber: `${activeSetup.sceneNumber || '1'}/${order}`,
@@ -1113,7 +1181,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const addShot = (shotData?: Partial<Shot>): string => {
-    const id = `shot-${Date.now()}`;
+    const id = newShotId();
     const nextOrder = activeSetup.shots.length + 1;
     const isMultiCam = activeSetup.shootMode === 'multi_cam';
     const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
@@ -1219,6 +1287,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ...activeSetup,
       elements: newElements,
       shots: [...activeSetup.shots, newShot],
+      scriptLines: shotData?.scriptLineId
+        ? (activeSetup.scriptLines || []).map((line) =>
+            line.id === shotData.scriptLineId ? { ...line, linkedShotId: id } : line
+          )
+        : activeSetup.scriptLines,
     };
 
     commitSetupState(updatedSetup);
@@ -1250,7 +1323,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const num = match[1];
           const currLetter = match[2];
           if (!currLetter) {
-            targetShotNumber = `${parts[0]}/${num}B`;
+            targetShotNumber = `${parts[0]}/${num}A`;
           } else {
             const charCode = currLetter.toUpperCase().charCodeAt(0);
             const nextChar = String.fromCharCode(charCode + 1);
@@ -1265,7 +1338,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const sNum = match[1] || sceneNum;
           const currLetter = match[2];
           if (!currLetter) {
-            targetShotNumber = `${sNum}B`;
+            targetShotNumber = `${sNum}A`;
           } else {
             const charCode = currLetter.toUpperCase().charCodeAt(0);
             const nextChar = String.fromCharCode(charCode + 1);
@@ -1277,40 +1350,35 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
 
-    // Reuse the default camera (Camera A) in single-camera mode instead of
-    // creating a new camera element for the inserted shot.
-    const shotId = `shot-${Date.now()}`;
-    let shotCamId: string;
-    let newCamera: CameraElement | null = null;
-    if (existingCameras.length > 0 && !isMultiCam) {
-      const defaultCam = existingCameras.find((c) => c.cameraLabel === 'A') || existingCameras[0];
-      shotCamId = defaultCam.id;
-    } else {
-      const newCamId = `cam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-      const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
-      newCamera = {
-        id: newCamId,
-        type: 'camera',
-        name: isMultiCam ? `Camera ${nextCamLetter}` : `Camera A (Shot ${targetShotNumber})`,
-        cameraLabel: nextCamLetter,
-        color: camColor,
-        x: 350 + (existingCameras.length * 30),
-        y: 380 + (existingCameras.length * 20),
-        rotation: 0,
-        locked: false,
-        visible: true,
-        focalLength: 50,
-        sensorFormat: 'Super35',
-        fovAngle: calculateFovAngle(50, 'Super35'),
-        aspectRatio: '16:9',
-        cameraHeight: 'Eye Level',
-        rigType: 'Tripod',
-        throwDistance: 320,
-        path: [],
-        associatedShotId: shotId,
-      };
-      shotCamId = newCamId;
-    }
+    // An inserted shot is a NEW setup: it always gets its own camera element on
+    // the floor plan (same as "+ Cam & Shot"), never reuses/overwrites the
+    // camera of a neighbouring shot. In single-cam mode it keeps the 'A' label.
+    const shotId = newShotId();
+    const newCamId = `cam-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
+    const spawnPos = getNewCameraPosition();
+    const newCamera: CameraElement = {
+      id: newCamId,
+      type: 'camera',
+      name: isMultiCam ? `Camera ${nextCamLetter}` : `Camera ${nextCamLetter} (Shot ${targetShotNumber})`,
+      cameraLabel: nextCamLetter,
+      color: camColor,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      rotation: 0,
+      locked: false,
+      visible: true,
+      focalLength: 50,
+      sensorFormat: 'Super35',
+      fovAngle: calculateFovAngle(50, 'Super35'),
+      aspectRatio: '16:9',
+      cameraHeight: 'Eye Level',
+      rigType: 'Tripod',
+      throwDistance: 320,
+      path: [],
+      associatedShotId: shotId,
+    };
+    const shotCamId = newCamId;
 
     const newShot: Shot = {
       id: shotId,
@@ -1351,7 +1419,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const updatedSetup: SceneSetup = {
       ...activeSetup,
-      elements: newCamera ? [...activeSetup.elements, newCamera] : [...activeSetup.elements],
+      elements: [...activeSetup.elements, newCamera],
       shots: finalShots,
     };
 
@@ -1362,6 +1430,308 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Create a standalone camera (no auto shot) so an existing shot can be re-linked to it
+  /**
+   * Lined-script coverage: the user highlights a range of screenplay lines and
+   * that range becomes a shot (with its own camera on the floor plan) plus the
+   * vertical lining mark drawn over those lines.
+   */
+  // The screenplay lives on the project so it stays open when the user adds or
+  // switches scenes; older saves keep it on the setup and are hoisted once.
+  const scriptLines: ScriptLine[] = project.scriptLines || activeSetup.scriptLines || [];
+
+  useEffect(() => {
+    if (project.scriptLines) return;
+    const legacy = project.setups.find((setup) => (setup.scriptLines || []).length > 0);
+    if (!legacy) return;
+    setProject((prev) => ({
+      ...prev,
+      scriptTitle: prev.scriptTitle || legacy.scriptTitle,
+      scriptText: prev.scriptText || legacy.scriptText,
+      scriptLines: legacy.scriptLines,
+    }));
+  }, [project.scriptLines, project.setups]);
+
+  const allScriptMarks: ScriptMark[] = project.setups.flatMap((setup) => setup.scriptMarks || []);
+  const allShots: Shot[] = project.setups.flatMap((setup) => setup.shots);
+  const setupIdForMark = (markId: string): string | null =>
+    project.setups.find((setup) => (setup.scriptMarks || []).some((mark) => mark.id === markId))?.id || null;
+
+  /**
+   * Apply an update to whichever setup owns a lining. Edits to the scene the
+   * user is looking at go through history; edits to another scene's lining are
+   * written straight to the project.
+   */
+  const commitSetupById = (setupId: string, updater: (setup: SceneSetup) => SceneSetup) => {
+    if (setupId === activeSetup.id) {
+      commitSetupState(updater(activeSetup));
+      return;
+    }
+    setProject((prev) => ({
+      ...prev,
+      setups: prev.setups.map((setup) => (setup.id === setupId ? updater(setup) : setup)),
+    }));
+  };
+
+  const createShotFromScriptRange = (range: {
+    startLineId: string;
+    endLineId: string;
+    startOffset?: number;
+    endOffset?: number;
+    sceneNumber?: string;
+    description?: string;
+    shotSize?: Shot['shotSize'];
+    text?: string;
+  }): string => {
+    const lines = scriptLines;
+    const startIdx = lines.findIndex((line) => line.id === range.startLineId);
+    const endIdx = lines.findIndex((line) => line.id === range.endLineId);
+    if (startIdx === -1 || endIdx === -1) { console.warn('[lining] range not found', range, lines.length); return ''; }
+    const from = Math.min(startIdx, endIdx);
+    const to = Math.max(startIdx, endIdx);
+
+    // Scene number comes from the slugline covering the highlighted range.
+    let sceneNum = range.sceneNumber;
+    if (!sceneNum) {
+      for (let i = from; i >= 0; i -= 1) {
+        if (lines[i].sceneNumber) {
+          sceneNum = lines[i].sceneNumber;
+          break;
+        }
+      }
+    }
+    sceneNum = sceneNum || activeSetup.sceneNumber || '1';
+
+    // Numbered against every scene's shots: the lined script shows the whole
+    // production, so two setups covering script scene 8 must not both say 8/1.
+    const shotsInScene = allShots.filter((shot) => shot.sceneNumber === sceneNum).length;
+    const shotNumber = `${sceneNum}/${shotsInScene + 1}`;
+
+    const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
+    const isMultiCam = activeSetup.shootMode === 'multi_cam';
+    const camLetter = isMultiCam ? String.fromCharCode(65 + (existingCameras.length % 26)) : 'A';
+    const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
+    const spawnPos = getNewCameraPosition();
+
+    const shotId = newShotId();
+    const camId = `cam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const lens = 35;
+
+    const newCamera: CameraElement = {
+      id: camId,
+      type: 'camera',
+      name: `Camera ${camLetter} (Shot ${shotNumber})`,
+      cameraLabel: camLetter,
+      color: camColor,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      rotation: 0,
+      locked: false,
+      visible: true,
+      focalLength: lens,
+      sensorFormat: 'Super35',
+      fovAngle: calculateFovAngle(lens, 'Super35'),
+      aspectRatio: '16:9',
+      cameraHeight: 'Eye Level',
+      rigType: activeCameraRig,
+      throwDistance: 300,
+      path: [],
+      associatedShotId: shotId,
+    };
+
+    const coveredText = range.text || lines.slice(from, to + 1).map((line) => line.text).join('\n');
+    // The shot list's action column defaults to the highlighted screenplay text
+    // so a fresh lining already reads like the moment it covers.
+    const flattened = coveredText.replace(/\s+/g, ' ').trim();
+    const actionSummary = flattened.length > 90 ? `${flattened.slice(0, 90).trimEnd()}…` : flattened;
+
+    const newShot: Shot = {
+      id: shotId,
+      sceneNumber: sceneNum,
+      shotNumber,
+      name: range.description || actionSummary || `Shot ${shotNumber}`,
+      cameraId: camId,
+      cameraLabel: camLetter,
+      shotSize: range.shotSize || 'MS',
+      lensMm: lens,
+      cameraAngle: 'Eye Level',
+      movement: 'Static',
+      aspectRatio: activeSetup.aspectRatio || '16:9',
+      frameRate: 24,
+      subjectActorIds: [],
+      framingDescription: range.description || '',
+      actionScriptNotes: coveredText.slice(0, 600),
+      status: 'planned',
+      takesCount: 0,
+      estDurationSeconds: 20,
+      order: activeSetup.shots.length + 1,
+      scriptLineId: lines[from].id,
+    };
+
+    const mark: ScriptMark = {
+      id: newMarkId(),
+      shotId,
+      startLineId: lines[from].id,
+      endLineId: lines[to].id,
+      startOffset: range.startOffset,
+      endOffset: range.endOffset,
+      label: shotNumber,
+      description: range.description,
+      color: camColor,
+      sceneNumber: sceneNum,
+    };
+
+    const updatedSetup: SceneSetup = {
+      ...activeSetup,
+      elements: [...activeSetup.elements, newCamera],
+      shots: [...activeSetup.shots, newShot],
+      scriptMarks: [...(activeSetup.scriptMarks || []), mark],
+    };
+
+    commitSetupState(updatedSetup);
+    setSelectedShotId(shotId);
+    setSelectedElementIds([camId]);
+    return shotId;
+  };
+
+  const startScriptLinking = (shotId: string) => {
+    setScriptLinkShotId(shotId);
+    setSelectedShotId(shotId);
+    setActiveRightTab('script');
+  };
+
+  const cancelScriptLinking = () => setScriptLinkShotId(null);
+
+  const linkShotToScriptRange = (
+    shotId: string,
+    range: { startLineId: string; endLineId: string; startOffset?: number; endOffset?: number }
+  ) => {
+    const owner = project.setups.find((setup) => setup.shots.some((shot) => shot.id === shotId));
+    if (!owner) return;
+    const shot = owner.shots.find((item) => item.id === shotId);
+    if (!shot) return;
+
+    const startIdx = scriptLines.findIndex((line) => line.id === range.startLineId);
+    const endIdx = scriptLines.findIndex((line) => line.id === range.endLineId);
+    if (startIdx === -1 || endIdx === -1) return;
+    const from = Math.min(startIdx, endIdx);
+    const to = Math.max(startIdx, endIdx);
+
+    const camera = owner.elements.find(
+      (element) => element.id === shot.cameraId && element.type === 'camera'
+    ) as CameraElement | undefined;
+
+    const mark: ScriptMark = {
+      id: newMarkId(),
+      shotId,
+      startLineId: scriptLines[from].id,
+      endLineId: scriptLines[to].id,
+      startOffset: range.startOffset,
+      endOffset: range.endOffset,
+      label: shot.shotNumber,
+      description: shot.framingDescription || undefined,
+      color: camera?.color || CAMERA_COLOR_PALETTE[0],
+      sceneNumber: shot.sceneNumber,
+    };
+
+    commitSetupById(owner.id, (setup) => ({
+      ...setup,
+      // One lining per shot: re-lining a shot moves its existing stroke.
+      scriptMarks: [...(setup.scriptMarks || []).filter((item) => item.shotId !== shotId), mark],
+    }));
+
+    if (owner.id !== activeSetup.id) setActiveSetupId(owner.id);
+    setSelectedShotId(shotId);
+    setScriptLinkShotId(null);
+  };
+
+  const updateScriptMark = (markId: string, updates: Partial<ScriptMark>) => {
+    const setupId = setupIdForMark(markId);
+    if (!setupId) return;
+    commitSetupById(setupId, (setup) => {
+      const marks = setup.scriptMarks || [];
+      const mark = marks.find((m) => m.id === markId);
+      if (!mark) return setup;
+      return {
+        ...setup,
+        shots: setup.shots.map((shot) =>
+          shot.id === mark.shotId && updates.description !== undefined
+            ? { ...shot, framingDescription: updates.description, name: updates.description || shot.name }
+            : shot
+        ),
+        scriptMarks: marks.map((m) => (m.id === markId ? { ...m, ...updates } : m)),
+      };
+    });
+  };
+
+  const setLiningDescription = (markId: string, text: string) => {
+    const setupId = setupIdForMark(markId);
+    if (!setupId) return;
+    commitSetupById(setupId, (setup) => {
+      const marks = setup.scriptMarks || [];
+      const mark = marks.find((m) => m.id === markId);
+      if (!mark) return setup;
+      return {
+        ...setup,
+        shots: setup.shots.map((shot) =>
+          shot.id === mark.shotId ? { ...shot, framingDescription: text } : shot
+        ),
+        scriptMarks: marks.map((m) => (m.id === markId ? { ...m, description: text } : m)),
+      };
+    });
+  };
+
+  const deleteScriptMark = (markId: string, options?: { deleteShot?: boolean }) => {
+    const setupId = setupIdForMark(markId);
+    if (!setupId) return;
+    commitSetupById(setupId, (setup) => {
+      const marks = setup.scriptMarks || [];
+      const mark = marks.find((m) => m.id === markId);
+      if (!mark) return setup;
+
+      let updatedShots = setup.shots;
+      let updatedElements = setup.elements;
+      if (options?.deleteShot) {
+        const removedShot = setup.shots.find((shot) => shot.id === mark.shotId);
+        updatedShots = setup.shots.filter((shot) => shot.id !== mark.shotId);
+        if (removedShot?.cameraId && !updatedShots.some((shot) => shot.cameraId === removedShot.cameraId)) {
+          updatedElements = setup.elements.filter((e) => e.id !== removedShot.cameraId);
+        }
+        if (selectedShotId === mark.shotId) setSelectedShotId(null);
+      }
+
+      return {
+        ...setup,
+        elements: updatedElements,
+        shots: updatedShots,
+        scriptMarks: marks.filter((m) => m.id !== markId),
+      };
+    });
+  };
+
+  /**
+   * Replace the production's screenplay. It is stored once for the whole
+   * project (every scene sees it) and linings that no longer resolve to a line
+   * are dropped from each setup.
+   */
+  const setScriptLines = (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string }) => {
+    const numbered = lines.map((line, index) => ({ ...line, lineNumber: index + 1 }));
+    const ids = new Set(numbered.map((line) => line.id));
+    setProject((prev) => ({
+      ...prev,
+      scriptTitle: meta?.scriptTitle ?? prev.scriptTitle,
+      scriptText: meta?.scriptText ?? prev.scriptText,
+      scriptLines: numbered,
+      setups: prev.setups.map((setup) => ({
+        ...setup,
+        // The legacy per-setup copy is cleared so there is one source of truth.
+        scriptLines: undefined,
+        scriptMarks: (setup.scriptMarks || []).filter(
+          (mark) => ids.has(mark.startLineId) && ids.has(mark.endLineId)
+        ),
+      })),
+    }));
+  };
+
   const createCameraOnly = (name: string, pos?: Vector2D): string => {
     const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
     // Assign the first camera letter not currently in use (A is the shared
@@ -1531,62 +1901,64 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateShot = (id: string, updates: Partial<Shot>) => {
-    const shot = activeSetup.shots.find((s) => s.id === id);
-    if (!shot) return;
+    // Shots can be edited from the "all scenes" shot list, so the update is
+    // applied to whichever setup actually owns the shot.
+    const owner = project.setups.find((setup) => setup.shots.some((s) => s.id === id));
+    if (!owner) return;
 
-    // If lens changed in shot, reflect in floor plan camera IN THE SAME
-    // COMMIT — a separate updateElement call would be overwritten by this
-    // commit, because both rebuild the setup from the same base state.
-    let updatedElements = activeSetup.elements;
-    if (shot.cameraId && updates.lensMm !== undefined) {
-      updatedElements = activeSetup.elements.map((e) => {
-        if (e.id === shot.cameraId && e.type === 'camera') {
-          const cam = e as CameraElement;
-          return {
-            ...e,
-            focalLength: updates.lensMm,
-            fovAngle: calculateFovAngle(updates.lensMm, cam.sensorFormat),
-          } as FloorPlanElement;
-        }
-        return e;
-      });
-    }
+    commitSetupById(owner.id, (setup) => {
+      const shot = setup.shots.find((s) => s.id === id);
+      if (!shot) return setup;
 
-    const updatedShots = activeSetup.shots.map((s) =>
-      s.id === id ? ({ ...s, ...updates } as Shot) : s
-    );
+      // If lens changed in shot, reflect in floor plan camera IN THE SAME
+      // COMMIT — a separate updateElement call would be overwritten by this
+      // commit, because both rebuild the setup from the same base state.
+      let updatedElements = setup.elements;
+      if (shot.cameraId && updates.lensMm !== undefined) {
+        updatedElements = setup.elements.map((e) => {
+          if (e.id === shot.cameraId && e.type === 'camera') {
+            const cam = e as CameraElement;
+            return {
+              ...e,
+              focalLength: updates.lensMm,
+              fovAngle: calculateFovAngle(updates.lensMm, cam.sensorFormat),
+            } as FloorPlanElement;
+          }
+          return e;
+        });
+      }
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: updatedElements,
-      shots: updatedShots,
-    };
-
-    commitSetupState(updatedSetup);
+      return {
+        ...setup,
+        elements: updatedElements,
+        shots: setup.shots.map((s) => (s.id === id ? ({ ...s, ...updates } as Shot) : s)),
+      };
+    });
   };
 
   const deleteShot = (id: string) => {
-    const updatedShots = activeSetup.shots.filter((s) => s.id !== id);
-    const removedShot = activeSetup.shots.find((s) => s.id === id);
-    let updatedElements = activeSetup.elements;
-
-    // If the removed shot was the only one using its camera, remove that
-    // camera from the floor plan too so it doesn't linger on the canvas.
-    if (removedShot && removedShot.cameraId) {
-      const stillUsed = updatedShots.some((s) => s.cameraId === removedShot.cameraId);
-      if (!stillUsed) {
-        updatedElements = activeSetup.elements.filter((e) => e.id !== removedShot.cameraId);
-      }
-    }
-
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: updatedElements,
-      shots: updatedShots,
-    };
-
+    const owner = project.setups.find((setup) => setup.shots.some((s) => s.id === id));
+    if (!owner) return;
     if (selectedShotId === id) setSelectedShotId(null);
-    commitSetupState(updatedSetup);
+
+    commitSetupById(owner.id, (setup) => {
+      const updatedShots = setup.shots.filter((s) => s.id !== id);
+      const removedShot = setup.shots.find((s) => s.id === id);
+      let updatedElements = setup.elements;
+
+      // If the removed shot was the only one using its camera, remove that
+      // camera from the floor plan too so it doesn't linger on the canvas.
+      if (removedShot?.cameraId && !updatedShots.some((s) => s.cameraId === removedShot.cameraId)) {
+        updatedElements = setup.elements.filter((e) => e.id !== removedShot.cameraId);
+      }
+
+      return {
+        ...setup,
+        elements: updatedElements,
+        shots: updatedShots,
+        scriptMarks: (setup.scriptMarks || []).filter((mark) => mark.shotId !== id),
+      };
+    });
   };
 
   const reorderShots = (arg1: number | Shot[], arg2?: number) => {
@@ -2030,7 +2402,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsViewfinderOpen(false);
   };
 
-  const openExportModal = () => setIsExportModalOpen(true);
+  const openExportModal = (section?: ExportSection) => {
+    if (section) setExportSection(section);
+    setIsExportModalOpen(true);
+  };
   const closeExportModal = () => setIsExportModalOpen(false);
 
   return (
@@ -2057,6 +2432,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isViewfinderOpen,
         viewfinderCameraId,
         isExportModalOpen,
+        exportSection,
+        setExportSection,
         theme,
 
         activeRightTab,
@@ -2088,6 +2465,20 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         addShot,
         insertShotAfter,
+        scriptLines,
+        scriptTitle: project.scriptTitle,
+        allScriptMarks,
+        allShots,
+        setupIdForMark,
+        createShotFromScriptRange,
+        linkShotToScriptRange,
+        scriptLinkShotId,
+        startScriptLinking,
+        cancelScriptLinking,
+        updateScriptMark,
+        setLiningDescription,
+        deleteScriptMark,
+        setScriptLines,
         updateShot,
         deleteShot,
         reorderShots,

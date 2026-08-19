@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { ActorElement, CameraElement, PropElement } from '../../types';
 import { isPointInCameraFov } from '../../utils/geometry';
@@ -15,6 +15,7 @@ import {
   Minimize2,
   RotateCw,
   Save,
+  Smartphone,
   Shield,
   Sliders,
   Sparkles,
@@ -39,6 +40,8 @@ export const ViewfinderModal: React.FC = () => {
   const [showSafeAreas, setShowSafeAreas] = useState(true);
   const [aperture, setAperture] = useState<'f/1.4' | 'f/2.8' | 'f/5.6' | 'f/11'>('f/2.8');
   const [savedFeedback, setSavedFeedback] = useState(false);
+  const [photoFeedback, setPhotoFeedback] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   if (!isViewfinderOpen) return null;
 
@@ -126,12 +129,15 @@ export const ViewfinderModal: React.FC = () => {
   };
 
   const handleSaveFramingToShot = () => {
-    if (selectedShotId) {
+    const targetShot = activeSetup.shots.find((shot) => shot.id === selectedCamera.associatedShotId)
+      || activeSetup.shots.find((shot) => shot.cameraId === selectedCamera.id)
+      || activeSetup.shots.find((shot) => shot.id === selectedShotId);
+    if (targetShot) {
       const subjectNames = visibleActors.map((a) => a.actor.name || a.actor.characterLetter).join(', ');
       const desc = `Shot on Cam ${selectedCamera.cameraLabel} (${focal}mm, ${selectedCamera.aspectRatio}). In frame: ${
         subjectNames || 'Empty frame'
       }.`;
-      updateShot(selectedShotId, {
+      updateShot(targetShot.id, {
         cameraId: selectedCamera.id,
         cameraLabel: selectedCamera.cameraLabel,
         lensMm: focal,
@@ -142,12 +148,29 @@ export const ViewfinderModal: React.FC = () => {
     }
   };
 
+  const handleCameraPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const targetShot = activeSetup.shots.find((shot) => shot.id === selectedCamera.associatedShotId)
+      || activeSetup.shots.find((shot) => shot.cameraId === selectedCamera.id)
+      || activeSetup.shots.find((shot) => shot.id === selectedShotId);
+    if (!targetShot) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateShot(targetShot.id, { storyboardImage: String(reader.result), storyboardFit: 'cover' });
+      setPhotoFeedback(true);
+      setTimeout(() => setPhotoFeedback(false), 2200);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
+
   return (
     <div
       id="viewfinder-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-3 sm:p-6 select-none animate-in fade-in duration-200"
     >
-      <div className="relative w-full max-w-5xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+      <div className="relative w-full max-w-5xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95dvh]">
         {/* 1. Modal Header Bar */}
         <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -214,7 +237,7 @@ export const ViewfinderModal: React.FC = () => {
         </div>
 
         {/* 2. Optical Simulated Viewfinder Screen */}
-        <div className="relative flex-1 bg-black flex items-center justify-center p-4 min-h-[360px] overflow-hidden">
+        <div className="relative flex-1 bg-black flex items-center justify-center p-2 sm:p-4 min-h-[220px] sm:min-h-[360px] overflow-hidden">
           {/* Framed Monitor Screen */}
           <div
             className={`relative w-full ${getAspectRatioStyle(
@@ -418,6 +441,24 @@ export const ViewfinderModal: React.FC = () => {
 
           {/* Guide Overlay Toggles & Framing Save */}
           <div className="flex items-center gap-2">
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleCameraPhoto}
+              className="hidden"
+            />
+            <button
+              onClick={() => cameraInputRef.current?.click()}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
+                photoFeedback ? 'bg-emerald-600 text-white' : 'bg-violet-600 hover:bg-violet-500 text-white'
+              }`}
+              title="On iPad and mobile this opens the rear camera and attaches the photo to this camera's shot"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>{photoFeedback ? 'Storyboard attached!' : 'Take storyboard photo'}</span>
+            </button>
             <button
               onClick={() => setShowRuleOfThirds(!showRuleOfThirds)}
               className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${

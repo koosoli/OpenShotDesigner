@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { ActiveTool } from '../../types';
 import { CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import { loadBackgroundImageFile } from '../../utils/image';
+import { useBreakpoint } from '../../utils/useMediaQuery';
 import {
   Camera,
   DoorClosed,
@@ -20,6 +21,7 @@ import {
   Table,
   Type,
   User,
+  MoreHorizontal,
 } from 'lucide-react';
 
 interface ToolItem {
@@ -30,7 +32,10 @@ interface ToolItem {
   hasSubmenu?: boolean;
 }
 
-type Submenu = 'prop' | 'light' | 'camera';
+type Submenu = 'prop' | 'light' | 'camera' | 'overflow';
+
+/** Tools that stay on the bar when there is no room for the full palette. */
+const PRIMARY_TOOL_IDS: ActiveTool[] = ['select', 'pan', 'actor', 'camera', 'light', 'wall'];
 
 export const LeftToolbar: React.FC = () => {
   const {
@@ -48,6 +53,16 @@ export const LeftToolbar: React.FC = () => {
   } = useFloorPlan();
   const [openSubmenu, setOpenSubmenu] = useState<Submenu | null>(null);
   const floorplanInputRef = useRef<HTMLInputElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
+  const { isCompact, isTiny } = useBreakpoint();
+  // How many tool buttons fit in the palette's height. The bar never scrolls:
+  // whatever doesn't fit moves into the overflow flyout.
+  const [fitCount, setFitCount] = useState(Infinity);
+
+  // Buttons shrink on tablets; on phones the palette keeps only the primary
+  // tools and moves the rest into an overflow flyout.
+  const buttonSize = isTiny ? 'w-9 h-9' : isCompact ? 'w-9 h-9' : 'w-10 h-10';
+  const iconScale = isCompact ? 'scale-95' : '';
 
   const handleFloorplanUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,6 +74,25 @@ export const LeftToolbar: React.FC = () => {
   };
 
   const isLight = theme === 'light';
+
+  useLayoutEffect(() => {
+    const aside = asideRef.current;
+    if (!aside) return;
+
+    const measure = () => {
+      const buttonPx = isCompact ? 36 : 40;
+      const gapPx = isCompact ? 4 : 6;
+      // Quick search + divider + overflow button + upload button keep their slots.
+      const reserved = (buttonPx + gapPx) * 3 + 24;
+      const available = aside.clientHeight - reserved;
+      setFitCount(Math.max(3, Math.floor(available / (buttonPx + gapPx))));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(aside);
+    return () => observer.disconnect();
+  }, [isCompact]);
 
   const toggleSubmenu = (tool: ToolItem) => {
     setTool(tool.id);
@@ -153,6 +187,25 @@ export const LeftToolbar: React.FC = () => {
     },
   ];
 
+  // On a phone the palette keeps the primary tools, and on any short screen it
+  // keeps as many as fit; the rest move into the overflow flyout.
+  const capacity = Math.max(3, Math.min(fitCount, isTiny ? PRIMARY_TOOL_IDS.length : tools.length));
+  const ordered = isTiny
+    ? [...tools].sort((a, b) => {
+        const rank = (id: ActiveTool) => (PRIMARY_TOOL_IDS.includes(id) ? 0 : 1);
+        return rank(a.id) - rank(b.id);
+      })
+    : tools;
+  let visibleTools = ordered.slice(0, capacity);
+  const overflowTools = ordered.slice(capacity);
+  // The active tool is always on the bar, even if it normally lives in overflow.
+  if (overflowTools.some((tool) => tool.id === activeTool)) {
+    const active = overflowTools.find((tool) => tool.id === activeTool)!;
+    const displaced = visibleTools[visibleTools.length - 1];
+    visibleTools = [...visibleTools.slice(0, -1), active];
+    overflowTools.splice(overflowTools.indexOf(active), 1, displaced);
+  }
+
   const flyoutBase = `absolute left-full top-0 ml-2 border rounded-xl shadow-2xl p-2.5 z-50 animate-in fade-in slide-in-from-left-1 max-h-[80vh] overflow-y-auto custom-scrollbar ${
     isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
   }`;
@@ -169,7 +222,8 @@ export const LeftToolbar: React.FC = () => {
   return (
     <aside
       id="left-toolbar"
-      className={`relative w-14 border-r flex flex-col items-center py-3 gap-1.5 select-none z-20 transition-colors ${
+      ref={asideRef}
+      className={`relative ${isCompact ? 'w-12 py-1.5 gap-1' : 'w-14 py-3 gap-1.5'} border-r flex flex-col items-center select-none z-20 transition-colors ${
         isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
       }`}
     >
@@ -179,7 +233,7 @@ export const LeftToolbar: React.FC = () => {
           id="tool-btn-quick-search"
           onClick={() => setQuickSearchOpen(true)}
           title="Quick Search Assets (Shift+Space)"
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ring-1 ring-inset ${
+          className={`${buttonSize} rounded-xl flex items-center justify-center transition-all ring-1 ring-inset ${
             isLight
               ? 'text-slate-500 hover:text-sky-600 hover:bg-sky-50 ring-slate-200'
               : 'text-slate-400 hover:text-sky-300 hover:bg-slate-800 ring-slate-700/70'
@@ -197,7 +251,7 @@ export const LeftToolbar: React.FC = () => {
 
       <div className={`w-8 border-t my-0.5 ${isLight ? 'border-slate-200' : 'border-slate-800'}`} />
 
-      {tools.map((tool) => {
+      {visibleTools.map((tool) => {
         const isActive = activeTool === tool.id;
 
         return (
@@ -205,7 +259,8 @@ export const LeftToolbar: React.FC = () => {
             <button
               id={`tool-btn-${tool.id}`}
               onClick={() => toggleSubmenu(tool)}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+              title={`${tool.label} (${tool.shortcut})`}
+              className={`${buttonSize} ${iconScale} rounded-xl flex items-center justify-center transition-all ${
                 isActive
                   ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 scale-105'
                   : isLight
@@ -317,6 +372,51 @@ export const LeftToolbar: React.FC = () => {
         );
       })}
 
+      {/* Overflow: the tools that don't fit on a phone-sized palette */}
+      {overflowTools.length > 0 && (
+        <div className="relative group">
+          <button
+            id="tool-btn-more"
+            onClick={() => setOpenSubmenu((prev) => (prev === 'overflow' ? null : 'overflow'))}
+            title="More tools"
+            className={`${buttonSize} rounded-xl flex items-center justify-center transition-all ${
+              overflowTools.some((tool) => tool.id === activeTool)
+                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+            }`}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+
+          {openSubmenu === 'overflow' && (
+            <div className={`${flyoutBase} w-52`}>
+              <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1">More tools</div>
+              <div className="space-y-1">
+                {overflowTools.map((tool) => (
+                  <button
+                    key={tool.id}
+                    onClick={() => {
+                      setTool(tool.id);
+                      // Tools with their own palette open it straight away.
+                      setOpenSubmenu(tool.hasSubmenu ? (tool.id as Submenu) : null);
+                    }}
+                    className={listButtonClass(activeTool === tool.id)}
+                  >
+                    <span className="flex items-center gap-2">
+                      {tool.icon}
+                      <span>{tool.label}</span>
+                    </span>
+                    <span className="text-[10px] opacity-60 font-mono">{tool.shortcut}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Upload Floorplan / Reference Screenshot */}
       <div className="relative group">
         <input
@@ -329,7 +429,8 @@ export const LeftToolbar: React.FC = () => {
         <button
           id="tool-btn-upload-floorplan"
           onClick={() => floorplanInputRef.current?.click()}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border-t pt-2.5 mt-1 ${
+          title="Upload Floorplan / Screenshot"
+          className={`${buttonSize} rounded-xl flex items-center justify-center transition-all border-t pt-2.5 mt-1 ${
             isLight
               ? 'text-teal-600 hover:text-teal-700 hover:bg-teal-50 border-slate-200'
               : 'text-teal-400 hover:text-teal-300 hover:bg-slate-800 border-slate-800'

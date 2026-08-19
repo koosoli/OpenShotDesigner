@@ -9,6 +9,7 @@ interface BackgroundLayerProps {
   onSelectImage: (id: string) => void;
   onUpdate: (id: string, updates: Partial<BackgroundImage>) => void;
   onDelete: (id: string) => void;
+  onDropToCamera?: (image: BackgroundImage, center: { x: number; y: number }) => void;
 }
 
 type ResizeHandle = 'move' | 'nw' | 'ne' | 'sw' | 'se';
@@ -19,6 +20,7 @@ interface ImageDragProps {
   canDrag: boolean;
   onActivate: () => void;
   onUpdate: (updates: Partial<BackgroundImage>) => void;
+  onDropToCamera?: (image: BackgroundImage, center: { x: number; y: number }) => void;
 }
 
 const DraggableReferenceImage: React.FC<ImageDragProps> = ({
@@ -27,6 +29,7 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
   canDrag,
   onActivate,
   onUpdate,
+  onDropToCamera,
 }) => {
   const { x, y, width, height } = img;
 
@@ -45,13 +48,17 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
     const startW = width;
     const startH = height;
     const aspect = startW / startH || 1;
+    let finalX = startX;
+    let finalY = startY;
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       const dx = (moveEvent.clientX - startMouseX) / canvasScale;
       const dy = (moveEvent.clientY - startMouseY) / canvasScale;
 
       if (handle === 'move') {
-        onUpdate({ x: Math.round(startX + dx), y: Math.round(startY + dy) });
+        finalX = Math.round(startX + dx);
+        finalY = Math.round(startY + dy);
+        onUpdate({ x: finalX, y: finalY });
         return;
       }
 
@@ -80,6 +87,9 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
     };
 
     const handlePointerUp = () => {
+      if (handle === 'move') {
+        onDropToCamera?.(img, { x: finalX + startW / 2, y: finalY + startH / 2 });
+      }
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
@@ -147,6 +157,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   onSelectImage,
   onUpdate,
   onDelete,
+  onDropToCamera,
 }) => {
   const visible = backgroundImages.filter((b) => b.visible !== false);
 
@@ -166,6 +177,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
               canDrag={canDrag}
               onActivate={() => onSelectImage(img.id)}
               onUpdate={(updates) => onUpdate(img.id, updates)}
+              onDropToCamera={onDropToCamera}
             />
 
             {/* Delete button on the selected image (works alongside the Delete key) */}

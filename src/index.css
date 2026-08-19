@@ -1,5 +1,107 @@
 @import "tailwindcss";
 
+#right-sidebar {
+  width: var(--sidebar-width, 700px);
+}
+
+#floor-plan-canvas-container {
+  touch-action: none;
+}
+
+@media (max-width: 900px) {
+  /* The navbar collapses its own controls in React; CSS only keeps it tidy. */
+  #top-navbar {
+    min-height: 3rem;
+    height: auto !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  #top-navbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  #top-navbar > div {
+    flex-shrink: 0;
+  }
+
+  #top-navbar input[type='text'] {
+    max-width: 8rem;
+  }
+
+  #right-sidebar {
+    position: absolute;
+    z-index: 40;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100% !important;
+    /* Height is driven by the bottom-sheet size toggle (peek / half / full) */
+    height: var(--sheet-height, min(52vh, 520px)) !important;
+    max-height: 92vh;
+    border-left: 0 !important;
+    border-top: 1px solid rgb(51 65 85);
+    border-radius: 1rem 1rem 0 0;
+    transition: height 0.18s ease;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Drag-to-resize edge is desktop-only */
+  #right-sidebar > div:first-child {
+    display: none;
+  }
+
+  /* Tabs stay tappable: icons keep their labels but shrink */
+  #right-sidebar button {
+    touch-action: manipulation;
+  }
+
+  #timeline-bar {
+    height: 3.5rem !important;
+    padding: 0.25rem 0.5rem !important;
+  }
+
+  #timeline-bar > div:first-child button:not(#btn-play-pause),
+  #timeline-bar > div:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  /* The palette collapses tools into its overflow menu — it never scrolls. */
+  #left-toolbar {
+    width: 3.25rem !important;
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+  }
+
+  #left-toolbar button {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+
+  #timeline-bar > div:nth-child(2) {
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+  }
+
+  input, select, textarea {
+    font-size: 16px;
+  }
+
+  /* Shot list table scrolls horizontally instead of squeezing columns */
+  #shot-list-panel table {
+    min-width: 44rem;
+  }
+}
+
+/* Tap targets on any touch device */
+@media (pointer: coarse) {
+  button, [role='button'] {
+    touch-action: manipulation;
+  }
+}
+
 /* Custom dark mode scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

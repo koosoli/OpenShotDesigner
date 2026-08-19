@@ -167,6 +167,89 @@ export const FloorPlanCanvas: React.FC = () => {
     };
   }, [setCanvasTransform]);
 
+  /**
+   * Touch gestures: two fingers pinch to zoom and pan at the same time, the way
+   * every map app behaves. The container sets `touch-action: none`, so the
+   * browser's own gestures are off and we drive the transform ourselves.
+   */
+  const pinchRef = useRef<{
+    startDistance: number;
+    startScale: number;
+    startOffset: Vector2D;
+    startCentre: Vector2D;
+  } | null>(null);
+  const isPinchingRef = useRef(false);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const touchPoint = (touch: Touch): Vector2D => {
+      const rect = container.getBoundingClientRect();
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      const a = touchPoint(event.touches[0]);
+      const b = touchPoint(event.touches[1]);
+      pinchRef.current = {
+        startDistance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+        startScale: canvasScaleRef.current,
+        startOffset: { ...canvasOffsetRef.current },
+        startCentre: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
+      isPinchingRef.current = true;
+      // A second finger cancels whatever the first finger started (dragging an
+      // element, a marquee) so the gesture is purely a viewport move.
+      setDragState(null);
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const pinch = pinchRef.current;
+      if (!pinch || event.touches.length !== 2) return;
+      event.preventDefault();
+
+      const a = touchPoint(event.touches[0]);
+      const b = touchPoint(event.touches[1]);
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const centre = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+
+      const nextScale = Math.max(0.15, Math.min(4, (pinch.startScale * distance) / pinch.startDistance));
+      // Keep the world point that was under the initial finger midpoint pinned
+      // under the current midpoint: that gives pinch-zoom and drag in one move.
+      const worldX = (pinch.startCentre.x - pinch.startOffset.x) / pinch.startScale;
+      const worldY = (pinch.startCentre.y - pinch.startOffset.y) / pinch.startScale;
+
+      setCanvasTransform(nextScale, {
+        x: centre.x - worldX * nextScale,
+        y: centre.y - worldY * nextScale,
+      });
+    };
+
+    const endPinch = (event: TouchEvent) => {
+      if (event.touches.length >= 2) return;
+      pinchRef.current = null;
+      // Swallow the stray single-pointer events that follow a lifted finger.
+      if (isPinchingRef.current) {
+        window.setTimeout(() => {
+          isPinchingRef.current = false;
+        }, 120);
+      }
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', endPinch);
+    container.addEventListener('touchcancel', endPinch);
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', endPinch);
+      container.removeEventListener('touchcancel', endPinch);
+    };
+  }, [setCanvasTransform]);
+
   // Compute the bounding box of all scene content (elements + reference images)
   const getContentBounds = useCallback((): { minX: number; minY: number; maxX: number; maxY: number } | null => {
     let minX = Infinity;
@@ -344,7 +427,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
   // Pointer Down on canvas background or elements
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || isPinchingRef.current) return;
 
     // Middle click or Spacebar is Pan
     if (e.button === 1 || isSpacePressed || activeTool === 'pan') {
@@ -1081,6 +1164,14 @@ export const FloorPlanCanvas: React.FC = () => {
             }}
             onUpdate={updateBackgroundImage}
             onDelete={removeBackgroundImage}
+            onDropToCamera={(image, center) => {
+              const target = cameras
+                .map((camera) => ({ camera, distance: Math.hypot(camera.x - center.x, camera.y - center.y) }))
+                .sort((a, b) => a.distance - b.distance)[0];
+              if (!target || target.distance > 110) return;
+              const shot = getShotForCamera(target.camera);
+              if (shot) updateShot(shot.id, { storyboardImage: image.url, storyboardFit: 'cover' });
+            }}
           />
 
           {/* 3. Props, Furniture, Rigs, Tracks, Measurements */}
@@ -1233,6 +1324,19 @@ export const FloorPlanCanvas: React.FC = () => {
             onSelectCamera={(camId) =>
               handleElementSelect(camId, { stopPropagation: () => {}, shiftKey: false } as React.PointerEvent)
             }
+            onDropToCamera={(sourceShot, center) => {
+              const target = cameras
+                .map((camera) => ({ camera, distance: Math.hypot(camera.x - center.x, camera.y - center.y) }))
+                .sort((a, b) => a.distance - b.distance)[0];
+              if (!target || target.distance > 110) return;
+              const targetShot = getShotForCamera(target.camera);
+              if (targetShot && sourceShot.storyboardImage) {
+                updateShot(targetShot.id, {
+                  storyboardImage: sourceShot.storyboardImage,
+                  storyboardFit: sourceShot.storyboardFit || 'cover',
+                });
+              }
+            }}
           />
 
           {/* 10. Interactive Transform Handles (Rotation & Linear Endpoints) */}

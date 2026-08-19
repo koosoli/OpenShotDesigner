@@ -330,6 +330,70 @@ export interface Shot {
   takesCount: number;
   estDurationSeconds: number;
   order: number;
+  /** Optional link back to the imported/created lined script row. */
+  scriptLineId?: string;
+}
+
+/** Standard Hollywood screenplay element types. */
+export type ScriptElementType =
+  | 'scene'          // slugline / scene heading (INT. KITCHEN - DAY)
+  | 'action'         // action / description
+  | 'character'      // character cue
+  | 'parenthetical'  // (beat)
+  | 'dialogue'
+  | 'transition'     // CUT TO:
+  | 'shot'           // ANGLE ON / CLOSE ON
+  | 'note'
+  | 'page-break';
+
+export interface ScriptLine {
+  id: string;
+  lineNumber: number;
+  text: string;
+  type?: ScriptElementType;
+  /** Scene number detected on the nearest preceding slugline (e.g. "8"). */
+  sceneNumber?: string;
+  /** True when this line is itself a slugline carrying a scene number. */
+  isSceneHeading?: boolean;
+  linkedShotId?: string;
+}
+
+/**
+ * A lining mark: the vertical line drawn over a range of screenplay lines that
+ * marks which part of the script a shot covers (classic lined script).
+ */
+export interface ScriptMark {
+  id: string;
+  shotId: string;
+  /** Inclusive range of script line ids covered by the shot. */
+  startLineId: string;
+  endLineId: string;
+  /**
+   * Optional character offsets inside the first/last line, so a lining can
+   * cover as little as a single word rather than whole lines.
+   */
+  startOffset?: number;
+  endOffset?: number;
+  /** Shot number shown in the bubble at the top of the vertical line. */
+  label: string;
+  /** Short description above the line, e.g. "CU Jenna". */
+  description?: string;
+  /** Stroke color (matches the linked camera color when available). */
+  color: string;
+  sceneNumber?: string;
+  /**
+   * Classic convention: the lining ends on a crossbar. It only gets an
+   * arrowhead when the shot carries on past the bottom of the page.
+   */
+  continuesNext?: boolean;
+  /**
+   * Squiggle sub-range — the stretch of the shot where the subject is out of
+   * frame. Both ids must fall inside [startLineId, endLineId].
+   */
+  wavyStartLineId?: string;
+  wavyEndLineId?: string;
+  wavyStartOffset?: number;
+  wavyEndOffset?: number;
 }
 
 export interface GridSettings {
@@ -365,6 +429,10 @@ export interface SceneSetup {
   timeOfDay: 'Day INT' | 'Night INT' | 'Day EXT' | 'Night EXT';
   elements: FloorPlanElement[];
   shots: Shot[];
+  scriptTitle?: string;
+  scriptText?: string;
+  scriptLines?: ScriptLine[];
+  scriptMarks?: ScriptMark[];
   backgroundImage?: BackgroundImage | null;
   backgroundImages?: BackgroundImage[];
   currentBeat: number;
@@ -379,6 +447,14 @@ export interface SceneSetup {
 export interface Project {
   id: string;
   title: string;
+  /**
+   * The screenplay is a property of the production, not of one scene: it stays
+   * open when you switch or add scenes. (Per-scene `SceneSetup.scriptLines` is
+   * the legacy location, still read once for older saved projects.)
+   */
+  scriptTitle?: string;
+  scriptText?: string;
+  scriptLines?: ScriptLine[];
   director: string;
   cinematographer: string;
   productionCompany?: string;

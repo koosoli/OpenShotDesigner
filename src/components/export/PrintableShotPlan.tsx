@@ -22,6 +22,7 @@ import { exportSvgAsPng } from '../../utils/exportFloorPlanPng';
 import { FlagFixtureIcon, flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
 import { FixtureGlyph } from '../canvas/FixtureGlyph';
 import { ArrowGlyph } from '../canvas/ArrowGlyph';
+import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
 import {
   AppWindow,
   ArrowRight,
@@ -43,10 +44,22 @@ import {
 } from 'lucide-react';
 
 export const PrintableShotPlan: React.FC = () => {
-  const { project, activeSetup, isExportModalOpen, closeExportModal } = useFloorPlan();
-  const [exportSection, setExportSection] = useState<'floorplan' | 'shotlist' | 'combined'>('floorplan');
+  const {
+    project,
+    activeSetup,
+    isExportModalOpen,
+    closeExportModal,
+    exportSection,
+    setExportSection,
+    scriptLines,
+    allScriptMarks,
+    allShots,
+  } = useFloorPlan();
   const [pngScale, setPngScale] = useState<2 | 3>(2);
   const [showStoryboards, setShowStoryboards] = useState(false);
+  // A lined script prints the covered material by default; the full screenplay
+  // is one click away.
+  const [scriptScope, setScriptScope] = useState<'lined' | 'full'>('lined');
 
   // When the export opens, default the storyboard toggle ON if any shot has a
   // storyboard attached (still fully toggleable off/on by the user).
@@ -73,6 +86,10 @@ export const PrintableShotPlan: React.FC = () => {
   const backgroundImages = (activeSetup.backgroundImages || []).filter((i) => i.visible) as BackgroundImage[];
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
+
+  // Default export scope: only the screenplay the user actually lined.
+  const printedScriptLines =
+    scriptScope === 'full' ? scriptLines : linedExcerpt(scriptLines, allScriptMarks);
 
   const handlePrint = () => {
     window.print();
@@ -153,6 +170,16 @@ export const PrintableShotPlan: React.FC = () => {
                 Shot List Only
               </button>
               <button
+                onClick={() => setExportSection('linedscript')}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
+                  exportSection === 'linedscript'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Lined Script
+              </button>
+              <button
                 onClick={() => setExportSection('combined')}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                   exportSection === 'combined'
@@ -210,7 +237,7 @@ export const PrintableShotPlan: React.FC = () => {
               </div>
             )}
 
-            {exportSection !== 'floorplan' && (
+            {(exportSection === 'shotlist' || exportSection === 'combined') && (
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => exportShotListToCsv(activeSetup, project.title)}
@@ -278,6 +305,8 @@ export const PrintableShotPlan: React.FC = () => {
                       ? '• 2D FLOOR PLAN BLUEPRINT'
                       : exportSection === 'shotlist'
                       ? '• COVERAGE SHOT LIST'
+                      : exportSection === 'linedscript'
+                      ? '• LINED SHOOTING SCRIPT'
                       : '• COMPLETE PRODUCTION CALL SHEET'}
                   </span>
                 </div>
@@ -884,6 +913,65 @@ export const PrintableShotPlan: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* SECTION L: LINED SHOOTING SCRIPT                                           */}
+          {/* ========================================================================= */}
+          {(exportSection === 'linedscript' || exportSection === 'combined') && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-violet-600" />
+                  <span>Lined Shooting Script</span>
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center rounded-lg border border-slate-300 p-0.5 print:hidden">
+                    <button
+                      onClick={() => setScriptScope('lined')}
+                      className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
+                        scriptScope === 'lined' ? 'bg-sky-600 text-white' : 'text-slate-600'
+                      }`}
+                    >
+                      Lined portions
+                    </button>
+                    <button
+                      onClick={() => setScriptScope('full')}
+                      className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
+                        scriptScope === 'full' ? 'bg-sky-600 text-white' : 'text-slate-600'
+                      }`}
+                    >
+                      Full screenplay
+                    </button>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-slate-700">
+                    {allScriptMarks.length} LINED SHOT{allScriptMarks.length === 1 ? '' : 'S'}
+                  </span>
+                </div>
+              </div>
+              {scriptLines.length === 0 ? (
+                <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                  No screenplay imported for this scene — load one in the Script panel to print a lined script.
+                </p>
+              ) : (
+                <div className="border border-slate-300 rounded-lg p-3 bg-white">
+                  {printedScriptLines.length === 0 ? (
+                    <p className="text-xs text-slate-500 p-3">
+                      Nothing is lined yet — line a shot in the Script panel, or switch to “Full screenplay”.
+                    </p>
+                  ) : (
+                    <LinedScriptPage
+                      lines={printedScriptLines}
+                      marks={allScriptMarks}
+                      shots={allShots}
+                      fontSize={11}
+                      isLight
+                      print
+                    />
+                  )}
+                </div>
+              )}
             </div>
           )}
 

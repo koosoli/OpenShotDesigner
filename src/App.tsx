@@ -5,19 +5,26 @@ import { LeftToolbar } from './components/toolbar/LeftToolbar';
 import { FloorPlanCanvas } from './components/canvas/FloorPlanCanvas';
 import { TimelineBar } from './components/timeline/TimelineBar';
 import { ShotListPanel } from './components/shotlist/ShotListPanel';
+import { ScriptPanel } from './components/script/ScriptPanel';
 import { InspectorPanel } from './components/inspector/InspectorPanel';
 import { ViewfinderModal } from './components/viewfinder/ViewfinderModal';
 import { PrintableShotPlan } from './components/export/PrintableShotPlan';
 import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
-import { AlertTriangle, Film, Sliders, ChevronRight, ChevronLeft, X } from 'lucide-react';
+import { useBreakpoint } from './utils/useMediaQuery';
+import { AlertTriangle, Film, FileText, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X } from 'lucide-react';
+
 
 const MainLayout: React.FC = () => {
   const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning } = useFloorPlan();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState<number>(700); // Default wide enough to show the full shot list
   const [isResizing, setIsResizing] = useState(false);
+  const { isCompact: isMobile } = useBreakpoint();
+  // Bottom-sheet height on phones: peek (tabs only), half, or nearly full screen.
+  const [sheetSize, setSheetSize] = useState<'peek' | 'half' | 'full'>('half');
 
   const isLight = theme === 'light';
+  const sheetHeight = sheetSize === 'peek' ? '3.25rem' : sheetSize === 'full' ? '88vh' : 'min(52vh, 520px)';
 
   // Sidebar drag to resize
   const handleResizePointerDown = (e: React.PointerEvent) => {
@@ -89,7 +96,12 @@ const MainLayout: React.FC = () => {
         {isRightPanelOpen ? (
           <aside
             id="right-sidebar"
-            style={{ width: `${sidebarWidth}px` }}
+            style={{
+              '--sidebar-width': `${sidebarWidth}px`,
+              '--sheet-height': sheetHeight,
+              // Inline height wins over the h-full utility class on phones
+              ...(isMobile ? { height: sheetHeight } : null),
+            } as React.CSSProperties}
             className={`h-full flex flex-col border-l shadow-2xl relative z-20 transition-colors flex-shrink-0 ${
               isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
             }`}
@@ -132,6 +144,21 @@ const MainLayout: React.FC = () => {
                 </button>
 
                 <button
+                  id="tab-script"
+                  onClick={() => setActiveRightTab('script')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                    activeRightTab === 'script'
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : isLight
+                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Script</span>
+                </button>
+
+                <button
                   id="tab-inspector"
                   onClick={() => setActiveRightTab('inspector')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
@@ -150,47 +177,80 @@ const MainLayout: React.FC = () => {
                 </button>
               </div>
 
-              {/* Panel Width Preset Quick Toggles */}
+              {/* Panel width presets (desktop) / bottom-sheet height (mobile) */}
               <div className="flex items-center gap-0.5 ml-1">
-                <button
-                  onClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
-                  title={sidebarWidth > 500 ? 'Compact panel width' : 'Expand panel width'}
-                  className={`p-1.5 rounded-lg text-xs transition-colors ${
-                    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <span className="text-[10px] font-mono font-bold">{sidebarWidth > 500 ? '‹|›' : '›|‹'}</span>
-                </button>
+                {isMobile ? (
+                  <>
+                    <button
+                      onClick={() => setSheetSize((prev) => (prev === 'full' ? 'half' : 'peek'))}
+                      title="Shrink panel"
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
+                      }`}
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setSheetSize((prev) => (prev === 'peek' ? 'half' : 'full'))}
+                      title="Enlarge panel"
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
+                      }`}
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
+                    title={sidebarWidth > 500 ? 'Compact panel width' : 'Expand panel width'}
+                    className={`p-1.5 rounded-lg text-xs transition-colors ${
+                      isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="text-[10px] font-mono font-bold">{sidebarWidth > 500 ? '‹|›' : '›|‹'}</span>
+                  </button>
+                )}
 
                 {/* Collapse Sidebar Button */}
                 <button
                   onClick={() => setIsRightPanelOpen(false)}
-                  title="Collapse sidebar"
+                  title={isMobile ? 'Hide panel' : 'Collapse sidebar'}
                   className={`p-1.5 rounded-lg transition-colors ${
                     isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  {isMobile ? <X className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden">
-              {activeRightTab === 'shots' ? <ShotListPanel /> : <InspectorPanel />}
+              {activeRightTab === 'shots' ? <ShotListPanel /> : activeRightTab === 'script' ? <ScriptPanel /> : <InspectorPanel />}
             </div>
           </aside>
         ) : (
           /* Collapsed Reopen Button */
           <button
-            onClick={() => setIsRightPanelOpen(true)}
-            title="Expand Shot List & Inspector"
-            className={`absolute right-0 top-16 z-30 p-2 border-l border-t border-b rounded-l-xl shadow-xl flex items-center gap-1.5 transition-colors ${
-              isLight ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
-            }`}
+            onClick={() => {
+              setIsRightPanelOpen(true);
+              if (isMobile) setSheetSize('half');
+            }}
+            title="Expand Shot List, Script & Inspector"
+            className={
+              isMobile
+                ? `absolute bottom-3 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-full shadow-2xl border flex items-center gap-2 text-xs font-semibold ${
+                    isLight ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-900 border-slate-700 text-slate-200'
+                  }`
+                : `absolute right-0 top-16 z-30 p-2 border-l border-t border-b rounded-l-xl shadow-xl flex items-center gap-1.5 transition-colors ${
+                    isLight ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
+                  }`
+            }
           >
-            <ChevronLeft className="w-4 h-4" />
+            {isMobile ? <ChevronUp className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             <Film className="w-3.5 h-3.5 text-sky-500" />
+            {isMobile && <span>Shots &amp; Script</span>}
           </button>
         )}
       </div>

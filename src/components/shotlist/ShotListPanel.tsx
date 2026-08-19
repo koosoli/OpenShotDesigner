@@ -18,6 +18,7 @@ import {
   Plus,
   Printer,
   Table,
+  FileText,
   Trash2,
   Video,
 } from 'lucide-react';
@@ -76,6 +77,7 @@ export const ShotListPanel: React.FC = () => {
     selectShot,
     updateShot,
     deleteShot,
+    insertShotAfter,
     reorderShots,
     moveShot,
     renumberAllShots,
@@ -84,6 +86,9 @@ export const ShotListPanel: React.FC = () => {
     setShotCameraLetter,
     openViewfinder,
     openExportModal,
+    setActiveSetupId,
+    startScriptLinking,
+    allScriptMarks,
     theme,
   } = useFloorPlan();
 
@@ -91,10 +96,14 @@ export const ShotListPanel: React.FC = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [filterCamera, setFilterCamera] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  // Off by default: the list shows this scene only, unless the user asks for
+  // the whole production.
+  const [showAllScenes, setShowAllScenes] = useState(false);
   const [expandedShotId, setExpandedShotId] = useState<string | null>(null);
   const [isRenumberMenuOpen, setIsRenumberMenuOpen] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [insertMenuShotId, setInsertMenuShotId] = useState<string | null>(null);
   const shotListContainerRef = useRef<HTMLDivElement>(null);
 
   const cameras = activeSetup.elements.filter((e) => e.type === 'camera');
@@ -136,12 +145,30 @@ export const ShotListPanel: React.FC = () => {
     label: (c.cameraLabel || 'A').toUpperCase(),
   }));
 
+  // Which scenes' shots are listed: this setup, or every setup in the project.
+  const setupIdByShotId = new Map<string, string>();
+  project.setups.forEach((setup) => setup.shots.forEach((shot) => setupIdByShotId.set(shot.id, setup.id)));
+  const sceneLabelBySetupId = new Map(
+    project.setups.map((setup) => [setup.id, setup.sceneNumber || setup.name])
+  );
+  const sourceShots = showAllScenes ? project.setups.flatMap((setup) => setup.shots) : activeSetup.shots;
+  const isForeignShot = (shot: Shot) => setupIdByShotId.get(shot.id) !== activeSetup.id;
+
   // Filter shots
-  const filteredShots = activeSetup.shots.filter((shot) => {
+  const filteredShots = sourceShots.filter((shot) => {
     if (filterCamera !== 'all' && shot.cameraId !== filterCamera) return false;
     if (filterStatus !== 'all' && shot.status !== filterStatus) return false;
     return true;
   });
+
+  const linedShotIds = new Set(allScriptMarks.map((mark) => mark.shotId));
+
+  /** Selecting a shot from another scene switches to that scene first. */
+  const selectShotAnywhere = (shot: Shot) => {
+    const owner = setupIdByShotId.get(shot.id);
+    if (owner && owner !== activeSetup.id) setActiveSetupId(owner);
+    selectShot(shot.id, true);
+  };
 
   // Auto scroll to active shot when selected via floor plan camera
   useEffect(() => {
@@ -196,6 +223,49 @@ export const ShotListPanel: React.FC = () => {
     e.stopPropagation();
     createCameraAndShot();
   };
+
+  const renderInsertButton = (shot: Shot) => (
+    <div className="relative">
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          setInsertMenuShotId((current) => current === shot.id ? null : shot.id);
+        }}
+        title="Insert a shot directly after this shot"
+        className="p-1 text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 rounded"
+      >
+        <Plus className="w-3.5 h-3.5" />
+      </button>
+      {insertMenuShotId === shot.id && (
+        <div className={`absolute right-0 top-full mt-1 z-[70] w-64 rounded-xl border shadow-2xl p-1.5 text-left ${
+          isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-800 border-slate-700 text-slate-100'
+        }`}>
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              insertShotAfter(shot.id);
+              setInsertMenuShotId(null);
+            }}
+            className="w-full px-2.5 py-2 rounded-lg hover:bg-sky-500 hover:text-white text-[11px]"
+          >
+            <strong>Insert as letter (default)</strong>
+            <span className="block opacity-70 mt-0.5">Between 1 and 2 becomes 1A; shot 2 stays 2.</span>
+          </button>
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              insertShotAfter(shot.id, { renumberRest: true });
+              setInsertMenuShotId(null);
+            }}
+            className="w-full px-2.5 py-2 rounded-lg hover:bg-violet-500 hover:text-white text-[11px]"
+          >
+            <strong>Insert and renumber</strong>
+            <span className="block opacity-70 mt-0.5">New shot becomes 2; old shot 2 and following shots shift up.</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -335,6 +405,26 @@ export const ShotListPanel: React.FC = () => {
             </div>
           </div>
 
+          {/* Scene scope: this scene only (default) or every scene */}
+          <button
+            onClick={() => setShowAllScenes((prev) => !prev)}
+            title={
+              showAllScenes
+                ? 'Showing shots from every scene — click to show this scene only'
+                : 'Show shots from all scenes in this project'
+            }
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
+              showAllScenes
+                ? 'bg-violet-600 text-white border-violet-500'
+                : isLight
+                ? 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>All scenes</span>
+          </button>
+
           {/* View Toggle: Cards vs Table List */}
           <div className={`flex items-center gap-0.5 border rounded-lg p-0.5 ${
             isLight ? 'bg-slate-200/70 border-slate-300' : 'bg-slate-800 border-slate-700'
@@ -406,7 +496,7 @@ export const ShotListPanel: React.FC = () => {
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                onClick={() => selectShot(shot.id, true)}
+                onClick={() => selectShotAnywhere(shot)}
                 className={`group relative rounded-xl border transition-all cursor-pointer p-3 ${
                   isBeingDragged ? 'opacity-40 scale-95 border-dashed border-sky-400' : ''
                 } ${
@@ -528,14 +618,28 @@ export const ShotListPanel: React.FC = () => {
                       <Eye className="w-3.5 h-3.5" />
                     </button>
 
-                    {/* Add Camera & Shot (same as "+ Cam & Shot") */}
+                    {/* Line this shot into the screenplay */}
                     <button
-                      onClick={handleAddCameraAndShot}
-                      title="Add a new Camera on Floor Plan & Shot in List"
-                      className={`p-1 rounded transition-colors text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-slate-700`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startScriptLinking(shot.id);
+                      }}
+                      title={
+                        linedShotIds.has(shot.id)
+                          ? 'Re-line this shot: highlight the screenplay it covers'
+                          : 'Line this shot: highlight the screenplay it covers'
+                      }
+                      className={`p-1 rounded transition-colors ${
+                        linedShotIds.has(shot.id)
+                          ? 'text-violet-500'
+                          : isLight ? 'text-slate-500 hover:text-violet-600 hover:bg-slate-100' : 'text-slate-400 hover:text-violet-300 hover:bg-slate-700'
+                      }`}
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <FileText className="w-3.5 h-3.5" />
                     </button>
+
+                    {/* Insert directly after this shot (letter behavior is the default). */}
+                    {renderInsertButton(shot)}
 
                     {/* Expand/Collapse Toggle */}
                     <button
@@ -725,6 +829,7 @@ export const ShotListPanel: React.FC = () => {
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {filteredShots.map((shot, index) => {
                   const isSelected = selectedShotId === shot.id;
+                  const foreign = isForeignShot(shot);
                   const linkedCamera = cameras.find((c) => c.id === shot.cameraId);
                   const isBeingDragged = draggedIndex === index;
                   const isDragOver = dragOverIndex === index;
@@ -736,7 +841,7 @@ export const ShotListPanel: React.FC = () => {
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDrop={(e) => handleDrop(e, index)}
                       onDragEnd={handleDragEnd}
-                      onClick={() => selectShot(shot.id, true)}
+                      onClick={() => selectShotAnywhere(shot)}
                       className={`cursor-pointer transition-colors ${
                         isBeingDragged ? 'opacity-30 bg-sky-100 dark:bg-sky-950' : ''
                       } ${
@@ -747,15 +852,28 @@ export const ShotListPanel: React.FC = () => {
                           : isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60'
                       }`}
                     >
-                      {/* Drag Handle */}
+                      {/* Drag Handle (reordering only makes sense within a scene) */}
                       <td className="py-2 px-1 text-center">
-                        <div
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, index)}
-                          className="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex justify-center"
-                        >
-                          <GripVertical className="w-3.5 h-3.5" />
-                        </div>
+                        {showAllScenes ? (
+                          <span
+                            title={`Scene ${sceneLabelBySetupId.get(setupIdByShotId.get(shot.id) || '') || ''}`}
+                            className={`text-[9px] font-mono font-bold px-1 py-0.5 rounded ${
+                              foreign
+                                ? isLight ? 'bg-violet-100 text-violet-700' : 'bg-violet-500/20 text-violet-300'
+                                : isLight ? 'bg-sky-100 text-sky-700' : 'bg-sky-500/20 text-sky-300'
+                            }`}
+                          >
+                            {sceneLabelBySetupId.get(setupIdByShotId.get(shot.id) || '') || '—'}
+                          </span>
+                        ) : (
+                          <div
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            className="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex justify-center"
+                          >
+                            <GripVertical className="w-3.5 h-3.5" />
+                          </div>
+                        )}
                       </td>
 
                       {/* Editable Shot Number */}
@@ -911,12 +1029,19 @@ export const ShotListPanel: React.FC = () => {
                             <Eye className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={handleAddCameraAndShot}
-                            title="Add a new Camera on Floor Plan & Shot in List"
-                            className="p-1 text-sky-500 hover:text-sky-600 rounded"
+                            onClick={() => startScriptLinking(shot.id)}
+                            title={
+                              linedShotIds.has(shot.id)
+                                ? 'Re-line this shot in the script'
+                                : 'Line this shot in the script'
+                            }
+                            className={`p-1 rounded ${
+                              linedShotIds.has(shot.id) ? 'text-violet-500' : 'text-slate-400 hover:text-violet-500'
+                            }`}
                           >
-                            <Plus className="w-3.5 h-3.5" />
+                            <FileText className="w-3.5 h-3.5" />
                           </button>
+                          {renderInsertButton(shot)}
                           <button
                             onClick={() => deleteShot(shot.id)}
                             title="Delete Shot"
