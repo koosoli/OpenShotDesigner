@@ -1005,7 +1005,7 @@ export const PrintableShotPlan: React.FC = () => {
           {/* SECTION B: COVERAGE SHOT LIST BREAKDOWN TABLE                              */}
           {/* ========================================================================= */}
           {(exportSection === 'shotlist' || exportSection === 'combined') && (
-            <div className="mb-8 break-inside-avoid">
+            <div className="mb-8 print-section">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                   <Film className="w-4 h-4 text-sky-600" />
@@ -1113,7 +1113,7 @@ export const PrintableShotPlan: React.FC = () => {
           {/* SECTION E: PRODUCTION EQUIPMENT PACKAGE & GEAR MANIFEST                   */}
           {/* ========================================================================= */}
           {(exportSection === 'equipment' || exportSection === 'combined') && (
-            <div className="mb-8 break-inside-avoid">
+            <div className="mb-8 print-section">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                   <Boxes className="w-4 h-4 text-sky-600" />
@@ -1457,6 +1457,12 @@ export const PrintableShotPlan: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* Print Footer */}
+          <div className="hidden print:flex items-center justify-between border-t border-slate-300 pt-3 mt-6 text-[10px] text-slate-500 font-mono">
+            <span>{project.title || 'Cinematography Plan'} — Scene {activeSetup.sceneNumber}: {activeSetup.name}</span>
+            <span>Generated on {new Date().toLocaleDateString()} · OpenShotDesigner</span>
+          </div>
         </div>
       </div>
     </div>

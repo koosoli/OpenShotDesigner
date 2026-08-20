@@ -136,13 +136,28 @@
   background: rgba(100, 116, 139, 1);
 }
 
-/* Print styling for Director's Call Sheet & Shot List */
+/* Print styling for Director's Call Sheet, Floor Plans, Shot Lists & Complete Production Package */
+@page {
+  size: A4 portrait;
+  margin: 10mm 10mm 12mm 10mm;
+}
+
 @media print {
+  html,
   body {
-    background-color: white !important;
-    color: black !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
+  /* Hide UI navigation, toolbars, and control bars */
   header,
   aside,
   #left-toolbar,
@@ -153,17 +168,100 @@
     display: none !important;
   }
 
+  /* Modal unwrap so multi-page documents flow naturally onto subsequent A4 pages */
   #export-modal {
     position: static !important;
-    background: white !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
     padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  #export-modal > div {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
   }
 
   #printable-content {
-    background: white !important;
-    color: black !important;
-    padding: 0 !important;
-    overflow: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
     max-height: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  /* Tables: repeat header on each new A4 page and never cut rows in half */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  tbody {
+    display: table-row-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Headings: avoid orphaned titles at the bottom of pages */
+  h1, h2, h3, h4, .print-heading {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Cards, storyboards, and grouped items remain intact */
+  .break-inside-avoid,
+  .storyboard-card,
+  .gear-cat-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Sections allow seamless dynamic pagination */
+  .print-section {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    margin-bottom: 24px !important;
+  }
+
+  /* Blueprint diagram sizing on print */
+  #print-floorplan-svg {
+    max-height: 480px !important;
+    width: 100% !important;
   }
 }
