@@ -260,7 +260,11 @@ export const sceneNumberForLine = (lines: ScriptLine[], lineId: string): string 
 
 /** Clean a parenthetical string ensuring it has single enclosing parentheses. */
 export const formatParenthetical = (text: string): string => {
-  const inner = text.replace(/^\s*\(*\s*/, '').replace(/\s*\)*\s*$/, '').trim();
+  let inner = text
+    .replace(/^\s*\(+/, '')
+    .replace(/\)+\s*$/, '')
+    .replace(/[()]/g, '')
+    .trim();
   return inner ? `(${inner})` : '()';
 };
 

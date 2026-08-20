@@ -10,7 +10,8 @@ export type ElementType =
   | 'text'
   | 'measurement'
   | 'arrow'
-  | 'shape';
+  | 'shape'
+  | 'cable';
 
 export interface Vector2D {
   x: number;
@@ -55,6 +56,7 @@ export type SensorFormat = 'FullFrame' | 'Super35' | 'MFT' | 'LargeFormat';
 export type AspectRatio = '16:9' | '2.39:1' | '1.85:1' | '4:3' | '9:16';
 export type CameraRigType =
   | 'Tripod'
+  | 'Broadcast Pedestal'
   | 'Dana Dolly'
   | 'Steadicam'
   | 'Handheld'
@@ -173,6 +175,10 @@ export interface LightElement extends BaseElement {
   netValue?: FlagNetValue; // single (≈½ stop) vs double (≈1 stop) net
   labelColor?: string; // per-fixture custom label color (e.g. #ffffff, #f59e0b)
   roleColor?: string; // custom color for this fixture's function/role tag (e.g. #f59e0b)
+  /** DMX-512 control universe (1-32). Absent/undefined = not on a DMX network. */
+  dmxUniverse?: number;
+  /** DMX-512 start address (1-512). */
+  dmxAddress?: number;
 }
 
 export interface WallElement extends BaseElement {
@@ -239,7 +245,28 @@ export type PropType =
   | 'c_stand'
   | 'tripod'
   | 'box'
-  | 'circle';
+  | 'circle'
+  // Concert & Live Event Staging
+  | 'stage'
+  | 'stage_riser'
+  | 'stage_runway'
+  | 'stage_truss'
+  | 'drum_kit'
+  | 'keyboard_rig'
+  | 'amp_stack'
+  | 'speaker_stack'
+  | 'speaker_array'
+  | 'sub_stack'
+  | 'monitor_wedge'
+  | 'foh_console'
+  | 'monitor_console'
+  | 'mic_stand'
+  | 'barricade'
+  | 'video_wall'
+  // Broadcast & Production
+  | 'broadcast_truck'
+  | 'broadcast_van'
+  | 'sat_truck';
 
 export interface PropElement extends BaseElement {
   type: 'prop';
@@ -330,6 +357,55 @@ export interface ShapeElement extends BaseElement {
   label?: string;
 }
 
+/** Standard production cable / signal / power run types. */
+export type CableType =
+  | 'sdi_12g'
+  | 'sdi_3g'
+  | 'hdmi'
+  | 'fiber'
+  | 'ethernet'
+  | 'dmx'
+  | 'audio_xlr'
+  | 'aes_ebu'
+  | 'speakon'
+  | 'socapex'
+  | 'smpte_fiber'
+  | 'power_20a'
+  | 'power_60a'
+  | 'power_100a'
+  | 'power_schuko'
+  | 'power_true1'
+  | 'power_cee16'
+  | 'power_cee32'
+  | 'power_cee63'
+  | 'power_cee125';
+
+/** A single draggable routing handle along a cable run. */
+export interface CablePathPoint {
+  id: string;
+  x: number;
+  y: number;
+}
+
+/** A patch / signal / power cable run drawn between two points on the floor plan. */
+export interface CableElement extends BaseElement {
+  type: 'cable';
+  x2: number;
+  y2: number;
+  cableType: CableType;
+  /** Where this cable originates (e.g. "CAM A", "CCU 1", "FOH", "Distro 1"). */
+  fromLabel: string;
+  /** Where this cable terminates (e.g. "CCU 1", "MON 3", "Sub 1", "20A Ckt 4"). */
+  toLabel: string;
+  /** Stroke color (defaults to the cable type's color). */
+  color?: string;
+  strokeWidth?: number;
+  showLabel?: boolean;
+  notes?: string;
+  /** Optional intermediate routing points. Cable renders as a polyline through these. */
+  path?: CablePathPoint[];
+}
+
 export type FloorPlanElement =
   | ActorElement
   | CameraElement
@@ -342,7 +418,8 @@ export type FloorPlanElement =
   | TextElement
   | MeasurementElement
   | ArrowElement
-  | ShapeElement;
+  | ShapeElement
+  | CableElement;
 
 export type ShotSize =
   | 'ELS' // Extreme Long Shot
@@ -644,4 +721,5 @@ export type ActiveTool =
   | 'measure'
   | 'arrow'
   | 'text'
-  | 'shape';
+  | 'shape'
+  | 'cable';

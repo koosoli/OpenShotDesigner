@@ -3,6 +3,7 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
   ArrowElement,
+  CableElement,
   CameraElement,
   DoorElement,
   FloorPlanElement,
@@ -12,6 +13,7 @@ import {
   Shot,
   ShapeType,
   TextElement,
+  TrackElement,
   WallElement,
   Waypoint,
   WindowElement,
@@ -19,6 +21,7 @@ import {
 import {
   ACTOR_COLOR_PALETTE,
   ASPECT_RATIOS,
+  CABLE_TYPES,
   CAMERA_BODY_PRESETS,
   CAMERA_COLOR_PALETTE,
   CAMERA_HEIGHTS,
@@ -35,6 +38,7 @@ import {
 import { flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
 import { calculateFovAngle, ensureHexColor, hexToHsv, hexToRgbParts, hsvToHex, kelvinToHex, kelvinToRgb, rgbToHex } from '../../utils/geometry';
 import { APERTURES, FRAME_RATES, ISO_VALUES, ND_FILTERS, SHUTTER_ANGLES } from '../../constants/presets';
+import { collectFixturePatches, dmxChannelsForFixture, nextFreeAddress } from '../../utils/dmxPatch';
 
 const SHAPE_TYPES: ShapeType[] = [
   'line',
@@ -99,6 +103,8 @@ import {
   Square,
   Type,
   MoveRight,
+  Cable,
+  Zap,
 } from 'lucide-react';
 
 type AlignMode = 'left' | 'right' | 'hcenter' | 'top' | 'bottom' | 'vcenter';
@@ -2149,7 +2155,7 @@ export const InspectorPanel: React.FC = () => {
                       -- Custom / Generic Cinema Camera --
                     </option>
                     <optgroup label="Sony Cinema Line & Camcorders" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Sony').map((p) => (
+                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Sony').filter((p) => !p.label.includes('HDC')).map((p) => (
                         <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
                           {p.label}
                         </option>
@@ -2184,7 +2190,22 @@ export const InspectorPanel: React.FC = () => {
                       ))}
                     </optgroup>
                     <optgroup label="Panasonic Cinema & Lumix" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Panasonic').map((p) => (
+                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Panasonic').filter((p) => !p.label.includes('Studio') && !p.label.includes('PTZ')).map((p) => (
+                        <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Broadcast / OB Studio & Live" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                      {CAMERA_BODY_PRESETS.filter((p) =>
+                        p.brand === 'Grass Valley' ||
+                        p.label.includes('HDC') ||
+                        p.label.includes('SK-HD') ||
+                        p.label.includes('Z-HD') ||
+                        p.label.includes('UHK') ||
+                        p.label.includes('AK-UC') ||
+                        p.label.includes('AW-UE')
+                      ).map((p) => (
                         <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
                           {p.label}
                         </option>
@@ -3547,6 +3568,75 @@ export const InspectorPanel: React.FC = () => {
                   );
                 })()}
               </RubricSection>
+
+              {/* DMX-512 Control Patch */}
+              <RubricSection
+                title="DMX-512 Control"
+                icon={<Zap className="w-3.5 h-3.5 text-yellow-500" />}
+                defaultOpen={light.dmxUniverse || light.dmxAddress ? true : false}
+                isLight={isLight}
+              >
+                {!isFlagFixture(light.fixtureType) ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="opacity-60 block mb-1">Universe (1–32)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={32}
+                          value={light.dmxUniverse ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === '') updateElement(light.id, { dmxUniverse: undefined });
+                            else updateElement(light.id, { dmxUniverse: Math.max(1, Math.min(32, Number(v))) });
+                          }}
+                          placeholder="1"
+                          className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="opacity-60 block mb-1">Start Address (1–512)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={512}
+                          value={light.dmxAddress ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === '') updateElement(light.id, { dmxAddress: undefined });
+                            else updateElement(light.id, { dmxAddress: Math.max(1, Math.min(512, Number(v))) });
+                          }}
+                          placeholder="001"
+                          className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                        />
+                      </div>
+                    </div>
+
+                    {light.dmxUniverse && light.dmxAddress ? (
+                      <div className="text-[11px] rounded-lg px-2.5 py-2 border bg-yellow-950/40 border-yellow-800/50 text-yellow-300 font-mono flex items-center justify-between">
+                        <span>
+                          U{light.dmxUniverse}:{String(light.dmxAddress).padStart(3, '0')}
+                          <span className="opacity-60">
+                            {' '}· {dmxChannelsForFixture(light.fixtureType)}ch (range{' '}
+                            {light.dmxAddress}–{light.dmxAddress + Math.max(1, dmxChannelsForFixture(light.fixtureType)) - 1})
+                          </span>
+                        </span>
+                        <span className="opacity-70">PATCHED</span>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] opacity-60 leading-snug">
+                        Set a universe &amp; address to patch this fixture into your DMX run. The address shows on the
+                        floor plan label and in the equipment list.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-[10px] opacity-60 leading-snug">
+                    {isFlagFixture(light.fixtureType) ? 'Flags & grip modifiers are not DMX-controlled.' : ''}
+                  </p>
+                )}
+              </RubricSection>
             </div>
           );
         })()}
@@ -3833,6 +3923,119 @@ export const InspectorPanel: React.FC = () => {
                     <span>+ Snap Window onto this Wall</span>
                   </button>
                 </div>
+              </RubricSection>
+            </div>
+          );
+        })()}
+
+        {/* 7.5 TRACK SPECIFIC INSPECTOR */}
+        {el.type === 'track' && (() => {
+          const track = el as TrackElement;
+          const trackLen = Math.round(
+            Math.hypot((track.x2 ?? track.x + 240) - track.x, (track.y2 ?? track.y) - track.y)
+          );
+          const isCurved = !!track.isCurved;
+          const curveOffset = track.curveOffset ?? 60;
+          return (
+            <div className="space-y-3 pt-1">
+              <RubricSection
+                title="Dolly Track Geometry"
+                icon={<MoveRight className="w-3.5 h-3.5 text-slate-400" />}
+                badge={
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 font-bold">
+                    {(trackLen / 25).toFixed(0)}ft
+                  </span>
+                }
+                defaultOpen={true}
+                isLight={isLight}
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="opacity-60">Track Length:</span>
+                  <span className="font-mono text-sky-500 font-bold">{(trackLen / 25).toFixed(0)}ft ({trackLen}px)</span>
+                </div>
+
+                {/* Straight / Curved toggle */}
+                <div>
+                  <label className="opacity-60 block mb-1">Track Shape</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => updateElement(track.id, { isCurved: false })}
+                      className={`py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                        !isCurved
+                          ? 'bg-sky-600 text-white border-sky-500'
+                          : isLight
+                            ? 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      <MoveRight className="w-3.5 h-3.5" />
+                      Straight
+                    </button>
+                    <button
+                      onClick={() => updateElement(track.id, { isCurved: true, curveOffset: curveOffset || 60 })}
+                      className={`py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                        isCurved
+                          ? 'bg-amber-500 text-slate-900 border-amber-400'
+                          : isLight
+                            ? 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      <Gauge className="w-3.5 h-3.5" />
+                      Curved
+                    </button>
+                  </div>
+                </div>
+
+                {isCurved && (
+                  <>
+                    {/* Curve magnitude slider */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="opacity-60">Curve Magnitude</span>
+                        <span className="font-mono font-bold text-amber-500">{curveOffset}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-500}
+                        max={500}
+                        step={5}
+                        value={curveOffset}
+                        onChange={(e) => updateElement(track.id, { curveOffset: Number(e.target.value) })}
+                        className="w-full accent-amber-500 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[9px] font-mono opacity-50 mt-0.5">
+                        <span>Bends left</span>
+                        <span>0</span>
+                        <span>Bends right</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => updateElement(track.id, { curveOffset: -curveOffset })}
+                        className={`py-1 rounded-lg border text-[10px] font-semibold transition-colors ${
+                          isLight ? 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100' : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                        }`}
+                      >
+                        Flip Curve Direction
+                      </button>
+                      <button
+                        onClick={() => updateElement(track.id, { isCurved: false, curveOffset: 0 })}
+                        className={`py-1 rounded-lg border text-[10px] font-semibold transition-colors ${
+                          isLight ? 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100' : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                        }`}
+                      >
+                        Make Straight
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                <p className="text-[10px] opacity-50 leading-relaxed">
+                  Tip: select the track and drag the amber curve handle on the canvas to bend it live.
+                  Hold <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-200 font-mono text-[9px]">Shift</kbd> to snap the curve in 10px steps.
+                </p>
               </RubricSection>
             </div>
           );
@@ -4180,6 +4383,23 @@ export const InspectorPanel: React.FC = () => {
                   </select>
                 </div>
 
+                <div className="flex items-center justify-between">
+                  <span className="text-xs opacity-60">Show on floor plan</span>
+                  <button
+                    onClick={() => updateElement(shape.id, { visible: shape.visible === false ? true : false })}
+                    title={shape.visible === false ? 'Hidden shapes stay on the canvas as a faint dashed ghost' : 'Hide this shape (it becomes a faint ghost you can click to re-show)'}
+                    className={`px-3 py-1 text-[10px] font-bold rounded border ${
+                      shape.visible !== false
+                        ? 'bg-sky-600 text-white border-sky-500'
+                        : isLight
+                        ? 'bg-slate-50 text-slate-500 border-slate-300'
+                        : 'bg-slate-950 text-slate-500 border-slate-700'
+                    }`}
+                  >
+                    {shape.visible !== false ? 'Visible' : 'Hidden'}
+                  </button>
+                </div>
+
                 <div>
                   <label className="opacity-60 block mb-1">Label (optional)</label>
                   <input
@@ -4504,6 +4724,148 @@ export const InspectorPanel: React.FC = () => {
                       </button>
                     ))}
                   </div>
+                </div>
+              </RubricSection>
+            </div>
+          );
+        })()}
+
+        {/* 13. CABLE / PATCH RUN SPECIFIC INSPECTOR */}
+        {el.type === 'cable' && (() => {
+          const cable = el as CableElement;
+          const cableInfo = CABLE_TYPES.find((c) => c.type === cable.cableType) || CABLE_TYPES[0];
+          const ppu = activeSetup.gridSettings?.pixelsPerUnit || 50;
+          const unit = activeSetup.gridSettings?.unit || 'm';
+          const lengthVal = Math.round((Math.hypot((cable.x2 ?? cable.x + 150) - cable.x, (cable.y2 ?? cable.y) - cable.y) / ppu) * 10) / 10;
+          const strokeWidth = cable.strokeWidth || 3.5;
+          const inputClass = `w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`;
+
+          return (
+            <div className="space-y-3 pt-1">
+              <RubricSection
+                title="Cable / Patch Run"
+                icon={<Cable className="w-3.5 h-3.5 text-cyan-500" />}
+                defaultOpen={true}
+                isLight={isLight}
+              >
+                <div>
+                  <label className="opacity-60 block mb-1">Cable Type</label>
+                  <select
+                    value={cable.cableType}
+                    onChange={(e) => {
+                      const next = CABLE_TYPES.find((c) => c.type === e.target.value) || CABLE_TYPES[0];
+                      updateElement(cable.id, { cableType: next.type, color: cable.color || next.color } as any);
+                    }}
+                    className={inputClass}
+                  >
+                    {CABLE_TYPES.map((ct) => (
+                      <option key={ct.type} value={ct.type}>
+                        {ct.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {cableInfo.isPower && (
+                  <div className="flex items-center gap-2 text-[11px] rounded-lg px-2.5 py-2 border bg-rose-950/40 border-rose-800/50 text-rose-300">
+                    <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>
+                      Power run · {cableInfo.connector}
+                      {cableInfo.rating ? ` · ${cableInfo.rating}` : ''}
+                    </span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="opacity-60 block mb-1">From (source)</label>
+                    <input
+                      type="text"
+                      value={cable.fromLabel || ''}
+                      onChange={(e) => updateElement(cable.id, { fromLabel: e.target.value })}
+                      placeholder="e.g. CAM A, CCU 1, FOH…"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="opacity-60 block mb-1">To (destination)</label>
+                    <input
+                      type="text"
+                      value={cable.toLabel || ''}
+                      onChange={(e) => updateElement(cable.id, { toLabel: e.target.value })}
+                      placeholder="e.g. CCU 1, MON 3…"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg px-2.5 py-2 border bg-slate-900/40 border-slate-800">
+                  <span className="text-[11px] text-slate-400">
+                    Run length ≈{' '}
+                    <span className="font-mono font-bold text-slate-100">
+                      {lengthVal}
+                      {unit}
+                    </span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    {cableInfo.shortLabel} · {cableInfo.connector}
+                  </span>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="opacity-60">Cable Color</span>
+                    <span className="font-mono font-bold uppercase">{cable.color || cableInfo.color}</span>
+                  </div>
+                  <input
+                    type="color"
+                    value={cable.color || cableInfo.color}
+                    onChange={(e) => updateElement(cable.id, { color: e.target.value })}
+                    className="w-full h-8 cursor-pointer rounded border bg-transparent"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="opacity-60">Line Weight</span>
+                    <span className="font-mono font-bold">{strokeWidth}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1}
+                    max={8}
+                    step={0.5}
+                    value={strokeWidth}
+                    onChange={(e) => updateElement(cable.id, { strokeWidth: Number(e.target.value) })}
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs opacity-60">Show on floor plan</span>
+                  <button
+                    onClick={() => updateElement(cable.id, { showLabel: cable.showLabel !== false ? false : true })}
+                    className={`px-3 py-1 text-[10px] font-bold rounded border ${
+                      cable.showLabel !== false
+                        ? 'bg-sky-600 text-white border-sky-500'
+                        : isLight
+                        ? 'bg-slate-50 text-slate-500 border-slate-300'
+                        : 'bg-slate-950 text-slate-500 border-slate-700'
+                    }`}
+                  >
+                    {cable.showLabel !== false ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+
+                <div>
+                  <label className="opacity-60 block mb-1">Notes</label>
+                  <textarea
+                    value={cable.notes || ''}
+                    onChange={(e) => updateElement(cable.id, { notes: e.target.value })}
+                    placeholder="e.g. Route under stage, spare 10m, tie to truss…"
+                    rows={2}
+                    className={`${inputClass} resize-none`}
+                  />
                 </div>
               </RubricSection>
             </div>

@@ -178,6 +178,9 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
                 if (showKelvin) specsParts.push(light.colorTemp > 0 ? `${light.colorTemp}K` : 'RGB');
                 if (showIntensity) specsParts.push(`${light.intensity}%`);
               }
+              if (light.dmxUniverse && light.dmxAddress) {
+                specsParts.push(`DMX U${light.dmxUniverse}:${String(light.dmxAddress).padStart(3, '0')}`);
+              }
               const specsStr = specsParts.join(' · ');
               const showSpecs = specsStr.length > 0;
 

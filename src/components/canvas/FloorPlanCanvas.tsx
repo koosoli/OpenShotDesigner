@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
+  CableElement,
   CameraElement,
   DoorElement,
   FloorPlanElement,
@@ -15,7 +16,7 @@ import {
   WindowElement,
 } from '../../types';
 import { findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
-import { ASPECT_RATIOS } from '../../constants/presets';
+import { ASPECT_RATIOS, CABLE_TYPES } from '../../constants/presets';
 import { boardedFrames, setFramePatch, START_SLOT } from '../../utils/storyboardFrames';
 import { ActorElementView } from './ActorElementView';
 import { BackgroundLayer } from './BackgroundLayer';
@@ -24,6 +25,7 @@ import { GridLayer } from './GridLayer';
 import { LightingLayer } from './LightingLayer';
 import { PropsLayer } from './PropsLayer';
 import { ShapesLayer } from './ShapesLayer';
+import { CableLayer } from './CableLayer';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
@@ -41,8 +43,10 @@ interface DragState {
     | 'draw_wall'
     | 'draw_measure'
     | 'draw_arrow'
+    | 'draw_cable'
     | 'waypoint'
-    | 'waypoint_rotate';
+    | 'waypoint_rotate'
+    | 'curve';
   startMouse: Vector2D;
   startElements: Map<string, FloorPlanElement>;
   selectedIds: string[];
@@ -61,6 +65,7 @@ export const FloorPlanCanvas: React.FC = () => {
     highlightedElementId,
     activeTool,
     activeShapeType,
+    activeCableType,
     playback,
     theme,
     selectElement,
@@ -122,6 +127,15 @@ export const FloorPlanCanvas: React.FC = () => {
   // Continuous / Connected architectural wall drawing state
   const [connectedWallStart, setConnectedWallStart] = useState<Vector2D | null>(null);
   const [wallChainFirstPoint, setWallChainFirstPoint] = useState<Vector2D | null>(null);
+  // Continuous cable routing state (like connected walls): remembers the cable
+  // being routed and the last vertex so the next click adds a corner.
+  const [connectedCableStart, setConnectedCableStart] = useState<{ cableId: string; x: number; y: number } | null>(null);
+  // Guards against adding a stray corner when the user double-clicks to finish
+  // a routed run (same trick walls rely on via their double-click handler).
+  const lastCableClickRef = useRef<{ time: number; x: number; y: number } | null>(null);
+
+  // Holding Alt temporarily disables magnet/grid snapping for fine placement.
+  const altDownRef = useRef(false);
 
   const canvasScale = activeSetup?.canvasScale ?? 1;
   const canvasOffset = activeSetup?.canvasOffset ?? { x: 50, y: 50 };
@@ -376,6 +390,7 @@ export const FloorPlanCanvas: React.FC = () => {
   const measurements = activeSetup.elements.filter((e) => e.type === 'measurement');
   const arrows = activeSetup.elements.filter((e) => e.type === 'arrow');
   const texts = activeSetup.elements.filter((e) => e.type === 'text');
+  const cables = activeSetup.elements.filter((e) => e.type === 'cable') as CableElement[];
 
   // Storyboard thumbnails: shots that have a storyboard attached, shown near
   // their camera on the floor plan.
@@ -412,20 +427,21 @@ export const FloorPlanCanvas: React.FC = () => {
 
   // Compute live wall snapping for door/window tools
   const nearestWallInfo =
-    (activeTool === 'door' || activeTool === 'window') && hoverCanvasPos && walls.length > 0
+    (activeTool === 'door' || activeTool === 'window') && hoverCanvasPos && walls.length > 0 && !altDownRef.current
       ? findNearestWall(hoverCanvasPos, walls, 60)
       : null;
 
-  // Snapped current cursor position for drawing
+  // Snapped current cursor position for drawing (Alt temporarily disables magnets)
   const getDrawingCursorPos = (rawPos: Vector2D): Vector2D => {
-    const snapVertex = findNearestVertex(rawPos, 20);
+    const snapEnabled = !altDownRef.current;
+    const snapVertex = snapEnabled ? findNearestVertex(rawPos, 20) : null;
     if (snapVertex) return snapVertex;
 
-    let x = snapToGrid(rawPos.x, gridSettings.size, gridSettings.snap);
-    let y = snapToGrid(rawPos.y, gridSettings.size, gridSettings.snap);
+    let x = snapEnabled ? snapToGrid(rawPos.x, gridSettings.size, gridSettings.snap) : rawPos.x;
+    let y = snapEnabled ? snapToGrid(rawPos.y, gridSettings.size, gridSettings.snap) : rawPos.y;
 
     // If connected wall is active, snap to 0°, 45°, 90°, 180° relative to start point
-    if (connectedWallStart) {
+    if (snapEnabled && connectedWallStart) {
       const dx = x - connectedWallStart.x;
       const dy = y - connectedWallStart.y;
       const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
@@ -450,6 +466,17 @@ export const FloorPlanCanvas: React.FC = () => {
     setWallChainFirstPoint(null);
     setTool('select');
   };
+
+  // Finish continuous cable routing (keeps the cable tool selected so a new run can start)
+  const finishConnectedCable = () => {
+    setConnectedCableStart(null);
+    lastCableClickRef.current = null;
+  };
+
+  // Leaving the cable tool cancels any in-progress routed run
+  useEffect(() => {
+    if (activeTool !== 'cable') setConnectedCableStart(null);
+  }, [activeTool]);
 
   // Pointer Down on canvas background or elements
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -609,6 +636,69 @@ export const FloorPlanCanvas: React.FC = () => {
       return;
     }
 
+    // 2c2. Cable Tool - mirrors the connected-wall mechanic: drag out the first
+    // segment, then CLICK to add routing corners; finish with double-click,
+    // Enter, Esc, or the Finish bar.
+    if (activeTool === 'cable') {
+      if (!connectedCableStart) {
+        // First vertex of the run: initiate a drag so the user can either drag
+        // a single segment or click once to start chaining.
+        const cableId = addElement({
+          type: 'cable',
+          cableType: activeCableType,
+          x: drawPos.x,
+          y: drawPos.y,
+          x2: drawPos.x,
+          y2: drawPos.y,
+        } as any);
+
+        setDragState({
+          type: 'draw_cable',
+          startMouse: { x: e.clientX, y: e.clientY },
+          startElements: new Map(),
+          selectedIds: [cableId],
+          activeElementId: cableId,
+        });
+        selectElement(cableId);
+      } else {
+        // Second or subsequent vertex: clicking adds a corner to the SAME run.
+        const chain = connectedCableStart;
+
+        // A fast second click near the last one means "double-click to finish"
+        // — don't add a stray corner for it.
+        const now = Date.now();
+        const last = lastCableClickRef.current;
+        lastCableClickRef.current = { time: now, x: drawPos.x, y: drawPos.y };
+        if (last && now - last.time < 400 && Math.hypot(drawPos.x - last.x, drawPos.y - last.y) < 12) {
+          finishConnectedCable();
+          return;
+        }
+
+        const el = activeSetup.elements.find((e) => e.id === chain.cableId) as CableElement | undefined;
+        if (el && el.type === 'cable') {
+          // Freeze the current vertex as a routing point, then extend the run
+          // to the clicked position.
+          const path = el.path || [];
+          const lastPt = path.length ? path[path.length - 1] : null;
+          const newPath =
+            !lastPt || Math.hypot(lastPt.x - chain.x, lastPt.y - chain.y) > 1
+              ? [
+                  ...path,
+                  {
+                    id: `cable-wp-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+                    x: Math.round(chain.x),
+                    y: Math.round(chain.y),
+                  },
+                ]
+              : path;
+          updateElement(chain.cableId, { path: newPath, x2: drawPos.x, y2: drawPos.y } as any);
+          // Continue the chain from the new vertex
+          setConnectedCableStart({ cableId: chain.cableId, x: drawPos.x, y: drawPos.y });
+        }
+      }
+      return;
+    }
+
     // 2d. Line Shape Tool - drag to draw a line between two points
     if (activeTool === 'shape' && activeShapeType === 'line') {
       const lineId = addElement({
@@ -689,10 +779,11 @@ export const FloorPlanCanvas: React.FC = () => {
     }
   };
 
-  // Double-click to open contextual inspector
+  // Double-click to open contextual inspector. `force` selects even locked
+  // elements so they can be reached and unlocked from the inspector.
   const handleElementDoubleClick = (id: string, e?: React.SyntheticEvent) => {
     if (e) e.stopPropagation();
-    selectElement(id);
+    selectElement(id, false, true);
     setActiveRightTab('inspector');
   };
 
@@ -700,10 +791,13 @@ export const FloorPlanCanvas: React.FC = () => {
   const handleElementSelect = (id: string, e: React.PointerEvent) => {
     e.stopPropagation();
 
-    // Double-clicking ANY element on the floor plan opens its inspector immediately
+    // Double-clicking ANY element — locked or not — selects it and opens its
+    // inspector immediately. This is the deliberate escape hatch for locked
+    // elements (single clicks and lasso still pass right over them).
     if (e.detail >= 2) {
-      selectElement(id);
+      selectElement(id, false, true);
       setActiveRightTab('inspector');
+      return;
     }
 
     // If door or window tool is active, place directly on clicked element (wall)
@@ -733,7 +827,7 @@ export const FloorPlanCanvas: React.FC = () => {
       return;
     }
 
-    if (activeTool === 'wall' || activeTool === 'measure' || activeTool === 'arrow' || (activeTool === 'shape' && activeShapeType === 'line')) {
+    if (activeTool === 'wall' || activeTool === 'measure' || activeTool === 'arrow' || activeTool === 'cable' || (activeTool === 'shape' && activeShapeType === 'line')) {
       // Connect wall to clicked element / start measuring from clicked element
       handlePointerDown(e);
       return;
@@ -741,8 +835,27 @@ export const FloorPlanCanvas: React.FC = () => {
 
     if (activeTool === 'pan' || isSpacePressed) return;
 
-    // Locked elements are not selectable while locked — clicking one does nothing.
-    if (activeSetup.elements.find((el) => el.id === id)?.locked) return;
+    // Locked elements are never selectable by clicking, and a press on one
+    // falls straight through as a lasso drag — so items sitting ON TOP of a
+    // locked shape (things you often want to move away) can still be selected.
+    // The lasso itself skips locked elements, so only the top items are grabbed.
+    if (activeSetup.elements.find((el) => el.id === id)?.locked) {
+      const canvasPos = screenToCanvas(e.clientX, e.clientY);
+      if (!e.shiftKey) clearSelection();
+      setDragState({
+        type: 'box_select',
+        startMouse: { x: canvasPos.x, y: canvasPos.y },
+        startElements: new Map(),
+        selectedIds: [...selectedElementIds],
+      });
+      setBoxSelection({
+        x1: canvasPos.x,
+        y1: canvasPos.y,
+        x2: canvasPos.x,
+        y2: canvasPos.y,
+      });
+      return;
+    }
 
     let nextSelected = [...selectedElementIds];
     if (e.shiftKey) {
@@ -817,6 +930,28 @@ export const FloorPlanCanvas: React.FC = () => {
       selectedIds: [activeId],
       activeElementId: activeId,
       endpointType: endpoint,
+    });
+  };
+
+  // Curve control drag start for dolly tracks — bends a track (and switches it
+  // to curved) by dragging its control point along the track normal.
+  const handleCurveDragStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (selectedElementIds.length === 0) return;
+
+    const activeId = selectedElementIds[0];
+    const el = activeSetup.elements.find((e2) => e2.id === activeId);
+    if (!el || el.locked) return;
+
+    const startElementsMap = new Map<string, FloorPlanElement>();
+    startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
+
+    setDragState({
+      type: 'curve',
+      startMouse: { x: e.clientX, y: e.clientY },
+      startElements: startElementsMap,
+      selectedIds: [activeId],
+      activeElementId: activeId,
     });
   };
 
@@ -1034,7 +1169,7 @@ export const FloorPlanCanvas: React.FC = () => {
         let nextY = origEl.y + deltaCanvasY;
         let nextRotation = origEl.rotation;
 
-        if ((origEl.type === 'door' || origEl.type === 'window') && dragState.startElements.size === 1 && walls.length > 0) {
+        if ((origEl.type === 'door' || origEl.type === 'window') && dragState.startElements.size === 1 && walls.length > 0 && !altDownRef.current) {
           const snapMatch = findNearestWall({ x: nextX, y: nextY }, walls, 50);
           if (snapMatch) {
             nextX = snapMatch.point.x;
@@ -1046,7 +1181,7 @@ export const FloorPlanCanvas: React.FC = () => {
             nextX = snapToGrid(nextX, gridSettings.size, true);
             nextY = snapToGrid(nextY, gridSettings.size, true);
           }
-        } else if (gridSettings.snap) {
+        } else if (gridSettings.snap && !altDownRef.current) {
           nextX = snapToGrid(nextX, gridSettings.size, true);
           nextY = snapToGrid(nextY, gridSettings.size, true);
         }
@@ -1103,7 +1238,8 @@ export const FloorPlanCanvas: React.FC = () => {
         dragState.type === 'endpoint_end' ||
         dragState.type === 'draw_wall' ||
         dragState.type === 'draw_measure' ||
-        dragState.type === 'draw_arrow') &&
+        dragState.type === 'draw_arrow' ||
+        dragState.type === 'draw_cable') &&
       dragState.activeElementId
     ) {
       const drawPos = getDrawingCursorPos(mouseCanvas);
@@ -1150,6 +1286,40 @@ export const FloorPlanCanvas: React.FC = () => {
         dragChangedRef.current = true;
         updateElement(dragState.activeElementId, { x2: drawPos.x, y2: drawPos.y } as any, false);
       }
+      return;
+    }
+
+    // Curved dolly track control-point drag: project the cursor onto the track
+    // normal to derive the signed curve offset from the chord midpoint.
+    if (dragState.type === 'curve' && dragState.activeElementId) {
+      const orig = dragState.startElements.get(dragState.activeElementId);
+      if (!orig) return;
+
+      const x1 = orig.x;
+      const y1 = orig.y;
+      const x2 = (orig as any).x2 ?? orig.x + 240;
+      const y2 = (orig as any).y2 ?? orig.y;
+      const dist = Math.max(20, Math.hypot(x2 - x1, y2 - y1));
+      const normalX = -(y2 - y1) / dist;
+      const normalY = (x2 - x1) / dist;
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+
+      // Signed distance of the cursor from the chord midpoint along the normal
+      let offset = Math.round((mouseCanvas.x - midX) * normalX + (mouseCanvas.y - midY) * normalY);
+      if (e.shiftKey) {
+        offset = Math.round(offset / 10) * 10;
+      }
+      offset = Math.max(-500, Math.min(500, offset));
+      // Snap straight tracks that land near zero back to a perfectly straight line.
+      const snappedIsCurved = Math.abs(offset) >= 4;
+
+      dragChangedRef.current = true;
+      updateElement(
+        dragState.activeElementId,
+        { isCurved: snappedIsCurved, curveOffset: offset } as any,
+        false
+      );
       return;
     }
 
@@ -1223,7 +1393,7 @@ export const FloorPlanCanvas: React.FC = () => {
       if (el && 'path' in el && Array.isArray((el as any).path)) {
         let nextX = mouseCanvas.x;
         let nextY = mouseCanvas.y;
-        if (gridSettings.snap) {
+        if (gridSettings.snap && !altDownRef.current) {
           nextX = snapToGrid(nextX, gridSettings.size, true);
           nextY = snapToGrid(nextY, gridSettings.size, true);
         }
@@ -1283,6 +1453,23 @@ export const FloorPlanCanvas: React.FC = () => {
       }
       setTool('select');
     }
+    if (dragState?.type === 'draw_cable') {
+      // First segment of a routed run: on release we start chaining from the
+      // endpoint so the next CLICK adds a corner (exactly like connected walls).
+      const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
+      if (el && 'x2' in el) {
+        const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
+        if (length < 5) {
+          // Just a click, not a drag: give the first segment a sensible default
+          // length, then keep the tool active for chaining.
+          updateElement(el.id, { x2: el.x + 150, y2: el.y } as any, false);
+          setConnectedCableStart({ cableId: el.id, x: el.x + 150, y: el.y });
+        } else {
+          setConnectedCableStart({ cableId: el.id, x: (el as any).x2, y: (el as any).y2 });
+        }
+      }
+      // Stay in the cable tool — the next click routes a corner.
+    }
     if (dragState?.type === 'draw_wall') {
       // If user dragged a significant wall length, finish wall; if clicked in place, leave connected wall mode active
       const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
@@ -1302,7 +1489,7 @@ export const FloorPlanCanvas: React.FC = () => {
     if (
       dragChangedRef.current &&
       dragState &&
-      ['move', 'rotate', 'endpoint_start', 'endpoint_end', 'waypoint', 'waypoint_rotate'].includes(dragState.type)
+      ['move', 'rotate', 'endpoint_start', 'endpoint_end', 'waypoint', 'waypoint_rotate', 'curve'].includes(dragState.type)
     ) {
       commitCurrentState();
     }
@@ -1341,6 +1528,10 @@ export const FloorPlanCanvas: React.FC = () => {
         setIsSpacePressed(true);
       }
 
+      if (e.key === 'Alt') {
+        altDownRef.current = true;
+      }
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedBackgroundId) {
           removeBackgroundImage(selectedBackgroundId);
@@ -1353,11 +1544,13 @@ export const FloorPlanCanvas: React.FC = () => {
       if (e.key === 'Escape') {
         clearSelection();
         finishConnectedWalls();
+        finishConnectedCable();
         setShowShortcuts(false);
       }
 
       if (e.key === 'Enter') {
         finishConnectedWalls();
+        finishConnectedCable();
       }
 
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1442,13 +1635,24 @@ export const FloorPlanCanvas: React.FC = () => {
       if (e.code === 'Space') {
         setIsSpacePressed(false);
       }
+      if (e.key === 'Alt') {
+        altDownRef.current = false;
+      }
+    };
+
+    const handleBlur = () => {
+      // Never leave the Alt-snap-disable flag stuck if the window loses focus.
+      altDownRef.current = false;
+      setIsSpacePressed(false);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [selectedElementIds, deleteSelectedElements, clearSelection, undo, redo, activeSetup.elements, updateMultipleElements, setTool, selectedBackgroundId, removeBackgroundImage, setSelectedBackgroundId, duplicateSelected, copySelectedElements, pasteElements]);
 
@@ -1475,21 +1679,29 @@ export const FloorPlanCanvas: React.FC = () => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onDoubleClick={finishConnectedWalls}
+      onDoubleClick={(e) => {
+        finishConnectedWalls();
+        finishConnectedCable();
+      }}
     >
       <svg
         ref={svgRef}
         id="floor-plan-svg"
         className="w-full h-full block"
       >
+        {/* 0. Endless Vector Grid & Axes — rendered outside the pan/zoom
+            transform so it always covers the viewport, while the pattern
+            transform keeps it aligned to world coordinates */}
+        <GridLayer
+          gridSettings={gridSettings}
+          canvasScale={canvasScale}
+          canvasOffset={canvasOffset}
+          visible={(displaySettings.showGrid === true) || (gridSettings.showGrid === true)}
+          dark={!isLightMode}
+        />
+
         {/* Transform layer for Canvas scale and Pan offset */}
         <g transform={`translate(${canvasOffset.x}, ${canvasOffset.y}) scale(${canvasScale})`}>
-          {/* 1. Vector Grid & Axes */}
-          <GridLayer
-            gridSettings={gridSettings}
-            visible={(displaySettings.showGrid === true) || (gridSettings.showGrid === true)}
-            dark={!isLightMode}
-          />
 
           {/* 2. Scalable Reference Blueprint / Screenshot Layers (multiple supported) */}
           <BackgroundLayer
@@ -1521,6 +1733,7 @@ export const FloorPlanCanvas: React.FC = () => {
             onSelect={handleElementSelect}
             onDoubleClick={handleElementDoubleClick}
             canvasScale={canvasScale}
+            showHiddenGhosts
           />
 
           <PropsLayer
@@ -1539,6 +1752,15 @@ export const FloorPlanCanvas: React.FC = () => {
             onAddWaypoint={handleAddPropWaypoint}
             onWaypointDragStart={handleWaypointDragStart}
             onWaypointRotateStart={handleWaypointRotateStart}
+          />
+
+          <CableLayer
+            cables={cables}
+            selectedIds={selectedElementIds}
+            onSelect={handleElementSelect}
+            onDoubleClick={handleElementDoubleClick}
+            pixelsPerUnit={gridSettings.pixelsPerUnit}
+            displaySettings={displaySettings}
           />
 
           {/* 4. Lighting Beams & Fixtures */}
@@ -1602,6 +1824,50 @@ export const FloorPlanCanvas: React.FC = () => {
               </text>
             </g>
           )}
+
+          {/* 6b. Live Cable Routing Rubberband Preview */}
+          {connectedCableStart && activeDrawPos && (() => {
+            const cEl = activeSetup.elements.find((e) => e.id === connectedCableStart.cableId);
+            const cInfo = cEl && cEl.type === 'cable' ? CABLE_TYPES.find((c) => c.type === (cEl as any).cableType) : null;
+            const cColor = cEl && cEl.type === 'cable' ? (cEl as any).color || cInfo?.color || '#38bdf8' : '#38bdf8';
+            const segLen = Math.hypot(activeDrawPos.x - connectedCableStart.x, activeDrawPos.y - connectedCableStart.y);
+            return (
+              <g className="pointer-events-none">
+                <line
+                  x1={connectedCableStart.x}
+                  y1={connectedCableStart.y}
+                  x2={activeDrawPos.x}
+                  y2={activeDrawPos.y}
+                  stroke={cColor}
+                  strokeWidth={8}
+                  strokeLinecap="round"
+                  opacity={0.55}
+                />
+                <line
+                  x1={connectedCableStart.x}
+                  y1={connectedCableStart.y}
+                  x2={activeDrawPos.x}
+                  y2={activeDrawPos.y}
+                  stroke={cColor}
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                />
+                {/* Vertex dot + length */}
+                <circle cx={connectedCableStart.x} cy={connectedCableStart.y} r={4.5} fill={cColor} stroke="#0f172a" strokeWidth={1.5} />
+                <text
+                  x={(connectedCableStart.x + activeDrawPos.x) / 2}
+                  y={(connectedCableStart.y + activeDrawPos.y) / 2 - 12}
+                  textAnchor="middle"
+                  fill={cColor}
+                  fontSize={11 / canvasScale}
+                  fontWeight="bold"
+                  fontFamily="monospace"
+                >
+                  {`${(segLen / (activeSetup.gridSettings?.pixelsPerUnit || 50)).toFixed(1)}m`}
+                </text>
+              </g>
+            );
+          })()}
 
           {/* 7. Corner Magnetic Snap Dot */}
           {activeTool === 'wall' && activeDrawPos && (
@@ -1718,6 +1984,7 @@ export const FloorPlanCanvas: React.FC = () => {
               onRotateStart={handleRotateStart}
               onEndpointDragStart={handleEndpointDragStart}
               onResizeStart={handleResizeStart}
+              onCurveDragStart={handleCurveDragStart}
               pixelsPerUnit={gridSettings.pixelsPerUnit}
               unit={gridSettings.unit}
             />
@@ -1840,8 +2107,30 @@ export const FloorPlanCanvas: React.FC = () => {
         </div>
       )}
 
+      {/* Connected Cable Routing Finish Bar */}
+      {connectedCableStart && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-sky-950/95 border border-sky-500 text-sky-100 text-xs px-4 py-2 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-3 z-30">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Click to add cable corner • Double-click / Enter / Esc to finish</span>
+          <button
+            onClick={finishConnectedCable}
+            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm"
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>Finish (Enter)</span>
+          </button>
+          <button
+            onClick={finishConnectedCable}
+            className="p-1 hover:bg-sky-900 rounded text-slate-400 hover:text-white"
+            title="Cancel"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Active Tool Helper Pill */}
-      {activeTool !== 'select' && !connectedWallStart && (
+      {activeTool !== 'select' && !connectedWallStart && !connectedCableStart && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-sky-950/95 border border-sky-500/60 text-sky-200 text-xs px-4 py-2 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2 pointer-events-none z-20">
           <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
           <span>
@@ -1853,6 +2142,8 @@ export const FloorPlanCanvas: React.FC = () => {
               <><strong>Click and drag</strong> between two points to measure distance (Esc to cancel)</>
             ) : activeTool === 'arrow' ? (
               <><strong>Click and drag</strong> to draw an arrow (Esc to cancel)</>
+            ) : activeTool === 'cable' ? (
+              <>Click &amp; drag to start a cable run, then <strong>click to add corners</strong> (double-click / Enter to finish)</>
             ) : (
               <>Click on canvas to place <strong>{activeTool.toUpperCase()}</strong> (Press Esc to cancel)</>
             )}
@@ -1904,6 +2195,7 @@ export const FloorPlanCanvas: React.FC = () => {
                     ['Enter', 'Finish connected wall chain'],
                     ['Esc', 'Cancel wall / measure drawing'],
                     ['Hold Shift', 'Snap rotation & angles to 45°'],
+                    ['Hold Alt', 'Temporarily disable snap / grid magnets (fine placement)'],
                   ],
                 },
                 {

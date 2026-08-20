@@ -1,4 +1,5 @@
 import {
+  CableElement,
   CameraElement,
   EquipmentCategory,
   EquipmentItem,
@@ -10,6 +11,7 @@ import {
   SceneSetup,
   TrackElement,
 } from '../types';
+import { CABLE_TYPES } from '../constants/presets';
 
 export interface CategoryMeta {
   key: EquipmentCategory;
@@ -315,6 +317,10 @@ export const DEPARTMENT_BRANDS_CATALOG: Record<EquipmentCategory, BrandModelOpti
         'FR7 Cinema PTZ (Full Frame)',
         'a7S III (Full Frame 4K120p)',
         'a7 IV / a1 (Full Frame)',
+        'HDC-5500 4K Ultra High Frame Rate Camera',
+        'HDC-4300 4K Super Slow Motion Camera',
+        'HDC-3500 4K Studio/OB Camera',
+        'HDC-3100 HDR Studio/OB Camera',
       ],
     },
     {
@@ -359,6 +365,8 @@ export const DEPARTMENT_BRANDS_CATALOG: Record<EquipmentCategory, BrandModelOpti
         'Lumix BS1H Box Camera (Full Frame)',
         'Lumix BGH1 Box Camera (MFT)',
         'Lumix GH6 (MFT 5.7K)',
+        'AK-UC4000 4K Studio Camera',
+        'AW-UE160 4K PTZ Camera',
       ],
     },
     {
@@ -374,6 +382,59 @@ export const DEPARTMENT_BRANDS_CATALOG: Record<EquipmentCategory, BrandModelOpti
         'Fujinon Premista 28-100mm T2.9 Large Format',
         'Sony FE C 16-35mm T3.1 G Cinema Zoom',
         'DZOFilm Vespid Prime Lens Set (PL/EF)',
+      ],
+    },
+    {
+      brand: 'Grass Valley',
+      models: [
+        'LDX 100 Studio/OB Camera',
+        'LDX 86 Studio Camera',
+        'LDX 84 Studio/OB Camera',
+        'LDX C Flex Compact Camera',
+      ],
+    },
+    {
+      brand: 'Hitachi',
+      models: [
+        'SK-HD1800 Studio/OB Camera',
+        'Z-HD5500 Studio/OB Camera',
+      ],
+    },
+    {
+      brand: 'Ikegami',
+      models: [
+        'UHK-430 4K Studio/OB Camera',
+        'UHK-750 8K Camera',
+      ],
+    },
+    {
+      brand: 'Vinten / OConnor / Cartoni',
+      models: [
+        'Studio Floor Pedestal w/ Full-Motion Pan/Tilt Head',
+        'Air or Counterbalance Pedestal (100/150mm Bowl)',
+        'Pneumatic Column Studio Pedestal',
+      ],
+    },
+    {
+      brand: 'NEP / AMP Visual / Sony',
+      models: [
+        'HD/UHD Outside Broadcast Truck',
+        '4K OB Unit w/ Production & Replay Rooms',
+        'Uplink-Ready OB Production Unit',
+      ],
+    },
+    {
+      brand: 'Ford / Mercedes-Benz',
+      models: [
+        'ENG News Gathering Van',
+        'Roof-Mast ENG Van w/ Microwave TX',
+      ],
+    },
+    {
+      brand: 'Globecomm / E-N-G',
+      models: [
+        'Mobile Satellite Uplink Unit',
+        'Ku/Ka-Band Uplink Truck w/ CODEC Racks',
       ],
     },
     {
@@ -475,6 +536,14 @@ export const DEPARTMENT_BRANDS_CATALOG: Record<EquipmentCategory, BrandModelOpti
         'Ratchet Straps 1" x 15ft Heavy Duty',
       ],
     },
+    {
+      brand: 'Global Truss / Prolyte',
+      models: [
+        'Freestanding Truss Tower',
+        'Aluminum 4-Way Truss Tower',
+        'Ground-Supported Lighting Truss',
+      ],
+    },
   ],
   audio: [
     {
@@ -553,6 +622,62 @@ export const DEPARTMENT_BRANDS_CATALOG: Record<EquipmentCategory, BrandModelOpti
         'Motorola CP200d UHF 16-Channel Walkie-Talkies (6-Pack)',
         'Hollyland Solidcom C1 Pro Full-Duplex Wireless Intercom (4-Headsets)',
         'Eartec UltraLITE Full Duplex Wireless Headset System',
+      ],
+    },
+    {
+      brand: 'L-Acoustics / d&b / JBL',
+      models: [
+        'PA Top + Bass Cabinet Stack',
+        'Active 3-Way PA Speaker Stack',
+        'Fly or Stack Configuration PA System',
+      ],
+    },
+    {
+      brand: 'L-Acoustics / d&b / Meyer',
+      models: [
+        'Vertical Line Array Hang',
+        'Powered Line Array Rigging Frame',
+        '10-Unit Line Array System',
+      ],
+    },
+    {
+      brand: 'L-Acoustics / d&b',
+      models: [
+        'Cardioid Subwoofer Stack',
+        'Twin 18" Driver Subwoofer Cab',
+        'Grounded Subwoofer Cluster',
+      ],
+    },
+    {
+      brand: 'd&b / JBL / Meyer',
+      models: [
+        'Stage Foldback Monitor Wedge',
+        'Powered Coaxial Stage Wedge',
+        'Floor Monitor Mix System',
+      ],
+    },
+    {
+      brand: 'DiGiCo / Avid / Yamaha',
+      models: [
+        'Front-of-House Digital Console',
+        '64+ Input Digital Desk w/ Stage Rack',
+        'FOH Mixing Position (DSP + Surface)',
+      ],
+    },
+    {
+      brand: 'DiGiCo / Midas / Behringer',
+      models: [
+        'Stage Monitor Digital Console',
+        '40+ Input Monitor Desk',
+        'In-Ear + Wedge Mix Matrix Position',
+      ],
+    },
+    {
+      brand: 'K&M / Ultimate Support',
+      models: [
+        'Vocal Mic Stand (Boom)',
+        'Round-Base Adjustable Boom Mic Stand',
+        'Heavy-Duty Mic Stand w/ Boom Arm',
       ],
     },
   ],
@@ -636,6 +761,14 @@ export const DEPARTMENT_BRANDS_CATALOG: Record<EquipmentCategory, BrandModelOpti
         'Honda EU7000iS Inverter Generator 7000W EFI',
         'EcoFlow Delta Pro Portable Power Station (3.6kWh)',
         'Goal Zero Yeti 3000X Lithium Portable Power',
+      ],
+    },
+    {
+      brand: 'ROE Visual / Absen / Planar',
+      models: [
+        'Concert LED Video Wall',
+        '3.9mm Pixel Pitch LED Wall Panel',
+        'LED Screen System w/ Processing & Rigging',
       ],
     },
   ],
@@ -731,6 +864,57 @@ export const DEPARTMENT_BRANDS_CATALOG: Record<EquipmentCategory, BrandModelOpti
         'Hero Sedan Production Picture Vehicle',
         'Vintage Coupe 1968 Picture Vehicle',
         'Police Cruiser Stunt Picture Vehicle',
+      ],
+    },
+    {
+      brand: 'Stagecraft / Show Systems',
+      models: [
+        'Main Stage Deck System',
+        'Staging Riser Deck',
+        'Runway Stage Extension',
+        'LED Edge-Lit Runway Section',
+      ],
+    },
+    {
+      brand: 'Drum Workshop / Pearl',
+      models: [
+        'Concert Drum Kit + Riser',
+        'Full Drum Kit (Bass, Toms, Snare, Cymbals)',
+      ],
+    },
+    {
+      brand: 'Nord / Korg / Yamaha',
+      models: [
+        'Two-Tier Keyboard Rig',
+        'A-Tier Synth + B-Tier Controller Rig',
+      ],
+    },
+    {
+      brand: 'Marshall / Mesa Boogie',
+      models: [
+        'Full Amp Stack (Head + 2 Cabs)',
+        '100W Tube Head + 4x12 Cabs',
+      ],
+    },
+    {
+      brand: 'Event Security',
+      models: [
+        'Heavy-Duty Stage Barricade',
+        'Powder-Coated Steel Crowd Barrier',
+      ],
+    },
+    {
+      brand: 'Special Effects / Art Dept',
+      models: [
+        'Hero Stunt Explosive Device Prop',
+        'Illuminated LED Counter Display Device',
+      ],
+    },
+    {
+      brand: 'Art Department',
+      models: [
+        'Hero Sealed Envelope / Document',
+        'Custom Staged Document Prop',
       ],
     },
   ],
@@ -988,6 +1172,19 @@ export const formatCameraRigEquipment = (
         specs: '150mm Bowl / Mitchell Mount · Carbon Fiber 2-Stage Legs · Ground Spreader',
         isCustom: false,
       };
+    case 'Broadcast Pedestal':
+      return {
+        id: `auto-rig-pedestal-${camLabel}`,
+        elementId: `rig-pedestal-${camLabel}`,
+        category: 'camera',
+        name: 'Studio Broadcast Pedestal & Pan/Tilt Head',
+        brand: 'Vinten / OConnor / Cartoni',
+        model: 'Studio Floor Pedestal w/ Full-Motion Pan/Tilt Head',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Studio/OB Support`,
+        specs: 'Air or Counterbalance Pedestal · 100/150mm Fluid Head · Pneumatic Column',
+        isCustom: false,
+      };
     case 'Handheld':
       return {
         id: `auto-rig-handheld-${camLabel}`,
@@ -1039,6 +1236,44 @@ const formatPropEquipment = (prop: PropElement): { category: EquipmentCategory; 
       return { category: 'props', name: 'Hero Stunt Explosive Device Prop', brand: 'Special Effects / Art Dept', model: prop.label || 'Time Bomb / C4 Detonator Prop', specs: 'Illuminated LED Counter Display' };
     case 'letter':
       return { category: 'props', name: 'Hero Sealed Envelope / Document', brand: 'Art Department', model: prop.label || 'Sealed Official Letter Hand Prop', specs: 'Custom Staged Graphics' };
+    case 'stage':
+      return { category: 'props', name: 'Concert Stage Platform', brand: 'Stagecraft / Show Systems', model: prop.label || 'Main Stage Deck System', specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm · ${Math.round(prop.height / 120)}m High Riser` };
+    case 'stage_riser':
+      return { category: 'props', name: 'Stage Riser / Platform Deck', brand: 'Stagecraft / Show Systems', model: prop.label || 'Staging Riser Deck', specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm footprint` };
+    case 'stage_runway':
+      return { category: 'props', name: 'Runway / Catwalk Extension', brand: 'Stagecraft / Show Systems', model: prop.label || 'Runway Stage Extension', specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm · LED Edge Lighting` };
+    case 'stage_truss':
+      return { category: 'grip', name: 'Lighting Truss Tower', brand: 'Global Truss / Prolyte', model: prop.label || 'Freestanding Truss Tower', specs: `${Math.round(prop.height)}cm Height · Aluminum 4-Way Truss` };
+    case 'drum_kit':
+      return { category: 'props', name: 'Drum Riser with Full Drum Kit', brand: 'Drum Workshop / Pearl', model: prop.label || 'Concert Drum Kit + Riser', specs: 'Bass · Floor Toms · Snare · Cymbals · Riser Platform' };
+    case 'keyboard_rig':
+      return { category: 'props', name: 'Keyboard Rig / Synth Station', brand: 'Nord / Korg / Yamaha', model: prop.label || 'Two-Tier Keyboard Rig', specs: 'A-Tier Synth + B-Tier Controller · X-Stand' };
+    case 'amp_stack':
+      return { category: 'props', name: 'Guitar Amp Stack', brand: 'Marshall / Mesa Boogie', model: prop.label || 'Full Amp Stack (Head + 2 Cabs)', specs: '100W Tube Head · 2× 4x12 Cabs' };
+    case 'speaker_stack':
+      return { category: 'audio', name: 'PA Speaker Stack', brand: 'L-Acoustics / d&b / JBL', model: prop.label || 'PA Top + Bass Cabinet Stack', specs: 'Active 3-Way Speaker · Fly or Stack Configuration' };
+    case 'speaker_array':
+      return { category: 'audio', name: 'Line Array Speaker Hang', brand: 'L-Acoustics / d&b / Meyer', model: prop.label || 'Vertical Line Array Hang', specs: '10-Unit Powered Line Array · Rigging Frame' };
+    case 'sub_stack':
+      return { category: 'audio', name: 'Subwoofer Stack', brand: 'L-Acoustics / d&b', model: prop.label || 'Cardioid Subwoofer Stack', specs: 'Twin 18" Drivers per Cab · Cardioid Pattern' };
+    case 'monitor_wedge':
+      return { category: 'audio', name: 'Floor Monitor Wedge', brand: 'd&b / JBL / Meyer', model: prop.label || 'Stage Foldback Monitor Wedge', specs: 'Powered Coaxial Wedge · 60×40° Coverage' };
+    case 'foh_console':
+      return { category: 'audio', name: 'FOH Mixing Console Position', brand: 'DiGiCo / Avid / Yamaha', model: prop.label || 'Front-of-House Digital Console', specs: '64+ Input Digital Desk · Stage Rack · DSP' };
+    case 'monitor_console':
+      return { category: 'audio', name: 'Monitor Mixing Position', brand: 'DiGiCo / Midas / Behringer', model: prop.label || 'Stage Monitor Digital Console', specs: 'In-Ear + Wedge Mix Matrix · 40+ Inputs' };
+    case 'mic_stand':
+      return { category: 'audio', name: 'Microphone Stand', brand: 'K&M / Ultimate Support', model: prop.label || 'Vocal Mic Stand (Boom)', specs: 'Round Base · Adjustable Boom Arm' };
+    case 'barricade':
+      return { category: 'props', name: 'Crowd Barrier / Barricade', brand: 'Event Security', model: prop.label || 'Heavy-Duty Stage Barricade', specs: 'Powder-Coated Steel · Interlocking Feet' };
+    case 'video_wall':
+      return { category: 'power_media', name: 'LED Video Wall / Screen', brand: 'ROE Visual / Absen / Planar', model: prop.label || 'Concert LED Video Wall', specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm · 3.9mm Pixel Pitch` };
+    case 'broadcast_truck':
+      return { category: 'camera', name: 'Broadcast Production Truck (OB Unit)', brand: 'NEP / AMP Visual / Sony', model: prop.label || 'HD/UHD Outside Broadcast Truck', specs: 'Production + Replay + Audio Rooms · Uplink Ready' };
+    case 'broadcast_van':
+      return { category: 'camera', name: 'ENG / News Van', brand: 'Ford / Mercedes-Benz', model: prop.label || 'ENG News Gathering Van', specs: 'Roof Mast + Microwave TX · Edit Bay' };
+    case 'sat_truck':
+      return { category: 'camera', name: 'Satellite Uplink Truck', brand: 'Globecomm / E-N-G', model: prop.label || 'Mobile Satellite Uplink Unit', specs: 'Ku/Ka-Band Dish · CODEC & Switching Racks' };
     case 'sofa':
     case 'sofa_sectional':
       return { category: 'props', name: prop.label || 'Living Room Staged Sofa', brand: 'Set Dressing', model: prop.label || '3-Seat Upholstered Sofa', specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm footprint` };
@@ -1193,7 +1428,7 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
     const rigs = Array.from(new Set(camsInLetter.map((c) => (c.rigType || 'Tripod'))));
     const sensor = camsInLetter.find((c) => !!c.sensorFormat)?.sensorFormat || primaryCam.sensorFormat || 'FullFrame';
 
-    const brand = cameraModel ? cameraModel.split(' ')[0] : 'Sony / ARRI';
+    const brand = cameraModel ? (cameraModel.startsWith('Grass Valley') ? 'Grass Valley' : cameraModel.split(' ')[0]) : 'Sony / ARRI';
     const model = cameraModel || `Cinema Camera (Cam ${letter})`;
     const lensStr = focalLengths.length === 1 ? `Prime Lens ${focalLengths[0]}mm` : `Lenses: ${focalLengths.map((f) => `${f}mm`).join(', ')}`;
     const rigStr = `Rig: ${rigs.map((r) => r.toUpperCase()).join(' / ')}`;
@@ -1238,6 +1473,9 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
         light.fixtureType === 'overhead_diffusion';
 
       let modifierSpecs = `${kelvinStr} · ${light.intensity}% intensity · ${light.beamAngle}° beam`;
+      if (light.dmxUniverse && light.dmxAddress) {
+        modifierSpecs += ` · DMX U${light.dmxUniverse}:${String(light.dmxAddress).padStart(3, '0')}`;
+      }
       if (isFlagOrNet) {
         modifierSpecs = `Flag Size: ${light.flagSize || '24×36"'} ${light.netValue ? `· Net: ${light.netValue}` : ''}`;
       } else {
@@ -1288,6 +1526,26 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
         specs: 'Standard 24.5" Center-to-Center Gauge',
         isCustom: false,
       });
+    } else if (elem.type === 'cable') {
+      const cable = elem as CableElement;
+      const cableInfo = CABLE_TYPES.find((c) => c.type === cable.cableType);
+      if (cableInfo) {
+        const dx = cable.x2 - cable.x;
+        const dy = cable.y2 - cable.y;
+        const lengthM = Math.round(Math.hypot(dx, dy));
+        autoItems.push({
+          id: `auto-cable-${cable.id}`,
+          elementId: cable.id,
+          category: 'cables',
+          name: cableInfo.name,
+          brand: cableInfo.isPower ? 'Pro-Grade Power' : 'Pro-Grade Broadcast',
+          model: cableInfo.shortLabel,
+          quantity: 1,
+          roleOrFunction: cableInfo.isPower ? `Power Run: ${cable.fromLabel} → ${cable.toLabel}` : `Signal Patch: ${cable.fromLabel} → ${cable.toLabel}`,
+          specs: `${cableInfo.connector} · ~${lengthM}m run${cableInfo.rating ? ` · ${cableInfo.rating}` : ''}`,
+          isCustom: false,
+        });
+      }
     }
   });
 

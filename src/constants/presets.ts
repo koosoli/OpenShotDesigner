@@ -47,6 +47,7 @@ export const ND_FILTERS = ['None', '0.3', '0.6', '0.9', '1.2', '1.5', '1.8', '2.
 
 export const CAMERA_RIGS: { value: CameraRigType; label: string; icon: string }[] = [
   { value: 'Tripod', label: 'Tripod (Locked off)', icon: 'camera' },
+  { value: 'Broadcast Pedestal', label: 'Broadcast Pedestal (Studio/OB)', icon: 'monitor' },
   { value: 'Dana Dolly', label: 'Dana Dolly / Rail Track', icon: 'rail-symbol' },
   { value: 'Slider', label: 'Camera Slider Track', icon: 'move-horizontal' },
   { value: 'Steadicam', label: 'Steadicam / Snorricam Vest', icon: 'navigation' },
@@ -123,6 +124,22 @@ export const CAMERA_BODY_PRESETS: {
   { brand: 'Panasonic', model: 'Panasonic Lumix S1H (Full Frame 6K)', sensor: 'FullFrame', label: 'Panasonic Lumix S1H (Full Frame 6K)' },
   { brand: 'Panasonic', model: 'Panasonic AU-EVA1 5.7K (Super 35)', sensor: 'Super35', label: 'Panasonic AU-EVA1 5.7K' },
   { brand: 'Panasonic', model: 'Panasonic Lumix GH6 (MFT 5.7K)', sensor: 'MFT', label: 'Panasonic Lumix GH6 (MFT)' },
+
+  // Broadcast / OB (Outside Broadcast) Studio & Live Production
+  { brand: 'Grass Valley', model: 'Grass Valley LDX 100 Studio/OB Camera', sensor: 'Super35', label: 'Grass Valley LDX 100 (Studio/OB)' },
+  { brand: 'Grass Valley', model: 'Grass Valley LDX 86 Studio Camera', sensor: 'Super35', label: 'Grass Valley LDX 86 (Studio)' },
+  { brand: 'Grass Valley', model: 'Grass Valley LDX C Flex Compact Camera', sensor: 'Super35', label: 'Grass Valley LDX C Flex (Compact)' },
+  { brand: 'Grass Valley', model: 'Grass Valley LDX 84 Studio/OB Camera', sensor: 'Super35', label: 'Grass Valley LDX 84 (Studio/OB)' },
+  { brand: 'Sony', model: 'Sony HDC-5500 4K Ultra High Frame Rate Camera', sensor: 'Super35', label: 'Sony HDC-5500 (4K UHD OB)' },
+  { brand: 'Sony', model: 'Sony HDC-4300 4K Super Slow Motion Camera', sensor: 'Super35', label: 'Sony HDC-4300 (4K HSS)' },
+  { brand: 'Sony', model: 'Sony HDC-3500 4K Studio/OB Camera', sensor: 'Super35', label: 'Sony HDC-3500 (Studio/OB)' },
+  { brand: 'Sony', model: 'Sony HDC-3100 HDR Studio/OB Camera', sensor: 'Super35', label: 'Sony HDC-3100 (HDR Studio/OB)' },
+  { brand: 'Hitachi', model: 'Hitachi SK-HD1800 Studio/OB Camera', sensor: 'Super35', label: 'Hitachi SK-HD1800 (Studio/OB)' },
+  { brand: 'Hitachi', model: 'Hitachi Z-HD5500 Studio/OB Camera', sensor: 'Super35', label: 'Hitachi Z-HD5500 (Studio/OB)' },
+  { brand: 'Ikegami', model: 'Ikegami UHK-430 4K Studio/OB Camera', sensor: 'Super35', label: 'Ikegami UHK-430 (4K Studio/OB)' },
+  { brand: 'Ikegami', model: 'Ikegami UHK-750 8K Camera', sensor: 'Super35', label: 'Ikegami UHK-750 (8K)' },
+  { brand: 'Panasonic', model: 'Panasonic AK-UC4000 4K Studio Camera', sensor: 'Super35', label: 'Panasonic AK-UC4000 (4K Studio)' },
+  { brand: 'Panasonic', model: 'Panasonic AW-UE160 4K PTZ Camera', sensor: 'Super35', label: 'Panasonic AW-UE160 (4K PTZ)' },
 ];
 
 export const SHOT_SIZES: {
@@ -251,6 +268,38 @@ export const LIGHT_ROLES: {
   { value: 'practical', label: 'Practical Light', description: 'Visible in-camera lamp or bulb', color: '#fbbf24' },
   { value: 'bounce', label: 'Bounce / Ambient', description: 'Diffused indirect fill light', color: '#94a3b8' },
   { value: 'unassigned', label: 'Unassigned', description: 'General production lighting', color: '#cbd5e1' },
+];
+
+/** Production cable / patch run types for the floor plan cable planner. */
+export const CABLE_TYPES: {
+  type: import('../types').CableType;
+  name: string;
+  shortLabel: string;
+  color: string;
+  connector: string;
+  isPower: boolean;
+  rating?: string;
+}[] = [
+  { type: 'sdi_12g', name: 'SDI 12G (4K/8K Video)', shortLabel: '12G-SDI', color: '#38bdf8', connector: 'BNC', isPower: false },
+  { type: 'sdi_3g', name: 'SDI 3G (HD Video)', shortLabel: '3G-SDI', color: '#0ea5e9', connector: 'BNC', isPower: false },
+  { type: 'hdmi', name: 'HDMI 2.1 (Monitor / Rec)', shortLabel: 'HDMI', color: '#a855f7', connector: 'HDMI-A', isPower: false },
+  { type: 'fiber', name: 'Fiber Optic (12-strand)', shortLabel: 'Fiber', color: '#f59e0b', connector: 'LC / MTP', isPower: false },
+  { type: 'ethernet', name: 'Ethernet / Network (CAT6)', shortLabel: 'NET', color: '#10b981', connector: 'RJ45', isPower: false },
+  { type: 'dmx', name: 'DMX-512 Control', shortLabel: 'DMX', color: '#eab308', connector: '5-pin XLR', isPower: false },
+  { type: 'audio_xlr', name: 'Audio XLR (Balanced)', shortLabel: 'XLR', color: '#ec4899', connector: '3-pin XLR', isPower: false },
+  { type: 'aes_ebu', name: 'AES/EBU Digital Audio (XLR)', shortLabel: 'AES', color: '#f43f5e', connector: 'XLR-3 · 110Ω', isPower: false },
+  { type: 'speakon', name: 'Speakon Speaker Cable (NL4)', shortLabel: 'SPK', color: '#6366f1', connector: 'Speakon NL4', isPower: false },
+  { type: 'socapex', name: 'SOCAPEX Multi-Cable (Lighting)', shortLabel: 'SOCA', color: '#facc15', connector: 'SOCAPEX 19-pin', isPower: false },
+  { type: 'smpte_fiber', name: 'SMPTE Hybrid Fiber (Camera)', shortLabel: 'SMPTE', color: '#22d3ee', connector: 'SMPTE LEMO', isPower: false },
+  { type: 'power_20a', name: 'AC Power 20A (120V)', shortLabel: '20A', color: '#ef4444', connector: '20A Edison / Stage Pin', isPower: true, rating: '20A · 2400W @120V' },
+  { type: 'power_60a', name: 'AC Power 60A (120/208V)', shortLabel: '60A', color: '#f97316', connector: '60A Bates / Stage Pin', isPower: true, rating: '60A · 7200W @120V' },
+  { type: 'power_100a', name: 'AC Power 100A (3-phase)', shortLabel: '100A', color: '#dc2626', connector: '100A Camlok', isPower: true, rating: '100A · 24000W @120V' },
+  { type: 'power_schuko', name: 'Schuko Power (CEE 7/7) 230V', shortLabel: 'SCHUKO', color: '#ef4444', connector: 'Schuko CEE 7/7', isPower: true, rating: '16A · 3680W @230V' },
+  { type: 'power_true1', name: 'powerCON TRUE1 (Neutrik)', shortLabel: 'TRUE1', color: '#fb7185', connector: 'powerCON TRUE1', isPower: true, rating: '20A · 5000W @250V' },
+  { type: 'power_cee16', name: 'CEEform 16A (3-phase)', shortLabel: 'CEE16', color: '#f97316', connector: 'CEE 16A 5-pin', isPower: true, rating: '16A · 11kW @400V 3ph' },
+  { type: 'power_cee32', name: 'CEEform 32A (3-phase)', shortLabel: 'CEE32', color: '#f59e0b', connector: 'CEE 32A 5-pin', isPower: true, rating: '32A · 22kW @400V 3ph' },
+  { type: 'power_cee63', name: 'CEEform 63A (3-phase)', shortLabel: 'CEE63', color: '#d97706', connector: 'CEE 63A 5-pin', isPower: true, rating: '63A · 43kW @400V 3ph' },
+  { type: 'power_cee125', name: 'CEEform 125A (3-phase)', shortLabel: 'CEE125', color: '#b91c1c', connector: 'CEE 125A 5-pin', isPower: true, rating: '125A · 86kW @400V 3ph' },
 ];
 
 export const LIGHTING_BRANDS = [
@@ -446,7 +495,7 @@ export function getFlagPanelDims(light: {
 export const PROP_CATALOG: {
   type: PropType;
   name: string;
-  category: 'Living' | 'Dining & Office' | 'Bedroom' | 'Studio & Stage' | 'Vehicles' | 'Weapons & Explosives' | 'Documents & Hand Props' | 'Architecture' | 'Generic';
+  category: 'Living' | 'Dining & Office' | 'Bedroom' | 'Studio & Stage' | 'Concert & Stage' | 'Broadcast & Production' | 'Vehicles' | 'Weapons & Explosives' | 'Documents & Hand Props' | 'Architecture' | 'Generic';
   defaultWidth: number;
   defaultHeight: number;
   defaultColor: string;
@@ -489,6 +538,29 @@ export const PROP_CATALOG: {
   { type: 'vehicle_suv', name: 'SUV / 4x4 Vehicle', category: 'Vehicles', defaultWidth: 200, defaultHeight: 400, defaultColor: '#475569' },
   { type: 'vehicle_truck', name: 'Production Grip Truck', category: 'Vehicles', defaultWidth: 220, defaultHeight: 520, defaultColor: '#334155' },
   { type: 'vehicle_police', name: 'Police Cruiser (4-Door)', category: 'Vehicles', defaultWidth: 190, defaultHeight: 380, defaultColor: '#0284c7' },
+
+  // Concert & Live Event Staging
+  { type: 'stage', name: 'Concert Stage Platform', category: 'Concert & Stage', defaultWidth: 480, defaultHeight: 240, defaultColor: '#1e293b' },
+  { type: 'stage_riser', name: 'Stage Riser / Platform Deck', category: 'Concert & Stage', defaultWidth: 180, defaultHeight: 120, defaultColor: '#334155' },
+  { type: 'stage_runway', name: 'Runway / Catwalk Extension', category: 'Concert & Stage', defaultWidth: 320, defaultHeight: 60, defaultColor: '#475569' },
+  { type: 'stage_truss', name: 'Lighting Truss Tower', category: 'Concert & Stage', defaultWidth: 40, defaultHeight: 220, defaultColor: '#0f172a' },
+  { type: 'drum_kit', name: 'Drum Riser + Full Drum Kit', category: 'Concert & Stage', defaultWidth: 160, defaultHeight: 140, defaultColor: '#1e293b' },
+  { type: 'keyboard_rig', name: 'Keyboard Rig / Synth Station', category: 'Concert & Stage', defaultWidth: 90, defaultHeight: 50, defaultColor: '#334155' },
+  { type: 'amp_stack', name: 'Guitar Amp Stack', category: 'Concert & Stage', defaultWidth: 70, defaultHeight: 70, defaultColor: '#111827' },
+  { type: 'speaker_stack', name: 'PA Speaker Stack', category: 'Concert & Stage', defaultWidth: 70, defaultHeight: 110, defaultColor: '#0f172a' },
+  { type: 'speaker_array', name: 'Line Array Speaker Hang', category: 'Concert & Stage', defaultWidth: 30, defaultHeight: 120, defaultColor: '#1e293b' },
+  { type: 'sub_stack', name: 'Subwoofer Stack', category: 'Concert & Stage', defaultWidth: 90, defaultHeight: 60, defaultColor: '#0f172a' },
+  { type: 'monitor_wedge', name: 'Floor Monitor Wedge', category: 'Concert & Stage', defaultWidth: 45, defaultHeight: 30, defaultColor: '#334155' },
+  { type: 'foh_console', name: 'FOH Mixing Console Position', category: 'Concert & Stage', defaultWidth: 140, defaultHeight: 60, defaultColor: '#1e293b' },
+  { type: 'monitor_console', name: 'Monitor Mixing Position', category: 'Concert & Stage', defaultWidth: 120, defaultHeight: 50, defaultColor: '#1e293b' },
+  { type: 'mic_stand', name: 'Microphone Stand', category: 'Concert & Stage', defaultWidth: 25, defaultHeight: 25, defaultColor: '#475569' },
+  { type: 'barricade', name: 'Crowd Barrier / Barricade', category: 'Concert & Stage', defaultWidth: 180, defaultHeight: 20, defaultColor: '#64748b' },
+  { type: 'video_wall', name: 'LED Video Wall / Screen', category: 'Concert & Stage', defaultWidth: 300, defaultHeight: 180, defaultColor: '#020617' },
+
+  // Broadcast & Production
+  { type: 'broadcast_truck', name: 'Broadcast Production Truck', category: 'Broadcast & Production', defaultWidth: 260, defaultHeight: 560, defaultColor: '#1e293b' },
+  { type: 'broadcast_van', name: 'ENG / News Van', category: 'Broadcast & Production', defaultWidth: 190, defaultHeight: 380, defaultColor: '#0f172a' },
+  { type: 'sat_truck', name: 'Satellite Uplink Truck', category: 'Broadcast & Production', defaultWidth: 240, defaultHeight: 480, defaultColor: '#111827' },
 
   // Weapons & Explosives
   { type: 'gun', name: 'Handgun / Pistol Firearm', category: 'Weapons & Explosives', defaultWidth: 44, defaultHeight: 32, defaultColor: '#1e293b' },

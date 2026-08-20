@@ -3,6 +3,8 @@ import {
   ActiveTool,
   AspectRatio,
   BackgroundImage,
+  CableElement,
+  CableType,
   CameraElement,
   CameraRigType,
   FloorPlanElement,
@@ -26,6 +28,7 @@ import {
 import {
   ACTOR_COLOR_PALETTE,
   CAMERA_COLOR_PALETTE,
+  CABLE_TYPES,
   LIGHT_FIXTURES,
   PROP_CATALOG,
   SAMPLE_SCENES,
@@ -73,6 +76,7 @@ interface FloorPlanContextType {
   activeLightFixture: LightFixtureType;
   activeCameraRig: CameraRigType;
   activeShapeType: ShapeType;
+  activeCableType: CableType;
   historyIndex: number;
   historyLength: number;
   playback: {
@@ -101,11 +105,12 @@ interface FloorPlanContextType {
   setLightFixture: (type: LightFixtureType) => void;
   setCameraRig: (rig: CameraRigType) => void;
   setShapeType: (shape: ShapeType) => void;
+  setCableType: (cable: CableType) => void;
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
   activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'inspector';
   setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'inspector') => void;
-  selectElement: (id: string | null, multi?: boolean) => void;
+  selectElement: (id: string | null, multi?: boolean, force?: boolean) => void;
   selectElements: (ids: string[]) => void;
   clearSelection: () => void;
   selectShot: (shotId: string | null, focusCanvasCamera?: boolean) => void;
@@ -279,6 +284,7 @@ export interface CategoryOpacitySettings {
   tracks: number;
   measurements?: number;
   storyboards?: number;
+  cables?: number;
 }
 
 export interface LabelCategoryOpacitySettings {
@@ -289,6 +295,7 @@ export interface LabelCategoryOpacitySettings {
   lights: number;
   doorWindows: number;
   measurements: number;
+  cables?: number;
 }
 
 export interface DisplaySettings {
@@ -308,6 +315,7 @@ export interface DisplaySettings {
   showLightIntensityLabels: boolean;
   showMeasurementLabels: boolean;
   showDoorWindowLabels: boolean;
+  showCableLabels: boolean;
   // Per-category label color overrides (null = use element's own color)
   actorLabelColor: string | null;
   cameraLabelColor: string | null;
@@ -316,6 +324,7 @@ export interface DisplaySettings {
   lightLabelColor: string | null;
   doorWindowLabelColor: string | null;
   measurementLabelColor: string | null;
+  cableLabelColor: string | null;
   // Per-category label opacity overrides (0 - 1)
   labelCategoryOpacity: LabelCategoryOpacitySettings;
   // Decluttering toggles
@@ -355,6 +364,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showLightIntensityLabels: false,
   showMeasurementLabels: true,
   showDoorWindowLabels: true,
+  showCableLabels: true,
   actorLabelColor: null,
   cameraLabelColor: null,
   propLabelColor: null,
@@ -362,6 +372,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   lightLabelColor: null,
   doorWindowLabelColor: null,
   measurementLabelColor: null,
+  cableLabelColor: null,
   labelCategoryOpacity: {
     actors: 1.0,
     cameras: 1.0,
@@ -370,6 +381,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     lights: 1.0,
     doorWindows: 1.0,
     measurements: 1.0,
+    cables: 1.0,
   },
   showWaypoints: true,
   showWaypointCues: false,
@@ -393,6 +405,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     architecture: 1.0,
     shapes: 1.0,
     tracks: 1.0,
+    cables: 1.0,
   },
 };
 
@@ -546,6 +559,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [activeLightFixture, setActiveLightFixture] = useState<LightFixtureType>('fresnel');
   const [activeCameraRig, setActiveCameraRig] = useState<CameraRigType>('Tripod');
   const [activeShapeType, setActiveShapeType] = useState<ShapeType>('rectangle');
+  const [activeCableType, setActiveCableType] = useState<CableType>('sdi_12g');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
       const savedTheme = migrateStorageKey(LEGACY_STORAGE_KEYS.theme, STORAGE_KEYS.theme);
@@ -763,7 +777,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Selection handlers
-  const selectElement = (id: string | null, multi = false) => {
+  /**
+   * Select an element. Locked elements stay unselectable — unless `force` is
+   * true, which is the deliberate escape hatch (double-click or the lock chip)
+   * used to reach a locked element's inspector so it can be unlocked again.
+   */
+  const selectElement = (id: string | null, multi = false, force = false) => {
     if (!id) {
       setSelectedElementIds([]);
       return;
@@ -771,7 +790,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const el = activeSetup.elements.find((e) => e.id === id);
     // Locked elements are not selectable while locked.
-    if (el?.locked) return;
+    if (el?.locked && !force) return;
     const isCamera = el?.type === 'camera';
 
     // Selecting on the canvas opens the inspector — unless:
@@ -1076,6 +1095,23 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         dashStyle: 'solid',
         ...partial,
       };
+    } else if (partial.type === 'cable') {
+      const requestedCable = (partial as Partial<CableElement>).cableType;
+      const cableInfo = CABLE_TYPES.find((c) => c.type === (requestedCable ?? activeCableType)) || CABLE_TYPES[0];
+      newElement = {
+        ...baseDefaults,
+        type: 'cable',
+        name: partial.name || `Cable ${cableInfo.shortLabel}`,
+        x2: baseDefaults.x + 150,
+        y2: baseDefaults.y,
+        cableType: cableInfo.type,
+        color: cableInfo.color,
+        strokeWidth: 3.5,
+        showLabel: true,
+        fromLabel: 'FROM',
+        toLabel: 'TO',
+        ...partial,
+      };
     } else {
       newElement = {
         ...baseDefaults,
@@ -1111,7 +1147,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     // Linear elements need a sensible default length when placed via search.
-    if ((partial.type === 'wall' || partial.type === 'track' || partial.type === 'measurement' || partial.type === 'arrow') && (full as any).x2 === undefined) {
+    if ((partial.type === 'wall' || partial.type === 'track' || partial.type === 'measurement' || partial.type === 'arrow' || partial.type === 'cable') && (full as any).x2 === undefined) {
       (full as any).x2 = pos.x + 240;
       (full as any).y2 = pos.y;
     }
@@ -1143,6 +1179,25 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           updatedShots = activeSetup.shots.map((s) =>
             s.id === linkedShot.id ? ({ ...s, lensMm: focal } as Shot) : s
           );
+        }
+      }
+
+      // A camera that gains its FIRST waypoint is now moving — its linked shot
+      // can't stay Static. Flip it to Tracking (only if the user hadn't already
+      // picked a real movement).
+      if ((updates as Partial<CameraElement>).path !== undefined) {
+        const newPath = (updates as Partial<CameraElement>).path;
+        const hadMove = !!(cam.path && cam.path.length > 0);
+        const hasMove = !!newPath && newPath.length > 0;
+        if (hasMove && !hadMove) {
+          const linkedShot = activeSetup.shots.find((s) => s.cameraId === id || s.id === cam.associatedShotId);
+          if (linkedShot) {
+            updatedShots = activeSetup.shots.map((s) =>
+              s.id === linkedShot.id
+                ? ({ ...s, movement: s.movement === 'Static' ? ('Tracking' as CameraMovement) : s.movement } as Shot)
+                : s
+            );
+          }
         }
       }
     }
@@ -3375,6 +3430,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setCameraRig: setActiveCameraRig,
         activeShapeType,
         setShapeType: setActiveShapeType,
+        activeCableType,
+        setCableType: setActiveCableType,
         quickSearchOpen,
         setQuickSearchOpen,
         selectElement,

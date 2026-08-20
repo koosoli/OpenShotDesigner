@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { CameraRigType, FloorPlanElement, LightFixtureType, PropType, ShapeType } from '../../types';
-import { CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
+import { CameraRigType, CableType, FloorPlanElement, LightFixtureType, PropType, ShapeType } from '../../types';
+import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import {
   BrickWall,
+  Cable,
   Camera,
   Circle,
   Clapperboard,
@@ -24,6 +25,7 @@ import {
   Video,
   X,
   Zap,
+  Mic2,
 } from 'lucide-react';
 
 const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-sky-500' }) => (
@@ -92,6 +94,25 @@ const PROP_KEYWORDS: Record<PropType, string> = {
   stairs: 'stairs staircase steps flight of stairs spiral stairs steps architectural stairs floor transition staircase flight steps step staircase',
   box: 'box block cube generic box crate riser wooden box geometric box prop cube box',
   circle: 'circle pillar column round block generic cylinder marker pole round pillar circular base column pillar',
+  stage: 'stage concert stage platform stage deck stage floor performance stage live stage concert stage main stage apron proscenium band stage gig stage tour stage festival stage',
+  stage_riser: 'stage riser riser platform deck riser stage riser riser platform drum riser podium platform deck staging riser',
+  stage_runway: 'runway catwalk stage runway extension catwalk extension thrust stage ramp walkway pier catwalk',
+  stage_truss: 'truss truss tower lighting truss tower truss system rigging truss roof truss stage truss lighting rig truss tower',
+  drum_kit: 'drum kit drums drum riser drum set drum riser drums drum riser kit percussion drum set drum kit drums',
+  keyboard_rig: 'keyboard rig keyboard keyboard stand synth synth station keyboard stand keys rig keyboard keyboard rig',
+  amp_stack: 'amp stack guitar amp amplifier stack amp wall marshall amplifier stack guitar amp stack amp cabinet',
+  speaker_stack: 'speaker stack pa stack pa speaker speaker cabinet speaker stack pa cabinet sound system speaker stack pa',
+  speaker_array: 'line array speaker array line array hang pa line array speaker system line array audio hang speaker line array',
+  sub_stack: 'subwoofer sub stack subwoofer stack subwoofers bass bins sub subs subwoofer stack sub bass system',
+  monitor_wedge: 'monitor wedge floor monitor wedge stage monitor foldback wedge monitor speaker floor wedge stage wedge',
+  foh_console: 'foh front of house mixing console mixer desk sound mixer foh position mixing console soundboard foh mixing desk front of house mixing board audio mixing console',
+  monitor_console: 'monitor console monitor mix position monitor desk stage monitor mixer monitor world monitor mixing position monitor console',
+  mic_stand: 'mic stand microphone stand boom mic stand vocal mic stand microphone boom stand mic stand microphone',
+  barricade: 'barricade crowd barrier barricade barrier fence security barrier crowd control barrier stage barricade metal barrier',
+  video_wall: 'video wall led wall led screen video screen giant screen led video wall concert screen backdrop screen imax screen video wall',
+  broadcast_truck: 'broadcast truck production truck ob van outside broadcast truck broadcast truck mobile unit production truck truck broadcast',
+  broadcast_van: 'eng van news van broadcast van news truck eng vehicle news vehicle satellite van broadcast van eng unit',
+  sat_truck: 'satellite truck satellite uplink truck uplink truck satellite uplink sat truck uplink vehicle broadcast truck satellite',
 };
 
 const LIGHT_KEYWORDS: Partial<Record<LightFixtureType, string>> = {
@@ -124,12 +145,13 @@ const RIG_KEYWORDS: Partial<Record<CameraRigType, string>> = {
   Drone: 'drone aerial uav drone shot quadcopter fpv aerial camera top down bird eye drone aerial',
   'Car Mount': 'car mount vehicle camera suction mount hood rig car mount',
   'Cable Cam': 'cable cam wire rig skycam zip line camera cable cam',
+  'Broadcast Pedestal': 'broadcast pedestal studio pedestal vinten pedestal studio camera pedestal ob pedestal studio base camera pedestal',
 };
 
 interface QuickAsset {
   id: string;
   label: string;
-  categoryTag: 'all' | 'props' | 'grip' | 'vehicles' | 'lighting' | 'cameras' | 'shapes' | 'elements';
+  categoryTag: 'all' | 'props' | 'grip' | 'vehicles' | 'lighting' | 'cameras' | 'shapes' | 'elements' | 'cables';
   keywords: string;
   group: string;
   dimensions?: string;
@@ -149,12 +171,14 @@ function buildAssetList(): QuickAsset[] {
   PROP_CATALOG.forEach((p) => {
     const specificKw = PROP_KEYWORDS[p.type] || '';
     let categoryTag: QuickAsset['categoryTag'] = 'props';
-    if (p.category === 'Studio & Stage') categoryTag = 'grip';
-    else if (p.category === 'Vehicles' || p.category === 'Weapons & Explosives') categoryTag = 'vehicles';
+    if (p.category === 'Studio & Stage' || p.category === 'Concert & Stage') categoryTag = 'grip';
+    else if (p.category === 'Vehicles' || p.category === 'Weapons & Explosives' || p.category === 'Broadcast & Production') categoryTag = 'vehicles';
     else if (p.category === 'Architecture' || p.category === 'Generic') categoryTag = 'shapes';
 
     let groupName = 'Furniture & Props';
     if (p.category === 'Studio & Stage') groupName = 'Studio & Grip Equipment';
+    else if (p.category === 'Concert & Stage') groupName = 'Concert & Live Event';
+    else if (p.category === 'Broadcast & Production') groupName = 'Broadcast & Production';
     else if (p.category === 'Vehicles') groupName = 'Vehicles & Transport';
     else if (p.category === 'Weapons & Explosives') groupName = 'Weapons & Explosives';
     else if (p.category === 'Documents & Hand Props') groupName = 'Documents & Hand Props';
@@ -168,7 +192,11 @@ function buildAssetList(): QuickAsset[] {
       keywords: `${p.name} ${p.category} ${p.type} prop ${specificKw}`,
       group: groupName,
       dimensions: `${p.defaultWidth}×${p.defaultHeight}cm`,
-      icon: p.type === 'tree' ? <TreePine className="w-4 h-4 text-emerald-500" /> : <Armchair className="w-4 h-4 text-purple-500" />,
+      icon:
+        p.type === 'tree' ? <TreePine className="w-4 h-4 text-emerald-500" /> :
+        p.category === 'Broadcast & Production' ? <Truck className="w-4 h-4 text-sky-500" /> :
+        p.category === 'Concert & Stage' ? <Mic2 className="w-4 h-4 text-purple-500" /> :
+        <Armchair className="w-4 h-4 text-purple-500" />,
       buildPartial: () => ({ type: 'prop', propType: p.type } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
     });
   });
@@ -213,6 +241,21 @@ function buildAssetList(): QuickAsset[] {
       icon: <Circle className="w-4 h-4 text-cyan-500" />,
       buildPartial: () =>
         ({ type: 'shape', shapeType: shape.value } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
+    });
+  });
+
+  // 4b. Signal & Power Cables
+  CABLE_TYPES.forEach((ct) => {
+    assets.push({
+      id: `cable-${ct.type}`,
+      label: `${ct.name} Run`,
+      categoryTag: 'cables',
+      keywords: `cable patch wiring signal power ${ct.name} ${ct.shortLabel} ${ct.connector} ${ct.rating || ''} run`,
+      group: ct.isPower ? 'Power Cables' : 'Signal & Patch Cables',
+      dimensions: ct.rating || ct.connector,
+      icon: ct.isPower ? <Zap className="w-4 h-4 text-rose-500" /> : <Cable className="w-4 h-4 text-cyan-500" />,
+      buildPartial: () =>
+        ({ type: 'cable', cableType: ct.type as CableType } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
     });
   });
 
@@ -333,6 +376,7 @@ const CATEGORY_TABS: { id: 'all' | QuickAsset['categoryTag']; label: string; ico
   { id: 'cameras', label: 'Cameras & Rigs', icon: '🎥' },
   { id: 'vehicles', label: 'Vehicles & Action', icon: '🚗' },
   { id: 'elements', label: 'Architecture', icon: '🚪' },
+  { id: 'cables', label: 'Cables & Power', icon: '🔌' },
   { id: 'shapes', label: 'Zones & Shapes', icon: '📐' },
 ];
 

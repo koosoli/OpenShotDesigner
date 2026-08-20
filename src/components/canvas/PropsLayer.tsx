@@ -891,6 +891,340 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 <circle cx={0} cy={h * 0.14} r={2.5} fill="none" stroke="#fca5a5" strokeWidth={0.6} />
                 <circle cx={0} cy={h * 0.14} r={1} fill="#fca5a5" />
               </g>
+            ) : prop.propType === 'stage' ? (
+              <g className="prop-stage">
+                {/* Main platform deck */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} stroke="#38bdf8" strokeWidth={2} rx={3} />
+                {/* Stage floor seam lines (masonite panels) */}
+                <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke="#475569" strokeWidth={1.5} />
+                <line x1={-w / 4} y1={-h / 2} x2={-w / 4} y2={h / 2} stroke="#475569" strokeWidth={1} strokeDasharray="5 4" />
+                <line x1={w / 4} y1={-h / 2} x2={w / 4} y2={h / 2} stroke="#475569" strokeWidth={1} strokeDasharray="5 4" />
+                {/* Downstage edge highlight (front apron lip) */}
+                <line x1={-w / 2} y1={-h / 2 + 6} x2={w / 2} y2={-h / 2 + 6} stroke="#e2e8f0" strokeWidth={2} strokeOpacity={0.5} />
+                {/* Center star marker */}
+                <polygon
+                  points={`0,${-h * 0.18} ${w * 0.03},${-h * 0.05} ${w * 0.16},${-h * 0.05} ${w * 0.05},${h * 0.04} ${w * 0.1},${h * 0.17} 0,${h * 0.09} ${-w * 0.1},${h * 0.17} ${-w * 0.05},${h * 0.04} ${-w * 0.16},${-h * 0.05} ${-w * 0.03},${-h * 0.05}`}
+                  fill="#eab308"
+                  fillOpacity={0.9}
+                  stroke="#78350f"
+                  strokeWidth={1}
+                />
+                {/* Stage label */}
+                <text
+                  x={0}
+                  y={-h / 2 + 20}
+                  fill="#e2e8f0"
+                  fontSize="11"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  letterSpacing="3"
+                  className="select-none font-mono"
+                >
+                  STAGE
+                </text>
+              </g>
+            ) : prop.propType === 'stage_riser' ? (
+              <g className="prop-stage-riser">
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} stroke="#94a3b8" strokeWidth={2} rx={2} />
+                {/* Riser hatch grid */}
+                <line x1={-w / 2} y1={-h / 4} x2={w / 2} y2={-h / 4} stroke="#64748b" strokeWidth={1.5} />
+                <line x1={-w / 2} y1={h / 4} x2={w / 2} y2={h / 4} stroke="#64748b" strokeWidth={1.5} />
+                <line x1={-w / 4} y1={-h / 2} x2={-w / 4} y2={h / 2} stroke="#64748b" strokeWidth={1.5} />
+                <line x1={w / 4} y1={-h / 2} x2={w / 4} y2={h / 2} stroke="#64748b" strokeWidth={1.5} />
+                {/* Support legs visible on the sides */}
+                <line x1={-w / 2} y1={-h / 2 + 8} x2={-w / 2} y2={h / 2} stroke="#475569" strokeWidth={3} strokeLinecap="round" />
+                <line x1={w / 2} y1={-h / 2 + 8} x2={w / 2} y2={h / 2} stroke="#475569" strokeWidth={3} strokeLinecap="round" />
+              </g>
+            ) : prop.propType === 'stage_runway' ? (
+              <g className="prop-stage-runway">
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} stroke="#38bdf8" strokeWidth={2} rx={2} />
+                {/* Center seam + edge lighting strips */}
+                <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke="#64748b" strokeWidth={1.5} strokeDasharray="6 4" />
+                <line x1={-w / 2} y1={-h / 2 + 4} x2={w / 2} y2={-h / 2 + 4} stroke="#f59e0b" strokeWidth={1.5} strokeOpacity={0.8} />
+                <line x1={-w / 2} y1={h / 2 - 4} x2={w / 2} y2={h / 2 - 4} stroke="#f59e0b" strokeWidth={1.5} strokeOpacity={0.8} />
+              </g>
+            ) : prop.propType === 'stage_truss' ? (
+              <g className="prop-stage-truss">
+                {/* Two vertical towers + cross bracing */}
+                <rect x={-w / 2} y={-h / 2} width={w * 0.28} height={h} fill={color} stroke="#64748b" strokeWidth={2} />
+                <rect x={w / 2 - w * 0.28} y={-h / 2} width={w * 0.28} height={h} fill={color} stroke="#64748b" strokeWidth={2} />
+                {/* Cross braces between towers */}
+                <line x1={-w * 0.22} y1={-h / 2} x2={w * 0.22} y2={h / 2} stroke="#64748b" strokeWidth={1.5} />
+                <line x1={-w * 0.22} y1={h / 2} x2={w * 0.22} y2={-h / 2} stroke="#64748b" strokeWidth={1.5} />
+                <line x1={-w * 0.22} y1={0} x2={w * 0.22} y2={0} stroke="#64748b" strokeWidth={1.5} />
+                {/* Top load bar */}
+                <line x1={-w / 2} y1={-h / 2} x2={w / 2} y2={-h / 2} stroke="#eab308" strokeWidth={2.5} strokeLinecap="round" />
+              </g>
+            ) : prop.propType === 'drum_kit' ? (
+              <g className="prop-drum-kit">
+                {/* Drum riser base */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill="#1e293b" stroke="#64748b" strokeWidth={2} rx={3} />
+                {/* Bass drum */}
+                <circle cx={0} cy={-h * 0.12} r={Math.min(w, h) * 0.22} fill="#0f172a" stroke="#e2e8f0" strokeWidth={2} />
+                <circle cx={0} cy={-h * 0.12} r={Math.min(w, h) * 0.14} fill="none" stroke="#64748b" strokeWidth={1} />
+                {/* Floor toms */}
+                <circle cx={-w * 0.26} cy={h * 0.08} r={Math.min(w, h) * 0.13} fill="#334155" stroke="#cbd5e1" strokeWidth={1.5} />
+                <circle cx={w * 0.26} cy={h * 0.08} r={Math.min(w, h) * 0.13} fill="#334155" stroke="#cbd5e1" strokeWidth={1.5} />
+                {/* Snare */}
+                <circle cx={0} cy={h * 0.14} r={Math.min(w, h) * 0.1} fill="#475569" stroke="#cbd5e1" strokeWidth={1.5} />
+                {/* Cymbal stands */}
+                <line x1={-w * 0.34} y1={-h * 0.3} x2={-w * 0.4} y2={-h / 2 + 6} stroke="#94a3b8" strokeWidth={1.5} />
+                <line x1={w * 0.34} y1={-h * 0.3} x2={w * 0.4} y2={-h / 2 + 6} stroke="#94a3b8" strokeWidth={1.5} />
+                <ellipse cx={-w * 0.4} cy={-h / 2 + 4} rx={w * 0.09} ry={h * 0.05} fill="#eab308" fillOpacity={0.85} stroke="#78350f" strokeWidth={1} />
+                <ellipse cx={w * 0.4} cy={-h / 2 + 4} rx={w * 0.09} ry={h * 0.05} fill="#eab308" fillOpacity={0.85} stroke="#78350f" strokeWidth={1} />
+                {/* Stool */}
+                <circle cx={w * 0.33} cy={h * 0.34} r={4} fill="#94a3b8" />
+              </g>
+            ) : prop.propType === 'keyboard_rig' ? (
+              <g className="prop-keyboard-rig">
+                {/* Two-tier keyboard stand */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h * 0.32} fill={color} stroke="#38bdf8" strokeWidth={1.5} rx={2} />
+                <rect x={-w / 2 + w * 0.08} y={-h * 0.02} width={w * 0.84} height={h * 0.32} fill="#0f172a" stroke="#64748b" strokeWidth={1.5} rx={2} />
+                {/* Keys */}
+                <rect x={-w / 2 + 6} y={-h / 2 + 5} width={w - 12} height={h * 0.12} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={0.75} />
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <line key={i} x1={-w / 2 + 8 + i * ((w - 16) / 10)} y1={-h / 2 + 5} x2={-w / 2 + 8 + i * ((w - 16) / 10)} y2={-h / 2 + 5 + h * 0.12} stroke="#334155" strokeWidth={0.75} />
+                ))}
+                {/* X-stand legs */}
+                <line x1={-w * 0.3} y1={h * 0.32} x2={-w * 0.34} y2={h / 2} stroke="#64748b" strokeWidth={2} />
+                <line x1={w * 0.3} y1={h * 0.32} x2={w * 0.34} y2={h / 2} stroke="#64748b" strokeWidth={2} />
+              </g>
+            ) : prop.propType === 'amp_stack' ? (
+              <g className="prop-amp-stack">
+                {/* Guitar head */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h * 0.22} fill="#0f172a" stroke="#94a3b8" strokeWidth={1.5} rx={1} />
+                {/* Speaker cabinets */}
+                <rect x={-w / 2} y={-h / 2 + h * 0.24} width={w} height={h * 0.38} fill={color} stroke="#e2e8f0" strokeWidth={2} rx={2} />
+                <rect x={-w / 2} y={h * 0.14} width={w} height={h * 0.38} fill={color} stroke="#e2e8f0" strokeWidth={2} rx={2} />
+                {/* Speaker grille dots */}
+                <circle cx={-w * 0.12} cy={-h / 2 + h * 0.43} r={w * 0.16} fill="#0f172a" stroke="#64748b" strokeWidth={1} />
+                <circle cx={w * 0.12} cy={-h / 2 + h * 0.43} r={w * 0.16} fill="#0f172a" stroke="#64748b" strokeWidth={1} />
+                <circle cx={-w * 0.12} cy={h * 0.33} r={w * 0.16} fill="#0f172a" stroke="#64748b" strokeWidth={1} />
+                <circle cx={w * 0.12} cy={h * 0.33} r={w * 0.16} fill="#0f172a" stroke="#64748b" strokeWidth={1} />
+              </g>
+            ) : prop.propType === 'speaker_stack' ? (
+              <g className="prop-speaker-stack">
+                {/* Top cabinet (tweeter/mid horn) */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h * 0.3} fill={color} stroke="#94a3b8" strokeWidth={2} rx={2} />
+                <circle cx={0} cy={-h / 2 + h * 0.15} r={w * 0.2} fill="#0f172a" stroke="#64748b" strokeWidth={1} />
+                <circle cx={0} cy={-h / 2 + h * 0.15} r={w * 0.08} fill="#0f172a" stroke="#94a3b8" strokeWidth={1} />
+                {/* Bottom bass cabinet */}
+                <rect x={-w / 2} y={-h * 0.12} width={w} height={h * 0.42} fill={color} stroke="#e2e8f0" strokeWidth={2} rx={2} />
+                <circle cx={0} cy={h * 0.08} r={w * 0.22} fill="#0f172a" stroke="#64748b" strokeWidth={1} />
+                {/* Feet */}
+                <rect x={-w * 0.3} y={h * 0.36} width={w * 0.2} height={h * 0.08} rx={1} fill="#64748b" />
+                <rect x={w * 0.1} y={h * 0.36} width={w * 0.2} height={h * 0.08} rx={1} fill="#64748b" />
+              </g>
+            ) : prop.propType === 'speaker_array' ? (
+              <g className="prop-speaker-array">
+                {/* Vertical line array hang */}
+                {Array.from({ length: Math.max(3, Math.floor(h / 22)) }).map((_, i) => (
+                  <g key={i}>
+                    <rect x={-w / 2} y={-h / 2 + i * (h / Math.max(3, Math.floor(h / 22)))} width={w} height={h / Math.max(3, Math.floor(h / 22)) - 2} fill={color} stroke="#64748b" strokeWidth={1} rx={2} />
+                    <line x1={-w * 0.3} y1={-h / 2 + (i + 0.5) * (h / Math.max(3, Math.floor(h / 22)))} x2={w * 0.3} y2={-h / 2 + (i + 0.5) * (h / Math.max(3, Math.floor(h / 22)))} stroke="#94a3b8" strokeWidth={1} />
+                  </g>
+                ))}
+                {/* Top hang point */}
+                <line x1={0} y1={-h / 2} x2={0} y2={-h / 2 - 10} stroke="#f59e0b" strokeWidth={2} strokeDasharray="3 2" />
+              </g>
+            ) : prop.propType === 'sub_stack' ? (
+              <g className="prop-sub-stack">
+                {/* 2 stacked subwoofer cabinets */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h * 0.48} fill={color} stroke="#e2e8f0" strokeWidth={2} rx={2} />
+                <rect x={-w / 2} y={h * 0.02} width={w} height={h * 0.48} fill={color} stroke="#e2e8f0" strokeWidth={2} rx={2} />
+                {/* Sub drivers */}
+                <circle cx={-w * 0.2} cy={-h * 0.26} r={w * 0.14} fill="#0f172a" stroke="#94a3b8" strokeWidth={1} />
+                <circle cx={w * 0.2} cy={-h * 0.26} r={w * 0.14} fill="#0f172a" stroke="#94a3b8" strokeWidth={1} />
+                <circle cx={-w * 0.2} cy={h * 0.26} r={w * 0.14} fill="#0f172a" stroke="#94a3b8" strokeWidth={1} />
+                <circle cx={w * 0.2} cy={h * 0.26} r={w * 0.14} fill="#0f172a" stroke="#94a3b8" strokeWidth={1} />
+              </g>
+            ) : prop.propType === 'monitor_wedge' ? (
+              <g className="prop-monitor-wedge">
+                {/* Angled floor wedge (trapezoid) */}
+                <path
+                  d={`M ${-w / 2} ${h / 2} L ${-w / 2} ${h * 0.1} L ${w / 2} ${-h / 2} L ${w / 2} ${h / 2} Z`}
+                  fill={color}
+                  stroke="#38bdf8"
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                />
+                {/* Driver grille */}
+                <circle cx={0} cy={h * 0.05} r={w * 0.22} fill="#0f172a" stroke="#64748b" strokeWidth={1} />
+              </g>
+            ) : prop.propType === 'foh_console' || prop.propType === 'monitor_console' ? (
+              <g className="prop-console">
+                {/* Mixing desk surface */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h * 0.5} fill={color} stroke="#38bdf8" strokeWidth={1.5} rx={2} />
+                {/* Fader bank */}
+                <rect x={-w / 2 + 4} y={-h / 2 + 6} width={w - 8} height={h * 0.2} fill="#0f172a" rx={1} />
+                {Array.from({ length: Math.max(8, Math.floor(w / 16)) }).map((_, i) => (
+                  <line
+                    key={i}
+                    x1={-w / 2 + 8 + i * ((w - 16) / Math.max(8, Math.floor(w / 16)))}
+                    y1={-h / 2 + 6}
+                    x2={-w / 2 + 8 + i * ((w - 16) / Math.max(8, Math.floor(w / 16)))}
+                    y2={-h / 2 + 6 + h * 0.2}
+                    stroke="#22c55e"
+                    strokeWidth={1.5}
+                  />
+                ))}
+                {/* Meter bridge + screen */}
+                <rect x={-w * 0.3} y={-h * 0.06} width={w * 0.6} height={h * 0.26} fill="#0f172a" stroke="#64748b" strokeWidth={1} rx={1} />
+                <rect x={-w * 0.28} y={-h * 0.04} width={w * 0.56} height={h * 0.18} fill="#14532d" stroke="#22c55e" strokeWidth={0.75} />
+                {/* Desk legs */}
+                <rect x={-w * 0.4} y={h * 0.12} width={4} height={h * 0.38} fill="#475569" />
+                <rect x={w * 0.4 - 4} y={h * 0.12} width={4} height={h * 0.38} fill="#475569" />
+              </g>
+            ) : prop.propType === 'mic_stand' ? (
+              <g className="prop-mic-stand">
+                {/* Vertical pole */}
+                <line x1={0} y1={-h / 2 + h * 0.25} x2={0} y2={h / 2} stroke="#94a3b8" strokeWidth={2.5} strokeLinecap="round" />
+                {/* Boom arm */}
+                <line x1={0} y1={-h * 0.1} x2={-w * 0.3} y2={-h * 0.35} stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" />
+                {/* Mic capsule */}
+                <rect x={-w * 0.3 - 3} y={-h * 0.42} width={6} height={12} rx={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={1} />
+                {/* Tripod base */}
+                <line x1={-w * 0.22} y1={h / 2} x2={-w * 0.4} y2={h * 0.42} stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" />
+                <line x1={w * 0.22} y1={h / 2} x2={w * 0.4} y2={h * 0.42} stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" />
+              </g>
+            ) : prop.propType === 'barricade' ? (
+              <g className="prop-barricade">
+                {/* Barrier top rail */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h * 0.6} fill={color} stroke="#cbd5e1" strokeWidth={1.5} rx={2} />
+                {/* Legs */}
+                <line x1={-w * 0.32} y1={-h * 0.2} x2={-w * 0.4} y2={h / 2} stroke="#94a3b8" strokeWidth={3} strokeLinecap="round" />
+                <line x1={w * 0.32} y1={-h * 0.2} x2={w * 0.4} y2={h / 2} stroke="#94a3b8" strokeWidth={3} strokeLinecap="round" />
+                {/* Foot weights */}
+                <rect x={-w * 0.44} y={h * 0.3} width={w * 0.14} height={h * 0.2} rx={2} fill="#475569" />
+                <rect x={w * 0.3} y={h * 0.3} width={w * 0.14} height={h * 0.2} rx={2} fill="#475569" />
+              </g>
+            ) : prop.propType === 'video_wall' ? (
+              <g className="prop-video-wall">
+                {/* LED panel frame */}
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill="#020617" stroke="#e2e8f0" strokeWidth={2} rx={2} />
+                {/* Pixel grid */}
+                {Array.from({ length: Math.max(4, Math.floor(h / 18)) }).map((_, i) =>
+                  Array.from({ length: Math.max(6, Math.floor(w / 24)) }).map((__, j) => (
+                    <circle
+                      key={`${i}-${j}`}
+                      cx={-w / 2 + 10 + j * ((w - 20) / Math.max(6, Math.floor(w / 24)))}
+                      cy={-h / 2 + 10 + i * ((h - 20) / Math.max(4, Math.floor(h / 18)))}
+                      r={1.6}
+                      fill={i % 2 === j % 2 ? '#38bdf8' : '#f59e0b'}
+                      fillOpacity={0.85}
+                    />
+                  ))
+                )}
+                {/* Screen bezel separators */}
+                <line x1={0} y1={-h / 2} x2={0} y2={h / 2} stroke="#334155" strokeWidth={1} />
+                <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke="#334155" strokeWidth={1} />
+              </g>
+            ) : prop.propType === 'broadcast_truck' ? (
+              <g className="prop-broadcast-truck" transform={`scale(${w / 260}, ${h / 560})`}>
+                {/* Trailer body */}
+                <rect x={-110} y={-280} width={220} height={420} fill={color} stroke="#0f172a" strokeWidth={2.5} rx={6} />
+                {/* Satellite dish on roof */}
+                <line x1={0} y1={-280} x2={0} y2={-310} stroke="#64748b" strokeWidth={3} />
+                <ellipse cx={0} cy={-316} rx={34} ry={14} fill="#94a3b8" stroke="#0f172a" strokeWidth={2} />
+                <line x1={-28} y1={-314} x2={28} y2={-314} stroke="#0f172a" strokeWidth={1} />
+                <circle cx={0} cy={-314} r={3} fill="#f59e0b" />
+                {/* Side panels & decals */}
+                <rect x={-96} y={-250} width={192} height={110} rx={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={1} />
+                <text x={0} y={-200} fill="#38bdf8" fontSize="22" fontWeight="black" textAnchor="middle" fontFamily="monospace" className="select-none">
+                  LIVE
+                </text>
+                <text x={0} y={-180} fill="#e2e8f0" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="monospace" className="select-none">
+                  OB UNIT
+                </text>
+                {/* Lower equipment bays */}
+                <rect x={-96} y={-120} width={192} height={70} rx={3} fill="#0f172a" stroke="#64748b" strokeWidth={1} />
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <rect key={i} x={-86 + i * 31} y={-108} width={26} height={18} rx={2} fill="#1e293b" stroke="#38bdf8" strokeWidth={0.75} />
+                ))}
+                {/* Rear doors */}
+                <line x1={-8} y1={140} x2={-8} y2={-30} stroke="#334155" strokeWidth={2} />
+                <rect x={-96} y={140} width={84} height={70} rx={2} fill="#1e293b" stroke="#64748b" strokeWidth={1} />
+                <rect x={12} y={140} width={84} height={70} rx={2} fill="#1e293b" stroke="#64748b" strokeWidth={1} />
+                {/* Landing gear + wheels */}
+                <rect x={-110} y={150} width={8} height={28} rx={2} fill="#475569" />
+                <rect x={102} y={150} width={8} height={28} rx={2} fill="#475569" />
+                <rect x={-96} y={190} width={16} height={42} rx={4} fill="#0f172a" />
+                <rect x={-64} y={190} width={16} height={42} rx={4} fill="#0f172a" />
+                <rect x={48} y={190} width={16} height={42} rx={4} fill="#0f172a" />
+                <rect x={80} y={190} width={16} height={42} rx={4} fill="#0f172a" />
+                {/* Wheel hubs */}
+                <circle cx={-88} cy={212} r={4} fill="#64748b" />
+                <circle cx={-56} cy={212} r={4} fill="#64748b" />
+                <circle cx={56} cy={212} r={4} fill="#64748b" />
+                <circle cx={88} cy={212} r={4} fill="#64748b" />
+                {/* Tractor unit (attached at front) */}
+                <rect x={-110} y={-150} width={44} height={120} rx={8} fill="#0f172a" stroke="#38bdf8" strokeWidth={2} />
+                <rect x={-104} y={-120} width={32} height={40} rx={4} fill="#1e293b" stroke="#64748b" strokeWidth={1} />
+                <rect x={-118} y={-30} width={60} height={20} rx={3} fill="#475569" stroke="#0f172a" strokeWidth={1.5} />
+                <rect x={-108} y={18} width={14} height={36} rx={3} fill="#0f172a" />
+                <rect x={-86} y={18} width={14} height={36} rx={3} fill="#0f172a" />
+              </g>
+            ) : prop.propType === 'broadcast_van' ? (
+              <g className="prop-broadcast-van" transform={`scale(${w / 190}, ${h / 380})`}>
+                {/* Van body */}
+                <path
+                  d="M -80 -170 L 80 -170 L 90 -120 L 96 -20 L 96 120 L -96 120 L -96 -20 L -88 -120 Z"
+                  fill={color}
+                  stroke="#0f172a"
+                  strokeWidth={2.5}
+                />
+                {/* Roof mast / antenna */}
+                <line x1={-40} y1={-170} x2={-40} y2={-200} stroke="#64748b" strokeWidth={2.5} />
+                <line x1={-34} y1={-196} x2={-46} y2={-206} stroke="#f59e0b" strokeWidth={2} />
+                {/* Windshield */}
+                <path d="M -80 -140 L -72 -170 L 72 -170 L 84 -140 Z" fill="#0284c7" fillOpacity={0.4} stroke="#38bdf8" strokeWidth={1.5} />
+                {/* Side windows */}
+                <rect x={-70} y={-90} width={40} height={34} rx={3} fill="#0284c7" fillOpacity={0.35} stroke="#38bdf8" strokeWidth={1} />
+                <rect x={22} y={-90} width={50} height={34} rx={3} fill="#0284c7" fillOpacity={0.35} stroke="#38bdf8" strokeWidth={1} />
+                {/* News decal */}
+                <rect x={-84} y={-30} width={168} height={36} rx={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={1} />
+                <text x={0} y={-6} fill="#38bdf8" fontSize="16" fontWeight="black" textAnchor="middle" fontFamily="monospace" className="select-none">
+                  NEWS
+                </text>
+                {/* Rear compartment */}
+                <line x1={48} y1={-20} x2={48} y2={120} stroke="#334155" strokeWidth={2} />
+                {/* Wheels */}
+                <rect x={-72} y={112} width={14} height={34} rx={4} fill="#0f172a" />
+                <rect x={58} y={112} width={14} height={34} rx={4} fill="#0f172a" />
+                <circle cx={-65} cy={132} r={4} fill="#64748b" />
+                <circle cx={65} cy={132} r={4} fill="#64748b" />
+              </g>
+            ) : prop.propType === 'sat_truck' ? (
+              <g className="prop-sat-truck" transform={`scale(${w / 240}, ${h / 480})`}>
+                {/* Truck body */}
+                <rect x={-95} y={-240} width={190} height={330} fill={color} stroke="#0f172a" strokeWidth={2.5} rx={6} />
+                {/* Large satellite dish */}
+                <line x1={0} y1={-240} x2={0} y2={-300} stroke="#64748b" strokeWidth={3} />
+                <ellipse cx={0} cy={-312} rx={52} ry={22} fill="#cbd5e1" stroke="#0f172a" strokeWidth={2} />
+                <line x1={-46} y1={-310} x2={46} y2={-310} stroke="#475569" strokeWidth={1} />
+                <line x1={0} y1={-330} x2={0} y2={-296} stroke="#475569" strokeWidth={1} />
+                <circle cx={0} cy={-308} r={4} fill="#f59e0b" />
+                {/* Uplink equipment bay */}
+                <rect x={-82} y={-210} width={164} height={80} rx={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={1} />
+                <rect x={-72} y={-198} width={30} height={20} rx={2} fill="#1e293b" stroke="#22c55e" strokeWidth={0.75} />
+                <rect x={-34} y={-198} width={30} height={20} rx={2} fill="#1e293b" stroke="#22c55e" strokeWidth={0.75} />
+                <rect x={4} y={-198} width={30} height={20} rx={2} fill="#1e293b" stroke="#22c55e" strokeWidth={0.75} />
+                <rect x={42} y={-198} width={30} height={20} rx={2} fill="#1e293b" stroke="#22c55e" strokeWidth={0.75} />
+                {/* Side wall + logo band */}
+                <rect x={-82} y={-110} width={164} height={40} rx={2} fill="#1e293b" stroke="#64748b" strokeWidth={1} />
+                <text x={0} y={-84} fill="#e2e8f0" fontSize="15" fontWeight="black" textAnchor="middle" fontFamily="monospace" className="select-none">
+                  SAT-LINK
+                </text>
+                {/* Wheels */}
+                <rect x={-88} y={90} width={14} height={36} rx={4} fill="#0f172a" />
+                <rect x={-52} y={90} width={14} height={36} rx={4} fill="#0f172a" />
+                <rect x={38} y={90} width={14} height={36} rx={4} fill="#0f172a" />
+                <rect x={74} y={90} width={14} height={36} rx={4} fill="#0f172a" />
+                <circle cx={-81} cy={110} r={4} fill="#64748b" />
+                <circle cx={-45} cy={110} r={4} fill="#64748b" />
+                <circle cx={45} cy={110} r={4} fill="#64748b" />
+                <circle cx={81} cy={110} r={4} fill="#64748b" />
+              </g>
             ) : (
               /* Default rectangular prop */
               <rect

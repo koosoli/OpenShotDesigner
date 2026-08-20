@@ -8,6 +8,12 @@ interface ShapesLayerProps {
   onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   canvasScale: number;
   categoryOpacity?: { shapes?: number };
+  /**
+   * When true, shapes hidden with `visible === false` are drawn as faint dashed
+   * ghost outlines so they stay findable and clickable on the interactive
+   * canvas. Exports keep them truly invisible (omit this prop / pass false).
+   */
+  showHiddenGhosts?: boolean;
 }
 
 /** Outline path for the shapes that aren't a plain rect/ellipse. */
@@ -45,10 +51,12 @@ const polygonPoints = (shape: ShapeElement): string => {
  * Free-form shapes on the floor plan: blocking zones, set pieces, light pools,
  * callout boxes. Drawn under the elements so they read as background graphics.
  */
-export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSelect, onDoubleClick, canvasScale, categoryOpacity }) => (
+export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSelect, onDoubleClick, canvasScale, categoryOpacity, showHiddenGhosts }) => (
   <g className="shapes-layer" opacity={categoryOpacity?.shapes ?? 1.0}>
     {shapes.map((shape) => {
-      if (shape.visible === false) return null;
+      const hidden = shape.visible === false;
+      // Truly invisible in exports / non-interactive contexts.
+      if (hidden && !showHiddenGhosts) return null;
 
       const isSelected = selectedIds.includes(shape.id);
       const fill = shape.filled === false ? 'none' : shape.color || '#38bdf8';
@@ -61,24 +69,35 @@ export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, o
             ? `${2 / canvasScale} ${5 / canvasScale}`
             : undefined;
 
-      const common = {
-        fill,
-        fillOpacity: shape.filled === false ? 0 : (shape.opacity ?? 0.35),
-        stroke,
-        strokeWidth,
-        strokeOpacity: shape.strokeOpacity ?? 1,
-        strokeDasharray: dash,
-        vectorEffect: 'non-scaling-stroke' as const,
-      };
+      const common = hidden
+        ? // Faint dashed ghost so a hidden shape stays findable & clickable.
+          {
+            fill: 'none',
+            fillOpacity: 0,
+            stroke: '#94a3b8',
+            strokeWidth,
+            strokeOpacity: 0.55,
+            strokeDasharray: `${6 / canvasScale} ${4 / canvasScale}`,
+            vectorEffect: 'non-scaling-stroke' as const,
+          }
+        : {
+            fill,
+            fillOpacity: shape.filled === false ? 0 : (shape.opacity ?? 0.35),
+            stroke,
+            strokeWidth,
+            strokeOpacity: shape.strokeOpacity ?? 1,
+            strokeDasharray: dash,
+            vectorEffect: 'non-scaling-stroke' as const,
+          };
 
       return (
         <g
           key={shape.id}
           transform={`translate(${shape.x}, ${shape.y}) rotate(${shape.rotation || 0})`}
-          onPointerDown={(e) => !shape.locked && onSelect(shape.id, e)}
+          onPointerDown={(e) => onSelect(shape.id, e)}
           onDoubleClick={(e) => {
             e.stopPropagation();
-            if (!shape.locked) onDoubleClick?.(shape.id, e);
+            onDoubleClick?.(shape.id, e);
           }}
           style={{ cursor: shape.locked ? 'default' : 'move' }}
           className="shape-element"
@@ -144,7 +163,7 @@ export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, o
               y={shape.height / 2 + 14 / canvasScale}
               textAnchor="middle"
               fontSize={11 / canvasScale}
-              fill={stroke}
+              fill={hidden ? '#94a3b8' : stroke}
               fontFamily="ui-sans-serif, system-ui, sans-serif"
               fontWeight="600"
               className="pointer-events-none"

@@ -10,6 +10,8 @@ interface TransformControlsProps {
   onEndpointDragStart?: (endpoint: 'start' | 'end', e: React.PointerEvent) => void;
   onResizeStart?: (handle: ResizeHandle, e: React.PointerEvent) => void;
   onAddWaypoint?: () => void;
+  /** Start dragging a curved track's control point to bend/straighten it. */
+  onCurveDragStart?: (e: React.PointerEvent) => void;
   pixelsPerUnit?: number;
   unit?: 'ft' | 'm';
 }
@@ -20,6 +22,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
   onRotateStart,
   onEndpointDragStart,
   onResizeStart,
+  onCurveDragStart,
   pixelsPerUnit = 50,
   unit = 'm',
 }) => {
@@ -31,6 +34,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
     el.type === 'track' ||
     el.type === 'measurement' ||
     el.type === 'arrow' ||
+    el.type === 'cable' ||
     isLineShape;
 
   if (selectedElement.locked) {
@@ -145,12 +149,16 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
     const midY = (y1 + y2) / 2;
     const lengthPx = Math.hypot(x2 - x1, y2 - y1);
     const isMeasurement = el.type === 'measurement';
+    const isCable = el.type === 'cable';
     const lengthLabel = isMeasurement
       ? `${(lengthPx / pixelsPerUnit).toFixed(1)}${unit}`
+      : isCable
+      ? `${(lengthPx / pixelsPerUnit).toFixed(1)}m`
       : isLineShape
       ? `${Math.round(lengthPx)}px`
       : `${(lengthPx / 50).toFixed(2)}m`;
     const badgeWidth = isMeasurement || isLineShape ? 58 : 48;
+    const badgeColor = isMeasurement ? '#f59e0b' : isCable ? (el as any).color || '#38bdf8' : '#38bdf8';
 
     return (
       <g className="transform-controls pointer-events-auto">
@@ -163,14 +171,14 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
             height={20 / canvasScale}
             rx={4 / canvasScale}
             fill="#0f172a"
-            stroke={isMeasurement ? '#f59e0b' : '#38bdf8'}
+            stroke={badgeColor}
             strokeWidth={1 / canvasScale}
           />
           <text
             x={0}
             y={4 / canvasScale}
             textAnchor="middle"
-            fill={isMeasurement ? '#f59e0b' : '#38bdf8'}
+            fill={badgeColor}
             fontSize={10 / canvasScale}
             fontWeight="bold"
             fontFamily="monospace"
@@ -210,6 +218,77 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
           />
           <circle cx={x2} cy={y2} r={3 / canvasScale} fill="#ffffff" />
         </g>
+
+        {/* Curve control handle for dolly tracks */}
+        {el.type === 'track' && onCurveDragStart && (
+          (() => {
+            const dist = Math.max(20, Math.hypot(x2 - x1, y2 - y1));
+            const normalX = -(y2 - y1) / dist;
+            const normalY = (x2 - x1) / dist;
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+            const isCurved = !!(el as any).isCurved;
+            const offset = (el as any).curveOffset ?? 60;
+            const ctrlX = midX + normalX * offset;
+            const ctrlY = midY + normalY * offset;
+
+            return (
+              <g
+                className="cursor-grab active:cursor-grabbing"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onCurveDragStart(e);
+                }}
+              >
+                {/* Control point anchor line */}
+                <line
+                  x1={midX}
+                  y1={midY}
+                  x2={ctrlX}
+                  y2={ctrlY}
+                  stroke={isCurved ? '#f59e0b' : '#94a3b8'}
+                  strokeWidth={1.5 / canvasScale}
+                  strokeDasharray={`${4 / canvasScale} ${4 / canvasScale}`}
+                />
+                {/* Handle knob */}
+                <circle
+                  cx={ctrlX}
+                  cy={ctrlY}
+                  r={9 / canvasScale}
+                  fill={isCurved ? '#f59e0b' : '#334155'}
+                  stroke={isCurved ? '#0f172a' : '#38bdf8'}
+                  strokeWidth={2 / canvasScale}
+                  strokeDasharray={isCurved ? undefined : `${4 / canvasScale} ${3 / canvasScale}`}
+                />
+                <circle cx={ctrlX} cy={ctrlY} r={3 / canvasScale} fill="#ffffff" />
+                {/* Offset badge */}
+                <g transform={`translate(${ctrlX + 14 / canvasScale}, ${ctrlY - 12 / canvasScale})`}>
+                  <rect
+                    x={-16 / canvasScale}
+                    y={-8 / canvasScale}
+                    width={32 / canvasScale}
+                    height={16 / canvasScale}
+                    rx={3 / canvasScale}
+                    fill="#0f172a"
+                    stroke="#f59e0b"
+                    strokeWidth={1 / canvasScale}
+                  />
+                  <text
+                    x={0}
+                    y={3 / canvasScale}
+                    textAnchor="middle"
+                    fill="#f59e0b"
+                    fontSize={8 / canvasScale}
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                  >
+                    {Math.round(offset)}
+                  </text>
+                </g>
+              </g>
+            );
+          })()
+        )}
       </g>
     );
   }

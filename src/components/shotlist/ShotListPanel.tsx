@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
-import { CAMERA_MOVEMENTS, SHOT_SIZES } from '../../constants/presets';
+import { CAMERA_MOVEMENTS, SHOT_SIZES, ASPECT_RATIOS } from '../../constants/presets';
+import { framesOf } from '../../utils/storyboardFrames';
+import { effectiveMovement, hasCameraMove } from '../../utils/cameraMovement';
 import { exportShotListToCsv } from '../../utils/exportShotList';
 import {
   ArrowUpDown,
@@ -14,6 +16,7 @@ import {
   Film,
   GripVertical,
   Hash,
+  Image,
   Layers,
   LayoutGrid,
   Plus,
@@ -110,7 +113,16 @@ export const ShotListPanel: React.FC = () => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [insertMenu, setInsertMenu] = useState<{ shotId: string; x: number; y: number } | null>(null);
+  // Storyboard thumbnails in the shot list (like the print export). Defaults ON
+  // when any shot in the current scope already carries a frame.
+  const [showStoryboards, setShowStoryboards] = useState<boolean>(() =>
+    (project.setups.find((s) => s.id === activeSetup.id)?.shots || []).some((s) => !!s.storyboardImage)
+  );
   const shotListContainerRef = useRef<HTMLDivElement>(null);
+
+  // Aspect ratio the storyboard frames were drawn at, from the scene settings.
+  const sceneAspectRatio =
+    ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
 
   const cameras = activeSetup.elements.filter((e) => e.type === 'camera');
 
@@ -131,6 +143,10 @@ export const ShotListPanel: React.FC = () => {
     const label = (cam.cameraLabel || 'A').toUpperCase();
     return camerasByLabel.get(label)?.id || '';
   };
+
+  // Key storyboard frame for a shot (the same one the print export shows).
+  const storyboardImageFor = (shot: Shot): string | undefined =>
+    shot.storyboardImage || framesOf(shot)['start']?.image;
 
   // Pick an existing camera (or null) for a shot. Choosing a letter re-labels
   // the shot's own camera element on the floor plan so the icon shows that
@@ -468,6 +484,22 @@ export const ShotListPanel: React.FC = () => {
             isLight ? 'bg-slate-200/70 border-slate-300' : 'bg-slate-800 border-slate-700'
           }`}>
             <button
+              onClick={() => setShowStoryboards((v) => !v)}
+              title={
+                showStoryboards
+                  ? 'Hide storyboard thumbnails from the shot list'
+                  : 'Show storyboard thumbnails in the shot list (like the print export)'
+              }
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
+                showStoryboards
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Image className="w-3.5 h-3.5" />
+              <span>Story</span>
+            </button>
+            <button
               onClick={() => setViewMode('cards')}
               title="Storyboard / Coverage Cards View"
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
@@ -552,6 +584,25 @@ export const ShotListPanel: React.FC = () => {
                 {/* Active Left Indicator */}
                 {(isSelected || isCameraSelected) && (
                   <div className="absolute -left-0.5 top-2 bottom-2 w-1.5 bg-sky-500 rounded-r" />
+                )}
+
+                {/* Storyboard thumbnail — larger in card view, like the print storyboard */}
+                {showStoryboards && storyboardImageFor(shot) && (
+                  <div
+                    className="overflow-hidden rounded-lg border mb-2 bg-slate-100 dark:bg-slate-950"
+                    style={{ aspectRatio: `${sceneAspectRatio} / 1`, maxHeight: 190 }}
+                  >
+                    <img
+                      src={storyboardImageFor(shot)!}
+                      alt={`Storyboard ${shot.shotNumber}`}
+                      className="w-full h-full object-cover block pointer-events-none"
+                      style={{
+                        objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
+                        objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
                 )}
 
                 {/* Primary Card Top Row: Grip, Shot # (editable), Camera, Size, Lens, Status, Actions */}
@@ -853,6 +904,7 @@ export const ShotListPanel: React.FC = () => {
                   isLight ? 'bg-slate-100/80 text-slate-600 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'
                 }`}>
                   <th className="py-2.5 px-2 w-8 text-center"></th>
+                  {showStoryboards && <th className="py-2.5 px-2 w-12">Story</th>}
                   <th className="py-2.5 px-2 w-14">Shot #</th>
                   <th className="py-2.5 px-2">Shot Name / Action</th>
                   <th className="py-2.5 px-2 w-24">Cam</th>
@@ -914,6 +966,35 @@ export const ShotListPanel: React.FC = () => {
                           </div>
                         )}
                       </td>
+
+                      {/* Small storyboard thumbnail (kept tiny so rows stay compact) */}
+                      {showStoryboards && (
+                        <td className="py-1 px-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                          {storyboardImageFor(shot) ? (
+                            <div
+                              className="overflow-hidden rounded border bg-slate-100 dark:bg-slate-950"
+                              style={{ width: 40, aspectRatio: `${sceneAspectRatio} / 1` }}
+                            >
+                              <img
+                                src={storyboardImageFor(shot)}
+                                alt={`Storyboard ${shot.shotNumber}`}
+                                className="w-full h-full block"
+                                style={{
+                                  objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
+                                  objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className="rounded border border-dashed flex items-center justify-center text-[9px] text-slate-400"
+                              style={{ width: 40, aspectRatio: `${sceneAspectRatio} / 1` }}
+                            >
+                              —
+                            </div>
+                          )}
+                        </td>
+                      )}
 
                       {/* Editable Shot Number */}
                       <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>

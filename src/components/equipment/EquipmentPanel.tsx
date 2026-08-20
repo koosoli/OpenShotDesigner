@@ -26,9 +26,10 @@ import {
   Table,
   Trash2,
   X,
+  Zap,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { EquipmentCategory, EquipmentItem, EquipmentPackageItem, MasterEquipmentItem } from '../../types';
+import { EquipmentCategory, EquipmentItem, EquipmentPackageItem, LightElement, MasterEquipmentItem } from '../../types';
 import {
   CAMERA_PACKAGE_PRESETS,
   DEPARTMENT_BRANDS_CATALOG,
@@ -42,6 +43,8 @@ import {
   getModelsForBrand,
 } from '../../utils/equipmentList';
 import { exportEquipmentToCsv } from '../../utils/exportEquipmentCsv';
+import { computePowerSummary } from '../../utils/powerPlanning';
+import { autoPatchFixtures, collectFixturePatches, dmxChannelsForFixture, findConflicts, fixtureLabel } from '../../utils/dmxPatch';
 
 export const EquipmentPanel: React.FC = () => {
   const {
@@ -56,6 +59,8 @@ export const EquipmentPanel: React.FC = () => {
     deletePackageItem,
     openExportModal,
     theme,
+    updateElement,
+    selectElement,
   } = useFloorPlan();
 
   const isLight = theme === 'light';
@@ -129,6 +134,40 @@ export const EquipmentPanel: React.FC = () => {
     () => deriveSceneEquipment(activeSetup),
     [activeSetup]
   );
+
+  const powerSummary = useMemo(() => computePowerSummary(activeSetup.elements || []), [activeSetup.elements]);
+
+  // DMX patch summary for floor-plan light fixtures
+  const fixtureElements = useMemo(
+    () => (activeSetup.elements || []).filter((e): e is LightElement => e.type === 'light'),
+    [activeSetup.elements]
+  );
+  const dmxPatches = useMemo(() => findConflicts(collectFixturePatches(fixtureElements)), [fixtureElements]);
+  const dmxableCount = dmxPatches.filter((p) => p.dmxable).length;
+  const dmxPatchedCount = dmxPatches.filter((p) => p.dmxable && p.universe && p.address).length;
+  const dmxConflictCount = dmxPatches.filter((p) => p.dmxable && p.conflict).length;
+  const [dmxPatchStart, setDmxPatchStart] = useState({ universe: 1, address: 1 });
+  const [dmxPatchOpen, setDmxPatchOpen] = useState(false);
+
+  const handleAutoPatch = () => {
+    const assigned = autoPatchFixtures(
+      collectFixturePatches(fixtureElements),
+      dmxPatchStart.universe,
+      dmxPatchStart.address
+    );
+    fixtureElements.forEach((light, i) => {
+      updateElement(light.id, {
+        dmxUniverse: assigned[i].universe,
+        dmxAddress: assigned[i].address,
+      } as any);
+    });
+  };
+
+  const handleClearDmx = () => {
+    fixtureElements.forEach((light) => {
+      updateElement(light.id, { dmxUniverse: undefined, dmxAddress: undefined } as any);
+    });
+  };
 
   const allScenesEquipment = useMemo(
     () => deriveAllScenesEquipment(project.setups || [activeSetup]),
@@ -713,22 +752,130 @@ export const EquipmentPanel: React.FC = () => {
             </span>
           )}
         </div>
+
+        {/* 4b. Cables & Power Load Summary (floor plan cable planner) */}
+        {scope === 'current' && (powerSummary.poweredCablesCount > 0 || powerSummary.totalWatts > 0) && (
+          <div
+            className={`px-3 py-2.5 rounded-lg border flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs ${
+              isLight ? 'bg-rose-50/70 border-rose-200 text-rose-950' : 'bg-rose-950/30 border-rose-800/50 text-rose-100'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[11px]">
+              <Zap className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+              Power Load
+            </div>
+            <span className="font-mono font-bold">
+              {powerSummary.totalWatts.toLocaleString()} W total
+            </span>
+            <span className="opacity-80">
+              🕹 {powerSummary.lightingWatts.toLocaleString()} W lights · 🎥 {powerSummary.cameraWatts.toLocaleString()} W cameras · 🎭 {powerSummary.propWatts.toLocaleString()} W set
+            </span>
+            <span className="flex items-center gap-1.5 ml-auto">
+              <Cable className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+              <span className="font-mono font-bold">{powerSummary.poweredCablesCount} power run{powerSummary.poweredCablesCount === 1 ? '' : 's'}</span>
+              <span className="opacity-80">· ~{powerSummary.estimatedCircuits20A} × 20A ckt · ~{powerSummary.recommendedSupplyKw} kW supply</span>
+            </span>
+          </div>
+        )}
+
+        {/* 4c. DMX Patch summary (floor plan light fixtures) */}
+        {scope === 'current' && dmxableCount > 0 && (
+          <div
+            className={`rounded-lg border text-xs overflow-hidden ${
+              isLight ? 'bg-amber-50/60 border-amber-200 text-amber-950' : 'bg-amber-950/25 border-amber-800/50 text-amber-100'
+            }`}
+          >
+            <button
+              onClick={() => setDmxPatchOpen((v) => !v)}
+              className={`w-full px-3 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-left ${
+                dmxPatchOpen ? 'border-b' : ''
+              } ${isLight ? 'border-amber-200' : 'border-amber-800/50'}`}
+            >
+              <div className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[11px]">
+                <Zap className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                DMX Patch
+              </div>
+              <span className="font-mono font-bold">
+                {dmxPatchedCount}/{dmxableCount} patched
+              </span>
+              {dmxConflictCount > 0 ? (
+                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{dmxConflictCount} conflict{dmxConflictCount === 1 ? '' : 's'}</span>
+              ) : (
+                dmxPatchedCount > 0 && <span className="opacity-70">✓ no conflicts</span>
+              )}
+              <span className="ml-auto opacity-80">{dmxPatchOpen ? '▾' : '▸'} Patch</span>
+            </button>
+
+            {dmxPatchOpen && (
+              <div className="p-3 space-y-3">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <label className="opacity-60 block mb-1 text-[10px]">Start universe</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={32}
+                      value={dmxPatchStart.universe}
+                      onChange={(e) => setDmxPatchStart((s) => ({ ...s, universe: Math.max(1, Math.min(32, Number(e.target.value) || 1)) }))}
+                      className={`w-16 border rounded px-1.5 py-1 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="opacity-60 block mb-1 text-[10px]">Start address</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={512}
+                      value={dmxPatchStart.address}
+                      onChange={(e) => setDmxPatchStart((s) => ({ ...s, address: Math.max(1, Math.min(512, Number(e.target.value) || 1)) }))}
+                      className={`w-20 border rounded px-1.5 py-1 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                    />
+                  </div>
+                  <button
+                    onClick={handleAutoPatch}
+                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-black flex items-center gap-1 shadow-xs"
+                  >
+                    <Zap className="w-3.5 h-3.5" /> Auto-Patch
+                  </button>
+                  <button
+                    onClick={handleClearDmx}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-black ${isLight ? 'border-slate-300 text-slate-600 hover:bg-slate-100' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                  >
+                    Clear
+                  </button>
+                  <span className="text-[10px] opacity-60 ml-auto max-w-[180px] leading-snug">
+                    Sequentially assigns every fixture based on its channel count.
+                  </span>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto custom-scrollbar rounded-lg border divide-y divide-slate-200 dark:divide-slate-800">
+                  {dmxPatches.map((p) =>
+                    !p.dmxable ? null : (
+                      <button
+                        key={p.light.id}
+                        onClick={() => selectElement(p.light.id)}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:opacity-80 ${
+                          isLight ? 'bg-white/60' : 'bg-slate-950/40'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${p.universe && p.address ? (p.conflict ? 'bg-rose-500' : 'bg-emerald-500') : 'bg-slate-400'}`} />
+                        <span className="truncate font-semibold flex-1">{p.label}</span>
+                        <span className="opacity-50 font-mono text-[10px]">{p.channels}ch</span>
+                        <span className={`font-mono font-bold ${p.conflict ? 'text-rose-600 dark:text-rose-400' : ''}`}>
+                          {p.universe && p.address ? `U${p.universe}:${String(p.address).padStart(3, '0')}` : '—'}
+                        </span>
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 5. Equipment Main Content: Spreadsheet View (Default) vs Rubric Cards */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2.5">
-        {/* Render HTML5 datalists for all department brand & model templates */}
-        {EQUIPMENT_CATEGORIES.map((cat) => {
-          const brandList = getBrandsForCategory(cat.key);
-          return (
-            <datalist key={`dl-brand-${cat.key}`} id={`brand-datalist-${cat.key}`}>
-              {brandList.map((b) => (
-                <option key={b} value={b} />
-              ))}
-            </datalist>
-          );
-        })}
-
         {filteredItems.length === 0 ? (
           <div className={`m-4 p-8 text-center border-2 border-dashed rounded-2xl ${isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-900'}`}>
             <Boxes className="w-12 h-12 mx-auto mb-2 opacity-40 text-sky-600 dark:text-sky-400" />
@@ -795,8 +942,19 @@ export const EquipmentPanel: React.FC = () => {
                     const isExpanded = !!expandedPackages[item.id];
                     const packageItems = item.packageItems || [];
 
-                    // Models available for this item's category & brand
+                    // Brand + model options available for this item (kept in sync with department catalog)
+                    const brandOptions = getBrandsForCategory(item.category);
                     const modelOptions = getModelsForBrand(item.category, item.brand || '');
+                    const brandSelectOptions = brandOptions.includes(item.brand || '')
+                      ? brandOptions
+                      : item.brand
+                        ? [item.brand, ...brandOptions]
+                        : brandOptions;
+                    const modelSelectOptions = modelOptions.includes(item.model || '')
+                      ? modelOptions
+                      : item.model
+                        ? [item.model, ...modelOptions]
+                        : modelOptions;
 
                     return (
                       <React.Fragment key={item.id}>
@@ -928,12 +1086,10 @@ export const EquipmentPanel: React.FC = () => {
                             </div>
                           </td>
 
-                          {/* 3. Brand (Drop-Down / Autocomplete) */}
+                          {/* 3. Brand (Drop-Down) */}
                           <td className="p-2.5 align-middle">
                             {isEditable ? (
-                              <input
-                                type="text"
-                                list={`brand-datalist-${item.category}`}
+                              <select
                                 value={item.brand || ''}
                                 onChange={(e) => {
                                   const newBrand = e.target.value;
@@ -943,10 +1099,16 @@ export const EquipmentPanel: React.FC = () => {
                                     model: models.length > 0 && !models.includes(item.model || '') ? models[0] : item.model,
                                   });
                                 }}
-                                placeholder="Brand..."
-                                title="Type or pick from template brands"
-                                className={`${inputClass} font-bold`}
-                              />
+                                title="Select brand from department catalog"
+                                className={`${inputClass} cursor-pointer`}
+                              >
+                                {!item.brand && <option value="" disabled>Select brand…</option>}
+                                {brandSelectOptions.map((b) => (
+                                  <option key={b} value={b} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
+                                    {b}
+                                  </option>
+                                ))}
+                              </select>
                             ) : (
                               <span className="font-bold text-slate-950 dark:text-slate-200">
                                 {item.brand || <span className="opacity-40 font-normal">—</span>}
@@ -954,32 +1116,29 @@ export const EquipmentPanel: React.FC = () => {
                             )}
                           </td>
 
-                          {/* 4. Model / Variant (Drop-Down / Autocomplete) */}
+                          {/* 4. Model / Variant (Drop-Down) */}
                           <td className="p-2.5 align-middle">
                             {isEditable ? (
-                              <div>
-                                <datalist id={`model-datalist-${item.id}`}>
-                                  {modelOptions.map((m) => (
-                                    <option key={m} value={m} />
-                                  ))}
-                                </datalist>
-                                <input
-                                  type="text"
-                                  list={`model-datalist-${item.id}`}
-                                  value={item.model || ''}
-                                  onChange={(e) => {
-                                    const newModel = e.target.value;
-                                    const updates: Partial<EquipmentItem> = { model: newModel };
-                                    if (!item.name || item.name.includes('Package') || item.name.includes('Custom')) {
-                                      updates.name = newModel;
-                                    }
-                                    updateEquipmentItem(item.id, updates);
-                                  }}
-                                  placeholder="Model..."
-                                  title="Type or pick from template models"
-                                  className={`${inputClass} font-mono text-[11px] font-bold`}
-                                />
-                              </div>
+                              <select
+                                value={item.model || ''}
+                                onChange={(e) => {
+                                  const newModel = e.target.value;
+                                  const updates: Partial<EquipmentItem> = { model: newModel };
+                                  if (!item.name || item.name.includes('Package') || item.name.includes('Custom')) {
+                                    updates.name = newModel;
+                                  }
+                                  updateEquipmentItem(item.id, updates);
+                                }}
+                                title="Select model for this brand"
+                                className={`${inputClass} font-mono text-[11px] cursor-pointer`}
+                              >
+                                {!item.model && <option value="" disabled>Select model…</option>}
+                                {modelSelectOptions.map((m) => (
+                                  <option key={m} value={m} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-mono font-bold">
+                                    {m}
+                                  </option>
+                                ))}
+                              </select>
                             ) : (
                               <span className="font-mono text-[11px] font-bold text-slate-950 dark:text-slate-300">
                                 {item.model || <span className="opacity-40 font-normal">—</span>}
@@ -1261,6 +1420,18 @@ export const EquipmentPanel: React.FC = () => {
                                       ) : (
                                         packageItems.map((subItem) => {
                                           const subMeta = getCategoryMeta(subItem.category);
+                                          const subBrands = getBrandsForCategory(subItem.category);
+                                          const subModels = getModelsForBrand(subItem.category, subItem.brand || '');
+                                          const subBrandOptions = subBrands.includes(subItem.brand || '')
+                                            ? subBrands
+                                            : subItem.brand
+                                              ? [subItem.brand, ...subBrands]
+                                              : subBrands;
+                                          const subModelOptions = subModels.includes(subItem.model || '')
+                                            ? subModels
+                                            : subItem.model
+                                              ? [subItem.model, ...subModels]
+                                              : subModels;
                                           return (
                                             <tr
                                               key={subItem.id}
@@ -1322,16 +1493,26 @@ export const EquipmentPanel: React.FC = () => {
                                               {/* Sub Brand */}
                                               <td className="p-2 align-middle">
                                                 {isEditable ? (
-                                                  <input
-                                                    type="text"
-                                                    list={`brand-datalist-${subItem.category}`}
+                                                  <select
                                                     value={subItem.brand || ''}
-                                                    onChange={(e) =>
-                                                      updatePackageItem(item.id, subItem.id, { brand: e.target.value })
-                                                    }
-                                                    placeholder="Brand..."
-                                                    className={`${inputClass} text-xs font-bold`}
-                                                  />
+                                                    onChange={(e) => {
+                                                      const newBrand = e.target.value;
+                                                      const models = getModelsForBrand(subItem.category, newBrand);
+                                                      updatePackageItem(item.id, subItem.id, {
+                                                        brand: newBrand,
+                                                        model: models.length > 0 && !models.includes(subItem.model || '') ? models[0] : subItem.model,
+                                                      });
+                                                    }}
+                                                    title="Select brand from department catalog"
+                                                    className={`${inputClass} text-xs cursor-pointer`}
+                                                  >
+                                                    {!subItem.brand && <option value="" disabled>Select brand…</option>}
+                                                    {subBrandOptions.map((b) => (
+                                                      <option key={b} value={b} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
+                                                        {b}
+                                                      </option>
+                                                    ))}
+                                                  </select>
                                                 ) : (
                                                   <span className="text-xs font-bold text-slate-950 dark:text-slate-200">{subItem.brand || '—'}</span>
                                                 )}
@@ -1340,15 +1521,21 @@ export const EquipmentPanel: React.FC = () => {
                                               {/* Sub Model */}
                                               <td className="p-2 align-middle">
                                                 {isEditable ? (
-                                                  <input
-                                                    type="text"
+                                                  <select
                                                     value={subItem.model || ''}
                                                     onChange={(e) =>
                                                       updatePackageItem(item.id, subItem.id, { model: e.target.value })
                                                     }
-                                                    placeholder="Model..."
-                                                    className={`${inputClass} text-[11px] font-mono font-bold`}
-                                                  />
+                                                    title="Select model for this brand"
+                                                    className={`${inputClass} text-[11px] font-mono cursor-pointer`}
+                                                  >
+                                                    {!subItem.model && <option value="" disabled>Select model…</option>}
+                                                    {subModelOptions.map((m) => (
+                                                      <option key={m} value={m} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-mono font-bold">
+                                                        {m}
+                                                      </option>
+                                                    ))}
+                                                  </select>
                                                 ) : (
                                                   <span className="text-[11px] font-mono font-bold text-slate-950 dark:text-slate-300">{subItem.model || '—'}</span>
                                                 )}

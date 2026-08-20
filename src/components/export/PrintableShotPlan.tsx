@@ -4,6 +4,7 @@ import {
   ActorElement,
   ArrowElement,
   BackgroundImage,
+  CableElement,
   CameraElement,
   DoorElement,
   FloorPlanElement,
@@ -28,6 +29,7 @@ import { ActorElementView } from '../canvas/ActorElementView';
 import { CameraElementView } from '../canvas/CameraElementView';
 import { LightingLayer } from '../canvas/LightingLayer';
 import { PropsLayer } from '../canvas/PropsLayer';
+import { CableLayer } from '../canvas/CableLayer';
 import { WallLayer } from '../canvas/WallLayer';
 import { StoryboardThumbLayer } from '../canvas/StoryboardThumbLayer';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
@@ -293,6 +295,7 @@ export const PrintableShotPlan: React.FC = () => {
   const measurements = activeSetup.elements.filter((e) => e.type === 'measurement') as MeasurementElement[];
   const texts = activeSetup.elements.filter((e) => e.type === 'text') as TextElement[];
   const arrows = activeSetup.elements.filter((e) => e.type === 'arrow') as ArrowElement[];
+  const cables = activeSetup.elements.filter((e) => e.type === 'cable') as CableElement[];
   const shapes = activeSetup.elements.filter((e) => e.type === 'shape') as ShapeElement[];
   const backgroundImages = (activeSetup.backgroundImages || []).filter((i) => i.visible) as BackgroundImage[];
   const sceneAspectRatio =
@@ -1009,6 +1012,15 @@ export const PrintableShotPlan: React.FC = () => {
                     measurements={measurements}
                     arrows={arrows}
                     texts={texts}
+                    selectedIds={[]}
+                    onSelect={() => {}}
+                    pixelsPerUnit={activeSetup.gridSettings?.pixelsPerUnit || 50}
+                    displaySettings={effectiveDisplaySettings}
+                  />
+
+                  {/* 3b. Cable / Patch Runs */}
+                  <CableLayer
+                    cables={cables}
                     selectedIds={[]}
                     onSelect={() => {}}
                     pixelsPerUnit={activeSetup.gridSettings?.pixelsPerUnit || 50}

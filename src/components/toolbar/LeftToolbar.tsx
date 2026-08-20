@@ -1,10 +1,11 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { ActiveTool, ShapeType } from '../../types';
-import { CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
+import { ActiveTool, CableType, ShapeType } from '../../types';
+import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import { loadBackgroundImageFile } from '../../utils/image';
 import { useBreakpoint } from '../../utils/useMediaQuery';
 import {
+  Cable,
   Camera,
   DoorClosed,
   Flag,
@@ -32,7 +33,7 @@ interface ToolItem {
   hasSubmenu?: boolean;
 }
 
-type Submenu = 'prop' | 'light' | 'camera' | 'shape' | 'overflow';
+type Submenu = 'prop' | 'light' | 'camera' | 'shape' | 'cable' | 'overflow';
 
 const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
   { value: 'rectangle', label: 'Rectangle' },
@@ -78,6 +79,8 @@ export const LeftToolbar: React.FC = () => {
     setCameraRig,
     activeShapeType,
     setShapeType,
+    activeCableType,
+    setCableType,
     setQuickSearchOpen,
     theme,
     addBackgroundImage,
@@ -216,6 +219,13 @@ export const LeftToolbar: React.FC = () => {
       label: 'Arrow / Direction',
       shortcut: 'G',
       icon: <MoveUpRight className="w-4 h-4 text-orange-500" />,
+    },
+    {
+      id: 'cable',
+      label: 'Cable / Patch Run',
+      shortcut: 'K',
+      icon: <Cable className="w-4 h-4 text-cyan-500" />,
+      hasSubmenu: true,
     },
     {
       id: 'text',
@@ -531,6 +541,50 @@ export const LeftToolbar: React.FC = () => {
                     >
                       <span>{rig.label}</span>
                       <Camera className="w-3 h-3 opacity-40 flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ---- CABLE TYPE FLYOUT ---- */}
+            {tool.id === 'cable' && openSubmenu === 'cable' && (
+              <div className={`${flyoutBase} w-72`}>
+                <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1 flex items-center justify-between">
+                  <span>Signal / Power Cables</span>
+                  <span className="font-mono text-[9px] text-cyan-400">
+                    {activeCableType}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {CABLE_TYPES.map((ct) => (
+                    <button
+                      key={ct.type}
+                      onClick={() => {
+                        setCableType(ct.type as CableType);
+                        setTool('cable');
+                        setOpenSubmenu(null);
+                      }}
+                      className={listButtonClass(
+                        activeCableType === ct.type && activeTool === 'cable'
+                      )}
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <span
+                          className="w-3 h-3 rounded-sm flex-shrink-0 border border-slate-700/50"
+                          style={{ backgroundColor: ct.color }}
+                        />
+                        <span className="truncate">{ct.name}</span>
+                      </span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.2 rounded font-mono flex-shrink-0 ml-1.5 ${
+                          ct.isPower
+                            ? 'bg-rose-950/60 text-rose-300 border border-rose-800/40'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}
+                      >
+                        {ct.shortLabel}
+                      </span>
                     </button>
                   ))}
                 </div>

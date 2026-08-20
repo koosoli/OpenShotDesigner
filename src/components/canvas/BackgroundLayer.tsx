@@ -278,13 +278,64 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   onDelete,
   onDropToCamera,
 }) => {
-  const visible = backgroundImages.filter((b) => b.visible !== false);
-
   return (
     <g className="background-reference-layer">
-      {/* All reference images (earliest = deepest) */}
-      {visible.map((img) => {
+      {/* All reference images (earliest = deepest). Hidden ones only vanish in
+          exports — on the interactive canvas they stay as faint dashed ghosts
+          so they can always be found and re-shown. */}
+      {backgroundImages.map((img) => {
         const isSelected = selectedBackgroundId === img.id;
+
+        if (img.visible === false) {
+          if (!isInteractive) return null;
+          return (
+            <g
+              key={img.id}
+              className="background-reference-ghost cursor-pointer select-none"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectImage(img.id);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <title>Hidden reference image — click to select &amp; show it again</title>
+              <rect
+                x={img.x}
+                y={img.y}
+                width={img.width}
+                height={img.height}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth={1.5 / canvasScale}
+                strokeDasharray={`${6 / canvasScale} ${4 / canvasScale}`}
+                opacity={0.5}
+              />
+              <g transform={`translate(${img.x}, ${img.y - 16 / canvasScale})`}>
+                <rect
+                  x={0}
+                  y={-9 / canvasScale}
+                  width={92 / canvasScale}
+                  height={18 / canvasScale}
+                  rx={4 / canvasScale}
+                  fill="#0f172a"
+                  stroke="#94a3b8"
+                  strokeWidth={1 / canvasScale}
+                />
+                <text
+                  x={46 / canvasScale}
+                  y={3.5 / canvasScale}
+                  textAnchor="middle"
+                  fill="#cbd5e1"
+                  fontSize={9 / canvasScale}
+                  fontWeight="bold"
+                  fontFamily="sans-serif"
+                >
+                  👁 Hidden
+                </text>
+              </g>
+            </g>
+          );
+        }
 
         return (
           <g key={img.id} className="background-reference-item-wrap">

@@ -260,6 +260,18 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
             <line x1={-20} y1={0} x2={-8} y2={0} stroke="#64748b" strokeWidth={2} />
           </g>
         )}
+        {camera.rigType === 'Broadcast Pedestal' && (
+          <g opacity={0.9}>
+            {/* Studio pedestal column + base */}
+            <line x1={-14} y1={-10} x2={-14} y2={22} stroke="#e2e8f0" strokeWidth={3} strokeLinecap="round" />
+            <line x1={-14} y1={6} x2={-14} y2={22} stroke="#64748b" strokeWidth={1} />
+            {/* Wheels / dolly ring */}
+            <ellipse cx={-14} cy={22} rx={14} ry={5} fill="none" stroke="#64748b" strokeWidth={2} />
+            <circle cx={-28} cy={22} r={2.5} fill="#94a3b8" />
+            <circle cx={-14} cy={27} r={2.5} fill="#94a3b8" />
+            <circle cx={0} cy={22} r={2.5} fill="#94a3b8" />
+          </g>
+        )}
         {(camera.rigType === 'Dana Dolly' || camera.rigType === 'Slider') && (
           <g opacity={0.9}>
             <line x1={-12} y1={-18} x2={-12} y2={18} stroke="#38bdf8" strokeWidth={3} strokeLinecap="round" />
