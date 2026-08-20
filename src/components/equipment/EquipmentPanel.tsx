@@ -72,14 +72,31 @@ export const EquipmentPanel: React.FC = () => {
   const [editingItem, setEditingItem] = useState<EquipmentItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // Expand / collapse state for packages (collapsed by default so user controls expansion)
+  // Expand / collapse state for packages (defaults to collapsed)
   const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({});
 
-  // Package target when adding an accessory to a specific package
+  // Package modal state for adding an accessory to a specific package
   const [activePackageTargetId, setActivePackageTargetId] = useState<string | null>(null);
   const [isAddPackageItemModalOpen, setIsAddPackageItemModalOpen] = useState(false);
+  const [packageFormData, setPackageFormData] = useState<{
+    category: EquipmentCategory;
+    name: string;
+    brand: string;
+    model: string;
+    quantity: number;
+    roleOrFunction: string;
+    specs: string;
+  }>({
+    category: 'power_media',
+    name: 'V-Mount Batteries (4-Pack) & Charger',
+    brand: 'Anton Bauer',
+    model: 'Titon 150 V-Mount (156Wh)',
+    quantity: 4,
+    roleOrFunction: 'Camera Power',
+    specs: '14.4V High-Draw · Quad Fast Charger',
+  });
 
-  // Form state for add / edit modal
+  // Form state for general add / edit modal
   const [formData, setFormData] = useState<{
     category: EquipmentCategory;
     name: string;
@@ -89,6 +106,7 @@ export const EquipmentPanel: React.FC = () => {
     roleOrFunction: string;
     specs: string;
     notes: string;
+    targetPackageId?: string; // Optional: target package to attach to
   }>({
     category: 'camera',
     name: '',
@@ -98,12 +116,13 @@ export const EquipmentPanel: React.FC = () => {
     roleOrFunction: '',
     specs: '',
     notes: '',
+    targetPackageId: '',
   });
 
   const togglePackageExpand = (id: string) => {
     setExpandedPackages((prev) => ({
       ...prev,
-      [id]: prev[id] === undefined ? false : !prev[id],
+      [id]: !prev[id],
     }));
   };
 
@@ -117,6 +136,13 @@ export const EquipmentPanel: React.FC = () => {
     () => deriveAllScenesEquipment(project.setups || [activeSetup]),
     [project.setups, activeSetup]
   );
+
+  // Available camera packages in current scene for target dropdown
+  const availableCameraPackages = useMemo(() => {
+    return currentSceneEquipment.filter(
+      (item) => item.isPackage || item.name.includes('Package') || item.category === 'camera'
+    );
+  }, [currentSceneEquipment]);
 
   // Active dataset based on scope
   const activeItems: (EquipmentItem | MasterEquipmentItem)[] =
@@ -229,6 +255,7 @@ export const EquipmentPanel: React.FC = () => {
       roleOrFunction: '',
       specs: '',
       notes: '',
+      targetPackageId: '',
     });
     setIsAddModalOpen(true);
   };
@@ -244,15 +271,43 @@ export const EquipmentPanel: React.FC = () => {
       roleOrFunction: item.roleOrFunction || '',
       specs: item.specs || '',
       notes: item.notes || '',
+      targetPackageId: '',
     });
     setIsAddModalOpen(true);
+  };
+
+  const openAddPackageItemModal = (packageId: string) => {
+    setActivePackageTargetId(packageId);
+    const defaultPreset = CAMERA_PACKAGE_PRESETS[0];
+    setPackageFormData({
+      category: defaultPreset.category,
+      name: defaultPreset.name,
+      brand: defaultPreset.brand,
+      model: defaultPreset.model,
+      quantity: defaultPreset.quantity,
+      roleOrFunction: defaultPreset.roleOrFunction,
+      specs: defaultPreset.specs,
+    });
+    setIsAddPackageItemModalOpen(true);
   };
 
   const handleSaveModal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
-    if (editingItem) {
+    if (formData.targetPackageId) {
+      // User selected to attach this item into a specific camera package
+      addPackageItem(formData.targetPackageId, {
+        category: formData.category,
+        name: formData.name.trim(),
+        brand: formData.brand.trim() || undefined,
+        model: formData.model.trim() || undefined,
+        quantity: Math.max(1, Number(formData.quantity) || 1),
+        roleOrFunction: formData.roleOrFunction.trim() || undefined,
+        specs: formData.specs.trim() || undefined,
+      });
+      setExpandedPackages((prev) => ({ ...prev, [formData.targetPackageId!]: true }));
+    } else if (editingItem) {
       updateEquipmentItem(editingItem.id, {
         category: formData.category,
         name: formData.name.trim(),
@@ -278,6 +333,25 @@ export const EquipmentPanel: React.FC = () => {
 
     setIsAddModalOpen(false);
     setEditingItem(null);
+  };
+
+  const handleSavePackageItemModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePackageTargetId || !packageFormData.name.trim()) return;
+
+    addPackageItem(activePackageTargetId, {
+      category: packageFormData.category,
+      name: packageFormData.name.trim(),
+      brand: packageFormData.brand.trim() || undefined,
+      model: packageFormData.model.trim() || undefined,
+      quantity: Math.max(1, Number(packageFormData.quantity) || 1),
+      roleOrFunction: packageFormData.roleOrFunction.trim() || undefined,
+      specs: packageFormData.specs.trim() || undefined,
+    });
+
+    setExpandedPackages((prev) => ({ ...prev, [activePackageTargetId]: true }));
+    setIsAddPackageItemModalOpen(false);
+    setActivePackageTargetId(null);
   };
 
   const handleAddPreset = (preset: EquipmentPreset) => {
@@ -590,7 +664,7 @@ export const EquipmentPanel: React.FC = () => {
           })}
         </div>
 
-        {/* 4. Interactive Editing Hint / Master Notification Banner */}
+        {/* 4. Interactive Editing Hint Banner */}
         <div
           className={`px-3 py-1.5 rounded-lg border flex items-center justify-between gap-2 text-[11px] ${
             scope === 'current'
@@ -603,10 +677,10 @@ export const EquipmentPanel: React.FC = () => {
           }`}
         >
           <div className="flex items-center gap-1.5">
-            <Info className="w-3.5 h-3.5 flex-shrink-0" />
+            <Info className="w-3.5 h-3.5 flex-shrink-0 text-sky-500" />
             <span>
               {scope === 'current'
-                ? '📦 Click "▼ Kit" to open/collapse any Camera Package and attach batteries, memory cards, monitors, or accessories.'
+                ? '📦 Click "Open Kit" or "+ Add Gear to Kit" on any camera package to attach batteries, memory cards, monitors, follow focus, and accessories.'
                 : '🔒 All Scenes master truck is a consolidated summary across the entire project.'}
             </span>
           </div>
@@ -660,7 +734,7 @@ export const EquipmentPanel: React.FC = () => {
           </div>
         ) : viewStyle === 'spreadsheet' ? (
           /* ========================================================================= */
-          /* SPREADSHEET DATA GRID VIEW (WITH EXPANDABLE CAMERA PACKAGES)              */
+          /* SPREADSHEET DATA GRID VIEW (WITH PROMINENT OPENABLE CAMERA PACKAGES)      */
           /* ========================================================================= */
           <div className={`border rounded-xl overflow-hidden shadow-xs ${cardBg}`}>
             <div className="overflow-x-auto custom-scrollbar">
@@ -672,7 +746,7 @@ export const EquipmentPanel: React.FC = () => {
                     }`}
                   >
                     <th className="p-2 w-28 whitespace-nowrap">DEPARTMENT</th>
-                    <th className="p-2 min-w-[200px]">ITEM & PACKAGE NAME</th>
+                    <th className="p-2 min-w-[220px]">ITEM & PACKAGE NAME</th>
                     <th className="p-2 min-w-[130px]">BRAND</th>
                     <th className="p-2 min-w-[150px]">MODEL / VARIANT</th>
                     <th className="p-2 w-28 text-center">QTY</th>
@@ -681,7 +755,7 @@ export const EquipmentPanel: React.FC = () => {
                     {scope === 'all' && (
                       <th className="p-2 min-w-[160px] font-mono text-[9px]">SCENE USAGE & PEAK</th>
                     )}
-                    {scope === 'current' && <th className="p-2 w-24 text-right pr-3">ACTIONS</th>}
+                    {scope === 'current' && <th className="p-2 w-28 text-right pr-3">ACTIONS</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80">
@@ -706,9 +780,13 @@ export const EquipmentPanel: React.FC = () => {
                           }}
                           className={`transition-colors group ${
                             isPackage
-                              ? isLight
-                                ? 'bg-sky-50/40 hover:bg-sky-50/80'
-                                : 'bg-sky-950/20 hover:bg-sky-950/40'
+                              ? isExpanded
+                                ? isLight
+                                  ? 'bg-sky-100/60 border-b border-sky-300'
+                                  : 'bg-sky-950/40 border-b border-sky-800'
+                                : isLight
+                                  ? 'bg-sky-50/40 hover:bg-sky-50/80'
+                                  : 'bg-sky-950/20 hover:bg-sky-950/40'
                               : isLight
                                 ? 'hover:bg-slate-50/80 odd:bg-white even:bg-slate-50/30'
                                 : 'hover:bg-slate-850/50 odd:bg-slate-900 even:bg-slate-950/30'
@@ -747,21 +825,36 @@ export const EquipmentPanel: React.FC = () => {
                             )}
                           </td>
 
-                          {/* 2. Item Name & Expand Package Trigger */}
+                          {/* 2. Item Name & Prominent Package Open / Add Triggers */}
                           <td className="p-2 align-middle">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {/* Open Kit Button */}
                               {isPackage && (
                                 <button
                                   onClick={() => togglePackageExpand(item.id)}
-                                  title={isExpanded ? 'Collapse package kit' : 'Expand package kit'}
-                                  className={`p-1 rounded-md transition-transform flex items-center gap-1 text-[10px] font-mono font-bold ${
+                                  title={isExpanded ? 'Collapse package kit components' : 'Open package to view & add batteries, media cards, monitors, etc.'}
+                                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs ${
                                     isExpanded
-                                      ? 'bg-sky-500/20 text-sky-400'
-                                      : 'bg-slate-500/15 text-slate-400 hover:text-white'
+                                      ? 'bg-sky-600 text-white ring-1 ring-sky-400'
+                                      : 'bg-sky-500/15 hover:bg-sky-500/30 text-sky-400 border border-sky-500/30'
                                   }`}
                                 >
-                                  {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                                  <span>KIT ({packageItems.length})</span>
+                                  <Package className="w-3.5 h-3.5" />
+                                  <span>{isExpanded ? 'Close Kit' : 'Open Kit'}</span>
+                                  <span className="font-mono text-[10px] opacity-80">({packageItems.length})</span>
+                                  {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                </button>
+                              )}
+
+                              {/* Quick "+ Add to Kit" button directly on row */}
+                              {isPackage && isEditable && (
+                                <button
+                                  onClick={() => openAddPackageItemModal(item.id)}
+                                  title={`Add batteries, media cards, monitor, or custom gear directly to ${item.name}`}
+                                  className="px-2 py-1 rounded-lg bg-emerald-600/15 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 text-emerald-400 text-[11px] font-bold flex items-center gap-0.5 transition-all shadow-xs"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>Add Gear to Kit</span>
                                 </button>
                               )}
 
@@ -1004,76 +1097,122 @@ export const EquipmentPanel: React.FC = () => {
                         {/* NESTED OPENABLE PACKAGE KIT DRAWER (BATTERIES, CARDS, MONITORS)*/}
                         {/* ============================================================= */}
                         {isPackage && isExpanded && (
-                          <tr className={isLight ? 'bg-sky-50/70 border-b border-sky-200' : 'bg-slate-950/80 border-b border-sky-900/40'}>
+                          <tr className={isLight ? 'bg-sky-50/90 border-b-2 border-sky-300' : 'bg-slate-950/95 border-b-2 border-sky-800'}>
                             <td colSpan={scope === 'all' ? 8 : 8} className="p-0">
-                              <div className="pl-6 pr-3 py-2.5 border-l-4 border-sky-500 flex flex-col gap-2">
+                              <div className="pl-6 pr-3 py-3 border-l-4 border-sky-500 flex flex-col gap-2.5">
                                 {/* Kit Header Bar */}
                                 <div className="flex items-center justify-between flex-wrap gap-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5 font-mono">
-                                      <span>📦 {item.name} — Accessories & Kit Components</span>
-                                      <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 text-[9px]">
-                                        {packageItems.length} accessories
+                                    <div className="p-1 rounded-md bg-sky-500/20 text-sky-400">
+                                      <Package className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <span className="text-xs font-black uppercase tracking-wider text-sky-400 font-mono flex items-center gap-1.5">
+                                        <span>{item.name} — Kit Accessories Manifest</span>
+                                        <span className="px-1.5 py-0.2 rounded-full bg-sky-500/20 text-sky-300 text-[10px]">
+                                          {packageItems.length} components · {packageItems.reduce((s, p) => s + p.quantity, 0)} units
+                                        </span>
                                       </span>
-                                    </span>
+                                      <p className="text-[10px] opacity-70">
+                                        Batteries, memory cards, on-camera monitors, wireless transmitters, follow focus systems & gear
+                                      </p>
+                                    </div>
                                   </div>
 
                                   {isEditable && (
                                     <div className="flex items-center gap-1.5">
-                                      {/* Fast-add Presets for this Camera Package */}
-                                      <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
-                                        <span className="text-[9px] font-mono uppercase opacity-60">Add Kit Item:</span>
-                                        {CAMERA_PACKAGE_PRESETS.slice(0, 4).map((pkgPreset, pIdx) => (
-                                          <button
-                                            key={pIdx}
-                                            onClick={() => handleAddPackagePreset(item.id, pkgPreset)}
-                                            title={`Add ${pkgPreset.name} to ${item.name}`}
-                                            className="px-2 py-0.5 rounded bg-sky-600/20 hover:bg-sky-600 hover:text-white border border-sky-500/30 text-[9px] font-semibold transition-all"
-                                          >
-                                            + {pkgPreset.name.split('(')[0].trim()}
-                                          </button>
-                                        ))}
-                                        <button
-                                          onClick={() => {
-                                            addPackageItem(item.id, {
-                                              category: 'power_media',
-                                              name: 'New Kit Accessory',
-                                              quantity: 1,
-                                              roleOrFunction: `${item.name} Accessory`,
-                                              specs: 'Custom Accessory',
-                                            });
-                                            setExpandedPackages((prev) => ({ ...prev, [item.id]: true }));
-                                          }}
-                                          className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold flex items-center gap-0.5 shadow-xs"
-                                        >
-                                          <Plus className="w-2.5 h-2.5" />
-                                          <span>Custom Item</span>
-                                        </button>
-                                      </div>
+                                      <button
+                                        onClick={() => openAddPackageItemModal(item.id)}
+                                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 shadow-md transition-all"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        <span>+ Add Custom Item to {item.name.split(' ')[0]}</span>
+                                      </button>
                                     </div>
                                   )}
                                 </div>
 
+                                {/* 1-Click Fast Presets Toolbar for this Camera Package */}
+                                {isEditable && (
+                                  <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20 flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-bold font-mono uppercase text-sky-400 flex items-center gap-1">
+                                        <Sparkles className="w-3 h-3 text-amber-400" />
+                                        <span>1-Click Fast Presets (Click any button to immediately attach to {item.name}):</span>
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {CAMERA_PACKAGE_PRESETS.map((pkgPreset, pIdx) => (
+                                        <button
+                                          key={pIdx}
+                                          onClick={() => handleAddPackagePreset(item.id, pkgPreset)}
+                                          title={`Add ${pkgPreset.name} to ${item.name} (${pkgPreset.specs})`}
+                                          className={`px-2.5 py-1 rounded-lg text-left border text-[10px] font-bold transition-all flex items-center gap-1 group shadow-xs ${
+                                            isLight
+                                              ? 'bg-white border-sky-300 hover:bg-sky-600 hover:text-white hover:border-sky-600 text-slate-800'
+                                              : 'bg-slate-900 border-sky-800 hover:bg-sky-600 hover:text-white hover:border-sky-500 text-slate-200'
+                                          }`}
+                                        >
+                                          <Plus className="w-3 h-3 text-sky-500 group-hover:text-white flex-shrink-0" />
+                                          <span>{pkgPreset.name}</span>
+                                          <span className="font-mono text-[9px] opacity-70 ml-0.5">x{pkgPreset.quantity}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {/* Kit Sub-Items Table */}
-                                <div className="border border-sky-500/20 rounded-lg overflow-hidden bg-white/60 dark:bg-slate-900/60 shadow-xs">
+                                <div className="border border-sky-500/30 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-md">
                                   <table className="w-full text-left text-xs border-collapse font-sans">
                                     <thead>
-                                      <tr className={`border-b text-[9px] font-mono uppercase font-bold ${isLight ? 'bg-slate-100/90 text-slate-600' : 'bg-slate-950 text-slate-400'}`}>
-                                        <th className="p-1.5 w-24">DEPARTMENT</th>
-                                        <th className="p-1.5 min-w-[180px]">PACKAGE ACCESSORY / ITEM</th>
-                                        <th className="p-1.5 min-w-[120px]">BRAND</th>
-                                        <th className="p-1.5 min-w-[130px]">MODEL</th>
-                                        <th className="p-1.5 w-24 text-center">QTY</th>
-                                        <th className="p-1.5 min-w-[130px]">ROLE / FUNCTION</th>
-                                        <th className="p-1.5 min-w-[180px]">TECHNICAL SPECS</th>
-                                        {isEditable && <th className="p-1.5 w-20 text-right pr-2">ACTION</th>}
+                                      <tr className={`border-b text-[10px] font-mono uppercase font-bold ${isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-950 text-slate-300'}`}>
+                                        <th className="p-2 w-28">DEPARTMENT</th>
+                                        <th className="p-2 min-w-[200px]">PACKAGE ACCESSORY / ITEM</th>
+                                        <th className="p-2 min-w-[130px]">BRAND</th>
+                                        <th className="p-2 min-w-[140px]">MODEL</th>
+                                        <th className="p-2 w-28 text-center">QTY</th>
+                                        <th className="p-2 min-w-[140px]">ROLE / FUNCTION</th>
+                                        <th className="p-2 min-w-[200px]">TECHNICAL SPECS</th>
+                                        {isEditable && <th className="p-2 w-20 text-right pr-3">ACTION</th>}
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                                       {packageItems.length === 0 ? (
                                         <tr>
-                                          <td colSpan={8} className="p-3 text-center text-[11px] opacity-60 italic">
-                                            No accessories in this package yet. Click "+ Custom Item" or the preset pills above to attach batteries, SD cards, monitors, etc.
+                                          <td colSpan={8} className="p-6 text-center">
+                                            <div className="max-w-md mx-auto flex flex-col items-center gap-2">
+                                              <Package className="w-8 h-8 opacity-30 text-sky-400" />
+                                              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                This camera package has no items yet.
+                                              </p>
+                                              <p className="text-[11px] opacity-70">
+                                                Click the preset buttons above (like <strong>V-Mount Batteries</strong> or <strong>CFexpress Cards</strong>) or click <strong>"+ Add Custom Item"</strong> below to load accessories.
+                                              </p>
+                                              {isEditable && (
+                                                <div className="flex items-center gap-2 mt-1">
+                                                  <button
+                                                    onClick={() => handleAddPackagePreset(item.id, CAMERA_PACKAGE_PRESETS[0])}
+                                                    className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1 shadow-xs"
+                                                  >
+                                                    <Plus className="w-3 h-3" /> + Add Batteries
+                                                  </button>
+                                                  <button
+                                                    onClick={() => handleAddPackagePreset(item.id, CAMERA_PACKAGE_PRESETS[2])}
+                                                    className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1 shadow-xs"
+                                                  >
+                                                    <Plus className="w-3 h-3" /> + Add Media Cards
+                                                  </button>
+                                                  <button
+                                                    onClick={() => openAddPackageItemModal(item.id)}
+                                                    className="px-2.5 py-1 rounded-lg border border-sky-500 text-sky-400 hover:bg-sky-500/10 text-xs font-bold flex items-center gap-1"
+                                                  >
+                                                    <Plus className="w-3 h-3" /> + Custom Item
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
                                           </td>
                                         </tr>
                                       ) : (
@@ -1082,10 +1221,10 @@ export const EquipmentPanel: React.FC = () => {
                                           return (
                                             <tr
                                               key={subItem.id}
-                                              className={isLight ? 'hover:bg-sky-50/50' : 'hover:bg-slate-850/60'}
+                                              className={isLight ? 'hover:bg-sky-50/60' : 'hover:bg-slate-850/70'}
                                             >
                                               {/* Sub Department */}
-                                              <td className="p-1.5 align-middle">
+                                              <td className="p-2 align-middle">
                                                 {isEditable ? (
                                                   <select
                                                     value={subItem.category}
@@ -1094,7 +1233,7 @@ export const EquipmentPanel: React.FC = () => {
                                                         category: e.target.value as EquipmentCategory,
                                                       })
                                                     }
-                                                    className={`text-[8px] font-bold uppercase rounded px-1 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer ${subMeta.badgeBg} ${subMeta.badgeText}`}
+                                                    className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer ${subMeta.badgeBg} ${subMeta.badgeText}`}
                                                   >
                                                     {EQUIPMENT_CATEGORIES.map((c) => (
                                                       <option key={c.key} value={c.key}>
@@ -1103,14 +1242,14 @@ export const EquipmentPanel: React.FC = () => {
                                                     ))}
                                                   </select>
                                                 ) : (
-                                                  <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${subMeta.badgeBg} ${subMeta.badgeText}`}>
+                                                  <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${subMeta.badgeBg} ${subMeta.badgeText}`}>
                                                     {subMeta.shortLabel}
                                                   </span>
                                                 )}
                                               </td>
 
                                               {/* Sub Name */}
-                                              <td className="p-1.5 align-middle">
+                                              <td className="p-2 align-middle">
                                                 {isEditable ? (
                                                   <input
                                                     type="text"
@@ -1118,15 +1257,15 @@ export const EquipmentPanel: React.FC = () => {
                                                     onChange={(e) =>
                                                       updatePackageItem(item.id, subItem.id, { name: e.target.value })
                                                     }
-                                                    className={`${inputClass} text-xs font-semibold`}
+                                                    className={`${inputClass} text-xs font-bold`}
                                                   />
                                                 ) : (
-                                                  <span className="text-xs font-semibold">{subItem.name}</span>
+                                                  <span className="text-xs font-bold">{subItem.name}</span>
                                                 )}
                                               </td>
 
                                               {/* Sub Brand */}
-                                              <td className="p-1.5 align-middle">
+                                              <td className="p-2 align-middle">
                                                 {isEditable ? (
                                                   <input
                                                     type="text"
@@ -1136,15 +1275,15 @@ export const EquipmentPanel: React.FC = () => {
                                                       updatePackageItem(item.id, subItem.id, { brand: e.target.value })
                                                     }
                                                     placeholder="Brand..."
-                                                    className={`${inputClass} text-xs`}
+                                                    className={`${inputClass} text-xs font-semibold`}
                                                   />
                                                 ) : (
-                                                  <span className="text-xs text-slate-700 dark:text-slate-300">{subItem.brand || '—'}</span>
+                                                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{subItem.brand || '—'}</span>
                                                 )}
                                               </td>
 
                                               {/* Sub Model */}
-                                              <td className="p-1.5 align-middle">
+                                              <td className="p-2 align-middle">
                                                 {isEditable ? (
                                                   <input
                                                     type="text"
@@ -1161,8 +1300,8 @@ export const EquipmentPanel: React.FC = () => {
                                               </td>
 
                                               {/* Sub Quantity */}
-                                              <td className="p-1.5 align-middle text-center">
-                                                <div className="inline-flex items-center rounded border border-slate-300 dark:border-slate-700 bg-black/5 dark:bg-black/40 overflow-hidden text-xs">
+                                              <td className="p-2 align-middle text-center">
+                                                <div className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-black/5 dark:bg-black/40 overflow-hidden text-xs">
                                                   {isEditable && (
                                                     <button
                                                       onClick={() =>
@@ -1170,7 +1309,7 @@ export const EquipmentPanel: React.FC = () => {
                                                           quantity: Math.max(1, subItem.quantity - 1),
                                                         })
                                                       }
-                                                      className="px-1 py-0.2 hover:bg-slate-500/20 font-mono font-bold"
+                                                      className="px-1.5 py-0.5 hover:bg-slate-500/20 font-mono font-bold"
                                                     >
                                                       -
                                                     </button>
@@ -1185,10 +1324,10 @@ export const EquipmentPanel: React.FC = () => {
                                                           quantity: Math.max(1, Number(e.target.value) || 1),
                                                         })
                                                       }
-                                                      className="w-8 bg-transparent text-center font-mono font-bold py-0.2 focus:outline-hidden"
+                                                      className="w-10 bg-transparent text-center font-mono font-bold py-0.5 focus:outline-hidden"
                                                     />
                                                   ) : (
-                                                    <span className="px-1.5 py-0.2 font-mono font-bold text-center">
+                                                    <span className="px-2 py-0.5 font-mono font-bold text-center">
                                                       {subItem.quantity}
                                                     </span>
                                                   )}
@@ -1199,7 +1338,7 @@ export const EquipmentPanel: React.FC = () => {
                                                           quantity: subItem.quantity + 1,
                                                         })
                                                       }
-                                                      className="px-1 py-0.2 hover:bg-slate-500/20 font-mono font-bold"
+                                                      className="px-1.5 py-0.5 hover:bg-slate-500/20 font-mono font-bold"
                                                     >
                                                       +
                                                     </button>
@@ -1208,7 +1347,7 @@ export const EquipmentPanel: React.FC = () => {
                                               </td>
 
                                               {/* Sub Role */}
-                                              <td className="p-1.5 align-middle">
+                                              <td className="p-2 align-middle">
                                                 {isEditable ? (
                                                   <input
                                                     type="text"
@@ -1225,7 +1364,7 @@ export const EquipmentPanel: React.FC = () => {
                                               </td>
 
                                               {/* Sub Specs */}
-                                              <td className="p-1.5 align-middle">
+                                              <td className="p-2 align-middle">
                                                 {isEditable ? (
                                                   <input
                                                     type="text"
@@ -1243,8 +1382,8 @@ export const EquipmentPanel: React.FC = () => {
 
                                               {/* Sub Actions */}
                                               {isEditable && (
-                                                <td className="p-1.5 align-middle text-right pr-2">
-                                                  <div className="inline-flex items-center gap-0.5">
+                                                <td className="p-2 align-middle text-right pr-3">
+                                                  <div className="inline-flex items-center gap-1">
                                                     <button
                                                       onClick={() =>
                                                         addPackageItem(item.id, {
@@ -1255,14 +1394,14 @@ export const EquipmentPanel: React.FC = () => {
                                                       title="Duplicate accessory"
                                                       className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 text-slate-400 transition-colors"
                                                     >
-                                                      <Copy className="w-3 h-3" />
+                                                      <Copy className="w-3.5 h-3.5" />
                                                     </button>
                                                     <button
                                                       onClick={() => deletePackageItem(item.id, subItem.id)}
                                                       title="Remove from package"
                                                       className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 text-slate-400 transition-colors"
                                                     >
-                                                      <Trash2 className="w-3 h-3" />
+                                                      <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
                                                   </div>
                                                 </td>
@@ -1369,14 +1508,26 @@ export const EquipmentPanel: React.FC = () => {
                                 {isPackage && (
                                   <button
                                     onClick={() => togglePackageExpand(item.id)}
-                                    className={`p-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                                       isExpanded
-                                        ? 'bg-sky-500/20 text-sky-400'
-                                        : 'bg-slate-500/15 text-slate-400'
+                                        ? 'bg-sky-600 text-white'
+                                        : 'bg-sky-500/15 text-sky-400'
                                     }`}
                                   >
+                                    <Package className="w-3 h-3" />
+                                    <span>{isExpanded ? 'Close Kit' : 'Open Kit'}</span>
+                                    <span className="font-mono text-[10px] opacity-80">({packageItems.length})</span>
                                     {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                    <span>KIT ({packageItems.length})</span>
+                                  </button>
+                                )}
+
+                                {isPackage && scope === 'current' && (
+                                  <button
+                                    onClick={() => openAddPackageItemModal(item.id)}
+                                    className="px-2 py-1 rounded-lg bg-emerald-600/15 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 text-emerald-400 text-[11px] font-bold flex items-center gap-0.5"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>Add Gear to Kit</span>
                                   </button>
                                 )}
 
@@ -1518,18 +1669,10 @@ export const EquipmentPanel: React.FC = () => {
                                 </span>
                                 {scope === 'current' && (
                                   <button
-                                    onClick={() => {
-                                      addPackageItem(item.id, {
-                                        category: 'power_media',
-                                        name: 'New Kit Accessory',
-                                        quantity: 1,
-                                        roleOrFunction: `${item.name} Accessory`,
-                                        specs: 'Custom Accessory',
-                                      });
-                                    }}
-                                    className="px-1.5 py-0.2 rounded bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold"
+                                    onClick={() => openAddPackageItemModal(item.id)}
+                                    className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-bold flex items-center gap-0.5"
                                   >
-                                    + Add Item
+                                    <Plus className="w-2.5 h-2.5" /> + Add Gear
                                   </button>
                                 )}
                               </div>
@@ -1569,7 +1712,7 @@ export const EquipmentPanel: React.FC = () => {
         )}
       </div>
 
-      {/* 6. Add / Edit Item Modal */}
+      {/* 6. Add / Edit General Item Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
           <div
@@ -1600,6 +1743,29 @@ export const EquipmentPanel: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveModal} className="mt-4 flex flex-col gap-3.5">
+              {/* Optional: Target Package Selector */}
+              {!editingItem && availableCameraPackages.length > 0 && (
+                <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-sky-400 mb-1">
+                    📦 Destination Package (Optional)
+                  </label>
+                  <select
+                    value={formData.targetPackageId || ''}
+                    onChange={(e) => setFormData({ ...formData, targetPackageId: e.target.value })}
+                    className={`w-full p-2 text-xs rounded-lg border font-semibold ${
+                      isLight ? 'bg-white border-sky-300 text-slate-900' : 'bg-slate-800 border-sky-700 text-slate-100'
+                    }`}
+                  >
+                    <option value="">-- Standalone Item (Not in package) --</option>
+                    {availableCameraPackages.map((pkg) => (
+                      <option key={pkg.id} value={pkg.id}>
+                        Attach directly inside {pkg.name} (Camera Kit)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Category Rubric */}
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
@@ -1813,7 +1979,215 @@ export const EquipmentPanel: React.FC = () => {
                   className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white shadow-md flex items-center gap-1"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>{editingItem ? 'Save Changes' : 'Add Item'}</span>
+                  <span>{editingItem ? 'Save Changes' : formData.targetPackageId ? 'Attach to Package' : 'Add Item'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 7. DEDICATED ADD ITEM TO CAMERA PACKAGE MODAL */}
+      {isAddPackageItemModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
+          <div
+            className={`w-full max-w-md rounded-2xl border p-5 shadow-2xl ${
+              isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-100'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-400">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold">
+                    Add Gear to Camera Package
+                  </h3>
+                  <p className="text-[11px] opacity-60">
+                    Attach batteries, media cards, monitor, transmitter, or accessories
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddPackageItemModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePackageItemModal} className="mt-4 flex flex-col gap-3">
+              {/* Preset Quick Loader */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-emerald-500">
+                  ⚡ Choose Preset (Or type custom below)
+                </label>
+                <select
+                  onChange={(e) => {
+                    const preset = CAMERA_PACKAGE_PRESETS.find((p) => p.name === e.target.value);
+                    if (preset) {
+                      setPackageFormData({
+                        category: preset.category,
+                        name: preset.name,
+                        brand: preset.brand,
+                        model: preset.model,
+                        quantity: preset.quantity,
+                        roleOrFunction: preset.roleOrFunction,
+                        specs: preset.specs,
+                      });
+                    }
+                  }}
+                  className={`w-full p-2 text-xs rounded-lg border font-semibold ${
+                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                  }`}
+                >
+                  <option value="">-- Select Camera Accessory Preset --</option>
+                  {CAMERA_PACKAGE_PRESETS.map((p, idx) => (
+                    <option key={idx} value={p.name}>
+                      {p.name} (x{p.quantity}) - {p.brand}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
+                  Category Rubric
+                </label>
+                <select
+                  value={packageFormData.category}
+                  onChange={(e) =>
+                    setPackageFormData({ ...packageFormData, category: e.target.value as EquipmentCategory })
+                  }
+                  className={`w-full p-2 text-xs rounded-lg border font-semibold ${
+                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                  }`}
+                >
+                  {EQUIPMENT_CATEGORIES.map((cat) => (
+                    <option key={cat.key} value={cat.key}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Item Name & Quantity */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
+                    Accessory Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. V-Mount Batteries, CFexpress Type B"
+                    value={packageFormData.name}
+                    onChange={(e) => setPackageFormData({ ...packageFormData, name: e.target.value })}
+                    className={`w-full p-2 text-xs rounded-lg border font-bold ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={packageFormData.quantity}
+                    onChange={(e) =>
+                      setPackageFormData({ ...packageFormData, quantity: Math.max(1, Number(e.target.value)) })
+                    }
+                    className={`w-full p-2 text-xs rounded-lg border font-mono font-bold text-center ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Brand & Model */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
+                    Brand
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Anton Bauer, SanDisk, SmallHD"
+                    value={packageFormData.brand}
+                    onChange={(e) => setPackageFormData({ ...packageFormData, brand: e.target.value })}
+                    className={`w-full p-2 text-xs rounded-lg border ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
+                    Model / Variant
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Titon 150, Cine 7"
+                    value={packageFormData.model}
+                    onChange={(e) => setPackageFormData({ ...packageFormData, model: e.target.value })}
+                    className={`w-full p-2 text-xs rounded-lg border font-mono text-[11px] ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Role & Specs */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
+                  Role / Function
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Camera Power, Recording Media, Focus Peaking"
+                  value={packageFormData.roleOrFunction}
+                  onChange={(e) => setPackageFormData({ ...packageFormData, roleOrFunction: e.target.value })}
+                  className={`w-full p-2 text-xs rounded-lg border ${
+                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
+                  Technical Specs
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 14.4V High-Draw · 150Wh · USB-C"
+                  value={packageFormData.specs}
+                  onChange={(e) => setPackageFormData({ ...packageFormData, specs: e.target.value })}
+                  className={`w-full p-2 text-xs rounded-lg border ${
+                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                  }`}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddPackageItemModalOpen(false)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${
+                    isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-md flex items-center gap-1 font-bold"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Attach to Package</span>
                 </button>
               </div>
             </form>
