@@ -7,7 +7,7 @@ interface StoryboardThumbProps {
   canvasScale: number;
   aspectRatio: number;
   isInteractive: boolean;
-  onDragThumb: (shotId: string, slotKey: string, pos: Vector2D) => void;
+  onDragThumb?: (shotId: string, slotKey: string, pos: Vector2D) => void;
   onSelectCamera: (cameraId: string) => void;
   onDoubleClickCamera?: (cameraId: string) => void;
   onDropToCamera?: (shot: Shot, center: Vector2D) => void;
