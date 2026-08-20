@@ -20,6 +20,7 @@ import {
   ScriptMark,
   Shot,
   EquipmentItem,
+  EquipmentPackageItem,
   Vector2D,
 } from '../types';
 import {
@@ -115,6 +116,9 @@ interface FloorPlanContextType {
   updateEquipmentItem: (id: string, updates: Partial<EquipmentItem>) => void;
   deleteEquipmentItem: (id: string) => void;
   resetSceneEquipment: () => void;
+  addPackageItem: (packageId: string, item: Omit<EquipmentPackageItem, 'id'>) => void;
+  updatePackageItem: (packageId: string, itemId: string, updates: Partial<EquipmentPackageItem>) => void;
+  deletePackageItem: (packageId: string, itemId: string) => void;
 
   // Element CRUD
   addElement: (element: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }) => string;
@@ -3257,6 +3261,55 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     updateSetupMeta({ customEquipment: [] });
   };
 
+  const addPackageItem = (packageId: string, item: Omit<EquipmentPackageItem, 'id'>) => {
+    const allDerived = deriveSceneEquipment(activeSetup);
+    const baseItem = allDerived.find((d) => d.id === packageId || d.elementId === packageId);
+    const existingCustom = (activeSetup.customEquipment || []).find((c) => c.id === packageId || c.elementId === packageId);
+
+    const existingPackageItems = existingCustom?.packageItems || baseItem?.packageItems || [];
+    const newSubItem: EquipmentPackageItem = {
+      ...item,
+      id: `pkg-item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    };
+
+    updateEquipmentItem(packageId, {
+      isPackage: true,
+      packageItems: [...existingPackageItems, newSubItem],
+    });
+  };
+
+  const updatePackageItem = (
+    packageId: string,
+    itemId: string,
+    updates: Partial<EquipmentPackageItem>
+  ) => {
+    const allDerived = deriveSceneEquipment(activeSetup);
+    const baseItem = allDerived.find((d) => d.id === packageId || d.elementId === packageId);
+    const existingCustom = (activeSetup.customEquipment || []).find((c) => c.id === packageId || c.elementId === packageId);
+
+    const existingPackageItems = existingCustom?.packageItems || baseItem?.packageItems || [];
+    const nextPackageItems = existingPackageItems.map((p) => (p.id === itemId ? { ...p, ...updates } : p));
+
+    updateEquipmentItem(packageId, {
+      isPackage: true,
+      packageItems: nextPackageItems,
+    });
+  };
+
+  const deletePackageItem = (packageId: string, itemId: string) => {
+    const allDerived = deriveSceneEquipment(activeSetup);
+    const baseItem = allDerived.find((d) => d.id === packageId || d.elementId === packageId);
+    const existingCustom = (activeSetup.customEquipment || []).find((c) => c.id === packageId || c.elementId === packageId);
+
+    const existingPackageItems = existingCustom?.packageItems || baseItem?.packageItems || [];
+    const nextPackageItems = existingPackageItems.filter((p) => p.id !== itemId);
+
+    updateEquipmentItem(packageId, {
+      isPackage: true,
+      packageItems: nextPackageItems,
+    });
+  };
+
   return (
     <FloorPlanContext.Provider
       value={{
@@ -3292,6 +3345,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateEquipmentItem,
         deleteEquipmentItem,
         resetSceneEquipment,
+        addPackageItem,
+        updatePackageItem,
+        deletePackageItem,
 
         toggleTheme,
         setTheme,

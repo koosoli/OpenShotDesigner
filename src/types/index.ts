@@ -536,6 +536,18 @@ export type EquipmentCategory =
   | 'expendables'
   | 'other';
 
+export interface EquipmentPackageItem {
+  id: string;
+  category: EquipmentCategory;
+  name: string;
+  brand?: string;
+  model?: string;
+  quantity: number;
+  roleOrFunction?: string;
+  specs?: string;
+  notes?: string;
+}
+
 export interface EquipmentItem {
   id: string;
   category: EquipmentCategory;
@@ -548,6 +560,8 @@ export interface EquipmentItem {
   notes?: string;
   isCustom?: boolean;
   elementId?: string; // Links to canvas element if overridden
+  isPackage?: boolean; // Whether this item is an expandable kit/package
+  packageItems?: EquipmentPackageItem[]; // Nested accessories (batteries, cards, monitors, follow focus, etc.)
 }
 
 export interface MasterEquipmentItem extends EquipmentItem {

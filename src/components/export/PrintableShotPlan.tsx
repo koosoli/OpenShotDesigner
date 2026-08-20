@@ -1029,8 +1029,21 @@ export const PrintableShotPlan: React.FC = () => {
                                 <td className="py-1 px-1.5 font-bold font-mono text-sky-700 text-center">x{item.quantity}</td>
                                 <td className="py-1 px-1.5 font-semibold text-slate-800">{item.brand || 'Generic / Unspecified'}</td>
                                 <td className="py-1 px-1.5 font-bold text-slate-900">
-                                  {item.name} {item.model && item.model !== item.name && (
-                                    <span className="font-normal text-slate-500 font-mono text-[10px]">({item.model})</span>
+                                  <div>
+                                    {item.name} {item.model && item.model !== item.name && (
+                                      <span className="font-normal text-slate-500 font-mono text-[10px]">({item.model})</span>
+                                    )}
+                                  </div>
+                                  {item.packageItems && item.packageItems.length > 0 && (
+                                    <div className="mt-1 text-[9px] font-normal text-slate-600 font-mono space-y-0.5">
+                                      {item.packageItems.map((pkgSub) => (
+                                        <div key={pkgSub.id} className="flex items-center gap-1">
+                                          <span className="font-bold text-sky-700">└─ x{pkgSub.quantity}</span>
+                                          <span>{pkgSub.name}</span>
+                                          {pkgSub.brand && <span className="text-slate-400">({pkgSub.brand})</span>}
+                                        </div>
+                                      ))}
+                                    </div>
                                   )}
                                 </td>
                                 <td className="py-1 px-1.5 text-slate-700">
@@ -1135,6 +1148,22 @@ export const PrintableShotPlan: React.FC = () => {
                                     <div className="font-bold text-slate-900">{item.name}</div>
                                     {item.model && item.model !== item.name && (
                                       <div className="text-[10px] font-mono text-slate-500">{item.model}</div>
+                                    )}
+                                    {item.packageItems && item.packageItems.length > 0 && (
+                                      <div className="mt-1.5 pt-1 border-t border-slate-200 text-[10px] text-slate-700">
+                                        <div className="font-bold text-slate-800 font-mono text-[9px] uppercase tracking-wider mb-0.5">
+                                          📦 Package Kit Components:
+                                        </div>
+                                        <div className="space-y-0.5 font-mono text-[9px]">
+                                          {item.packageItems.map((pkgSub) => (
+                                            <div key={pkgSub.id} className="flex items-center gap-1">
+                                              <span className="font-bold text-sky-700">└─ x{pkgSub.quantity}</span>
+                                              <span className="font-semibold text-slate-900">{pkgSub.name}</span>
+                                              {pkgSub.brand && <span className="text-slate-500">({pkgSub.brand})</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
                                     )}
                                   </td>
                                   <td className="p-2 align-top text-slate-700 font-sans">

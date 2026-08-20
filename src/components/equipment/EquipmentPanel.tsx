@@ -7,6 +7,7 @@ import {
   Camera,
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Copy,
   Edit2,
@@ -29,8 +30,9 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { EquipmentCategory, EquipmentItem, MasterEquipmentItem } from '../../types';
+import { EquipmentCategory, EquipmentItem, EquipmentPackageItem, MasterEquipmentItem } from '../../types';
 import {
+  CAMERA_PACKAGE_PRESETS,
   DEPARTMENT_BRANDS_CATALOG,
   EQUIPMENT_CATEGORIES,
   EquipmentPreset,
@@ -51,6 +53,9 @@ export const EquipmentPanel: React.FC = () => {
     updateEquipmentItem,
     deleteEquipmentItem,
     resetSceneEquipment,
+    addPackageItem,
+    updatePackageItem,
+    deletePackageItem,
     openExportModal,
     theme,
   } = useFloorPlan();
@@ -66,6 +71,17 @@ export const EquipmentPanel: React.FC = () => {
   const [isPresetDrawerOpen, setIsPresetDrawerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EquipmentItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Expand / collapse state for packages (defaults all packages to expanded so user immediately sees their kit)
+  const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({
+    'auto-cam-letter-A': true,
+    'auto-cam-letter-B': true,
+    'auto-cam-letter-C': true,
+  });
+
+  // Package target when adding an accessory to a specific package
+  const [activePackageTargetId, setActivePackageTargetId] = useState<string | null>(null);
+  const [isAddPackageItemModalOpen, setIsAddPackageItemModalOpen] = useState(false);
 
   // Form state for add / edit modal
   const [formData, setFormData] = useState<{
@@ -87,6 +103,13 @@ export const EquipmentPanel: React.FC = () => {
     specs: '',
     notes: '',
   });
+
+  const togglePackageExpand = (id: string) => {
+    setExpandedPackages((prev) => ({
+      ...prev,
+      [id]: prev[id] === undefined ? false : !prev[id],
+    }));
+  };
 
   // Derive current scene equipment vs all scenes equipment
   const currentSceneEquipment = useMemo(
@@ -119,6 +142,15 @@ export const EquipmentPanel: React.FC = () => {
       const matchSpecs = (item.specs || '').toLowerCase().includes(q);
       const matchCategory = item.category.toLowerCase().includes(q);
 
+      // Search nested package items as well
+      const matchPackage = (item.packageItems || []).some(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.brand || '').toLowerCase().includes(q) ||
+          (p.model || '').toLowerCase().includes(q) ||
+          (p.specs || '').toLowerCase().includes(q)
+      );
+
       let matchScenes = false;
       if ('usedInSetups' in item) {
         matchScenes = item.usedInSetups.some(
@@ -128,7 +160,7 @@ export const EquipmentPanel: React.FC = () => {
         );
       }
 
-      return matchName || matchBrand || matchModel || matchRole || matchSpecs || matchCategory || matchScenes;
+      return matchName || matchBrand || matchModel || matchRole || matchSpecs || matchCategory || matchPackage || matchScenes;
     });
   }, [activeItems, selectedCategory, searchQuery]);
 
@@ -146,13 +178,22 @@ export const EquipmentPanel: React.FC = () => {
     return map;
   }, [filteredItems]);
 
-  // Summary counts
-  const totalItemCount = useMemo(
-    () => activeItems.reduce((sum, item) => sum + item.quantity, 0),
-    [activeItems]
-  );
+  // Summary counts (including sub-package items)
+  const totalItemCount = useMemo(() => {
+    return activeItems.reduce((sum, item) => {
+      let subSum = 0;
+      if (item.packageItems) {
+        subSum = item.packageItems.reduce((s, p) => s + p.quantity, 0);
+      }
+      return sum + item.quantity + subSum;
+    }, 0);
+  }, [activeItems]);
 
-  const totalUniqueCount = activeItems.length;
+  const totalUniqueCount = useMemo(() => {
+    return activeItems.reduce((count, item) => {
+      return count + 1 + (item.packageItems ? item.packageItems.length : 0);
+    }, 0);
+  }, [activeItems]);
 
   const getCategoryIcon = (category: EquipmentCategory, className = 'w-4 h-4') => {
     switch (category) {
@@ -255,6 +296,19 @@ export const EquipmentPanel: React.FC = () => {
     });
   };
 
+  const handleAddPackagePreset = (packageId: string, preset: (typeof CAMERA_PACKAGE_PRESETS)[0]) => {
+    addPackageItem(packageId, {
+      category: preset.category,
+      name: preset.name,
+      brand: preset.brand,
+      model: preset.model,
+      quantity: preset.quantity,
+      roleOrFunction: preset.roleOrFunction,
+      specs: preset.specs,
+    });
+    setExpandedPackages((prev) => ({ ...prev, [packageId]: true }));
+  };
+
   const handleExportCsv = () => {
     exportEquipmentToCsv(
       activeSetup,
@@ -280,13 +334,13 @@ export const EquipmentPanel: React.FC = () => {
             <div>
               <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                 <span>Equipment Manifest</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-sky-500/15 text-sky-400">
-                  {totalItemCount} units · {totalUniqueCount} gear
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-sky-500/15 text-sky-400 font-bold">
+                  {totalItemCount} total units · {totalUniqueCount} gear items
                 </span>
               </h2>
               <p className="text-[10px] opacity-60">
                 {scope === 'current'
-                  ? `Scene ${activeSetup.sceneNumber || '1'} (${activeSetup.name}) — click any cell below to edit live`
+                  ? `Scene ${activeSetup.sceneNumber || '1'} (${activeSetup.name}) — Camera packages are expandable kits`
                   : `Master production truck package across all ${project.setups?.length || 1} scenes`}
               </p>
             </div>
@@ -365,7 +419,7 @@ export const EquipmentPanel: React.FC = () => {
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 opacity-40 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search gear, brand, model, specs, scene..."
+              placeholder="Search gear, brand, model, package, batteries, cards..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`w-full pl-8 pr-7 py-1 text-xs rounded-lg border focus:outline-hidden focus:ring-1 focus:ring-sky-500 ${
@@ -515,7 +569,11 @@ export const EquipmentPanel: React.FC = () => {
           </button>
 
           {EQUIPMENT_CATEGORIES.map((cat) => {
-            const count = (groupedItems.get(cat.key) || []).reduce((sum, item) => sum + item.quantity, 0);
+            const count = (groupedItems.get(cat.key) || []).reduce((sum, item) => {
+              const subSum = (item.packageItems || []).filter((p) => p.category === cat.key).reduce((s, p) => s + p.quantity, 0);
+              return sum + (item.category === cat.key ? item.quantity : 0) + subSum;
+            }, 0);
+
             return (
               <button
                 key={cat.key}
@@ -552,8 +610,8 @@ export const EquipmentPanel: React.FC = () => {
             <Info className="w-3.5 h-3.5 flex-shrink-0" />
             <span>
               {scope === 'current'
-                ? '💡 Brand & Model drop-down templates available. Click any cell to modify live, or click ✏️ for full options.'
-                : '🔒 All Scenes master truck is a consolidated summary. Switch to "Current Scene" above to edit gear items.'}
+                ? '📦 Click "▼ Kit" to open/collapse any Camera Package and attach batteries, memory cards, monitors, or accessories.'
+                : '🔒 All Scenes master truck is a consolidated summary across the entire project.'}
             </span>
           </div>
           {scope === 'current' && (
@@ -606,7 +664,7 @@ export const EquipmentPanel: React.FC = () => {
           </div>
         ) : viewStyle === 'spreadsheet' ? (
           /* ========================================================================= */
-          /* SPREADSHEET DATA GRID VIEW (DEFAULT - WITH DIRECT INLINE EDITING)        */
+          /* SPREADSHEET DATA GRID VIEW (WITH EXPANDABLE CAMERA PACKAGES)              */
           /* ========================================================================= */
           <div className={`border rounded-xl overflow-hidden shadow-xs ${cardBg}`}>
             <div className="overflow-x-auto custom-scrollbar">
@@ -618,9 +676,9 @@ export const EquipmentPanel: React.FC = () => {
                     }`}
                   >
                     <th className="p-2 w-28 whitespace-nowrap">DEPARTMENT</th>
-                    <th className="p-2 min-w-[180px]">ITEM NAME (EDITABLE)</th>
-                    <th className="p-2 min-w-[130px]">BRAND (DROPDOWN)</th>
-                    <th className="p-2 min-w-[150px]">MODEL (DROPDOWN)</th>
+                    <th className="p-2 min-w-[200px]">ITEM & PACKAGE NAME</th>
+                    <th className="p-2 min-w-[130px]">BRAND</th>
+                    <th className="p-2 min-w-[150px]">MODEL / VARIANT</th>
                     <th className="p-2 w-28 text-center">QTY</th>
                     <th className="p-2 min-w-[140px]">ROLE / FUNCTION</th>
                     <th className="p-2 min-w-[200px]">TECHNICAL SPECS & NOTES</th>
@@ -636,69 +694,96 @@ export const EquipmentPanel: React.FC = () => {
                     const isMaster = 'usedInSetups' in item;
                     const masterItem = isMaster ? (item as MasterEquipmentItem) : null;
                     const isEditable = scope === 'current';
+                    const isPackage = item.isPackage || (item.packageItems && item.packageItems.length > 0) || item.name.includes('Package');
+                    const isExpanded = expandedPackages[item.id] ?? (isPackage ? true : false);
+                    const packageItems = item.packageItems || [];
 
                     // Models available for this item's category & brand
                     const modelOptions = getModelsForBrand(item.category, item.brand || '');
 
                     return (
-                      <tr
-                        key={item.id}
-                        onDoubleClick={() => {
-                          if (isEditable) openEditModal(item);
-                        }}
-                        className={`transition-colors group ${
-                          isLight
-                            ? 'hover:bg-sky-50/60 odd:bg-white even:bg-slate-50/50'
-                            : 'hover:bg-sky-950/20 odd:bg-slate-900 even:bg-slate-950/40'
-                        }`}
-                      >
-                        {/* 1. Department Selector / Badge */}
-                        <td className="p-2 align-middle">
-                          {isEditable ? (
-                            <select
-                              value={item.category}
-                              onChange={(e) => {
-                                const newCat = e.target.value as EquipmentCategory;
-                                const firstBrand = getBrandsForCategory(newCat)[0] || item.brand;
-                                const firstModel = getModelsForBrand(newCat, firstBrand || '')[0] || item.model;
-                                updateEquipmentItem(item.id, {
-                                  category: newCat,
-                                  brand: firstBrand,
-                                  model: firstModel,
-                                });
-                              }}
-                              className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer ${meta.badgeBg} ${meta.badgeText}`}
-                            >
-                              {EQUIPMENT_CATEGORIES.map((c) => (
-                                <option key={c.key} value={c.key}>
-                                  {c.shortLabel}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-semibold inline-flex items-center gap-1 ${meta.badgeBg} ${meta.badgeText}`}
-                            >
-                              {getCategoryIcon(item.category, 'w-2.5 h-2.5')}
-                              <span>{meta.shortLabel}</span>
-                            </span>
-                          )}
-                        </td>
+                      <React.Fragment key={item.id}>
+                        {/* MAIN ITEM ROW */}
+                        <tr
+                          onDoubleClick={() => {
+                            if (isEditable) openEditModal(item);
+                          }}
+                          className={`transition-colors group ${
+                            isPackage
+                              ? isLight
+                                ? 'bg-sky-50/40 hover:bg-sky-50/80'
+                                : 'bg-sky-950/20 hover:bg-sky-950/40'
+                              : isLight
+                                ? 'hover:bg-slate-50/80 odd:bg-white even:bg-slate-50/30'
+                                : 'hover:bg-slate-850/50 odd:bg-slate-900 even:bg-slate-950/30'
+                          }`}
+                        >
+                          {/* 1. Department Selector / Badge */}
+                          <td className="p-2 align-middle">
+                            {isEditable ? (
+                              <select
+                                value={item.category}
+                                onChange={(e) => {
+                                  const newCat = e.target.value as EquipmentCategory;
+                                  const firstBrand = getBrandsForCategory(newCat)[0] || item.brand;
+                                  const firstModel = getModelsForBrand(newCat, firstBrand || '')[0] || item.model;
+                                  updateEquipmentItem(item.id, {
+                                    category: newCat,
+                                    brand: firstBrand,
+                                    model: firstModel,
+                                  });
+                                }}
+                                className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer ${meta.badgeBg} ${meta.badgeText}`}
+                              >
+                                {EQUIPMENT_CATEGORIES.map((c) => (
+                                  <option key={c.key} value={c.key}>
+                                    {c.shortLabel}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-semibold inline-flex items-center gap-1 ${meta.badgeBg} ${meta.badgeText}`}
+                              >
+                                {getCategoryIcon(item.category, 'w-2.5 h-2.5')}
+                                <span>{meta.shortLabel}</span>
+                              </span>
+                            )}
+                          </td>
 
-                        {/* 2. Item Name (Direct In-Place Edit) */}
-                        <td className="p-2 align-middle">
-                          {isEditable ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={item.name}
-                                onChange={(e) =>
-                                  updateEquipmentItem(item.id, { name: e.target.value })
-                                }
-                                placeholder="Item name..."
-                                title="Click to edit item name"
-                                className={`${inputClass} font-bold text-xs`}
-                              />
+                          {/* 2. Item Name & Expand Package Trigger */}
+                          <td className="p-2 align-middle">
+                            <div className="flex items-center gap-1.5">
+                              {isPackage && (
+                                <button
+                                  onClick={() => togglePackageExpand(item.id)}
+                                  title={isExpanded ? 'Collapse package kit' : 'Expand package kit'}
+                                  className={`p-1 rounded-md transition-transform flex items-center gap-1 text-[10px] font-mono font-bold ${
+                                    isExpanded
+                                      ? 'bg-sky-500/20 text-sky-400'
+                                      : 'bg-slate-500/15 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                  <span>KIT ({packageItems.length})</span>
+                                </button>
+                              )}
+
+                              {isEditable ? (
+                                <input
+                                  type="text"
+                                  value={item.name}
+                                  onChange={(e) =>
+                                    updateEquipmentItem(item.id, { name: e.target.value })
+                                  }
+                                  placeholder="Item name..."
+                                  title="Click to edit item name"
+                                  className={`${inputClass} font-bold text-xs`}
+                                />
+                              ) : (
+                                <span className="font-bold text-xs">{item.name}</span>
+                              )}
+
                               {item.isCustom ? (
                                 <span className="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-violet-500/15 text-violet-400 border border-violet-500/30 flex-shrink-0">
                                   Custom
@@ -709,17 +794,11 @@ export const EquipmentPanel: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-xs">{item.name}</span>
-                            </div>
-                          )}
-                        </td>
+                          </td>
 
-                        {/* 3. Brand (Drop-Down / Autocomplete) */}
-                        <td className="p-2 align-middle">
-                          {isEditable ? (
-                            <div className="relative">
+                          {/* 3. Brand (Drop-Down / Autocomplete) */}
+                          <td className="p-2 align-middle">
+                            {isEditable ? (
                               <input
                                 type="text"
                                 list={`brand-datalist-${item.category}`}
@@ -729,204 +808,481 @@ export const EquipmentPanel: React.FC = () => {
                                   const models = getModelsForBrand(item.category, newBrand);
                                   updateEquipmentItem(item.id, {
                                     brand: newBrand,
-                                    // if current model doesn't match new brand, offer first model
                                     model: models.length > 0 && !models.includes(item.model || '') ? models[0] : item.model,
                                   });
                                 }}
-                                placeholder="Brand (e.g. ARRI, Aputure)..."
+                                placeholder="Brand..."
                                 title="Type or pick from template brands"
                                 className={`${inputClass} font-semibold`}
                               />
-                            </div>
-                          ) : (
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">
-                              {item.brand || <span className="opacity-30">—</span>}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 4. Model / Variant (Drop-Down / Autocomplete) */}
-                        <td className="p-2 align-middle">
-                          {isEditable ? (
-                            <div>
-                              <datalist id={`model-datalist-${item.id}`}>
-                                {modelOptions.map((m) => (
-                                  <option key={m} value={m} />
-                                ))}
-                              </datalist>
-                              <input
-                                type="text"
-                                list={`model-datalist-${item.id}`}
-                                value={item.model || ''}
-                                onChange={(e) => {
-                                  const newModel = e.target.value;
-                                  // If the user picked a template model, automatically set the item name if matching
-                                  const updates: Partial<EquipmentItem> = { model: newModel };
-                                  if (!item.name || item.name.includes('Package') || item.name.includes('Custom')) {
-                                    updates.name = newModel;
-                                  }
-                                  updateEquipmentItem(item.id, updates);
-                                }}
-                                placeholder="Model / variant..."
-                                title="Type or pick from template models"
-                                className={`${inputClass} font-mono text-[11px]`}
-                              />
-                            </div>
-                          ) : (
-                            <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                              {item.model || <span className="opacity-30">—</span>}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 5. Quantity Stepper / Direct Number Input */}
-                        <td className="p-2 align-middle text-center">
-                          <div className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-black/5 dark:bg-black/40 overflow-hidden text-xs">
-                            {isEditable && (
-                              <button
-                                onClick={() =>
-                                  updateEquipmentItem(item.id, {
-                                    quantity: Math.max(1, item.quantity - 1),
-                                  })
-                                }
-                                title="Decrease quantity"
-                                className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold"
-                              >
-                                -
-                              </button>
-                            )}
-                            {isEditable ? (
-                              <input
-                                type="number"
-                                min={1}
-                                value={item.quantity}
-                                onChange={(e) =>
-                                  updateEquipmentItem(item.id, {
-                                    quantity: Math.max(1, Number(e.target.value) || 1),
-                                  })
-                                }
-                                className="w-10 bg-transparent text-center font-mono font-black py-0.5 focus:outline-hidden"
-                              />
                             ) : (
-                              <span className="px-2 py-0.5 font-mono font-black text-center min-w-[26px]">
-                                {item.quantity}
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                {item.brand || <span className="opacity-30">—</span>}
                               </span>
                             )}
-                            {isEditable && (
-                              <button
-                                onClick={() =>
-                                  updateEquipmentItem(item.id, {
-                                    quantity: item.quantity + 1,
-                                  })
-                                }
-                                title="Increase quantity"
-                                className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold"
-                              >
-                                +
-                              </button>
+                          </td>
+
+                          {/* 4. Model / Variant (Drop-Down / Autocomplete) */}
+                          <td className="p-2 align-middle">
+                            {isEditable ? (
+                              <div>
+                                <datalist id={`model-datalist-${item.id}`}>
+                                  {modelOptions.map((m) => (
+                                    <option key={m} value={m} />
+                                  ))}
+                                </datalist>
+                                <input
+                                  type="text"
+                                  list={`model-datalist-${item.id}`}
+                                  value={item.model || ''}
+                                  onChange={(e) => {
+                                    const newModel = e.target.value;
+                                    const updates: Partial<EquipmentItem> = { model: newModel };
+                                    if (!item.name || item.name.includes('Package') || item.name.includes('Custom')) {
+                                      updates.name = newModel;
+                                    }
+                                    updateEquipmentItem(item.id, updates);
+                                  }}
+                                  placeholder="Model..."
+                                  title="Type or pick from template models"
+                                  className={`${inputClass} font-mono text-[11px]`}
+                                />
+                              </div>
+                            ) : (
+                              <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                {item.model || <span className="opacity-30">—</span>}
+                              </span>
                             )}
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* 6. Role / Function (Direct In-Place Edit) */}
-                        <td className="p-2 align-middle">
-                          {isEditable ? (
-                            <input
-                              type="text"
-                              value={item.roleOrFunction || ''}
-                              onChange={(e) =>
-                                updateEquipmentItem(item.id, { roleOrFunction: e.target.value })
-                              }
-                              placeholder="Role / function..."
-                              title="Click to edit role/function"
-                              className={`${inputClass} text-xs`}
-                            />
-                          ) : (
-                            <span className="text-slate-700 dark:text-slate-300">
-                              {item.roleOrFunction || <span className="opacity-30">—</span>}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 7. Specs & Notes (Direct In-Place Edit) */}
-                        <td className="p-2 align-middle">
-                          {isEditable ? (
-                            <input
-                              type="text"
-                              value={item.specs || item.notes || ''}
-                              onChange={(e) =>
-                                updateEquipmentItem(item.id, { specs: e.target.value })
-                              }
-                              placeholder="Technical specs & notes..."
-                              title="Click to edit technical specs and notes"
-                              className={`${inputClass} text-[11px]`}
-                            />
-                          ) : (
-                            <span className="text-[11px] text-slate-600 dark:text-slate-400">
-                              {item.specs || item.notes || <span className="opacity-30">—</span>}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Master Scene Usage (All Scenes View) */}
-                        {scope === 'all' && masterItem && (
-                          <td className="p-2 align-middle text-[10px] font-mono text-slate-600 dark:text-slate-400">
-                            <div className="flex flex-wrap gap-1 items-center">
-                              {masterItem.usedInSetups.map((s, sIdx) => (
-                                <span
-                                  key={sIdx}
-                                  className="px-1 py-0.2 rounded text-[9px] bg-violet-500/15 text-violet-300 border border-violet-500/20"
+                          {/* 5. Quantity Stepper */}
+                          <td className="p-2 align-middle text-center">
+                            <div className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-black/5 dark:bg-black/40 overflow-hidden text-xs">
+                              {isEditable && (
+                                <button
+                                  onClick={() =>
+                                    updateEquipmentItem(item.id, {
+                                      quantity: Math.max(1, item.quantity - 1),
+                                    })
+                                  }
+                                  title="Decrease quantity"
+                                  className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold"
                                 >
-                                  {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
+                                  -
+                                </button>
+                              )}
+                              {isEditable ? (
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={item.quantity}
+                                  onChange={(e) =>
+                                    updateEquipmentItem(item.id, {
+                                      quantity: Math.max(1, Number(e.target.value) || 1),
+                                    })
+                                  }
+                                  className="w-10 bg-transparent text-center font-mono font-black py-0.5 focus:outline-hidden"
+                                />
+                              ) : (
+                                <span className="px-2 py-0.5 font-mono font-black text-center min-w-[26px]">
+                                  {item.quantity}
                                 </span>
-                              ))}
-                            </div>
-                            <div className="text-[9px] opacity-60 mt-0.5">
-                              Peak: {masterItem.maxConcurrentQuantity} concurrent
+                              )}
+                              {isEditable && (
+                                <button
+                                  onClick={() =>
+                                    updateEquipmentItem(item.id, {
+                                      quantity: item.quantity + 1,
+                                    })
+                                  }
+                                  title="Increase quantity"
+                                  className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold"
+                                >
+                                  +
+                                </button>
+                              )}
                             </div>
                           </td>
-                        )}
 
-                        {/* 8. Row Actions */}
-                        {isEditable && (
-                          <td className="p-2 align-middle text-right pr-3">
-                            <div className="inline-flex items-center gap-0.5 opacity-80 group-hover:opacity-100">
-                              <button
-                                onClick={() => openEditModal(item)}
-                                title="Open full edit modal"
-                                className="p-1 rounded hover:bg-sky-500/15 hover:text-sky-400 transition-colors"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  addCustomEquipmentItem({
-                                    category: item.category,
-                                    name: `${item.name} (Copy)`,
-                                    brand: item.brand,
-                                    model: item.model,
-                                    quantity: item.quantity,
-                                    roleOrFunction: item.roleOrFunction,
-                                    specs: item.specs,
-                                    notes: item.notes,
-                                  })
+                          {/* 6. Role / Function */}
+                          <td className="p-2 align-middle">
+                            {isEditable ? (
+                              <input
+                                type="text"
+                                value={item.roleOrFunction || ''}
+                                onChange={(e) =>
+                                  updateEquipmentItem(item.id, { roleOrFunction: e.target.value })
                                 }
-                                title="Duplicate item"
-                                className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 transition-colors"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => deleteEquipmentItem(item.id)}
-                                title="Delete item"
-                                className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                                placeholder="Role / function..."
+                                className={`${inputClass} text-xs`}
+                              />
+                            ) : (
+                              <span className="text-slate-700 dark:text-slate-300">
+                                {item.roleOrFunction || <span className="opacity-30">—</span>}
+                              </span>
+                            )}
                           </td>
+
+                          {/* 7. Specs & Notes */}
+                          <td className="p-2 align-middle">
+                            {isEditable ? (
+                              <input
+                                type="text"
+                                value={item.specs || item.notes || ''}
+                                onChange={(e) =>
+                                  updateEquipmentItem(item.id, { specs: e.target.value })
+                                }
+                                placeholder="Technical specs & notes..."
+                                className={`${inputClass} text-[11px]`}
+                              />
+                            ) : (
+                              <span className="text-[11px] text-slate-600 dark:text-slate-400">
+                                {item.specs || item.notes || <span className="opacity-30">—</span>}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Master Scene Usage (All Scenes View) */}
+                          {scope === 'all' && masterItem && (
+                            <td className="p-2 align-middle text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                              <div className="flex flex-wrap gap-1 items-center">
+                                {masterItem.usedInSetups.map((s, sIdx) => (
+                                  <span
+                                    key={sIdx}
+                                    className="px-1 py-0.2 rounded text-[9px] bg-violet-500/15 text-violet-300 border border-violet-500/20"
+                                  >
+                                    {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
+                                  </span>
+                                ))}
+                              </div>
+                              <div className="text-[9px] opacity-60 mt-0.5">
+                                Peak: {masterItem.maxConcurrentQuantity} concurrent
+                              </div>
+                            </td>
+                          )}
+
+                          {/* 8. Row Actions */}
+                          {isEditable && (
+                            <td className="p-2 align-middle text-right pr-3">
+                              <div className="inline-flex items-center gap-0.5 opacity-80 group-hover:opacity-100">
+                                <button
+                                  onClick={() => openEditModal(item)}
+                                  title="Open full edit modal"
+                                  className="p-1 rounded hover:bg-sky-500/15 hover:text-sky-400 transition-colors"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    addCustomEquipmentItem({
+                                      category: item.category,
+                                      name: `${item.name} (Copy)`,
+                                      brand: item.brand,
+                                      model: item.model,
+                                      quantity: item.quantity,
+                                      roleOrFunction: item.roleOrFunction,
+                                      specs: item.specs,
+                                      notes: item.notes,
+                                      isPackage: item.isPackage,
+                                      packageItems: item.packageItems ? JSON.parse(JSON.stringify(item.packageItems)) : undefined,
+                                    })
+                                  }
+                                  title="Duplicate item"
+                                  className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 transition-colors"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => deleteEquipmentItem(item.id)}
+                                  title="Delete item"
+                                  className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+
+                        {/* ============================================================= */}
+                        {/* NESTED OPENABLE PACKAGE KIT DRAWER (BATTERIES, CARDS, MONITORS)*/}
+                        {/* ============================================================= */}
+                        {isPackage && isExpanded && (
+                          <tr className={isLight ? 'bg-sky-50/70 border-b border-sky-200' : 'bg-slate-950/80 border-b border-sky-900/40'}>
+                            <td colSpan={scope === 'all' ? 8 : 8} className="p-0">
+                              <div className="pl-6 pr-3 py-2.5 border-l-4 border-sky-500 flex flex-col gap-2">
+                                {/* Kit Header Bar */}
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5 font-mono">
+                                      <span>📦 {item.name} — Accessories & Kit Components</span>
+                                      <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 text-[9px]">
+                                        {packageItems.length} accessories
+                                      </span>
+                                    </span>
+                                  </div>
+
+                                  {isEditable && (
+                                    <div className="flex items-center gap-1.5">
+                                      {/* Fast-add Presets for this Camera Package */}
+                                      <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
+                                        <span className="text-[9px] font-mono uppercase opacity-60">Add Kit Item:</span>
+                                        {CAMERA_PACKAGE_PRESETS.slice(0, 4).map((pkgPreset, pIdx) => (
+                                          <button
+                                            key={pIdx}
+                                            onClick={() => handleAddPackagePreset(item.id, pkgPreset)}
+                                            title={`Add ${pkgPreset.name} to ${item.name}`}
+                                            className="px-2 py-0.5 rounded bg-sky-600/20 hover:bg-sky-600 hover:text-white border border-sky-500/30 text-[9px] font-semibold transition-all"
+                                          >
+                                            + {pkgPreset.name.split('(')[0].trim()}
+                                          </button>
+                                        ))}
+                                        <button
+                                          onClick={() => {
+                                            addPackageItem(item.id, {
+                                              category: 'power_media',
+                                              name: 'New Kit Accessory',
+                                              quantity: 1,
+                                              roleOrFunction: `${item.name} Accessory`,
+                                              specs: 'Custom Accessory',
+                                            });
+                                            setExpandedPackages((prev) => ({ ...prev, [item.id]: true }));
+                                          }}
+                                          className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold flex items-center gap-0.5 shadow-xs"
+                                        >
+                                          <Plus className="w-2.5 h-2.5" />
+                                          <span>Custom Item</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Kit Sub-Items Table */}
+                                <div className="border border-sky-500/20 rounded-lg overflow-hidden bg-white/60 dark:bg-slate-900/60 shadow-xs">
+                                  <table className="w-full text-left text-xs border-collapse font-sans">
+                                    <thead>
+                                      <tr className={`border-b text-[9px] font-mono uppercase font-bold ${isLight ? 'bg-slate-100/90 text-slate-600' : 'bg-slate-950 text-slate-400'}`}>
+                                        <th className="p-1.5 w-24">DEPARTMENT</th>
+                                        <th className="p-1.5 min-w-[180px]">PACKAGE ACCESSORY / ITEM</th>
+                                        <th className="p-1.5 min-w-[120px]">BRAND</th>
+                                        <th className="p-1.5 min-w-[130px]">MODEL</th>
+                                        <th className="p-1.5 w-24 text-center">QTY</th>
+                                        <th className="p-1.5 min-w-[130px]">ROLE / FUNCTION</th>
+                                        <th className="p-1.5 min-w-[180px]">TECHNICAL SPECS</th>
+                                        {isEditable && <th className="p-1.5 w-20 text-right pr-2">ACTION</th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                      {packageItems.length === 0 ? (
+                                        <tr>
+                                          <td colSpan={8} className="p-3 text-center text-[11px] opacity-60 italic">
+                                            No accessories in this package yet. Click "+ Custom Item" or the preset pills above to attach batteries, SD cards, monitors, etc.
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        packageItems.map((subItem) => {
+                                          const subMeta = getCategoryMeta(subItem.category);
+                                          return (
+                                            <tr
+                                              key={subItem.id}
+                                              className={isLight ? 'hover:bg-sky-50/50' : 'hover:bg-slate-850/60'}
+                                            >
+                                              {/* Sub Department */}
+                                              <td className="p-1.5 align-middle">
+                                                {isEditable ? (
+                                                  <select
+                                                    value={subItem.category}
+                                                    onChange={(e) =>
+                                                      updatePackageItem(item.id, subItem.id, {
+                                                        category: e.target.value as EquipmentCategory,
+                                                      })
+                                                    }
+                                                    className={`text-[8px] font-bold uppercase rounded px-1 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer ${subMeta.badgeBg} ${subMeta.badgeText}`}
+                                                  >
+                                                    {EQUIPMENT_CATEGORIES.map((c) => (
+                                                      <option key={c.key} value={c.key}>
+                                                        {c.shortLabel}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                ) : (
+                                                  <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${subMeta.badgeBg} ${subMeta.badgeText}`}>
+                                                    {subMeta.shortLabel}
+                                                  </span>
+                                                )}
+                                              </td>
+
+                                              {/* Sub Name */}
+                                              <td className="p-1.5 align-middle">
+                                                {isEditable ? (
+                                                  <input
+                                                    type="text"
+                                                    value={subItem.name}
+                                                    onChange={(e) =>
+                                                      updatePackageItem(item.id, subItem.id, { name: e.target.value })
+                                                    }
+                                                    className={`${inputClass} text-xs font-semibold`}
+                                                  />
+                                                ) : (
+                                                  <span className="text-xs font-semibold">{subItem.name}</span>
+                                                )}
+                                              </td>
+
+                                              {/* Sub Brand */}
+                                              <td className="p-1.5 align-middle">
+                                                {isEditable ? (
+                                                  <input
+                                                    type="text"
+                                                    list={`brand-datalist-${subItem.category}`}
+                                                    value={subItem.brand || ''}
+                                                    onChange={(e) =>
+                                                      updatePackageItem(item.id, subItem.id, { brand: e.target.value })
+                                                    }
+                                                    placeholder="Brand..."
+                                                    className={`${inputClass} text-xs`}
+                                                  />
+                                                ) : (
+                                                  <span className="text-xs text-slate-700 dark:text-slate-300">{subItem.brand || '—'}</span>
+                                                )}
+                                              </td>
+
+                                              {/* Sub Model */}
+                                              <td className="p-1.5 align-middle">
+                                                {isEditable ? (
+                                                  <input
+                                                    type="text"
+                                                    value={subItem.model || ''}
+                                                    onChange={(e) =>
+                                                      updatePackageItem(item.id, subItem.id, { model: e.target.value })
+                                                    }
+                                                    placeholder="Model..."
+                                                    className={`${inputClass} text-[11px] font-mono`}
+                                                  />
+                                                ) : (
+                                                  <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400">{subItem.model || '—'}</span>
+                                                )}
+                                              </td>
+
+                                              {/* Sub Quantity */}
+                                              <td className="p-1.5 align-middle text-center">
+                                                <div className="inline-flex items-center rounded border border-slate-300 dark:border-slate-700 bg-black/5 dark:bg-black/40 overflow-hidden text-xs">
+                                                  {isEditable && (
+                                                    <button
+                                                      onClick={() =>
+                                                        updatePackageItem(item.id, subItem.id, {
+                                                          quantity: Math.max(1, subItem.quantity - 1),
+                                                        })
+                                                      }
+                                                      className="px-1 py-0.2 hover:bg-slate-500/20 font-mono font-bold"
+                                                    >
+                                                      -
+                                                    </button>
+                                                  )}
+                                                  {isEditable ? (
+                                                    <input
+                                                      type="number"
+                                                      min={1}
+                                                      value={subItem.quantity}
+                                                      onChange={(e) =>
+                                                        updatePackageItem(item.id, subItem.id, {
+                                                          quantity: Math.max(1, Number(e.target.value) || 1),
+                                                        })
+                                                      }
+                                                      className="w-8 bg-transparent text-center font-mono font-bold py-0.2 focus:outline-hidden"
+                                                    />
+                                                  ) : (
+                                                    <span className="px-1.5 py-0.2 font-mono font-bold text-center">
+                                                      {subItem.quantity}
+                                                    </span>
+                                                  )}
+                                                  {isEditable && (
+                                                    <button
+                                                      onClick={() =>
+                                                        updatePackageItem(item.id, subItem.id, {
+                                                          quantity: subItem.quantity + 1,
+                                                        })
+                                                      }
+                                                      className="px-1 py-0.2 hover:bg-slate-500/20 font-mono font-bold"
+                                                    >
+                                                      +
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </td>
+
+                                              {/* Sub Role */}
+                                              <td className="p-1.5 align-middle">
+                                                {isEditable ? (
+                                                  <input
+                                                    type="text"
+                                                    value={subItem.roleOrFunction || ''}
+                                                    onChange={(e) =>
+                                                      updatePackageItem(item.id, subItem.id, { roleOrFunction: e.target.value })
+                                                    }
+                                                    placeholder="Role..."
+                                                    className={`${inputClass} text-xs`}
+                                                  />
+                                                ) : (
+                                                  <span className="text-xs text-slate-700 dark:text-slate-300">{subItem.roleOrFunction || '—'}</span>
+                                                )}
+                                              </td>
+
+                                              {/* Sub Specs */}
+                                              <td className="p-1.5 align-middle">
+                                                {isEditable ? (
+                                                  <input
+                                                    type="text"
+                                                    value={subItem.specs || ''}
+                                                    onChange={(e) =>
+                                                      updatePackageItem(item.id, subItem.id, { specs: e.target.value })
+                                                    }
+                                                    placeholder="Specs..."
+                                                    className={`${inputClass} text-[11px]`}
+                                                  />
+                                                ) : (
+                                                  <span className="text-[11px] text-slate-600 dark:text-slate-400">{subItem.specs || '—'}</span>
+                                                )}
+                                              </td>
+
+                                              {/* Sub Actions */}
+                                              {isEditable && (
+                                                <td className="p-1.5 align-middle text-right pr-2">
+                                                  <div className="inline-flex items-center gap-0.5">
+                                                    <button
+                                                      onClick={() =>
+                                                        addPackageItem(item.id, {
+                                                          ...subItem,
+                                                          name: `${subItem.name} (Copy)`,
+                                                        })
+                                                      }
+                                                      title="Duplicate accessory"
+                                                      className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 text-slate-400 transition-colors"
+                                                    >
+                                                      <Copy className="w-3 h-3" />
+                                                    </button>
+                                                    <button
+                                                      onClick={() => deletePackageItem(item.id, subItem.id)}
+                                                      title="Remove from package"
+                                                      className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 text-slate-400 transition-colors"
+                                                    >
+                                                      <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                  </div>
+                                                </td>
+                                              )}
+                                            </tr>
+                                          );
+                                        })
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </tr>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -942,7 +1298,7 @@ export const EquipmentPanel: React.FC = () => {
               <div className="flex items-center gap-3">
                 <span>TOTAL ROWS: {filteredItems.length}</span>
                 <span>•</span>
-                <span>TOTAL UNITS: {filteredItems.reduce((sum, i) => sum + i.quantity, 0)}</span>
+                <span>TOTAL GEAR & ACCESSORIES: {totalItemCount} UNITS</span>
               </div>
               {scope === 'current' && (
                 <button
@@ -963,7 +1319,10 @@ export const EquipmentPanel: React.FC = () => {
               const items = groupedItems.get(cat.key) || [];
               if (items.length === 0) return null;
 
-              const rubricTotalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+              const rubricTotalQty = items.reduce((sum, item) => {
+                const subSum = (item.packageItems || []).reduce((s, p) => s + p.quantity, 0);
+                return sum + item.quantity + subSum;
+              }, 0);
 
               return (
                 <div key={cat.key} className={`border rounded-xl overflow-hidden shadow-xs ${cardBg}`}>
@@ -999,15 +1358,32 @@ export const EquipmentPanel: React.FC = () => {
                     {items.map((item) => {
                       const isMaster = 'usedInSetups' in item;
                       const masterItem = isMaster ? (item as MasterEquipmentItem) : null;
+                      const isPackage = item.isPackage || (item.packageItems && item.packageItems.length > 0) || item.name.includes('Package');
+                      const isExpanded = expandedPackages[item.id] ?? (isPackage ? true : false);
+                      const packageItems = item.packageItems || [];
 
                       return (
                         <div
                           key={item.id}
-                          className={`p-2.5 flex flex-col gap-1.5 transition-colors ${rowBg}`}
+                          className={`p-2.5 flex flex-col gap-2 transition-colors ${rowBg}`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
+                                {isPackage && (
+                                  <button
+                                    onClick={() => togglePackageExpand(item.id)}
+                                    className={`p-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                                      isExpanded
+                                        ? 'bg-sky-500/20 text-sky-400'
+                                        : 'bg-slate-500/15 text-slate-400'
+                                    }`}
+                                  >
+                                    {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                    <span>KIT ({packageItems.length})</span>
+                                  </button>
+                                )}
+
                                 <span className="text-xs font-bold leading-tight">{item.name}</span>
                                 {item.isCustom ? (
                                   <span className="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-violet-500/15 text-violet-400 border border-violet-500/30">
@@ -1116,6 +1492,8 @@ export const EquipmentPanel: React.FC = () => {
                                         roleOrFunction: item.roleOrFunction,
                                         specs: item.specs,
                                         notes: item.notes,
+                                        isPackage: item.isPackage,
+                                        packageItems: item.packageItems ? JSON.parse(JSON.stringify(item.packageItems)) : undefined,
                                       })
                                     }
                                     title="Duplicate item"
@@ -1134,6 +1512,56 @@ export const EquipmentPanel: React.FC = () => {
                               )}
                             </div>
                           </div>
+
+                          {/* Nested Package Items in Card View */}
+                          {isPackage && isExpanded && (
+                            <div className="mt-1 pl-3 border-l-2 border-sky-500/60 flex flex-col gap-1.5 bg-black/5 dark:bg-black/20 p-2 rounded-r-lg">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 font-mono">
+                                  Package Kit Components ({packageItems.length})
+                                </span>
+                                {scope === 'current' && (
+                                  <button
+                                    onClick={() => {
+                                      addPackageItem(item.id, {
+                                        category: 'power_media',
+                                        name: 'New Kit Accessory',
+                                        quantity: 1,
+                                        roleOrFunction: `${item.name} Accessory`,
+                                        specs: 'Custom Accessory',
+                                      });
+                                    }}
+                                    className="px-1.5 py-0.2 rounded bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold"
+                                  >
+                                    + Add Item
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="space-y-1">
+                                {packageItems.map((sub) => (
+                                  <div
+                                    key={sub.id}
+                                    className="flex items-center justify-between text-[11px] bg-white/40 dark:bg-slate-900/40 px-2 py-1 rounded"
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono font-bold text-sky-600">x{sub.quantity}</span>
+                                      <span className="font-bold">{sub.name}</span>
+                                      {sub.brand && <span className="opacity-60">· {sub.brand}</span>}
+                                    </div>
+                                    {scope === 'current' && (
+                                      <button
+                                        onClick={() => deletePackageItem(item.id, sub.id)}
+                                        className="text-slate-400 hover:text-rose-400 p-0.5"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1283,7 +1711,7 @@ export const EquipmentPanel: React.FC = () => {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. ARRI SkyPanel S60-C, Sony FX6, V-Mount Battery"
+                    placeholder="e.g. Camera A Package, ARRI SkyPanel S60-C, Sony FX6"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border focus:ring-1 focus:ring-sky-500 font-bold ${

@@ -2,6 +2,7 @@ import {
   CameraElement,
   EquipmentCategory,
   EquipmentItem,
+  EquipmentPackageItem,
   FloorPlanElement,
   LightElement,
   MasterEquipmentItem,
@@ -1047,6 +1048,170 @@ const formatPropEquipment = (prop: PropElement): { category: EquipmentCategory; 
   }
 };
 
+export const getDefaultCameraPackageItems = (letter: string): EquipmentPackageItem[] => [
+  {
+    id: `pkg-${letter}-batt`,
+    category: 'power_media',
+    name: 'V-Mount Batteries (4-Pack) & Quad Fast Charger',
+    brand: 'Anton Bauer / Core SWX',
+    model: 'Titon 150 V-Mount (156Wh) & Quad Charger',
+    quantity: 4,
+    roleOrFunction: `Camera ${letter} Power`,
+    specs: '14.4V High-Draw · D-Tap / USB Outputs · 4-Bay Simultaneous Charger',
+  },
+  {
+    id: `pkg-${letter}-media`,
+    category: 'power_media',
+    name: 'Cinema Media Cards (4-Pack) & High-Speed Reader',
+    brand: 'SanDisk Pro / Angelbird',
+    model: 'CFexpress Type B 512GB (VPG400) / SD V90',
+    quantity: 4,
+    roleOrFunction: `Camera ${letter} Recording Media`,
+    specs: '1700 MB/s Read · 1500 MB/s Write · USB-C 20Gbps Reader',
+  },
+  {
+    id: `pkg-${letter}-mon`,
+    category: 'camera',
+    name: '7" On-Camera High-Bright Daylight Monitor',
+    brand: 'SmallHD',
+    model: 'Cine 7 / 702 Touch 7" Monitor',
+    quantity: 1,
+    roleOrFunction: `Camera ${letter} Focus / Operator Monitor`,
+    specs: '1800 nits Daylight Viewable · 12G-SDI & HDMI · PageOS 5 Focus Peaking',
+  },
+  {
+    id: `pkg-${letter}-tx`,
+    category: 'camera',
+    name: 'Zero-Delay Wireless Video Transmitter',
+    brand: 'Teradek',
+    model: 'Bolt 4K LT 750 Transmitter',
+    quantity: 1,
+    roleOrFunction: `Camera ${letter} Director / Video Village Feed`,
+    specs: '750ft Range · Zero-Delay 4K HDR · 12G-SDI & HDMI Loopout',
+  },
+  {
+    id: `pkg-${letter}-focus`,
+    category: 'camera',
+    name: 'Wireless Lens Follow Focus & Motor Kit',
+    brand: 'Tilta / ARRI',
+    model: 'Nucleus-M Wireless Follow Focus System',
+    quantity: 1,
+    roleOrFunction: `1st AC Focus Pulling`,
+    specs: 'Hand Unit FIZ Controller · High-Torque Lens Motors · Dual Handgrips',
+  },
+  {
+    id: `pkg-${letter}-mattebox`,
+    category: 'camera',
+    name: 'Lightweight Clamp-On Matte Box & VND Filter',
+    brand: 'Tilta / ARRI',
+    model: 'Mirage 4x5.65 Matte Box w/ VND Kit',
+    quantity: 1,
+    roleOrFunction: `Light Flare Control & Variable ND`,
+    specs: '4x5.65" Filter Trays · 95mm Clamp Adapter · Carbon Fiber Top Flag',
+  },
+];
+
+export const CAMERA_PACKAGE_PRESETS: {
+  name: string;
+  category: EquipmentCategory;
+  brand: string;
+  model: string;
+  quantity: number;
+  roleOrFunction: string;
+  specs: string;
+}[] = [
+  {
+    name: 'V-Mount Batteries (4-Pack) & Charger',
+    category: 'power_media',
+    brand: 'Anton Bauer',
+    model: 'Titon 150 V-Mount (156Wh)',
+    quantity: 4,
+    roleOrFunction: 'Camera Power',
+    specs: '14.4V High-Draw Lithium-Ion · Quad Simultaneous Fast Charger',
+  },
+  {
+    name: 'Gold-Mount Batteries (4-Pack) & Charger',
+    category: 'power_media',
+    brand: 'Core SWX',
+    model: 'Hypercore NEO 150 Mini Gold-Mount',
+    quantity: 4,
+    roleOrFunction: 'Camera Power',
+    specs: '147Wh High-Current · LCD Runtime Display · Fleet Micro Quad Charger',
+  },
+  {
+    name: 'CFexpress Type B Media Cards (4-Pack)',
+    category: 'power_media',
+    brand: 'SanDisk Professional',
+    model: 'PRO-CINEMA CFexpress Type B 512GB (VPG400)',
+    quantity: 4,
+    roleOrFunction: 'Recording Media',
+    specs: '1700MB/s Read · 1500MB/s Write · Includes USB-C 20Gbps Reader',
+  },
+  {
+    name: 'CFexpress Type A Media Cards (4-Pack)',
+    category: 'power_media',
+    brand: 'Sony Media',
+    model: 'TOUGH CFexpress Type A 320GB (800MB/s)',
+    quantity: 4,
+    roleOrFunction: 'Recording Media (Sony FX6/FX3)',
+    specs: 'Rigid Dust/Waterproof Body · MRW-G2 Dual Card Reader',
+  },
+  {
+    name: '7" On-Camera Daylight Focus Monitor',
+    category: 'camera',
+    brand: 'SmallHD',
+    model: 'Cine 7 Touchscreen Monitor (1800 nits)',
+    quantity: 1,
+    roleOrFunction: 'Focus / Operator Monitoring',
+    specs: '100% DCI-P3 · 12G-SDI / HDMI · PageOS 5 Peaking',
+  },
+  {
+    name: 'Wireless Video Transmitter (Zero Delay)',
+    category: 'camera',
+    brand: 'Teradek',
+    model: 'Bolt 4K LT 750 Transmitter',
+    quantity: 1,
+    roleOrFunction: 'Video Village Feed',
+    specs: '750ft Line-of-Sight · 4K HDR Zero-Delay · 12G-SDI & HDMI',
+  },
+  {
+    name: 'Wireless Follow Focus 3-Channel System',
+    category: 'camera',
+    brand: 'Tilta',
+    model: 'Nucleus-M Wireless FIZ System',
+    quantity: 1,
+    roleOrFunction: '1st AC Focus / Iris / Zoom',
+    specs: 'Hand Unit · 2x High-Torque Motors · 2x Handgrips · 1000ft Range',
+  },
+  {
+    name: '4x5.65 Clamp-on Matte Box & VND',
+    category: 'camera',
+    brand: 'Tilta',
+    model: 'Mirage 4x5.65 Matte Box w/ VND Kit',
+    quantity: 1,
+    roleOrFunction: 'Lens Filtering & Glare Protection',
+    specs: '95mm Outer Diameter · 0.3-2.7 Variable ND · Carbon Fiber Top Flag',
+  },
+  {
+    name: 'Camera Cage Rig & Shoulder Pad',
+    category: 'camera',
+    brand: 'Wooden Camera / Tilta',
+    model: 'Full Camera Cage & 15mm Baseplate System',
+    quantity: 1,
+    roleOrFunction: 'Camera Rigging & Handheld Support',
+    specs: 'ARRI Standard Dovetail · 15mm Rods 12" · Top Handle & NATO Rails',
+  },
+  {
+    name: 'Wireless Timecode Sync Box (2-Pack)',
+    category: 'audio',
+    brand: 'Tentacle Sync',
+    model: 'Sync E MKII Dual Set w/ Bluetooth',
+    quantity: 2,
+    roleOrFunction: 'Multi-Camera / Audio TC Sync',
+    specs: 'Frame-Accurate SMPTE Timecode · Locking 3.5mm / BNC Adapters',
+  },
+];
+
 /**
  * Derives all equipment for a single scene setup.
  * Auto-aggregates gear from cameras, lights, props, and tracks,
@@ -1081,7 +1246,7 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
     const lensStr = focalLengths.length === 1 ? `Prime Lens ${focalLengths[0]}mm` : `Lenses: ${focalLengths.map((f) => `${f}mm`).join(', ')}`;
     const rigStr = `Rig: ${rigs.map((r) => r.toUpperCase()).join(' / ')}`;
 
-    // 1A. Primary Camera Package
+    // 1A. Primary Camera Package (Expandable Kit with Batteries, Media, Monitor, Wireless TX, Follow Focus)
     autoItems.push({
       id: `auto-cam-letter-${letter}`,
       elementId: `cam-letter-${letter}`,
@@ -1093,6 +1258,8 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
       roleOrFunction: `Camera ${letter} Main`,
       specs: `${lensStr} · ${rigStr} · Sensor: ${sensor}`,
       isCustom: false,
+      isPackage: true,
+      packageItems: getDefaultCameraPackageItems(letter),
     });
 
     // 1B. Camera Rig Systems

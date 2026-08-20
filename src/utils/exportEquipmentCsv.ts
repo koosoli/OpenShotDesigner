@@ -86,6 +86,25 @@ export const exportEquipmentToCsv = (
     ];
 
     rows.push(row);
+
+    // Export nested package items (batteries, cards, monitor, follow focus, etc.)
+    if (item.packageItems && item.packageItems.length > 0) {
+      item.packageItems.forEach((pkgSub) => {
+        const subMeta = getCategoryMeta(pkgSub.category);
+        const subRow = [
+          `  └─ ${subMeta.label}`,
+          `  └─ [Package Item] ${pkgSub.name}`,
+          pkgSub.brand || '',
+          pkgSub.model || '',
+          String(pkgSub.quantity),
+          pkgSub.roleOrFunction || '',
+          pkgSub.specs || '',
+          `Part of ${item.name}`,
+          ...(isAll ? ['', ''] : [activeSetup.sceneNumber || '1', activeSetup.name]),
+        ];
+        rows.push(subRow);
+      });
+    }
   });
 
   const csvContent = rows
