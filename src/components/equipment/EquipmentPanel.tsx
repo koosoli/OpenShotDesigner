@@ -389,13 +389,13 @@ export const EquipmentPanel: React.FC = () => {
   };
 
   const cardBg = isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100';
-  const rowBg = isLight ? 'bg-slate-50/80 border-slate-200 hover:bg-slate-100/80' : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/50';
-  const inputClass = `w-full bg-transparent focus:bg-white dark:focus:bg-slate-800 rounded px-1.5 py-1 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-sky-500 focus:outline-hidden transition-all`;
+  const rowBg = isLight ? 'bg-slate-50/80 border-slate-200 hover:bg-slate-100/80 text-slate-900' : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/50 text-slate-100';
+  const inputClass = `w-full bg-transparent focus:bg-white dark:focus:bg-slate-800 rounded px-1.5 py-1 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-sky-500 focus:outline-hidden transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500`;
 
   return (
     <div className={`h-full flex flex-col min-h-0 ${isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}`}>
       {/* 1. Header Toolbar */}
-      <div className={`p-2.5 border-b flex flex-col gap-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/40'}`}>
+      <div className={`p-2.5 border-b flex flex-col gap-2 ${isLight ? 'border-slate-200 bg-slate-50 text-slate-900' : 'border-slate-800 bg-slate-950/40 text-slate-100'}`}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-500">
@@ -408,7 +408,7 @@ export const EquipmentPanel: React.FC = () => {
                   {totalItemCount} total units · {totalUniqueCount} gear items
                 </span>
               </h2>
-              <p className="text-[10px] opacity-60">
+              <p className="text-[10px] opacity-70">
                 {scope === 'current'
                   ? `Scene ${activeSetup.sceneNumber || '1'} (${activeSetup.name}) — Camera packages are expandable kits`
                   : `Master production truck package across all ${project.setups?.length || 1} scenes`}
@@ -418,13 +418,13 @@ export const EquipmentPanel: React.FC = () => {
 
           <div className="flex items-center gap-1.5">
             {/* View Mode Toggle: Spreadsheet (Default) vs Cards */}
-            <div className="flex items-center rounded-lg border p-0.5 text-[11px] font-semibold">
+            <div className="flex items-center rounded-lg border p-0.5 text-[11px] font-semibold border-slate-300 dark:border-slate-700">
               <button
                 onClick={() => setViewStyle('spreadsheet')}
                 title="Spreadsheet Data Grid view (Default)"
                 className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 ${
                   viewStyle === 'spreadsheet'
-                    ? 'bg-sky-600 text-white shadow-xs'
+                    ? 'bg-sky-600 text-white shadow-xs font-bold'
                     : isLight
                       ? 'text-slate-600 hover:text-slate-900'
                       : 'text-slate-400 hover:text-slate-200'
@@ -438,7 +438,7 @@ export const EquipmentPanel: React.FC = () => {
                 title="Department Rubric Cards view"
                 className={`px-2 py-1 rounded-md transition-all flex items-center gap-1 ${
                   viewStyle === 'cards'
-                    ? 'bg-sky-600 text-white shadow-xs'
+                    ? 'bg-sky-600 text-white shadow-xs font-bold'
                     : isLight
                       ? 'text-slate-600 hover:text-slate-900'
                       : 'text-slate-400 hover:text-slate-200'
@@ -450,12 +450,12 @@ export const EquipmentPanel: React.FC = () => {
             </div>
 
             {/* Scope Selector: Current Scene vs All Scenes */}
-            <div className="flex items-center rounded-lg border p-0.5 text-[11px] font-semibold">
+            <div className="flex items-center rounded-lg border p-0.5 text-[11px] font-semibold border-slate-300 dark:border-slate-700">
               <button
                 onClick={() => setScope('current')}
                 className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                   scope === 'current'
-                    ? 'bg-sky-600 text-white shadow-xs'
+                    ? 'bg-sky-600 text-white shadow-xs font-bold'
                     : isLight
                       ? 'text-slate-600 hover:text-slate-900'
                       : 'text-slate-400 hover:text-slate-200'
@@ -468,7 +468,7 @@ export const EquipmentPanel: React.FC = () => {
                 onClick={() => setScope('all')}
                 className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                   scope === 'all'
-                    ? 'bg-violet-600 text-white shadow-xs'
+                    ? 'bg-violet-600 text-white shadow-xs font-bold'
                     : isLight
                       ? 'text-slate-600 hover:text-slate-900'
                       : 'text-slate-400 hover:text-slate-200'
@@ -486,7 +486,7 @@ export const EquipmentPanel: React.FC = () => {
         <div className="flex items-center gap-1.5 flex-wrap">
           {/* Search */}
           <div className="relative flex-1 min-w-[140px]">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 opacity-40 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50 pointer-events-none" />
             <input
               type="text"
               placeholder="Search gear, brand, model, package, batteries, cards..."
@@ -512,7 +512,7 @@ export const EquipmentPanel: React.FC = () => {
             title="Fast-add common production gear (Batteries, SD cards, Cables, Tape, Clamps)"
             className={`px-2 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition-colors ${
               isPresetDrawerOpen
-                ? 'bg-amber-500 text-black border-amber-400 shadow-xs'
+                ? 'bg-amber-500 text-black border-amber-400 shadow-xs font-bold'
                 : isLight
                   ? 'border-slate-300 hover:bg-slate-100 text-slate-700'
                   : 'border-slate-700 hover:bg-slate-800 text-slate-300'
@@ -528,7 +528,7 @@ export const EquipmentPanel: React.FC = () => {
             <button
               onClick={() => openAddModal()}
               title="Add custom production item"
-              className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold flex items-center gap-1 shadow-xs"
+              className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Gear</span>
@@ -541,7 +541,7 @@ export const EquipmentPanel: React.FC = () => {
             title={`Download ${
               scope === 'all' ? 'All Scenes Master Truck' : `Scene ${activeSetup.sceneNumber || '1'}`
             } as an Excel / CSV spreadsheet`}
-            className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold flex items-center gap-1 shadow-xs transition-colors"
+            className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>CSV Export</span>
@@ -579,7 +579,7 @@ export const EquipmentPanel: React.FC = () => {
         {isPresetDrawerOpen && (
           <div
             className={`p-2.5 rounded-xl border flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 ${
-              isLight ? 'bg-amber-50/70 border-amber-200 text-amber-950' : 'bg-amber-950/20 border-amber-900/50 text-amber-100'
+              isLight ? 'bg-amber-50/80 border-amber-200 text-amber-950' : 'bg-amber-950/30 border-amber-900/60 text-amber-100'
             }`}
           >
             <div className="flex items-center justify-between">
@@ -587,7 +587,7 @@ export const EquipmentPanel: React.FC = () => {
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 <span className="text-[11px] font-bold uppercase tracking-wider">Fast-Add Production Presets</span>
               </div>
-              <span className="text-[10px] opacity-60">Click any preset to add it to Scene {activeSetup.sceneNumber || '1'}</span>
+              <span className="text-[10px] opacity-70">Click any preset to add it to Scene {activeSetup.sceneNumber || '1'}</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-0.5">
@@ -599,19 +599,19 @@ export const EquipmentPanel: React.FC = () => {
                     onClick={() => handleAddPreset(preset)}
                     className={`p-1.5 rounded-lg border text-left flex flex-col gap-0.5 transition-all group ${
                       isLight
-                        ? 'bg-white border-amber-200/80 hover:border-amber-500 hover:shadow-xs text-slate-800'
-                        : 'bg-slate-900 border-amber-800/40 hover:border-amber-500 hover:bg-slate-850 text-slate-200'
+                        ? 'bg-white border-amber-200 hover:border-amber-500 hover:shadow-xs text-slate-900'
+                        : 'bg-slate-900 border-amber-800/50 hover:border-amber-500 hover:bg-slate-850 text-slate-100'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-[11px] font-bold truncate group-hover:text-amber-500">
                         {preset.name}
                       </span>
-                      <span className="font-mono text-[9px] font-bold opacity-60 flex-shrink-0">
+                      <span className="font-mono text-[9px] font-bold opacity-70 flex-shrink-0">
                         ×{preset.quantity}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 text-[9px] opacity-60">
+                    <div className="flex items-center gap-1 text-[9px] opacity-70">
                       <span>{meta.shortLabel}</span>
                       {preset.brand && <span>· {preset.brand}</span>}
                     </div>
@@ -628,10 +628,10 @@ export const EquipmentPanel: React.FC = () => {
             onClick={() => setSelectedCategory('all')}
             className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1 ${
               selectedCategory === 'all'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs font-bold'
                 : isLight
-                  ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  ? 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                  : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
             }`}
           >
             <span>All Departments</span>
@@ -650,10 +650,10 @@ export const EquipmentPanel: React.FC = () => {
                 onClick={() => setSelectedCategory(cat.key)}
                 className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1 ${
                   selectedCategory === cat.key
-                    ? `${cat.badgeBg} ${cat.badgeText} ring-1 ring-current shadow-xs`
+                    ? `${cat.badgeBg} ${cat.badgeText} ring-1 ring-current shadow-xs font-bold`
                     : isLight
-                      ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      ? 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
                 }`}
               >
                 {getCategoryIcon(cat.key, 'w-2.5 h-2.5')}
@@ -669,11 +669,11 @@ export const EquipmentPanel: React.FC = () => {
           className={`px-3 py-1.5 rounded-lg border flex items-center justify-between gap-2 text-[11px] ${
             scope === 'current'
               ? isLight
-                ? 'bg-sky-50/80 border-sky-200 text-sky-900'
-                : 'bg-sky-950/30 border-sky-800 text-sky-200'
+                ? 'bg-sky-50/80 border-sky-200 text-sky-950'
+                : 'bg-sky-950/40 border-sky-800 text-sky-100'
               : isLight
-                ? 'bg-violet-50/80 border-violet-200 text-violet-900'
-                : 'bg-violet-950/30 border-violet-800 text-violet-200'
+                ? 'bg-violet-50/80 border-violet-200 text-violet-950'
+                : 'bg-violet-950/40 border-violet-800 text-violet-100'
           }`}
         >
           <div className="flex items-center gap-1.5">
@@ -709,8 +709,8 @@ export const EquipmentPanel: React.FC = () => {
         {filteredItems.length === 0 ? (
           <div className={`m-4 p-8 text-center border border-dashed rounded-2xl ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
             <Boxes className="w-10 h-10 mx-auto mb-2 opacity-30 text-sky-500" />
-            <p className="text-xs font-semibold">No equipment found</p>
-            <p className="text-[11px] opacity-60 mt-1 max-w-sm mx-auto">
+            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">No equipment found</p>
+            <p className="text-[11px] opacity-70 mt-1 max-w-sm mx-auto text-slate-600 dark:text-slate-400">
               {searchQuery
                 ? `No gear matching "${searchQuery}". Clear your search or add a custom item.`
                 : 'Add cameras, lights, or props on the floor plan, or click “Add Gear” / “Fast Add” to attach batteries, cables, and production supplies.'}
@@ -719,13 +719,13 @@ export const EquipmentPanel: React.FC = () => {
               <div className="flex items-center justify-center gap-2 mt-3">
                 <button
                   onClick={() => openAddModal()}
-                  className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1"
+                  className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add First Item
                 </button>
                 <button
                   onClick={() => setIsPresetDrawerOpen(true)}
-                  className="px-3 py-1 rounded-lg border border-amber-500/40 text-amber-400 text-xs font-semibold flex items-center gap-1 hover:bg-amber-500/10"
+                  className="px-3 py-1 rounded-lg border border-amber-500/40 text-amber-400 text-xs font-bold flex items-center gap-1 hover:bg-amber-500/10"
                 >
                   <Sparkles className="w-3.5 h-3.5" /> Fast Presets
                 </button>
@@ -742,7 +742,7 @@ export const EquipmentPanel: React.FC = () => {
                 <thead>
                   <tr
                     className={`border-b text-[10px] font-mono uppercase font-bold sticky top-0 z-10 ${
-                      isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-950 text-slate-300 border-slate-800'
+                      isLight ? 'bg-slate-100 text-slate-800 border-slate-200' : 'bg-slate-950 text-slate-200 border-slate-800'
                     }`}
                   >
                     <th className="p-2 w-28 whitespace-nowrap">DEPARTMENT</th>
@@ -782,14 +782,14 @@ export const EquipmentPanel: React.FC = () => {
                             isPackage
                               ? isExpanded
                                 ? isLight
-                                  ? 'bg-sky-100/60 border-b border-sky-300'
-                                  : 'bg-sky-950/40 border-b border-sky-800'
+                                  ? 'bg-sky-100/60 border-b border-sky-300 text-slate-900'
+                                  : 'bg-sky-950/40 border-b border-sky-800 text-slate-100'
                                 : isLight
-                                  ? 'bg-sky-50/40 hover:bg-sky-50/80'
-                                  : 'bg-sky-950/20 hover:bg-sky-950/40'
+                                  ? 'bg-sky-50/40 hover:bg-sky-50/80 text-slate-900'
+                                  : 'bg-sky-950/20 hover:bg-sky-950/40 text-slate-100'
                               : isLight
-                                ? 'hover:bg-slate-50/80 odd:bg-white even:bg-slate-50/30'
-                                : 'hover:bg-slate-850/50 odd:bg-slate-900 even:bg-slate-950/30'
+                                ? 'hover:bg-slate-50/80 odd:bg-white even:bg-slate-50/30 text-slate-900'
+                                : 'hover:bg-slate-850/50 odd:bg-slate-900 even:bg-slate-950/30 text-slate-100'
                           }`}
                         >
                           {/* 1. Department Selector / Badge */}
@@ -807,10 +807,10 @@ export const EquipmentPanel: React.FC = () => {
                                     model: firstModel,
                                   });
                                 }}
-                                className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer ${meta.badgeBg} ${meta.badgeText}`}
+                                className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 ${meta.badgeBg} ${meta.badgeText}`}
                               >
                                 {EQUIPMENT_CATEGORIES.map((c) => (
-                                  <option key={c.key} value={c.key}>
+                                  <option key={c.key} value={c.key} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                                     {c.shortLabel}
                                   </option>
                                 ))}
@@ -870,7 +870,7 @@ export const EquipmentPanel: React.FC = () => {
                                   className={`${inputClass} font-bold text-xs`}
                                 />
                               ) : (
-                                <span className="font-bold text-xs">{item.name}</span>
+                                <span className="font-bold text-xs text-slate-900 dark:text-slate-100">{item.name}</span>
                               )}
 
                               {item.isCustom ? (
@@ -905,8 +905,8 @@ export const EquipmentPanel: React.FC = () => {
                                 className={`${inputClass} font-semibold`}
                               />
                             ) : (
-                              <span className="font-semibold text-slate-700 dark:text-slate-300">
-                                {item.brand || <span className="opacity-30">—</span>}
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                {item.brand || <span className="opacity-40">—</span>}
                               </span>
                             )}
                           </td>
@@ -938,8 +938,8 @@ export const EquipmentPanel: React.FC = () => {
                                 />
                               </div>
                             ) : (
-                              <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                                {item.model || <span className="opacity-30">—</span>}
+                              <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                                {item.model || <span className="opacity-40">—</span>}
                               </span>
                             )}
                           </td>
@@ -955,7 +955,7 @@ export const EquipmentPanel: React.FC = () => {
                                     })
                                   }
                                   title="Decrease quantity"
-                                  className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold"
+                                  className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold text-slate-700 dark:text-slate-300"
                                 >
                                   -
                                 </button>
@@ -970,10 +970,10 @@ export const EquipmentPanel: React.FC = () => {
                                       quantity: Math.max(1, Number(e.target.value) || 1),
                                     })
                                   }
-                                  className="w-10 bg-transparent text-center font-mono font-black py-0.5 focus:outline-hidden"
+                                  className="w-10 bg-transparent text-center font-mono font-black py-0.5 focus:outline-hidden text-slate-900 dark:text-slate-100"
                                 />
                               ) : (
-                                <span className="px-2 py-0.5 font-mono font-black text-center min-w-[26px]">
+                                <span className="px-2 py-0.5 font-mono font-black text-center min-w-[26px] text-slate-900 dark:text-slate-100">
                                   {item.quantity}
                                 </span>
                               )}
@@ -985,7 +985,7 @@ export const EquipmentPanel: React.FC = () => {
                                     })
                                   }
                                   title="Increase quantity"
-                                  className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold"
+                                  className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold text-slate-700 dark:text-slate-300"
                                 >
                                   +
                                 </button>
@@ -1006,8 +1006,8 @@ export const EquipmentPanel: React.FC = () => {
                                 className={`${inputClass} text-xs`}
                               />
                             ) : (
-                              <span className="text-slate-700 dark:text-slate-300">
-                                {item.roleOrFunction || <span className="opacity-30">—</span>}
+                              <span className="text-slate-800 dark:text-slate-200">
+                                {item.roleOrFunction || <span className="opacity-40">—</span>}
                               </span>
                             )}
                           </td>
@@ -1025,15 +1025,15 @@ export const EquipmentPanel: React.FC = () => {
                                 className={`${inputClass} text-[11px]`}
                               />
                             ) : (
-                              <span className="text-[11px] text-slate-600 dark:text-slate-400">
-                                {item.specs || item.notes || <span className="opacity-30">—</span>}
+                              <span className="text-[11px] text-slate-700 dark:text-slate-300">
+                                {item.specs || item.notes || <span className="opacity-40">—</span>}
                               </span>
                             )}
                           </td>
 
                           {/* Master Scene Usage (All Scenes View) */}
                           {scope === 'all' && masterItem && (
-                            <td className="p-2 align-middle text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                            <td className="p-2 align-middle text-[10px] font-mono text-slate-700 dark:text-slate-300">
                               <div className="flex flex-wrap gap-1 items-center">
                                 {masterItem.usedInSetups.map((s, sIdx) => (
                                   <span
@@ -1044,7 +1044,7 @@ export const EquipmentPanel: React.FC = () => {
                                   </span>
                                 ))}
                               </div>
-                              <div className="text-[9px] opacity-60 mt-0.5">
+                              <div className="text-[9px] opacity-70 mt-0.5">
                                 Peak: {masterItem.maxConcurrentQuantity} concurrent
                               </div>
                             </td>
@@ -1057,7 +1057,7 @@ export const EquipmentPanel: React.FC = () => {
                                 <button
                                   onClick={() => openEditModal(item)}
                                   title="Open full edit modal"
-                                  className="p-1 rounded hover:bg-sky-500/15 hover:text-sky-400 transition-colors"
+                                  className="p-1 rounded hover:bg-sky-500/15 hover:text-sky-400 text-slate-500 dark:text-slate-400 transition-colors"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1077,14 +1077,14 @@ export const EquipmentPanel: React.FC = () => {
                                     })
                                   }
                                   title="Duplicate item"
-                                  className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 transition-colors"
+                                  className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 text-slate-500 dark:text-slate-400 transition-colors"
                                 >
                                   <Copy className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => deleteEquipmentItem(item.id)}
                                   title="Delete item"
-                                  className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 transition-colors"
+                                  className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 text-slate-500 dark:text-slate-400 transition-colors"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1097,7 +1097,7 @@ export const EquipmentPanel: React.FC = () => {
                         {/* NESTED OPENABLE PACKAGE KIT DRAWER (BATTERIES, CARDS, MONITORS)*/}
                         {/* ============================================================= */}
                         {isPackage && isExpanded && (
-                          <tr className={isLight ? 'bg-sky-50/90 border-b-2 border-sky-300' : 'bg-slate-950/95 border-b-2 border-sky-800'}>
+                          <tr className={isLight ? 'bg-sky-50/90 border-b-2 border-sky-300 text-slate-900' : 'bg-slate-950/95 border-b-2 border-sky-800 text-slate-100'}>
                             <td colSpan={scope === 'all' ? 8 : 8} className="p-0">
                               <div className="pl-6 pr-3 py-3 border-l-4 border-sky-500 flex flex-col gap-2.5">
                                 {/* Kit Header Bar */}
@@ -1164,10 +1164,10 @@ export const EquipmentPanel: React.FC = () => {
                                 )}
 
                                 {/* Kit Sub-Items Table */}
-                                <div className="border border-sky-500/30 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-md">
+                                <div className="border border-sky-500/30 rounded-xl overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 shadow-md">
                                   <table className="w-full text-left text-xs border-collapse font-sans">
                                     <thead>
-                                      <tr className={`border-b text-[10px] font-mono uppercase font-bold ${isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-950 text-slate-300'}`}>
+                                      <tr className={`border-b text-[10px] font-mono uppercase font-bold ${isLight ? 'bg-slate-100 text-slate-800' : 'bg-slate-950 text-slate-200'}`}>
                                         <th className="p-2 w-28">DEPARTMENT</th>
                                         <th className="p-2 min-w-[200px]">PACKAGE ACCESSORY / ITEM</th>
                                         <th className="p-2 min-w-[130px]">BRAND</th>
@@ -1184,10 +1184,10 @@ export const EquipmentPanel: React.FC = () => {
                                           <td colSpan={8} className="p-6 text-center">
                                             <div className="max-w-md mx-auto flex flex-col items-center gap-2">
                                               <Package className="w-8 h-8 opacity-30 text-sky-400" />
-                                              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                                 This camera package has no items yet.
                                               </p>
-                                              <p className="text-[11px] opacity-70">
+                                              <p className="text-[11px] opacity-70 text-slate-600 dark:text-slate-400">
                                                 Click the preset buttons above (like <strong>V-Mount Batteries</strong> or <strong>CFexpress Cards</strong>) or click <strong>"+ Add Custom Item"</strong> below to load accessories.
                                               </p>
                                               {isEditable && (
@@ -1221,7 +1221,7 @@ export const EquipmentPanel: React.FC = () => {
                                           return (
                                             <tr
                                               key={subItem.id}
-                                              className={isLight ? 'hover:bg-sky-50/60' : 'hover:bg-slate-850/70'}
+                                              className={isLight ? 'hover:bg-sky-50/60 text-slate-900' : 'hover:bg-slate-850/70 text-slate-100'}
                                             >
                                               {/* Sub Department */}
                                               <td className="p-2 align-middle">
@@ -1233,10 +1233,10 @@ export const EquipmentPanel: React.FC = () => {
                                                         category: e.target.value as EquipmentCategory,
                                                       })
                                                     }
-                                                    className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer ${subMeta.badgeBg} ${subMeta.badgeText}`}
+                                                    className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 ${subMeta.badgeBg} ${subMeta.badgeText}`}
                                                   >
                                                     {EQUIPMENT_CATEGORIES.map((c) => (
-                                                      <option key={c.key} value={c.key}>
+                                                      <option key={c.key} value={c.key} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                                                         {c.shortLabel}
                                                       </option>
                                                     ))}
@@ -1260,7 +1260,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     className={`${inputClass} text-xs font-bold`}
                                                   />
                                                 ) : (
-                                                  <span className="text-xs font-bold">{subItem.name}</span>
+                                                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{subItem.name}</span>
                                                 )}
                                               </td>
 
@@ -1278,7 +1278,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     className={`${inputClass} text-xs font-semibold`}
                                                   />
                                                 ) : (
-                                                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{subItem.brand || '—'}</span>
+                                                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{subItem.brand || '—'}</span>
                                                 )}
                                               </td>
 
@@ -1295,7 +1295,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     className={`${inputClass} text-[11px] font-mono`}
                                                   />
                                                 ) : (
-                                                  <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400">{subItem.model || '—'}</span>
+                                                  <span className="text-[11px] font-mono text-slate-700 dark:text-slate-300">{subItem.model || '—'}</span>
                                                 )}
                                               </td>
 
@@ -1309,7 +1309,7 @@ export const EquipmentPanel: React.FC = () => {
                                                           quantity: Math.max(1, subItem.quantity - 1),
                                                         })
                                                       }
-                                                      className="px-1.5 py-0.5 hover:bg-slate-500/20 font-mono font-bold"
+                                                      className="px-1.5 py-0.5 hover:bg-slate-500/20 font-mono font-bold text-slate-700 dark:text-slate-300"
                                                     >
                                                       -
                                                     </button>
@@ -1324,10 +1324,10 @@ export const EquipmentPanel: React.FC = () => {
                                                           quantity: Math.max(1, Number(e.target.value) || 1),
                                                         })
                                                       }
-                                                      className="w-10 bg-transparent text-center font-mono font-bold py-0.5 focus:outline-hidden"
+                                                      className="w-10 bg-transparent text-center font-mono font-bold py-0.5 focus:outline-hidden text-slate-900 dark:text-slate-100"
                                                     />
                                                   ) : (
-                                                    <span className="px-2 py-0.5 font-mono font-bold text-center">
+                                                    <span className="px-2 py-0.5 font-mono font-bold text-center text-slate-900 dark:text-slate-100">
                                                       {subItem.quantity}
                                                     </span>
                                                   )}
@@ -1338,7 +1338,7 @@ export const EquipmentPanel: React.FC = () => {
                                                           quantity: subItem.quantity + 1,
                                                         })
                                                       }
-                                                      className="px-1.5 py-0.5 hover:bg-slate-500/20 font-mono font-bold"
+                                                      className="px-1.5 py-0.5 hover:bg-slate-500/20 font-mono font-bold text-slate-700 dark:text-slate-300"
                                                     >
                                                       +
                                                     </button>
@@ -1359,7 +1359,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     className={`${inputClass} text-xs`}
                                                   />
                                                 ) : (
-                                                  <span className="text-xs text-slate-700 dark:text-slate-300">{subItem.roleOrFunction || '—'}</span>
+                                                  <span className="text-xs text-slate-800 dark:text-slate-200">{subItem.roleOrFunction || '—'}</span>
                                                 )}
                                               </td>
 
@@ -1376,7 +1376,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     className={`${inputClass} text-[11px]`}
                                                   />
                                                 ) : (
-                                                  <span className="text-[11px] text-slate-600 dark:text-slate-400">{subItem.specs || '—'}</span>
+                                                  <span className="text-[11px] text-slate-700 dark:text-slate-300">{subItem.specs || '—'}</span>
                                                 )}
                                               </td>
 
@@ -1392,14 +1392,14 @@ export const EquipmentPanel: React.FC = () => {
                                                         })
                                                       }
                                                       title="Duplicate accessory"
-                                                      className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 text-slate-400 transition-colors"
+                                                      className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 text-slate-500 dark:text-slate-400 transition-colors"
                                                     >
                                                       <Copy className="w-3.5 h-3.5" />
                                                     </button>
                                                     <button
                                                       onClick={() => deletePackageItem(item.id, subItem.id)}
                                                       title="Remove from package"
-                                                      className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 text-slate-400 transition-colors"
+                                                      className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 text-slate-500 dark:text-slate-400 transition-colors"
                                                     >
                                                       <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
@@ -1427,7 +1427,7 @@ export const EquipmentPanel: React.FC = () => {
             {/* Spreadsheet Table Footer Summary */}
             <div
               className={`p-2 border-t flex items-center justify-between text-[11px] font-mono font-bold ${
-                isLight ? 'bg-slate-100/80 border-slate-200 text-slate-700' : 'bg-slate-950/80 border-slate-800 text-slate-300'
+                isLight ? 'bg-slate-100 text-slate-800 border-slate-200' : 'bg-slate-950 text-slate-200 border-slate-800'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -1438,7 +1438,7 @@ export const EquipmentPanel: React.FC = () => {
               {scope === 'current' && (
                 <button
                   onClick={() => openAddModal()}
-                  className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-semibold flex items-center gap-1"
+                  className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold flex items-center gap-1"
                 >
                   <Plus className="w-3 h-3" /> Add Row
                 </button>
@@ -1464,7 +1464,7 @@ export const EquipmentPanel: React.FC = () => {
                   {/* Rubric Header */}
                   <div
                     className={`px-3 py-2 border-b flex items-center justify-between ${
-                      isLight ? 'bg-slate-100/70 border-slate-200' : 'bg-slate-950/80 border-slate-800'
+                      isLight ? 'bg-slate-100 text-slate-800 border-slate-200' : 'bg-slate-950 text-slate-200 border-slate-800'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -1472,7 +1472,7 @@ export const EquipmentPanel: React.FC = () => {
                         {getCategoryIcon(cat.key, 'w-3.5 h-3.5')}
                       </span>
                       <span className="text-xs font-bold uppercase tracking-wider">{cat.label}</span>
-                      <span className="text-[10px] font-mono opacity-60">
+                      <span className="text-[10px] font-mono opacity-70">
                         ({items.length} items · {rubricTotalQty} units)
                       </span>
                     </div>
@@ -1481,7 +1481,7 @@ export const EquipmentPanel: React.FC = () => {
                       <button
                         onClick={() => openAddModal(cat.key)}
                         title={`Add item to ${cat.label}`}
-                        className="p-1 rounded text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-colors"
+                        className="p-1 rounded text-slate-500 hover:text-sky-400 hover:bg-sky-500/10 transition-colors"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -1531,7 +1531,7 @@ export const EquipmentPanel: React.FC = () => {
                                   </button>
                                 )}
 
-                                <span className="text-xs font-bold leading-tight">{item.name}</span>
+                                <span className="text-xs font-bold leading-tight text-slate-900 dark:text-slate-100">{item.name}</span>
                                 {item.isCustom ? (
                                   <span className="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-violet-500/15 text-violet-400 border border-violet-500/30">
                                     Custom
@@ -1542,7 +1542,7 @@ export const EquipmentPanel: React.FC = () => {
                                   </span>
                                 )}
                                 {item.roleOrFunction && (
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-500/15 text-slate-400">
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-500/15 text-slate-700 dark:text-slate-300">
                                     {item.roleOrFunction}
                                   </span>
                                 )}
@@ -1550,7 +1550,7 @@ export const EquipmentPanel: React.FC = () => {
 
                               {/* Brand & Model */}
                               {(item.brand || item.model) && (
-                                <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5">
+                                <div className="text-[11px] font-mono text-slate-600 dark:text-slate-400 mt-0.5 flex items-center gap-1.5">
                                   {item.brand && <span className="font-semibold">{item.brand}</span>}
                                   {item.brand && item.model && <span>·</span>}
                                   {item.model && <span>{item.model}</span>}
@@ -1559,7 +1559,7 @@ export const EquipmentPanel: React.FC = () => {
 
                               {/* Technical Specs */}
                               {item.specs && (
-                                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+                                <div className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 line-clamp-2">
                                   {item.specs}
                                 </div>
                               )}
@@ -1567,7 +1567,7 @@ export const EquipmentPanel: React.FC = () => {
                               {/* Master Scene Usage Tags */}
                               {masterItem && (
                                 <div className="mt-1.5 flex items-center gap-1 flex-wrap">
-                                  <span className="text-[9px] font-mono uppercase font-bold opacity-60">Used In:</span>
+                                  <span className="text-[9px] font-mono uppercase font-bold opacity-70">Used In:</span>
                                   {masterItem.usedInSetups.map((s, sIdx) => (
                                     <span
                                       key={sIdx}
@@ -1576,7 +1576,7 @@ export const EquipmentPanel: React.FC = () => {
                                       {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
                                     </span>
                                   ))}
-                                  <span className="text-[9px] font-mono opacity-60 ml-1">
+                                  <span className="text-[9px] font-mono opacity-70 ml-1">
                                     · Peak Concurrent: {masterItem.maxConcurrentQuantity}
                                   </span>
                                 </div>
@@ -1595,12 +1595,12 @@ export const EquipmentPanel: React.FC = () => {
                                       })
                                     }
                                     title="Decrease quantity"
-                                    className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold"
+                                    className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold text-slate-700 dark:text-slate-300"
                                   >
                                     -
                                   </button>
                                 )}
-                                <span className="px-2 py-0.5 font-mono font-bold text-center min-w-[28px]">
+                                <span className="px-2 py-0.5 font-mono font-bold text-center min-w-[28px] text-slate-900 dark:text-slate-100">
                                   {item.quantity}
                                 </span>
                                 {scope === 'current' && (
@@ -1611,7 +1611,7 @@ export const EquipmentPanel: React.FC = () => {
                                       })
                                     }
                                     title="Increase quantity"
-                                    className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold"
+                                    className="px-1.5 py-0.5 hover:bg-slate-500/20 transition-colors font-mono font-bold text-slate-700 dark:text-slate-300"
                                   >
                                     +
                                   </button>
@@ -1624,7 +1624,7 @@ export const EquipmentPanel: React.FC = () => {
                                   <button
                                     onClick={() => openEditModal(item)}
                                     title="Edit brand, model, name, or specs"
-                                    className="p-1 rounded hover:bg-sky-500/15 hover:text-sky-400 transition-colors"
+                                    className="p-1 rounded hover:bg-sky-500/15 hover:text-sky-400 text-slate-500 dark:text-slate-400 transition-colors"
                                   >
                                     <Edit2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1644,14 +1644,14 @@ export const EquipmentPanel: React.FC = () => {
                                       })
                                     }
                                     title="Duplicate item"
-                                    className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 transition-colors"
+                                    className="p-1 rounded hover:bg-emerald-500/15 hover:text-emerald-400 text-slate-500 dark:text-slate-400 transition-colors"
                                   >
                                     <Copy className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={() => deleteEquipmentItem(item.id)}
                                     title="Delete item"
-                                    className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 transition-colors"
+                                    className="p-1 rounded hover:bg-rose-500/15 hover:text-rose-400 text-slate-500 dark:text-slate-400 transition-colors"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1681,12 +1681,12 @@ export const EquipmentPanel: React.FC = () => {
                                 {packageItems.map((sub) => (
                                   <div
                                     key={sub.id}
-                                    className="flex items-center justify-between text-[11px] bg-white/40 dark:bg-slate-900/40 px-2 py-1 rounded"
+                                    className="flex items-center justify-between text-[11px] bg-white/70 dark:bg-slate-900/80 px-2 py-1 rounded text-slate-900 dark:text-slate-100"
                                   >
                                     <div className="flex items-center gap-1.5">
-                                      <span className="font-mono font-bold text-sky-600">x{sub.quantity}</span>
+                                      <span className="font-mono font-bold text-sky-600 dark:text-sky-400">x{sub.quantity}</span>
                                       <span className="font-bold">{sub.name}</span>
-                                      {sub.brand && <span className="opacity-60">· {sub.brand}</span>}
+                                      {sub.brand && <span className="opacity-70">· {sub.brand}</span>}
                                     </div>
                                     {scope === 'current' && (
                                       <button
@@ -1714,7 +1714,7 @@ export const EquipmentPanel: React.FC = () => {
 
       {/* 6. Add / Edit General Item Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
           <div
             className={`w-full max-w-lg rounded-2xl border p-5 shadow-2xl ${
               isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-100'
@@ -1729,7 +1729,7 @@ export const EquipmentPanel: React.FC = () => {
                   <h3 className="text-sm font-bold">
                     {editingItem ? 'Edit Production Equipment' : 'Add Production Equipment'}
                   </h3>
-                  <p className="text-[11px] opacity-60">
+                  <p className="text-[11px] opacity-70">
                     Scene {activeSetup.sceneNumber || '1'}: {activeSetup.name}
                   </p>
                 </div>
@@ -1752,13 +1752,13 @@ export const EquipmentPanel: React.FC = () => {
                   <select
                     value={formData.targetPackageId || ''}
                     onChange={(e) => setFormData({ ...formData, targetPackageId: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border font-semibold ${
-                      isLight ? 'bg-white border-sky-300 text-slate-900' : 'bg-slate-800 border-sky-700 text-slate-100'
-                    }`}
+                    className="w-full p-2 text-xs rounded-lg border font-semibold bg-white text-slate-900 border-sky-300 dark:bg-slate-800 dark:text-slate-100 dark:border-sky-700"
                   >
-                    <option value="">-- Standalone Item (Not in package) --</option>
+                    <option value="" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
+                      -- Standalone Item (Not in package) --
+                    </option>
                     {availableCameraPackages.map((pkg) => (
-                      <option key={pkg.id} value={pkg.id}>
+                      <option key={pkg.id} value={pkg.id} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                         Attach directly inside {pkg.name} (Camera Kit)
                       </option>
                     ))}
@@ -1786,12 +1786,10 @@ export const EquipmentPanel: React.FC = () => {
                       name: defaultModel || formData.name,
                     });
                   }}
-                  className={`w-full p-2 text-xs rounded-lg border font-semibold ${
-                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
-                  }`}
+                  className="w-full p-2 text-xs rounded-lg border font-semibold bg-white text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
                 >
                   {EQUIPMENT_CATEGORIES.map((cat) => (
-                    <option key={cat.key} value={cat.key}>
+                    <option key={cat.key} value={cat.key} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                       {cat.label}
                     </option>
                   ))}
@@ -1820,13 +1818,11 @@ export const EquipmentPanel: React.FC = () => {
                         name: firstModel || formData.name,
                       });
                     }}
-                    className={`w-full p-1.5 text-xs rounded-lg border font-semibold ${
-                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
-                    }`}
+                    className="w-full p-1.5 text-xs rounded-lg border font-semibold bg-white text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
                   >
-                    <option value="">-- Custom Brand --</option>
+                    <option value="" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">-- Custom Brand --</option>
                     {getBrandsForCategory(formData.category).map((b) => (
-                      <option key={b} value={b}>
+                      <option key={b} value={b} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                         {b}
                       </option>
                     ))}
@@ -1850,13 +1846,11 @@ export const EquipmentPanel: React.FC = () => {
                         name: newModel || formData.name,
                       });
                     }}
-                    className={`w-full p-1.5 text-xs rounded-lg border font-mono text-[11px] ${
-                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
-                    }`}
+                    className="w-full p-1.5 text-xs rounded-lg border font-mono text-[11px] bg-white text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
                   >
-                    <option value="">-- Custom Model --</option>
+                    <option value="" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">-- Custom Model --</option>
                     {getModelsForBrand(formData.category, formData.brand).map((m) => (
-                      <option key={m} value={m}>
+                      <option key={m} value={m} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                         {m}
                       </option>
                     ))}
@@ -1969,14 +1963,14 @@ export const EquipmentPanel: React.FC = () => {
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${
-                    isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+                    isLight ? 'border-slate-300 hover:bg-slate-100 text-slate-800' : 'border-slate-700 hover:bg-slate-800 text-slate-200'
                   }`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white shadow-md flex items-center gap-1"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white shadow-md flex items-center gap-1 font-bold"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>{editingItem ? 'Save Changes' : formData.targetPackageId ? 'Attach to Package' : 'Add Item'}</span>
@@ -2004,7 +1998,7 @@ export const EquipmentPanel: React.FC = () => {
                   <h3 className="text-sm font-bold">
                     Add Gear to Camera Package
                   </h3>
-                  <p className="text-[11px] opacity-60">
+                  <p className="text-[11px] opacity-70">
                     Attach batteries, media cards, monitor, transmitter, or accessories
                   </p>
                 </div>
@@ -2038,13 +2032,13 @@ export const EquipmentPanel: React.FC = () => {
                       });
                     }
                   }}
-                  className={`w-full p-2 text-xs rounded-lg border font-semibold ${
-                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
-                  }`}
+                  className="w-full p-2 text-xs rounded-lg border font-semibold bg-white text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
                 >
-                  <option value="">-- Select Camera Accessory Preset --</option>
+                  <option value="" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
+                    -- Select Camera Accessory Preset --
+                  </option>
                   {CAMERA_PACKAGE_PRESETS.map((p, idx) => (
-                    <option key={idx} value={p.name}>
+                    <option key={idx} value={p.name} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                       {p.name} (x{p.quantity}) - {p.brand}
                     </option>
                   ))}
@@ -2061,12 +2055,10 @@ export const EquipmentPanel: React.FC = () => {
                   onChange={(e) =>
                     setPackageFormData({ ...packageFormData, category: e.target.value as EquipmentCategory })
                   }
-                  className={`w-full p-2 text-xs rounded-lg border font-semibold ${
-                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
-                  }`}
+                  className="w-full p-2 text-xs rounded-lg border font-semibold bg-white text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
                 >
                   {EQUIPMENT_CATEGORIES.map((cat) => (
-                    <option key={cat.key} value={cat.key}>
+                    <option key={cat.key} value={cat.key} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                       {cat.label}
                     </option>
                   ))}
@@ -2177,7 +2169,7 @@ export const EquipmentPanel: React.FC = () => {
                   type="button"
                   onClick={() => setIsAddPackageItemModalOpen(false)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${
-                    isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+                    isLight ? 'border-slate-300 hover:bg-slate-100 text-slate-800' : 'border-slate-700 hover:bg-slate-800 text-slate-200'
                   }`}
                 >
                   Cancel

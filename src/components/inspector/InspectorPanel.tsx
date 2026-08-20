@@ -19,6 +19,7 @@ import {
 import {
   ACTOR_COLOR_PALETTE,
   ASPECT_RATIOS,
+  CAMERA_BODY_PRESETS,
   CAMERA_COLOR_PALETTE,
   CAMERA_HEIGHTS,
   CAMERA_RIGS,
@@ -32,7 +33,7 @@ import {
   SENSOR_FORMATS,
 } from '../../constants/presets';
 import { flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
-import { ensureHexColor, hexToHsv, hexToRgbParts, hsvToHex, kelvinToHex, kelvinToRgb, rgbToHex } from '../../utils/geometry';
+import { calculateFovAngle, ensureHexColor, hexToHsv, hexToRgbParts, hsvToHex, kelvinToHex, kelvinToRgb, rgbToHex } from '../../utils/geometry';
 import { APERTURES, FRAME_RATES, ISO_VALUES, ND_FILTERS, SHUTTER_ANGLES } from '../../constants/presets';
 
 const SHAPE_TYPES: ShapeType[] = [
@@ -2061,6 +2062,78 @@ export const InspectorPanel: React.FC = () => {
                       ))}
                     </div>
                   </div>
+                </div>
+
+                {/* Camera Body Model & Brand Preset */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="opacity-75 block text-xs font-semibold">Camera Body & Model Preset</label>
+                    <span className="text-[10px] text-sky-400 font-mono font-bold">
+                      {cam.cameraModel ? cam.cameraModel.split(' ')[0] : 'Custom'}
+                    </span>
+                  </div>
+                  <select
+                    value={cam.cameraModel || ''}
+                    onChange={(e) => {
+                      const selectedModel = e.target.value;
+                      const matchedPreset = CAMERA_BODY_PRESETS.find((p) => p.model === selectedModel);
+                      const updates: Partial<CameraElement> = { cameraModel: selectedModel };
+                      if (matchedPreset) {
+                        updates.sensorFormat = matchedPreset.sensor;
+                        updates.fovAngle = calculateFovAngle(cam.focalLength || 35, matchedPreset.sensor);
+                      }
+                      updateElement(cam.id, updates);
+                    }}
+                    className={`w-full border rounded-lg p-2 text-xs font-semibold ${
+                      isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-slate-900 text-slate-100 border-slate-700'
+                    }`}
+                  >
+                    <option value="" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                      -- Custom / Generic Cinema Camera --
+                    </option>
+                    <optgroup label="Sony Cinema Line & Camcorders" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Sony').map((p) => (
+                        <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="ARRI Digital & 35mm" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'ARRI').map((p) => (
+                        <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="RED Digital Cinema" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'RED').map((p) => (
+                        <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Blackmagic Design" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Blackmagic').map((p) => (
+                        <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Canon Cinema EOS" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Canon').map((p) => (
+                        <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Panasonic Cinema & Lumix" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                      {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Panasonic').map((p) => (
+                        <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
                 </div>
 
                 {/* Camera Rig & Height */}

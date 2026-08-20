@@ -59,6 +59,72 @@ export const CAMERA_RIGS: { value: CameraRigType; label: string; icon: string }[
   { value: 'Cable Cam', label: 'Cable Cam Aerial Rig', icon: 'anchor' },
 ];
 
+export const CAMERA_BODY_PRESETS: {
+  brand: string;
+  model: string;
+  sensor: SensorFormat;
+  label: string;
+}[] = [
+  // Sony Cinema & Camcorders
+  { brand: 'Sony', model: 'Sony FX30 Cinema Line (Super 35 4K 10-bit)', sensor: 'Super35', label: 'Sony FX30 (Super 35 4K 10-bit)' },
+  { brand: 'Sony', model: 'Sony FX3 Cinema Line (Full Frame 4K)', sensor: 'FullFrame', label: 'Sony FX3 (Full Frame 4K)' },
+  { brand: 'Sony', model: 'Sony FX6 Cinema Line (Full Frame 4K)', sensor: 'FullFrame', label: 'Sony FX6 (Full Frame 4K)' },
+  { brand: 'Sony', model: 'Sony FX9 (Full Frame 6K Sensor)', sensor: 'FullFrame', label: 'Sony FX9 (Full Frame 6K)' },
+  { brand: 'Sony', model: 'Sony PXW-FS5 / FS5 II (Super 35 4K RAW)', sensor: 'Super35', label: 'Sony FS5 / FS5 II (Super 35 4K RAW)' },
+  { brand: 'Sony', model: 'Sony PXW-FS7 / FS7 II (Super 35 XAVC 4K)', sensor: 'Super35', label: 'Sony FS7 / FS7 II (Super 35 XAVC 4K)' },
+  { brand: 'Sony', model: 'Sony NEX-FS700 / FS700R (Super 35 4K High Speed)', sensor: 'Super35', label: 'Sony NEX-FS700 (Super 35 4K/240fps)' },
+  { brand: 'Sony', model: 'Sony NEX-EA50 (Large Sensor NXCAM)', sensor: 'Super35', label: 'Sony NEX-EA50 (Large Sensor NXCAM)' },
+  { brand: 'Sony', model: 'Sony Burano 8K (Full Frame PL/E-mount)', sensor: 'FullFrame', label: 'Sony Burano 8K (Full Frame)' },
+  { brand: 'Sony', model: 'Sony VENICE 2 8K (Full Frame)', sensor: 'FullFrame', label: 'Sony VENICE 2 8K' },
+  { brand: 'Sony', model: 'Sony VENICE 2 6K (Full Frame)', sensor: 'FullFrame', label: 'Sony VENICE 2 6K' },
+  { brand: 'Sony', model: 'Sony F55 / F5 CineAlta (Super 35 4K)', sensor: 'Super35', label: 'Sony F55 / F5 CineAlta (Super 35)' },
+  { brand: 'Sony', model: 'Sony a7S III (Full Frame 4K120p)', sensor: 'FullFrame', label: 'Sony a7S III (Full Frame 4K)' },
+  { brand: 'Sony', model: 'Sony FR7 Cinema PTZ (Full Frame)', sensor: 'FullFrame', label: 'Sony FR7 Cinema PTZ' },
+
+  // ARRI Cinema & 35mm
+  { brand: 'ARRI', model: 'ARRI Alexa 35 (Super 35 4.6K REVEAL)', sensor: 'Super35', label: 'ARRI Alexa 35 (Super 35 4.6K REVEAL)' },
+  { brand: 'ARRI', model: 'ARRI Alexa Mini LF (Large Format 4.5K)', sensor: 'LargeFormat', label: 'ARRI Alexa Mini LF (Large Format 4.5K)' },
+  { brand: 'ARRI', model: 'ARRI Alexa LF (Large Format 4.5K)', sensor: 'LargeFormat', label: 'ARRI Alexa LF (Large Format 4.5K)' },
+  { brand: 'ARRI', model: 'ARRI Alexa Mini (Super 35 3.2K ARRIRAW)', sensor: 'Super35', label: 'ARRI Alexa Mini (Super 35 3.2K)' },
+  { brand: 'ARRI', model: 'ARRI Alexa Plus / Classic (Super 35)', sensor: 'Super35', label: 'ARRI Alexa Classic / Plus (Super 35)' },
+  { brand: 'ARRI', model: 'ARRI Alexa Studio (Super 35 Optical)', sensor: 'Super35', label: 'ARRI Alexa Studio (Optical Viewfinder)' },
+  { brand: 'ARRI', model: 'ARRI Alexa 65 (65mm 6.5K Sensor)', sensor: 'LargeFormat', label: 'ARRI Alexa 65 (65mm 6.5K)' },
+  { brand: 'ARRI', model: 'ARRI Amira (Super 35 4K UHD)', sensor: 'Super35', label: 'ARRI Amira (Super 35 4K UHD)' },
+  { brand: 'ARRI', model: 'ARRI Arriflex 416 (16mm Film Camera)', sensor: 'Super35', label: 'ARRI Arriflex 416 (16mm Film)' },
+  { brand: 'ARRI', model: 'ARRI Arriflex 435 / 235 (35mm Film Camera)', sensor: 'Super35', label: 'ARRI Arriflex 435 / 235 (35mm Film)' },
+  { brand: 'ARRI', model: 'ARRI Arricam ST / LT (35mm Film Camera)', sensor: 'Super35', label: 'ARRI Arricam ST / LT (35mm Film)' },
+
+  // RED Digital Cinema
+  { brand: 'RED', model: 'RED V-Raptor 8K VV (VistaVision)', sensor: 'FullFrame', label: 'RED V-Raptor 8K VV (VistaVision)' },
+  { brand: 'RED', model: 'RED V-Raptor XL 8K VV', sensor: 'FullFrame', label: 'RED V-Raptor XL 8K VV' },
+  { brand: 'RED', model: 'RED Komodo-X 6K (Super 35 Global Shutter)', sensor: 'Super35', label: 'RED Komodo-X 6K (Global Shutter)' },
+  { brand: 'RED', model: 'RED Komodo 6K (Super 35 Global Shutter)', sensor: 'Super35', label: 'RED Komodo 6K (Global Shutter)' },
+  { brand: 'RED', model: 'RED Monstro 8K VV (VistaVision)', sensor: 'FullFrame', label: 'RED Monstro 8K VV' },
+  { brand: 'RED', model: 'RED Helium 8K S35', sensor: 'Super35', label: 'RED Helium 8K S35' },
+  { brand: 'RED', model: 'RED Gemini 5K S35 Dual ISO', sensor: 'Super35', label: 'RED Gemini 5K S35' },
+
+  // Blackmagic Design
+  { brand: 'Blackmagic', model: 'Blackmagic URSA Cine 12K (Full Frame RGBW)', sensor: 'FullFrame', label: 'Blackmagic URSA Cine 12K' },
+  { brand: 'Blackmagic', model: 'Blackmagic URSA Mini Pro 12K (Super 35)', sensor: 'Super35', label: 'Blackmagic URSA Mini Pro 12K' },
+  { brand: 'Blackmagic', model: 'Blackmagic Cinema Camera 6K (Full Frame L-Mount)', sensor: 'FullFrame', label: 'Blackmagic Cinema Camera 6K' },
+  { brand: 'Blackmagic', model: 'Blackmagic Pocket Cinema Camera 6K Pro (Super 35)', sensor: 'Super35', label: 'Blackmagic Pocket 6K Pro' },
+  { brand: 'Blackmagic', model: 'Blackmagic Pocket Cinema Camera 4K (MFT)', sensor: 'MFT', label: 'Blackmagic Pocket 4K (MFT)' },
+  { brand: 'Blackmagic', model: 'Blackmagic Micro Studio Camera 4K G2', sensor: 'MFT', label: 'Blackmagic Micro Studio 4K' },
+
+  // Canon
+  { brand: 'Canon', model: 'Canon Cinema EOS C500 Mk II (Full Frame 5.9K)', sensor: 'FullFrame', label: 'Canon C500 Mk II (Full Frame 5.9K)' },
+  { brand: 'Canon', model: 'Canon Cinema EOS C300 Mk III (Super 35 DGO 4K)', sensor: 'Super35', label: 'Canon C300 Mk III (Super 35)' },
+  { brand: 'Canon', model: 'Canon Cinema EOS C70 (Super 35 RF Mount)', sensor: 'Super35', label: 'Canon C70 (Super 35 RF)' },
+  { brand: 'Canon', model: 'Canon EOS R5 C (Full Frame 8K RAW)', sensor: 'FullFrame', label: 'Canon R5 C (Full Frame 8K RAW)' },
+  { brand: 'Canon', model: 'Canon Cinema EOS C200 (Super 35 4K)', sensor: 'Super35', label: 'Canon C200 (Super 35 4K RAW Light)' },
+
+  // Panasonic
+  { brand: 'Panasonic', model: 'Panasonic VariCam LT 4K (Super 35 Dual ISO)', sensor: 'Super35', label: 'Panasonic VariCam LT 4K' },
+  { brand: 'Panasonic', model: 'Panasonic Lumix S1H (Full Frame 6K)', sensor: 'FullFrame', label: 'Panasonic Lumix S1H (Full Frame 6K)' },
+  { brand: 'Panasonic', model: 'Panasonic AU-EVA1 5.7K (Super 35)', sensor: 'Super35', label: 'Panasonic AU-EVA1 5.7K' },
+  { brand: 'Panasonic', model: 'Panasonic Lumix GH6 (MFT 5.7K)', sensor: 'MFT', label: 'Panasonic Lumix GH6 (MFT)' },
+];
+
 export const SHOT_SIZES: {
   value: ShotSize;
   code: string;
