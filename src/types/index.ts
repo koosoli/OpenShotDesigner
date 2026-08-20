@@ -89,6 +89,7 @@ export interface CameraElement extends BaseElement {
   cameraHeight: CameraHeight;
   rigType: CameraRigType;
   throwDistance: number; // visual reach of the FOV cone in pixels
+  fovOpacity?: number; // opacity of FOV cone (0.05 to 1.0)
   coneDistance?: number;
   path: Waypoint[];
   lookAtTargetId?: string;

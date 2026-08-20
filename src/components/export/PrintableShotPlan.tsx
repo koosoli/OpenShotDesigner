@@ -1381,7 +1381,7 @@ export const PrintableShotPlan: React.FC = () => {
                                     { x: 0, y: 0 },
                                     0,
                                     c.fovAngle || 45,
-                                    (c.coneDistance || 280) * 0.7
+                                    (c.throwDistance || 200) * 0.7
                                   )
                                 : null;
                               return (
@@ -1550,7 +1550,7 @@ export const PrintableShotPlan: React.FC = () => {
                         { x: c.x, y: c.y },
                         c.rotation || 0,
                         c.fovAngle || 45,
-                        c.coneDistance || 280
+                        c.throwDistance || 200
                       );
 
                       const shot = activeSetup.shots.find((s) => s.cameraId === c.id);
@@ -1576,7 +1576,7 @@ export const PrintableShotPlan: React.FC = () => {
                         <g key={c.id}>
                           {/* FOV Cone */}
                           {eff.showFovCones && (
-                            <>
+                            <g opacity={c.fovOpacity ?? 1}>
                               <path
                                 d={fov.pathString}
                                 fill="#e0f2fe"
@@ -1586,7 +1586,7 @@ export const PrintableShotPlan: React.FC = () => {
                                 opacity="0.75"
                               />
                               <line x1={c.x} y1={c.y} x2={fov.centerPt.x} y2={fov.centerPt.y} stroke="#0284c7" strokeWidth="1" strokeDasharray="2 2" opacity="0.6" />
-                            </>
+                            </g>
                           )}
 
                           {/* Camera Body Icon */}

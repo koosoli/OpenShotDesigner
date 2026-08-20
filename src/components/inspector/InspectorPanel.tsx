@@ -2159,18 +2159,19 @@ export const InspectorPanel: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Cone Throw Distance */}
+                {/* FOV Cone Opacity */}
                 <div>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="opacity-60">FOV Cone Distance</span>
-                    <span className="font-mono text-sky-500 font-bold">{cam.coneDistance || 300} px</span>
+                    <span className="opacity-60">FOV Cone Opacity</span>
+                    <span className="font-mono text-sky-500 font-bold">{Math.round((cam.fovOpacity ?? 1) * 100)}%</span>
                   </div>
                   <input
                     type="range"
-                    min={100}
-                    max={800}
-                    value={cam.coneDistance || 300}
-                    onChange={(e) => updateElement(cam.id, { coneDistance: Number(e.target.value) })}
+                    min={5}
+                    max={100}
+                    step={5}
+                    value={Math.round((cam.fovOpacity ?? 1) * 100)}
+                    onChange={(e) => updateElement(cam.id, { fovOpacity: Number(e.target.value) / 100 })}
                     className="w-full accent-sky-500 cursor-pointer"
                   />
                 </div>
