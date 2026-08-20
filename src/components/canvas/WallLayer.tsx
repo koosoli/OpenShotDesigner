@@ -125,7 +125,7 @@ export const WallLayer: React.FC<WallLayerProps> = ({
             }}
           >
             {/* Sunlight throw indicator */}
-            {showLightBeams && win.beamVisible !== false && (
+            {showLightBeams && win.beamVisible === true && (
               <path
                 d={`M ${-w / 2} 0 L ${-w / 2 - 40} 80 L ${w / 2 + 40} 80 L ${w / 2} 0 Z`}
                 fill="rgba(253, 224, 71, 0.08)"

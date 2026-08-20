@@ -3699,15 +3699,67 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <PillToggle
-                  on={win.beamVisible !== false}
+                  on={win.beamVisible === true}
                   onClick={() =>
                     updateElement(win.id, {
-                      beamVisible: win.beamVisible === false,
+                      beamVisible: !win.beamVisible,
                     })
                   }
                   label="Sunlight cone"
                   isLight={isLight}
                 />
+
+                {/* Window Orientation & Direction */}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="opacity-60 text-xs">Window Facing Angle</label>
+                    <span className="font-mono text-xs font-bold text-sky-500">
+                      {Math.round(((win.rotation || 0) % 360 + 360) % 360)}°
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={359}
+                    value={Math.round(((win.rotation || 0) % 360 + 360) % 360)}
+                    onChange={(e) => updateElement(win.id, { rotation: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                  />
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateElement(win.id, {
+                          rotation: Math.round(((win.rotation || 0) + 180) % 360),
+                        })
+                      }
+                      className={`py-1.5 px-2 border rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                        isLight
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700'
+                      }`}
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      Flip 180°
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateElement(win.id, {
+                          rotation: Math.round(((win.rotation || 0) + 90) % 360),
+                        })
+                      }
+                      className={`py-1.5 px-2 border rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                        isLight
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700'
+                      }`}
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      Rotate +90°
+                    </button>
+                  </div>
+                </div>
               </RubricSection>
             </div>
           );

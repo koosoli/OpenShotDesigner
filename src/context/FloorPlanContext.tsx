@@ -999,6 +999,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         name: partial.name || 'Window',
         width: 100,
         depth: 12,
+        beamVisible: false,
         ...partial,
       };
     } else if (partial.type === 'prop') {
@@ -1381,6 +1382,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       rotation: Math.round(angle),
       width: 80,
       depth: 14,
+      beamVisible: false,
     } as any);
 
     setSelectedElementIds([windowId]);

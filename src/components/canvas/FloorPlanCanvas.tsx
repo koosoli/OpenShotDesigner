@@ -998,7 +998,9 @@ export const FloorPlanCanvas: React.FC = () => {
           if (snapMatch) {
             nextX = snapMatch.point.x;
             nextY = snapMatch.point.y;
-            nextRotation = snapMatch.angle;
+            const angleDiff = Math.abs((((origEl.rotation - snapMatch.angle) % 360) + 360) % 360);
+            const isFlipped = angleDiff > 90 && angleDiff < 270;
+            nextRotation = isFlipped ? Math.round((snapMatch.angle + 180) % 360) : snapMatch.angle;
           } else if (gridSettings.snap) {
             nextX = snapToGrid(nextX, gridSettings.size, true);
             nextY = snapToGrid(nextY, gridSettings.size, true);
