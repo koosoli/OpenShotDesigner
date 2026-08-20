@@ -567,29 +567,29 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 <circle cx={0} cy={0} r={w * 0.05} fill="#451a03" />
               </g>
             ) : prop.propType === 'car' || prop.propType === 'vehicle_suv' || prop.propType === 'vehicle_police' ? (
-              <g className="prop-vehicle-4p">
+              <g className="prop-vehicle-4p" transform={`scale(${w / 180}, ${h / 360})`}>
                 {/* Wheels / Tires (4 corners) */}
-                <rect x={-w / 2 - 3} y={-h / 2 + 35} width={7} height={40} rx={3} fill="#0f172a" />
-                <rect x={w / 2 - 4} y={-h / 2 + 35} width={7} height={40} rx={3} fill="#0f172a" />
-                <rect x={-w / 2 - 3} y={h / 2 - 75} width={7} height={40} rx={3} fill="#0f172a" />
-                <rect x={w / 2 - 4} y={h / 2 - 75} width={7} height={40} rx={3} fill="#0f172a" />
+                <rect x={-90 - 3} y={-180 + 35} width={7} height={40} rx={3} fill="#0f172a" />
+                <rect x={90 - 4} y={-180 + 35} width={7} height={40} rx={3} fill="#0f172a" />
+                <rect x={-90 - 3} y={180 - 75} width={7} height={40} rx={3} fill="#0f172a" />
+                <rect x={90 - 4} y={180 - 75} width={7} height={40} rx={3} fill="#0f172a" />
 
                 {/* Side Mirrors */}
-                <polygon points={`${-w / 2},${-h / 2 + 82} ${-w / 2 - 12},${-h / 2 + 90} ${-w / 2 - 12},${-h / 2 + 104} ${-w / 2},${-h / 2 + 100}`} fill={color} stroke="#0f172a" strokeWidth={1.5} />
-                <polygon points={`${w / 2},${-h / 2 + 82} ${w / 2 + 12},${-h / 2 + 90} ${w / 2 + 12},${-h / 2 + 104} ${w / 2},${-h / 2 + 100}`} fill={color} stroke="#0f172a" strokeWidth={1.5} />
+                <polygon points={`-90,${-180 + 82} ${-90 - 12},${-180 + 90} ${-90 - 12},${-180 + 104} -90,${-180 + 100}`} fill={color} stroke="#0f172a" strokeWidth={1.5} />
+                <polygon points={`90,${-180 + 82} ${90 + 12},${-180 + 90} ${90 + 12},${-180 + 104} 90,${-180 + 100}`} fill={color} stroke="#0f172a" strokeWidth={1.5} />
 
                 {/* Vehicle outer body chassis */}
-                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} stroke="#0f172a" strokeWidth={2.5} rx={22} />
+                <rect x={-90} y={-180} width={180} height={360} fill={color} stroke="#0f172a" strokeWidth={2.5} rx={22} />
 
                 {/* Hood feature lines & grille */}
-                <path d={`M ${-w * 0.3} ${-h / 2 + 10} L ${-w * 0.26} ${-h / 2 + 70} M ${w * 0.3} ${-h / 2 + 10} L ${w * 0.26} ${-h / 2 + 70}`} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} />
+                <path d="M -54 -170 L -46 -110 M 54 -170 L 46 -110" stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} />
 
                 {/* 4-Actor Interior Passenger Cabin */}
-                <rect x={-w / 2 + 12} y={-h / 2 + 78} width={w - 24} height={h * 0.54} rx={10} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                <rect x={-78} y={-102} width={156} height={194} rx={10} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
 
                 {/* Front Windshield (curved tinted glass) */}
                 <path
-                  d={`M ${-w / 2 + 16} ${-h / 2 + 76} L ${w / 2 - 16} ${-h / 2 + 76} L ${w / 2 - 24} ${-h / 2 + 102} L ${-w / 2 + 24} ${-h / 2 + 102} Z`}
+                  d="M -74 -104 L 74 -104 L 66 -78 L -66 -78 Z"
                   fill="#0284c7"
                   fillOpacity={0.4}
                   stroke="#38bdf8"
@@ -597,40 +597,40 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 />
 
                 {/* Dashboard & Steering wheel (Front Left Driver seat) */}
-                <rect x={-w / 2 + 16} y={-h / 2 + 94} width={w - 32} height={10} rx={2} fill="#0f172a" />
-                <circle cx={-w * 0.24} cy={-h / 2 + 108} r={11} fill="none" stroke="#94a3b8" strokeWidth={2.5} />
+                <rect x={-74} y={-86} width={148} height={10} rx={2} fill="#0f172a" />
+                <circle cx={-43} cy={-72} r={11} fill="none" stroke="#94a3b8" strokeWidth={2.5} />
 
                 {/* Center Console */}
-                <rect x={-w * 0.05} y={-h / 2 + 110} width={w * 0.1} height={h * 0.38} rx={3} fill="#0f172a" />
+                <rect x={-9} y={-70} width={18} height={136} rx={3} fill="#0f172a" />
 
                 {/* 4 Dedicated Actor Bucket Seats (Spacious enough for 4 blocking actors) */}
                 {/* 1. Driver Seat (Front Left) */}
-                <g transform={`translate(${-w * 0.24}, ${-h / 2 + 130})`}>
-                  <rect x={-w * 0.18} y={-16} width={w * 0.36} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
-                  <rect x={-w * 0.12} y={-23} width={w * 0.24} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
+                <g transform="translate(-43, -50)">
+                  <rect x={-32} y={-16} width={64} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+                  <rect x={-21} y={-23} width={42} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
                 </g>
 
                 {/* 2. Front Passenger Seat (Front Right) */}
-                <g transform={`translate(${w * 0.24}, ${-h / 2 + 130})`}>
-                  <rect x={-w * 0.18} y={-16} width={w * 0.36} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
-                  <rect x={-w * 0.12} y={-23} width={w * 0.24} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
+                <g transform="translate(43, -50)">
+                  <rect x={-32} y={-16} width={64} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+                  <rect x={-21} y={-23} width={42} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
                 </g>
 
                 {/* 3. Rear Left Passenger Seat */}
-                <g transform={`translate(${-w * 0.24}, ${-h / 2 + 225})`}>
-                  <rect x={-w * 0.18} y={-16} width={w * 0.36} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
-                  <rect x={-w * 0.12} y={-23} width={w * 0.24} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
+                <g transform="translate(-43, 45)">
+                  <rect x={-32} y={-16} width={64} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+                  <rect x={-21} y={-23} width={42} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
                 </g>
 
                 {/* 4. Rear Right Passenger Seat */}
-                <g transform={`translate(${w * 0.24}, ${-h / 2 + 225})`}>
-                  <rect x={-w * 0.18} y={-16} width={w * 0.36} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
-                  <rect x={-w * 0.12} y={-23} width={w * 0.24} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
+                <g transform="translate(43, 45)">
+                  <rect x={-32} y={-16} width={64} height={38} rx={6} fill="#334155" stroke="#64748b" strokeWidth={1.5} />
+                  <rect x={-21} y={-23} width={42} height={8} rx={2} fill="#475569" stroke="#64748b" strokeWidth={1} />
                 </g>
 
                 {/* Rear Windshield */}
                 <path
-                  d={`M ${-w / 2 + 22} ${h / 2 - 68} L ${w / 2 - 22} ${h / 2 - 68} L ${w / 2 - 18} ${h / 2 - 44} L ${-w / 2 + 18} ${h / 2 - 44} Z`}
+                  d="M -68 112 L 68 112 L 72 136 L -72 136 Z"
                   fill="#0284c7"
                   fillOpacity={0.35}
                   stroke="#38bdf8"
@@ -638,12 +638,12 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 />
 
                 {/* Headlights (Front) */}
-                <rect x={-w / 2 + 12} y={-h / 2 + 2} width={18} height={6} rx={2} fill="#fef08a" stroke="#eab308" strokeWidth={1} />
-                <rect x={w / 2 - 30} y={-h / 2 + 2} width={18} height={6} rx={2} fill="#fef08a" stroke="#eab308" strokeWidth={1} />
+                <rect x={-78} y={-178} width={18} height={6} rx={2} fill="#fef08a" stroke="#eab308" strokeWidth={1} />
+                <rect x={60} y={-178} width={18} height={6} rx={2} fill="#fef08a" stroke="#eab308" strokeWidth={1} />
 
                 {/* Taillights (Rear) */}
-                <rect x={-w / 2 + 12} y={h / 2 - 8} width={18} height={6} rx={2} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />
-                <rect x={w / 2 - 30} y={h / 2 - 8} width={18} height={6} rx={2} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />
+                <rect x={-78} y={172} width={18} height={6} rx={2} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />
+                <rect x={60} y={172} width={18} height={6} rx={2} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />
 
                 {/* Police cruiser emergency lightbar */}
                 {prop.propType === 'vehicle_police' && (
@@ -655,35 +655,35 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 )}
               </g>
             ) : prop.propType === 'vehicle_truck' ? (
-              <g className="prop-production-truck">
+              <g className="prop-production-truck" transform={`scale(${w / 200}, ${h / 460})`}>
                 {/* Front Wheels (Steer tires) */}
-                <rect x={-w / 2 - 4} y={-h / 2 + 45} width={8} height={46} rx={3} fill="#0f172a" />
-                <rect x={w / 2 - 4} y={-h / 2 + 45} width={8} height={46} rx={3} fill="#0f172a" />
+                <rect x={-104} y={-185} width={8} height={46} rx={3} fill="#0f172a" />
+                <rect x={96} y={-185} width={8} height={46} rx={3} fill="#0f172a" />
                 
                 {/* Dual Rear Wheels (4 tires: 2 on each side) */}
-                <rect x={-w / 2 - 8} y={h * 0.16} width={12} height={56} rx={3} fill="#0f172a" />
-                <rect x={w / 2 - 4} y={h * 0.16} width={12} height={56} rx={3} fill="#0f172a" />
+                <rect x={-108} y={73} width={12} height={56} rx={3} fill="#0f172a" />
+                <rect x={96} y={73} width={12} height={56} rx={3} fill="#0f172a" />
                 
                 {/* Heavy Front Bumper & Tow Hooks */}
-                <rect x={-w / 2 - 2} y={-h / 2} width={w + 4} height={14} rx={3} fill="#334155" stroke="#0f172a" strokeWidth={2} />
+                <rect x={-102} y={-230} width={204} height={14} rx={3} fill="#334155" stroke="#0f172a" strokeWidth={2} />
                 
                 {/* Front Cab Body */}
                 <path
-                  d={`M ${-w / 2 + 8} ${-h / 2 + 10} L ${w / 2 - 8} ${-h / 2 + 10} L ${w / 2 - 4} ${-h / 2 + 115} L ${-w / 2 + 4} ${-h / 2 + 115} Z`}
+                  d="M -92 -220 L 92 -220 L 96 -115 L -96 -115 Z"
                   fill={color}
                   stroke="#0f172a"
                   strokeWidth={2}
                 />
                 
                 {/* Oversized Heavy Duty Side Mirrors with brackets */}
-                <rect x={-w / 2 - 16} y={-h / 2 + 60} width={14} height={26} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
-                <line x1={-w / 2 + 4} y1={-h / 2 + 73} x2={-w / 2 - 16} y2={-h / 2 + 73} stroke="#64748b" strokeWidth={2} />
-                <rect x={w / 2 + 2} y={-h / 2 + 60} width={14} height={26} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
-                <line x1={w / 2 - 4} y1={-h / 2 + 73} x2={w / 2 + 2} y2={-h / 2 + 73} stroke="#64748b" strokeWidth={2} />
+                <rect x={-116} y={-170} width={14} height={26} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                <line x1={-96} y1={-157} x2={-116} y2={-157} stroke="#64748b" strokeWidth={2} />
+                <rect x={102} y={-170} width={14} height={26} rx={2} fill="#1e293b" stroke="#0f172a" strokeWidth={1.5} />
+                <line x1={96} y1={-157} x2={116} y2={-157} stroke="#64748b" strokeWidth={2} />
                 
                 {/* Cab Windshield */}
                 <path
-                  d={`M ${-w / 2 + 16} ${-h / 2 + 35} L ${w / 2 - 16} ${-h / 2 + 35} L ${w / 2 - 18} ${-h / 2 + 68} L ${-w / 2 + 18} ${-h / 2 + 68} Z`}
+                  d="M -84 -195 L 84 -195 L 82 -162 L -82 -162 Z"
                   fill="#0284c7"
                   fillOpacity={0.4}
                   stroke="#38bdf8"
@@ -691,39 +691,39 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 />
                 
                 {/* Driver & Passenger Cab Seats */}
-                <rect x={-w * 0.38} y={-h / 2 + 75} width={w * 0.3} height={30} rx={4} fill="#1e293b" stroke="#475569" strokeWidth={1} />
-                <circle cx={-w * 0.23} cy={-h / 2 + 65} r={9} fill="none" stroke="#94a3b8" strokeWidth={2} />
-                <rect x={w * 0.08} y={-h / 2 + 75} width={w * 0.3} height={30} rx={4} fill="#1e293b" stroke="#475569" strokeWidth={1} />
+                <rect x={-76} y={-155} width={60} height={30} rx={4} fill="#1e293b" stroke="#475569" strokeWidth={1} />
+                <circle cx={-46} cy={-165} r={9} fill="none" stroke="#94a3b8" strokeWidth={2} />
+                <rect x={16} y={-155} width={60} height={30} rx={4} fill="#1e293b" stroke="#475569" strokeWidth={1} />
                 
                 {/* Rear Cargo Box / Grip Box (Heavy corrugated body) */}
-                <rect x={-w / 2 - 2} y={-h / 2 + 115} width={w + 4} height={h * 0.66} rx={4} fill="#cbd5e1" stroke="#0f172a" strokeWidth={2.5} />
+                <rect x={-102} y={-115} width={204} height={303} rx={4} fill="#cbd5e1" stroke="#0f172a" strokeWidth={2.5} />
                 
                 {/* Roof Ribs / Corrugation */}
                 {Array.from({ length: 9 }).map((_, i) => (
                   <line
                     key={i}
-                    x1={-w / 2 + 4}
-                    y1={-h / 2 + 140 + i * ((h * 0.66 - 50) / 8)}
-                    x2={w / 2 - 4}
-                    y2={-h / 2 + 140 + i * ((h * 0.66 - 50) / 8)}
+                    x1={-96}
+                    y1={-90 + i * 31}
+                    x2={96}
+                    y2={-90 + i * 31}
                     stroke="#94a3b8"
                     strokeWidth={1.5}
                   />
                 ))}
                 
                 {/* "GRIP TRUCK" Roof Banner */}
-                <rect x={-w * 0.35} y={h * 0.05} width={w * 0.7} height={20} rx={3} fill="#0f172a" />
-                <text x={0} y={h * 0.05 + 14} fill="#38bdf8" fontSize="10" fontWeight="bold" fontFamily="monospace" textAnchor="middle" className="select-none">
+                <rect x={-70} y={23} width={140} height={20} rx={3} fill="#0f172a" />
+                <text x={0} y={37} fill="#38bdf8" fontSize="10" fontWeight="bold" fontFamily="monospace" textAnchor="middle" className="select-none">
                   GRIP TRUCK
                 </text>
                 
                 {/* Rear Hydraulic Liftgate / Ramp */}
-                <rect x={-w / 2} y={h / 2 - 12} width={w} height={14} rx={2} fill="#334155" stroke="#0f172a" strokeWidth={2} />
-                <line x1={-w / 2 + 6} y1={h / 2 - 5} x2={w / 2 - 6} y2={h / 2 - 5} stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 4" />
+                <rect x={-100} y={218} width={200} height={14} rx={2} fill="#334155" stroke="#0f172a" strokeWidth={2} />
+                <line x1={-94} y1={225} x2={94} y2={225} stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 4" />
                 
                 {/* Rear Warning Taillights */}
-                <rect x={-w / 2 + 4} y={h / 2 - 10} width={12} height={5} rx={1} fill="#ef4444" />
-                <rect x={w / 2 - 16} y={h / 2 - 10} width={12} height={5} rx={1} fill="#ef4444" />
+                <rect x={-96} y={220} width={12} height={5} rx={1} fill="#ef4444" />
+                <rect x={84} y={220} width={12} height={5} rx={1} fill="#ef4444" />
               </g>
             ) : prop.propType === 'gun' ? (
               <g className="prop-handgun">

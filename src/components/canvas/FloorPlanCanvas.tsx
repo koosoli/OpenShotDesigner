@@ -1144,19 +1144,19 @@ export const FloorPlanCanvas: React.FC = () => {
 
       const handle = dragState.handle;
       if (handle.includes('e')) {
-        newW = Math.max(15, origW + localDx);
+        newW = Math.max(5, origW + localDx);
         centerShiftX = (newW - origW) / 2;
       }
       if (handle.includes('w')) {
-        newW = Math.max(15, origW - localDx);
+        newW = Math.max(5, origW - localDx);
         centerShiftX = -(newW - origW) / 2;
       }
       if (handle.includes('s')) {
-        newH = Math.max(15, origH + localDy);
+        newH = Math.max(5, origH + localDy);
         centerShiftY = (newH - origH) / 2;
       }
       if (handle.includes('n')) {
-        newH = Math.max(15, origH - localDy);
+        newH = Math.max(5, origH - localDy);
         centerShiftY = -(newH - origH) / 2;
       }
 

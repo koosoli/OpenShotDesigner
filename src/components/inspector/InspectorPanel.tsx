@@ -3575,13 +3575,56 @@ export const InspectorPanel: React.FC = () => {
                   </select>
                 </div>
 
+                {/* Quick Scale Presets */}
+                <div>
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase opacity-60 mb-1">
+                    <span>Quick Scale Factor</span>
+                    <span className="font-mono text-sky-500">
+                      {Math.round((prop.width / (PROP_CATALOG.find((p) => p.type === prop.propType)?.defaultWidth || 100)) * 100)}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 text-[10px] font-mono">
+                    {[
+                      { label: '25%', factor: 0.25 },
+                      { label: '50%', factor: 0.5 },
+                      { label: '75%', factor: 0.75 },
+                      { label: '100%', factor: 1.0 },
+                      { label: '150%', factor: 1.5 },
+                    ].map(({ label, factor }) => {
+                      const base = PROP_CATALOG.find((p) => p.type === prop.propType) || { defaultWidth: 100, defaultHeight: 100 };
+                      const targetW = Math.round(base.defaultWidth * factor);
+                      const targetH = Math.round(base.defaultHeight * factor);
+                      const isCurrent = Math.abs(prop.width - targetW) < 4;
+
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => updateElement(prop.id, { width: targetW, height: targetH })}
+                          className={`py-1 rounded border font-bold transition-colors ${
+                            isCurrent
+                              ? 'bg-sky-500 text-white border-sky-600 shadow-xs'
+                              : isLight
+                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="opacity-60 block mb-1">Width (px)</label>
                     <input
                       type="number"
+                      min={5}
+                      max={3000}
                       value={prop.width}
-                      onChange={(e) => updateElement(prop.id, { width: Number(e.target.value) })}
+                      onChange={(e) => updateElement(prop.id, { width: Math.max(5, Number(e.target.value)) })}
                       className={`w-full border rounded p-1 font-mono ${
                         isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                       }`}
@@ -3591,8 +3634,10 @@ export const InspectorPanel: React.FC = () => {
                     <label className="opacity-60 block mb-1">Height (px)</label>
                     <input
                       type="number"
+                      min={5}
+                      max={3000}
                       value={prop.height}
-                      onChange={(e) => updateElement(prop.id, { height: Number(e.target.value) })}
+                      onChange={(e) => updateElement(prop.id, { height: Math.max(5, Number(e.target.value)) })}
                       className={`w-full border rounded p-1 font-mono ${
                         isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                       }`}
