@@ -1,6 +1,9 @@
-import { Project, SceneSetup, Shot } from '../types';
+import { CameraElement, Project, SceneSetup, Shot } from '../types';
+import { effectiveMovement } from './cameraMovement';
 
 export function exportShotListToCsv(setup: SceneSetup, projectTitle: string): void {
+  const cameras = (setup.elements || []).filter((e) => e.type === 'camera') as CameraElement[];
+  const camById = new Map(cameras.map((c) => [c.id, c]));
   const headers = [
     'Scene',
     'Shot #',
@@ -25,7 +28,7 @@ export function exportShotListToCsv(setup: SceneSetup, projectTitle: string): vo
     `"${shot.shotSize || ''}"`,
     `"${shot.lensMm ? `${shot.lensMm}mm` : ''}"`,
     `"${shot.cameraAngle || ''}"`,
-    `"${shot.movement || ''}"`,
+    `"${effectiveMovement(shot, camById.get(shot.cameraId))}"`,
     `"${shot.status || 'planned'}"`,
     `"${shot.takesCount || 0}"`,
     `"${shot.estDurationSeconds || 0}"`,
@@ -74,6 +77,8 @@ export function exportProjectToCsv(project: Project): void {
 
   const rows: string[] = [];
   project.setups.forEach((setup: SceneSetup) => {
+    const setupCameras = (setup.elements || []).filter((e) => e.type === 'camera') as CameraElement[];
+    const setupCamById = new Map(setupCameras.map((c) => [c.id, c]));
     setup.shots.forEach((shot: Shot) => {
       rows.push(
         [
@@ -85,7 +90,7 @@ export function exportProjectToCsv(project: Project): void {
           `"${shot.shotSize || ''}"`,
           `"${shot.lensMm ? `${shot.lensMm}mm` : ''}"`,
           `"${shot.cameraAngle || ''}"`,
-          `"${shot.movement || ''}"`,
+          `"${effectiveMovement(shot, setupCamById.get(shot.cameraId))}"`,
           `"${shot.status || 'planned'}"`,
           `"${shot.takesCount || 0}"`,
           `"${shot.estDurationSeconds || 0}"`,

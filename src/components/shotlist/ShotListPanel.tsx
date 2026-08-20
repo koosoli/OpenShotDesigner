@@ -767,14 +767,15 @@ export const ShotListPanel: React.FC = () => {
                     <div className="flex items-center gap-1">
                       <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Move:</span>
                       <select
-                        value={shot.movement || 'Static'}
+                        value={effectiveMovement(shot, linkedCamera)}
                         onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
+                        title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
                         className={`text-[10px] font-semibold py-0.5 px-1.5 rounded border cursor-pointer focus:outline-none focus:border-sky-500 ${
                           isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
                         }`}
                       >
                         {CAMERA_MOVEMENTS.map((m) => (
-                          <option key={m.value} value={m.value}>
+                          <option key={m.value} value={m.value} disabled={m.value === 'Static' && hasCameraMove(linkedCamera)}>
                             {m.label}
                           </option>
                         ))}
@@ -831,12 +832,13 @@ export const ShotListPanel: React.FC = () => {
                       <div>
                         <label className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">MOVEMENT</label>
                         <select
-                          value={shot.movement}
+                          value={effectiveMovement(shot, linkedCamera)}
                           onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
+                          title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
                           className={`w-full text-xs border rounded-lg p-1.5 ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'}`}
                         >
                           {CAMERA_MOVEMENTS.map((m) => (
-                            <option key={m.value} value={m.value}>
+                            <option key={m.value} value={m.value} disabled={m.value === 'Static' && hasCameraMove(linkedCamera)}>
                               {m.label}
                             </option>
                           ))}
@@ -1069,14 +1071,15 @@ export const ShotListPanel: React.FC = () => {
                       {/* Movement */}
                       <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={shot.movement || 'Static'}
+                          value={effectiveMovement(shot, linkedCamera)}
                           onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
+                          title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
                           className={`w-full text-[10px] py-0.5 px-1 rounded border ${
                             isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                           }`}
                         >
                           {CAMERA_MOVEMENTS.map((m) => (
-                            <option key={m.value} value={m.value}>
+                            <option key={m.value} value={m.value} disabled={m.value === 'Static' && hasCameraMove(linkedCamera)}>
                               {m.label}
                             </option>
                           ))}

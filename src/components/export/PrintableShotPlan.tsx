@@ -35,6 +35,7 @@ import { StoryboardThumbLayer } from '../canvas/StoryboardThumbLayer';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
 import { slotsOf, boardedFrames, visibleStoryboardSlots } from '../../utils/storyboardFrames';
+import { effectiveMovement } from '../../utils/cameraMovement';
 import { exportEquipmentToCsv } from '../../utils/exportEquipmentCsv';
 import {
   deriveSceneEquipment,
@@ -1197,7 +1198,7 @@ export const PrintableShotPlan: React.FC = () => {
                             {shot.cameraAngle}
                           </td>
                           <td className="p-2.5 text-slate-800">
-                            {shot.movement}
+                            {effectiveMovement(shot, linkedCam)}
                           </td>
                           <td className="p-2.5 text-slate-800">
                             <div className="font-bold text-slate-900">{shot.name}</div>
@@ -1435,9 +1436,9 @@ export const PrintableShotPlan: React.FC = () => {
                           <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-slate-900 text-white text-[10px] font-mono font-bold">
                             {shot.shotNumber}
                           </span>
-                          {shot.movement && (
+                          {effectiveMovement(shot, cam) && (
                             <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-amber-500 text-black text-[9px] font-bold">
-                              {shot.movement}
+                              {effectiveMovement(shot, cam)}
                             </span>
                           )}
                         </div>
@@ -1449,7 +1450,7 @@ export const PrintableShotPlan: React.FC = () => {
                             </p>
                           )}
                           <p className="text-[9px] font-mono text-slate-500 mt-1">
-                            {shot.shotSize} · {shot.lensMm}mm · {shot.movement}
+                            {shot.shotSize} · {shot.lensMm}mm · {effectiveMovement(shot, cam)}
                           </p>
                         </div>
                       </div>

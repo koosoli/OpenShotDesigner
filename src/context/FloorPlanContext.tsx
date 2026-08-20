@@ -21,6 +21,7 @@ import {
   ScriptLine,
   ScriptMark,
   Shot,
+  CameraMovement,
   EquipmentItem,
   EquipmentPackageItem,
   Vector2D,
