@@ -1060,7 +1060,7 @@ export const PrintableShotPlan: React.FC = () => {
                                   )}
                                 </td>
                                 <td className="py-1 px-1.5">
-                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono">
+                                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border font-mono ${meta.badgeBg} ${meta.badgeText} ${meta.borderColor}`}>
                                     {meta.shortLabel}
                                   </span>
                                 </td>
