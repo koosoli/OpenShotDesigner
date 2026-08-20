@@ -23,15 +23,14 @@ const MainLayout: React.FC = () => {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [isRightPanelFullscreen, setIsRightPanelFullscreen] = useState(false);
   const calculateDefaultSidebarWidth = (): number => {
-    if (typeof window === 'undefined') return 1050;
+    if (typeof window === 'undefined') return 780;
     const vw = window.innerWidth;
-    // On wide screens (e.g. 1920px 1080p, 1440p, 4K, Ultrawides), allocate 50%-55% width
-    // so Shot List, Storyboard, Script, Gear Manifest, and Inspector are immediately fully visible!
-    if (vw >= 2500) return Math.min(1400, Math.floor(vw * 0.52)); // 4K / Ultrawide
-    if (vw >= 1800) return Math.min(1150, Math.floor(vw * 0.52)); // 1080p / 1440p
-    if (vw >= 1400) return Math.min(1000, Math.floor(vw * 0.50)); // Standard desktop
-    if (vw >= 1000) return Math.min(850, Math.floor(vw * 0.50));  // Compact laptops
-    return 700;
+    // Tailored to 780px so Shot List, Storyboard, Script, Gear Manifest, and Inspector
+    // are 100% readable with all columns visible, without taking extra screen space away from the canvas.
+    if (vw >= 1600) return 780;
+    if (vw >= 1280) return 750;
+    if (vw >= 1024) return 700;
+    return 620;
   };
 
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -39,7 +38,8 @@ const MainLayout: React.FC = () => {
       const saved = localStorage.getItem('openshotdesigner_sidebar_width');
       if (saved) {
         const parsed = Number(saved);
-        if (!isNaN(parsed) && parsed >= 320 && parsed <= (typeof window !== 'undefined' ? window.innerWidth - 200 : 2200)) {
+        // If user previously had an oversized width stored (>920), calibrate to optimal 780px
+        if (!isNaN(parsed) && parsed >= 320 && parsed <= 920) {
           return parsed;
         }
       }
@@ -79,7 +79,7 @@ const MainLayout: React.FC = () => {
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       const delta = startX - moveEvent.clientX;
-      const maxAllowed = typeof window !== 'undefined' ? Math.min(window.innerWidth - 220, 2000) : 1800;
+      const maxAllowed = typeof window !== 'undefined' ? Math.min(window.innerWidth - 220, 1600) : 1400;
       const newWidth = Math.min(maxAllowed, Math.max(320, startWidth + delta));
       setSidebarWidth(newWidth);
       try {
@@ -101,11 +101,11 @@ const MainLayout: React.FC = () => {
     setSidebarWidth((prev) => {
       const vw = typeof window !== 'undefined' ? window.innerWidth : 1920;
       let nextWidth: number;
-      // Cycle: Standard (~520) -> Wide (~1050) -> UltraWide (~60% screen)
-      if (prev < 750) {
-        nextWidth = Math.min(vw - 240, Math.max(1050, Math.floor(vw * 0.52)));
-      } else if (prev < Math.floor(vw * 0.58)) {
-        nextWidth = Math.min(vw - 240, Math.max(1250, Math.floor(vw * 0.62)));
+      // Cycle: Optimal Full-Read (780px) -> Compact (520px) -> Wide (980px)
+      if (prev < 650) {
+        nextWidth = 780;
+      } else if (prev < 880) {
+        nextWidth = Math.min(vw - 260, 980);
       } else {
         nextWidth = 520;
       }
