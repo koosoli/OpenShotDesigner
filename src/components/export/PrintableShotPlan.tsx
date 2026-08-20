@@ -188,6 +188,40 @@ export const PrintableShotPlan: React.FC = () => {
     }
   }, [exportViewMode, displaySettings, showStoryboards, customOverrides]);
 
+  const effectiveDisplaySettings: DisplaySettings = React.useMemo(() => {
+    return {
+      ...displaySettings,
+      showFovCones: eff.showFovCones,
+      showLightBeams: eff.showLightBeams,
+      showLabels: eff.showLabels,
+      showActorLabels: eff.showActorLabels,
+      showCameraLabels: eff.showCameraLabels,
+      showPropLabels: eff.showPropLabels,
+      showTrackLabels: eff.showTrackLabels,
+      showLightLabels: eff.showLightLabels,
+      showLightNameLabels: eff.showLightNameLabels,
+      showLightRoleLabels: eff.showLightRoleLabels,
+      showLightKelvinLabels: eff.showLightKelvinLabels,
+      showLightIntensityLabels: eff.showLightIntensityLabels,
+      showMeasurementLabels: eff.showMeasurementLabels,
+      showDoorWindowLabels: eff.showDoorWindowLabels,
+      showShotSizeInScript: eff.showShotSizeInScript,
+      showShotSizeOnCamera: eff.showShotSizeOnCamera,
+      showShotLensOnCamera: eff.showShotLensOnCamera,
+      showShotAngleOnCamera: eff.showShotAngleOnCamera,
+      showShotNumberOnCamera: eff.showShotNumberOnCamera,
+      showLensFovLabel: eff.showLensFovLabel,
+      showWaypoints: eff.showWaypoints,
+      showWaypointCues: eff.showWaypointCues,
+      showStoryboardThumbs: eff.showStoryboardThumbs,
+      showGrid: eff.showGrid,
+      fovConeOpacity: eff.fovConeOpacity ?? displaySettings.fovConeOpacity ?? 1.0,
+      labelOpacity: eff.labelOpacity ?? displaySettings.labelOpacity ?? 1.0,
+      labelCategoryOpacity: eff.labelCategoryOpacity ?? displaySettings.labelCategoryOpacity,
+      categoryOpacity: eff.categoryOpacity ?? displaySettings.categoryOpacity,
+    };
+  }, [displaySettings, eff]);
+
   const toggleOverride = (key: keyof DisplaySettings, defaultVal: boolean) => {
     setCustomOverrides((prev) => {
       const current = key in prev ? !!prev[key] : (eff as any)[key] ?? defaultVal;
@@ -232,40 +266,6 @@ export const PrintableShotPlan: React.FC = () => {
       (item): item is { camera: CameraElement; shot: Shot } =>
         !!item.shot && boardedFrames(item.shot, item.camera).length > 0
     );
-
-  const effectiveDisplaySettings: DisplaySettings = React.useMemo(() => {
-    return {
-      ...displaySettings,
-      showFovCones: eff.showFovCones,
-      showLightBeams: eff.showLightBeams,
-      showLabels: eff.showLabels,
-      showActorLabels: eff.showActorLabels,
-      showCameraLabels: eff.showCameraLabels,
-      showPropLabels: eff.showPropLabels,
-      showTrackLabels: eff.showTrackLabels,
-      showLightLabels: eff.showLightLabels,
-      showLightNameLabels: eff.showLightNameLabels,
-      showLightRoleLabels: eff.showLightRoleLabels,
-      showLightKelvinLabels: eff.showLightKelvinLabels,
-      showLightIntensityLabels: eff.showLightIntensityLabels,
-      showMeasurementLabels: eff.showMeasurementLabels,
-      showDoorWindowLabels: eff.showDoorWindowLabels,
-      showShotSizeInScript: eff.showShotSizeInScript,
-      showShotSizeOnCamera: eff.showShotSizeOnCamera,
-      showShotLensOnCamera: eff.showShotLensOnCamera,
-      showShotAngleOnCamera: eff.showShotAngleOnCamera,
-      showShotNumberOnCamera: eff.showShotNumberOnCamera,
-      showLensFovLabel: eff.showLensFovLabel,
-      showWaypoints: eff.showWaypoints,
-      showWaypointCues: eff.showWaypointCues,
-      showStoryboardThumbs: eff.showStoryboardThumbs,
-      showGrid: eff.showGrid,
-      fovConeOpacity: eff.fovConeOpacity ?? displaySettings.fovConeOpacity ?? 1.0,
-      labelOpacity: eff.labelOpacity ?? displaySettings.labelOpacity ?? 1.0,
-      labelCategoryOpacity: eff.labelCategoryOpacity ?? displaySettings.labelCategoryOpacity,
-      categoryOpacity: eff.categoryOpacity ?? displaySettings.categoryOpacity,
-    };
-  }, [displaySettings, eff]);
 
   // Default export scope: only the screenplay the user actually lined.
   const printedScriptLines =
