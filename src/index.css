@@ -168,6 +168,17 @@
     display: none !important;
   }
 
+  /* App root: release the h-screen / overflow-hidden clamp so the printed
+     package can flow across multiple A4 pages instead of being clipped to one */
+  #app-root {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
   /* Modal unwrap so multi-page documents flow naturally onto subsequent A4 pages */
   #export-modal {
     position: static !important;

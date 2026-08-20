@@ -117,7 +117,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className={`flex flex-col w-screen h-screen overflow-hidden font-sans select-none transition-colors ${
+    <div id="app-root" className={`flex flex-col w-screen h-screen overflow-hidden font-sans select-none transition-colors ${
       isLight ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'
     } ${isResizing ? 'cursor-col-resize' : ''}`}>
       {/* 1. Top Navbar */}

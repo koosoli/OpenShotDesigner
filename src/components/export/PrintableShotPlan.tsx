@@ -46,6 +46,10 @@ import {
   ArrowRight,
   Boxes,
   Camera,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
   DoorClosed,
   Download,
   Eye,
@@ -56,7 +60,9 @@ import {
   Layers,
   MapPin,
   Maximize2,
+  Minus,
   Package,
+  Plus,
   Printer,
   Sparkles,
   Sun,
@@ -90,6 +96,14 @@ export const PrintableShotPlan: React.FC = () => {
   const [exportViewMode, setExportViewMode] = useState<'full' | 'canvas'>('full');
   const [customOverrides, setCustomOverrides] = useState<Partial<DisplaySettings>>({});
   const [scriptScope, setScriptScope] = useState<'lined' | 'full'>('lined');
+  // Zoom/pan viewport over the floor plan: z scales the printed region around the
+  // scene center, panX/panY shift it in scene units so the user can choose exactly
+  // which portion of the canvas gets printed (and exported as PNG).
+  const [floorPlanZoom, setFloorPlanZoom] = useState<{ z: number; panX: number; panY: number }>({
+    z: 1,
+    panX: 0,
+    panY: 0,
+  });
   const floorPlanSvgRef = useRef<SVGSVGElement>(null);
 
   // When the export opens, default the storyboard toggle ON if any shot has a
@@ -98,6 +112,7 @@ export const PrintableShotPlan: React.FC = () => {
     if (isExportModalOpen) {
       setShowStoryboards(activeSetup.shots.some((s) => !!s.storyboardImage));
       setOmitBlankWaypoints(displaySettings.hideBlankStoryboardWaypoints ?? false);
+      setFloorPlanZoom({ z: 1, panX: 0, panY: 0 });
     }
   }, [isExportModalOpen, activeSetup, displaySettings.hideBlankStoryboardWaypoints]);
 
@@ -325,28 +340,28 @@ export const PrintableShotPlan: React.FC = () => {
   };
 
   // Calculate bounding box of all elements to auto-fit printable blueprint
-  let minX = 100, minY = 100, maxX = 900, maxY = 600;
+  let fullMinX = 100, fullMinY = 100, fullMaxX = 900, fullMaxY = 600;
   if (activeSetup.elements.length > 0) {
-    minX = Math.min(...activeSetup.elements.map((e) => e.x)) - 60;
-    minY = Math.min(...activeSetup.elements.map((e) => e.y)) - 60;
-    maxX = Math.max(...activeSetup.elements.map((e) => (e as any).x2 || e.x + ((e as any).width || 80))) + 60;
-    maxY = Math.max(...activeSetup.elements.map((e) => (e as any).y2 || e.y + ((e as any).height || 80))) + 60;
+    fullMinX = Math.min(...activeSetup.elements.map((e) => e.x)) - 60;
+    fullMinY = Math.min(...activeSetup.elements.map((e) => e.y)) - 60;
+    fullMaxX = Math.max(...activeSetup.elements.map((e) => (e as any).x2 || e.x + ((e as any).width || 80))) + 60;
+    fullMaxY = Math.max(...activeSetup.elements.map((e) => (e as any).y2 || e.y + ((e as any).height || 80))) + 60;
 
     // Blocking beats live away from the element itself — keep them in frame
     activeSetup.elements.forEach((element) => {
       ((element as any).path || []).forEach((wp: { x: number; y: number }) => {
-        minX = Math.min(minX, wp.x - 60);
-        minY = Math.min(minY, wp.y - 60);
-        maxX = Math.max(maxX, wp.x + 60);
-        maxY = Math.max(maxY, wp.y + 60);
+        fullMinX = Math.min(fullMinX, wp.x - 60);
+        fullMinY = Math.min(fullMinY, wp.y - 60);
+        fullMaxX = Math.max(fullMaxX, wp.x + 60);
+        fullMaxY = Math.max(fullMaxY, wp.y + 60);
       });
     });
   }
   for (const img of backgroundImages) {
-    minX = Math.min(minX, img.x - 20);
-    minY = Math.min(minY, img.y - 20);
-    maxX = Math.max(maxX, img.x + img.width + 20);
-    maxY = Math.max(maxY, img.y + img.height + 20);
+    fullMinX = Math.min(fullMinX, img.x - 20);
+    fullMinY = Math.min(fullMinY, img.y - 20);
+    fullMaxX = Math.max(fullMaxX, img.x + img.width + 20);
+    fullMaxY = Math.max(fullMaxY, img.y + img.height + 20);
   }
   if (showStoryboards) {
     for (const shot of activeSetup.shots) {
@@ -356,15 +371,43 @@ export const PrintableShotPlan: React.FC = () => {
         if (!slot.frame?.image) return;
         const pos =
           slot.frame.canvasPosition || { x: slot.anchor.x + 110, y: slot.anchor.y - 60 + index * 20 };
-        minX = Math.min(minX, pos.x - 60);
-        minY = Math.min(minY, pos.y - 60);
-        maxX = Math.max(maxX, pos.x + 60);
-        maxY = Math.max(maxY, pos.y + 60);
+        fullMinX = Math.min(fullMinX, pos.x - 60);
+        fullMinY = Math.min(fullMinY, pos.y - 60);
+        fullMaxX = Math.max(fullMaxX, pos.x + 60);
+        fullMaxY = Math.max(fullMaxY, pos.y + 60);
       });
     }
   }
-  const viewBoxWidth = Math.max(800, maxX - minX);
-  const viewBoxHeight = Math.max(500, maxY - minY);
+  const fullWidth = Math.max(800, fullMaxX - fullMinX);
+  const fullHeight = Math.max(500, fullMaxY - fullMinY);
+
+  // Zoom/pan viewport: the printed portion of the canvas. Zoom scales the visible
+  // region around the scene center; pan shifts it. The viewport is clamped so it
+  // never leaves the auto-fit scene bounds entirely.
+  const { z: zoom, panX, panY } = floorPlanZoom;
+  const viewportWidth = fullWidth / zoom;
+  const viewportHeight = fullHeight / zoom;
+  const maxPanX = Math.max(0, (fullWidth - viewportWidth) / 2);
+  const maxPanY = Math.max(0, (fullHeight - viewportHeight) / 2);
+  const viewBoxMinX = fullMinX + (fullWidth - viewportWidth) / 2 + Math.min(maxPanX, Math.max(-maxPanX, panX));
+  const viewBoxMinY = fullMinY + (fullHeight - viewportHeight) / 2 + Math.min(maxPanY, Math.max(-maxPanY, panY));
+
+  const handleFloorPlanZoom = (dir: 1 | -1) => {
+    setFloorPlanZoom((prev) => ({
+      ...prev,
+      z: Math.min(20, Math.max(1, prev.z * (dir > 0 ? 1.25 : 0.8))),
+    }));
+  };
+
+  const handleFloorPlanPan = (dx: number, dy: number) => {
+    setFloorPlanZoom((prev) => {
+      const stepX = (fullWidth / prev.z) * 0.12;
+      const stepY = (fullHeight / prev.z) * 0.12;
+      return { ...prev, panX: prev.panX + dx * stepX, panY: prev.panY + dy * stepY };
+    });
+  };
+
+  const resetFloorPlanZoom = () => setFloorPlanZoom({ z: 1, panX: 0, panY: 0 });
 
   return (
     <div
@@ -816,11 +859,74 @@ export const PrintableShotPlan: React.FC = () => {
               </div>
 
               {/* Architectural SVG Blueprint Diagram */}
-              <div className="border-2 border-slate-900 rounded-xl p-4 bg-white shadow-xs overflow-hidden">
+              <div className="relative border-2 border-slate-900 rounded-xl p-4 bg-white shadow-xs overflow-hidden">
+                {/* Floor Plan Viewport Controls (zoom / pan the printed portion) */}
+                <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 bg-white/95 border border-slate-300 rounded-lg shadow-md px-1 py-0.5 print:hidden">
+                  <button
+                    type="button"
+                    onClick={() => handleFloorPlanZoom(-1)}
+                    title="Zoom out (widen the printed portion)"
+                    className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="w-10 text-center text-[10px] font-mono text-slate-700 select-none">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleFloorPlanZoom(1)}
+                    title="Zoom in (focus the printed portion)"
+                    className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetFloorPlanZoom}
+                    title="Reset view to fit the entire scene"
+                    className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="w-px h-4 bg-slate-300 mx-0.5" />
+                  <button
+                    type="button"
+                    onClick={() => handleFloorPlanPan(-1, 0)}
+                    title="Pan left"
+                    className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFloorPlanPan(0, -1)}
+                    title="Pan up"
+                    className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFloorPlanPan(0, 1)}
+                    title="Pan down"
+                    className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFloorPlanPan(1, 0)}
+                    title="Pan right"
+                    className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 <svg
                   ref={floorPlanSvgRef}
                   id="print-floorplan-svg"
-                  viewBox={`${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`}
+                  viewBox={`${viewBoxMinX} ${viewBoxMinY} ${viewportWidth} ${viewportHeight}`}
                   className="w-full h-auto max-h-[500px]"
                   style={{ backgroundColor: '#ffffff' }}
                 >
@@ -831,7 +937,7 @@ export const PrintableShotPlan: React.FC = () => {
                     </pattern>
                   </defs>
                   {eff.showGrid && (
-                    <rect x={minX} y={minY} width={viewBoxWidth} height={viewBoxHeight} fill="url(#print-grid)" />
+                    <rect x={fullMinX} y={fullMinY} width={fullWidth} height={fullHeight} fill="url(#print-grid)" />
                   )}
 
                   {/* 0. Reference / Background Images (scout photo, blueprint, screenshot) */}

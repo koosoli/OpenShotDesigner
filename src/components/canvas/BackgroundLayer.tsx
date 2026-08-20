@@ -17,29 +17,36 @@ type ResizeHandle = 'move' | 'nw' | 'ne' | 'sw' | 'se';
 interface ImageDragProps {
   img: BackgroundImage;
   canvasScale: number;
-  canDrag: boolean;
+  isInteractive: boolean;
+  isSelected: boolean;
   onActivate: () => void;
   onUpdate: (updates: Partial<BackgroundImage>) => void;
+  onDelete: () => void;
   onDropToCamera?: (image: BackgroundImage, center: { x: number; y: number }) => void;
 }
 
 const DraggableReferenceImage: React.FC<ImageDragProps> = ({
   img,
   canvasScale,
-  canDrag,
+  isInteractive,
+  isSelected,
   onActivate,
   onUpdate,
+  onDelete,
   onDropToCamera,
 }) => {
   const { x, y, width, height } = img;
+  const locked = !!img.locked;
 
   const handlePointerDown = (handle: ResizeHandle, e: React.PointerEvent) => {
-    if (!canDrag) return;
     e.stopPropagation();
     e.preventDefault();
 
-    // Grabbing the image activates it (deselects elements / selects this image)
+    // Clicking or grabbing the image activates it (selects this image and opens its inspector)
     onActivate();
+
+    // If the image is locked, do NOT start dragging/resizing!
+    if (locked) return;
 
     const startMouseX = e.clientX;
     const startMouseY = e.clientY;
@@ -69,7 +76,7 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
       else if (handle === 'ne') scale = Math.max((startW + dx) / startW, (startH - dy) / startH);
       else scale = Math.max((startW - dx) / startW, (startH + dy) / startH);
 
-      scale = Math.max(scale, 50 / startW, 50 / startH);
+      scale = Math.max(scale, 30 / startW, 30 / startH);
 
       const nextW = Math.round(startW * scale);
       const nextH = Math.round(nextW / aspect);
@@ -119,30 +126,137 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
         height={height}
         opacity={img.opacity ?? 0.5}
         preserveAspectRatio="none"
-        style={{ pointerEvents: canDrag ? 'auto' : 'none', cursor: canDrag ? 'move' : 'default' }}
-        onPointerDown={canDrag ? (e) => handlePointerDown('move', e) : undefined}
+        style={{
+          pointerEvents: isInteractive ? 'auto' : 'none',
+          cursor: isInteractive ? (locked ? 'pointer' : 'move') : 'default',
+        }}
+        onPointerDown={(e) => handlePointerDown('move', e)}
       />
 
-      {/* Selected bounding box & proportional resize handles */}
-      {canDrag && (
+      {/* Selected bounding box: Unlocked (Sky Blue) or Locked (Amber) */}
+      {isSelected && isInteractive && (
         <g className="bg-transform-gizmo">
-          <rect
-            x={x}
-            y={y}
-            width={width}
-            height={height}
-            fill="none"
-            stroke="#38bdf8"
-            strokeWidth={1.5 / canvasScale}
-            strokeDasharray="4 4"
-            className="cursor-move"
-            style={{ pointerEvents: 'auto' }}
-            onPointerDown={(e) => handlePointerDown('move', e)}
-          />
-          <rect x={x - handleSize / 2} y={y - handleSize / 2} width={handleSize} height={handleSize} {...cornerProps('nw', 'cursor-nwse-resize')} />
-          <rect x={x + width - handleSize / 2} y={y - handleSize / 2} width={handleSize} height={handleSize} {...cornerProps('ne', 'cursor-nesw-resize')} />
-          <rect x={x - handleSize / 2} y={y + height - handleSize / 2} width={handleSize} height={handleSize} {...cornerProps('sw', 'cursor-nesw-resize')} />
-          <rect x={x + width - handleSize / 2} y={y + height - handleSize / 2} width={handleSize} height={handleSize} {...cornerProps('se', 'cursor-nwse-resize')} />
+          {locked ? (
+            /* Locked State Outline & Badge */
+            <>
+              <rect
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth={2 / canvasScale}
+                strokeDasharray="6 4"
+                style={{ pointerEvents: 'none' }}
+              />
+              {/* Interactive Unlock Badge on canvas */}
+              <g
+                transform={`translate(${x}, ${y - 16 / canvasScale})`}
+                className="pointer-events-auto cursor-pointer select-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdate({ locked: false });
+                }}
+              >
+                <title>Click to Unlock image (or press L)</title>
+                <rect
+                  x={0}
+                  y={-9 / canvasScale}
+                  width={118 / canvasScale}
+                  height={18 / canvasScale}
+                  rx={4 / canvasScale}
+                  fill="#78350f"
+                  stroke="#f59e0b"
+                  strokeWidth={1.5 / canvasScale}
+                />
+                <text
+                  x={59 / canvasScale}
+                  y={3.5 / canvasScale}
+                  textAnchor="middle"
+                  fill="#fef3c7"
+                  fontSize={9 / canvasScale}
+                  fontWeight="bold"
+                  fontFamily="sans-serif"
+                >
+                  🔒 LOCKED (Click / L)
+                </text>
+              </g>
+            </>
+          ) : (
+            /* Unlocked State Handles & Lock Badge */
+            <>
+              <rect
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                fill="none"
+                stroke="#38bdf8"
+                strokeWidth={1.5 / canvasScale}
+                strokeDasharray="4 4"
+                className="cursor-move"
+                style={{ pointerEvents: 'auto' }}
+                onPointerDown={(e) => handlePointerDown('move', e)}
+              />
+              <rect x={x - handleSize / 2} y={y - handleSize / 2} width={handleSize} height={handleSize} {...cornerProps('nw', 'cursor-nwse-resize')} />
+              <rect x={x + width - handleSize / 2} y={y - handleSize / 2} width={handleSize} height={handleSize} {...cornerProps('ne', 'cursor-nesw-resize')} />
+              <rect x={x - handleSize / 2} y={y + height - handleSize / 2} width={handleSize} height={handleSize} {...cornerProps('sw', 'cursor-nesw-resize')} />
+              <rect x={x + width - handleSize / 2} y={y + height - handleSize / 2} width={handleSize} height={handleSize} {...cornerProps('se', 'cursor-nwse-resize')} />
+
+              {/* Interactive Lock Button Badge */}
+              <g
+                transform={`translate(${x}, ${y - 16 / canvasScale})`}
+                className="pointer-events-auto cursor-pointer select-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdate({ locked: true });
+                }}
+              >
+                <title>Click to Lock image (prevent accidental moves) [L]</title>
+                <rect
+                  x={0}
+                  y={-9 / canvasScale}
+                  width={80 / canvasScale}
+                  height={18 / canvasScale}
+                  rx={4 / canvasScale}
+                  fill="#0f172a"
+                  stroke="#38bdf8"
+                  strokeWidth={1 / canvasScale}
+                />
+                <text
+                  x={40 / canvasScale}
+                  y={3.5 / canvasScale}
+                  textAnchor="middle"
+                  fill="#38bdf8"
+                  fontSize={9 / canvasScale}
+                  fontWeight="bold"
+                  fontFamily="sans-serif"
+                >
+                  🔓 Lock (L)
+                </text>
+              </g>
+
+              {/* Delete button on the selected image (works alongside the Delete key) */}
+              <g
+                transform={`translate(${x + width}, ${y - 8 / canvasScale})`}
+                className="pointer-events-auto cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+              >
+                <title>Delete reference image (Del)</title>
+                <circle cx={0} cy={0} r={9 / canvasScale} fill="#ef4444" stroke="#0f172a" strokeWidth={1.5 / canvasScale} />
+                <path
+                  d={`M ${-3 / canvasScale} ${-3 / canvasScale} L ${3 / canvasScale} ${3 / canvasScale} M ${3 / canvasScale} ${-3 / canvasScale} L ${-3 / canvasScale} ${3 / canvasScale}`}
+                  stroke="#ffffff"
+                  strokeWidth={2 / canvasScale}
+                  strokeLinecap="round"
+                />
+              </g>
+            </>
+          )}
         </g>
       )}
     </g>
@@ -165,8 +279,6 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
     <g className="background-reference-layer">
       {/* All reference images (earliest = deepest) */}
       {visible.map((img) => {
-        const locked = !!img.locked;
-        const canDrag = isInteractive && !locked;
         const isSelected = selectedBackgroundId === img.id;
 
         return (
@@ -174,52 +286,34 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
             <DraggableReferenceImage
               img={img}
               canvasScale={canvasScale}
-              canDrag={canDrag}
+              isInteractive={isInteractive}
+              isSelected={isSelected}
               onActivate={() => onSelectImage(img.id)}
               onUpdate={(updates) => onUpdate(img.id, updates)}
+              onDelete={() => onDelete(img.id)}
               onDropToCamera={onDropToCamera}
             />
-
-            {/* Delete button on the selected image (works alongside the Delete key) */}
-            {isSelected && canDrag && (
-              <g
-                transform={`translate(${img.x + img.width}, ${img.y})`}
-                className="pointer-events-auto cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(img.id);
-                }}
-              >
-                <circle cx={0} cy={0} r={9 / canvasScale} fill="#ef4444" stroke="#0f172a" strokeWidth={1.5 / canvasScale} />
-                <path
-                  d={`M ${-3 / canvasScale} ${-3 / canvasScale} L ${3 / canvasScale} ${3 / canvasScale} M ${3 / canvasScale} ${-3 / canvasScale} L ${-3 / canvasScale} ${3 / canvasScale}`}
-                  stroke="#ffffff"
-                  strokeWidth={2 / canvasScale}
-                  strokeLinecap="round"
-                />
-              </g>
-            )}
 
             {/* Name label when selected */}
             {isSelected && img.name && (
               <g
-                transform={`translate(${img.x}, ${img.y - 14 / canvasScale})`}
+                transform={`translate(${img.x + (img.locked ? 126 : 88) / canvasScale}, ${img.y - 16 / canvasScale})`}
                 className="pointer-events-none"
               >
                 <rect
                   x={-4 / canvasScale}
-                  y={-10 / canvasScale}
+                  y={-9 / canvasScale}
                   width={(img.name.length * 5.5 + 16) / canvasScale}
-                  height={16 / canvasScale}
+                  height={18 / canvasScale}
                   rx={3 / canvasScale}
                   fill="rgba(15,23,42,0.9)"
-                  stroke="#38bdf8"
+                  stroke={img.locked ? '#f59e0b' : '#38bdf8'}
                   strokeWidth={1 / canvasScale}
                 />
                 <text
                   x={4 / canvasScale}
-                  y={3 / canvasScale}
-                  fill="#38bdf8"
+                  y={3.5 / canvasScale}
+                  fill={img.locked ? '#f59e0b' : '#38bdf8'}
                   fontSize={9 / canvasScale}
                   fontWeight="bold"
                 >

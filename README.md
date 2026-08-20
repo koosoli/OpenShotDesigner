@@ -10,7 +10,7 @@
 
 </div>
 
-A free, open-source prep suite for directors and DPs: **lined script**, **floor plan**, **shot list**, and **storyboard** in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, and export production-ready paperwork. No account, no backend — everything lives in your browser.
+A free, open-source prep suite for directors and DPs: **lined script**, **floor plan**, **shot list**, **storyboard**, and **equipment manifest** in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, and export production-ready paperwork. No account, no backend — everything lives in your browser.
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
@@ -26,6 +26,7 @@ A shot exists in four places at once, and every view edits the same thing:
 | **Board** | One storyboard frame per shot | Same shots, its own frame order |
 | **Shot List** | The production table / coverage cards | Same shots, its own running order |
 | **Floor plan** | Cameras, actors, props, lights | Each shot's camera is a position on the plan |
+| **Equipment** | Production gear manifest | Cameras, lights, props & track on the plan become line items |
 
 Line a speech in the script and a camera lands on the floor plan, a row appears in the shot list, and a frame appears on the board. Delete that camera and all three go with it.
 
@@ -82,6 +83,16 @@ Line a speech in the script and a camera lands on the floor plan, a row appears 
 - **Insert between shots** — inserting after a shot always creates a *new* shot with its own camera on the floor plan (as a letter, `1A`, or with the rest renumbered) — it never overwrites the neighbouring setup.
 - **Camera assignment keeps your blocking** — the CAM dropdown lists every camera letter on the floor plan (A, B, C…) plus **"+ New camera"**. Switching a shot from A to B re-letters the camera already blocked for that shot **where it stands** — the camera never respawns somewhere else, and camera B's own position is untouched. If other shots share that camera position, it is copied in place for this shot alone.
 - **Synced with the canvas** — selecting a camera selects its shot, and deleting a camera removes its shots and their linings.
+
+### Equipment manifest
+
+- **Derived straight from the plan** — every camera letter on the floor plan becomes one expandable **Camera package** (batteries, media, monitor, wireless TX, follow focus) carrying the scene's actual lenses, rigs, and sensor; lights become fixtures with their Kelvin, intensity, and beam angle; props, dolly track, and rig systems all appear automatically.
+- **Current scene or whole production** — switch between the active scene's manifest and an **All Scenes master truck package** that rolls every setup's gear into one list.
+- **Spreadsheet or cards** — a production-table data grid (default) or department rubric cards, both editable inline.
+- **Find anything fast** — search gear, brands, models, and packages, or filter by color-coded department (Camera, Lighting, Grip, Sound, Power & Media, Cables, Props, Expendables, Other) with live unit counts.
+- **Fast Add presets** — one-click common production gear (batteries, SD cards, cables, tape, clamps…) straight into the scene, plus a full department **brand/model catalog** and camera package presets when you add custom gear.
+- **Expandable kits** — camera packages open into their line items; add accessories, edit quantities, roles, and specs, or reset a scene back to the floor plan defaults.
+- **Export & print** — download the manifest as an Excel/CSV spreadsheet (per scene or all scenes) or print a production-ready truck manifest from the export studio.
 
 ### Storyboard board
 
@@ -151,6 +162,7 @@ Line a speech in the script and a camera lands on the floor plan, a row appears 
 | --- | --- |
 | **Lined script** | The screenplay with every scene's linings, shot bubbles, and descriptions. Prints the **lined portions only** by default (with `⋯` where material is skipped) — switch to "Full screenplay" for the whole script |
 | **Storyboard** | Contact sheet of the scene's frames in board order, with shot number, camera, description, and blank frames where there is no art yet |
+| **Equipment manifest** | Scene or all-scenes master truck package — print sheet (PDF) or CSV/Excel spreadsheet |
 | **PNG** | High-resolution blueprint render (1×/2×/3×) with a title block carrying your production logo |
 | **Print view (PDF)** | Page-ready layout — print or "Save as PDF" from your browser |
 | **CSV** | Shot list spreadsheet (per scene, or all scenes in one file) |
@@ -207,6 +219,7 @@ src/
 │   ├── script/        # Screenplay parser, lined script page, script panel
 │   ├── storyboard/    # Storyboard board tab
 │   ├── shotlist/      # Shot list (cards + production table)
+│   ├── equipment/     # Equipment manifest (spreadsheet + cards, presets, packages)
 │   ├── viewfinder/    # Simulated finder + live device camera
 │   ├── inspector/     # Scene, element and production inspector
 │   ├── dashboard/     # Project dashboard (create / open / manage productions)
