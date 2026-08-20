@@ -836,30 +836,214 @@ const formatFixtureType = (type: string): { brand?: string; model: string } => {
   }
 };
 
+/** Formats camera rigs into dedicated equipment line items. */
+export const formatCameraRigEquipment = (
+  rigType: string,
+  camLabel: string,
+  camId: string
+): EquipmentItem | null => {
+  const norm = rigType.trim();
+  switch (norm) {
+    case 'TechnoCrane':
+      return {
+        id: `auto-rig-technocrane-${camLabel}`,
+        elementId: `rig-technocrane-${camLabel}`,
+        category: 'grip',
+        name: 'TechnoCrane Telescoping Crane System',
+        brand: 'SuperTechno / MovieBird',
+        model: 'TechnoCrane 30’ Telescopic Crane w/ Remote Flight Head',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Crane Movement`,
+        specs: '30ft Max Telescoping Reach · 3-Axis Stabilized Flight Head · Heavy-Duty Track Base',
+        isCustom: false,
+      };
+    case 'Jib / Crane':
+      return {
+        id: `auto-rig-jib-${camLabel}`,
+        elementId: `rig-jib-${camLabel}`,
+        category: 'grip',
+        name: 'Jib Arm / Crane Boom System',
+        brand: 'Jimmy Jib / Stanton',
+        model: 'Triangle Jib Arm (18ft–24ft) w/ Pan/Tilt Head',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Jib Movement`,
+        specs: 'Remote Pan/Tilt Joystick Head · Heavy-Duty Base & Spreader · 150lb Counterweights',
+        isCustom: false,
+      };
+    case 'Steadicam':
+      return {
+        id: `auto-rig-steadicam-${camLabel}`,
+        elementId: `rig-steadicam-${camLabel}`,
+        category: 'grip',
+        name: 'Steadicam Camera Stabilizer System',
+        brand: 'Tiffen Steadicam',
+        model: 'Steadicam M-2 System w/ Fawcett Exovest',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Operator Stabilization`,
+        specs: 'G-70x Iso-Elastic Arm · Volt Electronic Horizon Gimbal · High-Bright Monitor Sled',
+        isCustom: false,
+      };
+    case 'Gimbal':
+      return {
+        id: `auto-rig-gimbal-${camLabel}`,
+        elementId: `rig-gimbal-${camLabel}`,
+        category: 'grip',
+        name: 'Motorized 3-Axis Gimbal Stabilizer',
+        brand: 'DJI / Freefly',
+        model: 'Ronin 2 Professional 3-Axis Gimbal',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Motorized Stabilization`,
+        specs: 'High-Torque Motors · Force Pro Wireless Joystick · Ready Rig GS + ProArm Support',
+        isCustom: false,
+      };
+    case 'Dana Dolly':
+      return {
+        id: `auto-rig-danadolly-${camLabel}`,
+        elementId: `rig-danadolly-${camLabel}`,
+        category: 'grip',
+        name: 'Dana Dolly Portable Rail System',
+        brand: 'Dana Dolly',
+        model: 'Universal Track Kit & 6ft Aluminum Rails',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Linear Tracking`,
+        specs: '100mm & 75mm Bowl Adapters · Low Boy Junior Stands (Pair) · Track Ends',
+        isCustom: false,
+      };
+    case 'Slider':
+      return {
+        id: `auto-rig-slider-${camLabel}`,
+        elementId: `rig-slider-${camLabel}`,
+        category: 'grip',
+        name: 'Precision Cinema Camera Slider',
+        brand: 'MYT Works / Kessler',
+        model: 'Kessler Shuttle Dolly / MYT Works 5ft Slider',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Push / Slide Movement`,
+        specs: 'Fluid Dampened High-Payload Rail · Mitchell / 100mm Mount · End Stop Bumpers',
+        isCustom: false,
+      };
+    case 'Drone':
+      return {
+        id: `auto-rig-drone-${camLabel}`,
+        elementId: `rig-drone-${camLabel}`,
+        category: 'camera',
+        name: 'Aerial Cinema Drone Quadcopter System',
+        brand: 'DJI',
+        model: 'Inspire 3 8K Full-Frame Cinema Drone',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Aerial Unit`,
+        specs: 'Zenmuse X9-8K Air Gimbal · RTK Centimeter Positioning · Dual RC Plus Controls',
+        isCustom: false,
+      };
+    case 'Car Mount':
+      return {
+        id: `auto-rig-carmount-${camLabel}`,
+        elementId: `rig-carmount-${camLabel}`,
+        category: 'grip',
+        name: 'Car Mount Hostess Tray & Suction Rig',
+        brand: 'Matthews Studio Equipment',
+        model: 'Master Hostess Tray & Multi-Suction Rigging Kit',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Vehicle Mount`,
+        specs: '6" Vacuum Suction Cups · Micro-Grip Rigging Rods · Heavy Duty Ratchet Safety Straps',
+        isCustom: false,
+      };
+    case 'Cable Cam':
+      return {
+        id: `auto-rig-cablecam-${camLabel}`,
+        elementId: `rig-cablecam-${camLabel}`,
+        category: 'grip',
+        name: 'Motorized Cable Cam Aerial Rig',
+        brand: 'RigWheels / Defy',
+        model: 'Point-to-Point Motorized Aerial Cable Cam',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Overhead Fly Line`,
+        specs: '200m High-Tensile Kevlar Line · Dual Drive Electric Sled · Wireless Video Link',
+        isCustom: false,
+      };
+    case 'Tripod':
+      return {
+        id: `auto-rig-tripod-${camLabel}`,
+        elementId: `rig-tripod-${camLabel}`,
+        category: 'grip',
+        name: 'Professional Cinema Fluid Head & Tripod',
+        brand: 'Sachtler / O’Connor',
+        model: 'O’Connor 2575D / Sachtler Cine 30 Fluid Head',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Support Sticks`,
+        specs: '150mm Bowl / Mitchell Mount · Carbon Fiber 2-Stage Legs · Ground Spreader',
+        isCustom: false,
+      };
+    case 'Handheld':
+      return {
+        id: `auto-rig-handheld-${camLabel}`,
+        elementId: `rig-handheld-${camLabel}`,
+        category: 'grip',
+        name: 'Ergonomic Handheld Shoulder Rig & Easyrig',
+        brand: 'Easyrig / Wooden Camera',
+        model: 'Easyrig Vario 5 w/ Flowcine Serene Arm',
+        quantity: 1,
+        roleOrFunction: `Camera ${camLabel} Handheld Body Support`,
+        specs: 'Adjustable 11–38 lbs Tension · Dual Handgrips · Quick-Release Camera Hook',
+        isCustom: false,
+      };
+    default:
+      return null;
+  }
+};
+
 /** Formats prop types into appropriate department items. */
 const formatPropEquipment = (prop: PropElement): { category: EquipmentCategory; name: string; brand?: string; model?: string; specs?: string } => {
   switch (prop.propType) {
     case 'c_stand':
-      return { category: 'grip', name: 'C-Stand with Grip Arm & Head', brand: 'Matthews / Avenger', model: '40" Century Stand', specs: '10.5ft Max Height, 2.5" Grip Head' };
+      return { category: 'grip', name: 'C-Stand with Grip Arm & Head', brand: 'Matthews Studio Equipment', model: '40" Century Stand w/ Turtle Base', specs: '10.5ft Max Height · 2.5" Grip Head · 40" Arm' };
     case 'tripod':
-      return { category: 'grip', name: 'Heavy Duty Video Tripod & Head', brand: 'Sachtler / Manfrotto', model: 'Fluid Head System', specs: '75mm / 100mm Bowl' };
+      return { category: 'grip', name: 'Heavy Duty Video Tripod & Head', brand: 'Sachtler / Manfrotto', model: 'Fluid Head System 100mm Bowl', specs: 'Carbon Fiber Legs · Floor Spreader' };
     case 'apple_box':
-      return { category: 'grip', name: 'Nesting Apple Box Set', brand: 'Kupo / Matthews', model: 'Full, Half, Quarter, Pancake', specs: '9-Ply Baltic Birch' };
+      return { category: 'grip', name: 'Nesting Apple Box Set', brand: 'Kupo / Matthews', model: 'Full, Half, Quarter, Pancake (4-Piece)', specs: '9-Ply Baltic Birch Staged Set' };
     case 'camera_cart':
-      return { category: 'grip', name: 'Senior Camera Production Cart', brand: 'Inovativ / YaegerPro', model: 'Voyager 36/42 EVO', specs: 'Locking Casters & Mast Mounts' };
+      return { category: 'grip', name: 'Senior Camera Production Magliner Cart', brand: 'Inovativ / YaegerPro', model: 'Voyager 36/42 EVO Production Cart', specs: 'Locking Casters & Dual Mast Mounts' };
     case 'sound_boom':
-      return { category: 'audio', name: 'Boom Pole with Shotgun Microphone', brand: 'Sennheiser / Røde', model: 'MKH 416 + Carbon Boom', specs: 'Supercardioid RF Condenser + Shockmount' };
+      return { category: 'audio', name: 'Boom Pole with Shotgun Microphone', brand: 'Sennheiser / K-Tek', model: 'MKH 416 + Carbon Fiber Boom 12ft', specs: 'Supercardioid RF Condenser · Rycote Softie Shockmount' };
     case 'director_chair':
-      return { category: 'props', name: "Director's Folding Chair", brand: 'Filmtools', model: 'Tall Hardwood Chair', specs: '30" Bar Height Canvas' };
+      return { category: 'props', name: "Director's Folding Stage Chair", brand: 'Filmtools', model: 'Tall Hardwood Director Chair 30"', specs: 'Heavy Duty Canvas Seat & Back' };
     case 'green_screen':
-      return { category: 'grip', name: 'Chroma Green Screen Backdrop', brand: 'Westcott / Matthews', model: '12x12 Chroma Key Green', specs: 'Wrinkle-Resistant Seamless' };
+      return { category: 'grip', name: 'Chroma Green Screen Backdrop System', brand: 'Westcott / Matthews', model: '12x12 Chroma Key Green Seamless', specs: 'Wrinkle-Resistant · Butterfly Frame Mounting' };
     case 'car':
+      return { category: 'props', name: `Picture Vehicle (${prop.label || '4-Door Sedan'})`, brand: 'Production Fleet', model: prop.label || 'Hero Sedan Car', specs: 'Staged Action Vehicle' };
     case 'vehicle_suv':
+      return { category: 'props', name: `Picture Vehicle (${prop.label || 'SUV / 4x4'})`, brand: 'Production Fleet', model: prop.label || 'Hero SUV 4x4', specs: 'Staged Action Vehicle' };
     case 'vehicle_truck':
+      return { category: 'grip', name: 'Production Grip / Lighting Truck', brand: 'Ford / Freightliner', model: prop.label || '5-Ton Production Package Truck', specs: 'Liftgate · Rolling Cart Bay Distro' };
     case 'vehicle_police':
-      return { category: 'props', name: `Picture Vehicle (${prop.label || prop.propType.replace(/_/g, ' ')})`, model: prop.label || 'Action Vehicle', specs: 'Staged Production Vehicle' };
+      return { category: 'props', name: `Picture Vehicle (${prop.label || 'Police Cruiser'})`, brand: 'Production Fleet', model: prop.label || 'Emergency Police Cruiser', specs: 'Working Strobe Beacons · Siren Stunt Vehicle' };
+    case 'gun':
+      return { category: 'props', name: 'Hero Prop Handgun (Non-Firing Replica)', brand: 'Prop Armory', model: prop.label || 'Semi-Automatic 9mm Replica', specs: 'Armorer Cleared Prop Firearm' };
+    case 'rifle':
+      return { category: 'props', name: 'Tactical Prop Rifle / Shotgun (Replica)', brand: 'Prop Armory', model: prop.label || 'Tactical Assault Rifle Replica', specs: 'Armorer Cleared Prop Weapon' };
+    case 'bomb':
+      return { category: 'props', name: 'Hero Stunt Explosive Device Prop', brand: 'Special Effects / Art Dept', model: prop.label || 'Time Bomb / C4 Detonator Prop', specs: 'Illuminated LED Counter Display' };
+    case 'letter':
+      return { category: 'props', name: 'Hero Sealed Envelope / Document', brand: 'Art Department', model: prop.label || 'Sealed Official Letter Hand Prop', specs: 'Custom Staged Graphics' };
+    case 'sofa':
+    case 'sofa_sectional':
+      return { category: 'props', name: prop.label || 'Living Room Staged Sofa', brand: 'Set Dressing', model: prop.label || '3-Seat Upholstered Sofa', specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm footprint` };
+    case 'armchair':
+      return { category: 'props', name: prop.label || 'Staged Armchair / Recliner', brand: 'Set Dressing', model: prop.label || 'Leather Accent Armchair', specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm` };
+    case 'table_coffee':
+    case 'table_rect':
+    case 'table_round':
+    case 'desk':
+    case 'dining_set':
+      return { category: 'props', name: prop.label || 'Staged Table / Desk Furnishing', brand: 'Set Dressing', model: prop.label || 'Production Table Furnishing', specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm` };
     default:
-      return { category: 'props', name: prop.label || prop.propType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), specs: `${Math.round(prop.width)}×${Math.round(prop.height)}px footprint` };
+      return {
+        category: 'props',
+        name: prop.label || prop.propType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        brand: 'Set Dressing',
+        model: prop.label || prop.propType.replace(/_/g, ' '),
+        specs: `${Math.round(prop.width)}×${Math.round(prop.height)}cm footprint`,
+      };
   }
 };
 
@@ -889,14 +1073,15 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
     
     // Collect all focal lengths used by this camera letter in the scene
     const focalLengths = Array.from(new Set(camsInLetter.map((c) => c.focalLength || 35))).sort((a, b) => a - b);
-    const rigs = Array.from(new Set(camsInLetter.map((c) => (c.rigType || 'tripod').toUpperCase())));
+    const rigs = Array.from(new Set(camsInLetter.map((c) => (c.rigType || 'Tripod'))));
     const sensor = camsInLetter.find((c) => !!c.sensorFormat)?.sensorFormat || primaryCam.sensorFormat || 'FullFrame';
 
     const brand = cameraModel ? cameraModel.split(' ')[0] : 'Sony / ARRI';
     const model = cameraModel || `Cinema Camera (Cam ${letter})`;
     const lensStr = focalLengths.length === 1 ? `Prime Lens ${focalLengths[0]}mm` : `Lenses: ${focalLengths.map((f) => `${f}mm`).join(', ')}`;
-    const rigStr = `Rig: ${rigs.join(' / ')}`;
+    const rigStr = `Rig: ${rigs.map((r) => r.toUpperCase()).join(' / ')}`;
 
+    // 1A. Primary Camera Package
     autoItems.push({
       id: `auto-cam-letter-${letter}`,
       elementId: `cam-letter-${letter}`,
@@ -908,6 +1093,14 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
       roleOrFunction: `Camera ${letter} Main`,
       specs: `${lensStr} · ${rigStr} · Sensor: ${sensor}`,
       isCustom: false,
+    });
+
+    // 1B. Camera Rig Systems
+    rigs.forEach((rigType) => {
+      const rigItem = formatCameraRigEquipment(rigType, letter, primaryCam.id);
+      if (rigItem) {
+        autoItems.push(rigItem);
+      }
     });
   });
 
