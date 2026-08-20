@@ -11,6 +11,7 @@ interface ActorElementViewProps {
   isPlaying: boolean;
   onSelect: (id: string, e: React.PointerEvent) => void;
   onDoubleClick?: (id: string, e: React.MouseEvent) => void;
+  onAddWaypoint?: (id: string) => void;
   onWaypointDragStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   onWaypointRotateStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   displaySettings: DisplaySettings;
@@ -24,6 +25,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
   isPlaying: _isPlaying,
   onSelect,
   onDoubleClick,
+  onAddWaypoint,
   onWaypointDragStart,
   onWaypointRotateStart,
   displaySettings,
@@ -209,6 +211,32 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
             >
               {actor.name}
             </text>
+          </g>
+        )}
+
+        {isSelected && onAddWaypoint && (
+          <g
+            transform={`rotate(${-rotation}) translate(24, -24)`}
+            className="cursor-pointer hover:scale-110 active:scale-95 transition-transform select-none"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onAddWaypoint(actor.id);
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <title>Add Actor Waypoint</title>
+            {/* Expanded invisible hit area */}
+            <circle cx={0} cy={0} r={18} fill="transparent" />
+            <circle cx={0} cy={0} r={11} fill="#10b981" stroke="#ffffff" strokeWidth={2} className="drop-shadow-md" />
+            <path
+              d="M -4.5 0 L 4.5 0 M 0 -4.5 L 0 4.5"
+              stroke="#ffffff"
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
           </g>
         )}
       </g>

@@ -901,6 +901,36 @@ export const FloorPlanCanvas: React.FC = () => {
     }
   };
 
+  // Add actor waypoint
+  const handleAddActorWaypoint = (actorId: string) => {
+    const actor = activeSetup.elements.find((e) => e.id === actorId) as ActorElement | undefined;
+    if (!actor) return;
+    const existingPath = actor.path || [];
+    const nextBeat = Math.max(2, ...existingPath.map((wp) => wp.beat + 1));
+    const lastPoint = existingPath.length > 0
+      ? existingPath[existingPath.length - 1]
+      : { x: actor.x, y: actor.y, rotation: actor.rotation || 0 };
+
+    const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
+    const offsetDist = 50;
+    const spawnX = Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist);
+    const spawnY = Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist);
+
+    const newWp = {
+      id: `wp-${Date.now()}`,
+      x: spawnX,
+      y: spawnY,
+      rotation: lastPoint.rotation || 0,
+      beat: nextBeat,
+      dialogueCue: '',
+    };
+
+    updateElement(actor.id, { path: [...existingPath, newWp] });
+    if (nextBeat > (activeSetup.totalBeats || 1)) {
+      updateSetupMeta({ totalBeats: nextBeat });
+    }
+  };
+
   // Pointer Move
   const handlePointerMove = (e: React.PointerEvent) => {
     const mouseCanvas = screenToCanvas(e.clientX, e.clientY);
@@ -1555,6 +1585,7 @@ export const FloorPlanCanvas: React.FC = () => {
               isPlaying={playback.isPlaying}
               onSelect={handleElementSelect}
               onDoubleClick={handleElementDoubleClick}
+              onAddWaypoint={handleAddActorWaypoint}
               onWaypointDragStart={handleWaypointDragStart}
               onWaypointRotateStart={handleWaypointRotateStart}
               displaySettings={displaySettings}
