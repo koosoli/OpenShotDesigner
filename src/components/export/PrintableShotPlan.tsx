@@ -101,6 +101,18 @@ export const PrintableShotPlan: React.FC = () => {
     }
   }, [isExportModalOpen, activeSetup, displaySettings.hideBlankStoryboardWaypoints]);
 
+  // Close export modal on Escape key press
+  useEffect(() => {
+    if (!isExportModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeExportModal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isExportModalOpen, closeExportModal]);
+
   // Derived effective display settings for the blueprint export
   const eff = React.useMemo(() => {
     if (exportViewMode === 'full') {
@@ -357,105 +369,121 @@ export const PrintableShotPlan: React.FC = () => {
   return (
     <div
       id="export-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-6 select-none animate-in fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          closeExportModal();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 md:p-5 select-none animate-in fade-in cursor-pointer"
     >
-      <div className="relative w-full max-w-5xl bg-white text-slate-900 border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh]">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-[98vw] xl:max-w-[1600px] bg-white text-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] cursor-default"
+      >
         {/* Top Control Bar (Hidden when printing) */}
-        <div className="flex flex-wrap items-center justify-between px-6 py-3.5 bg-slate-900 text-white border-b border-slate-800 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-slate-900 text-white border-b border-slate-800 print:hidden">
+          {/* Brand & Studio Title */}
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
-              <Printer className="w-5 h-5" />
+              <Printer className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white tracking-wide uppercase">
-                Export & Print Studio
-              </h3>
-              <p className="text-xs text-slate-400">
-                Ink-saving high-contrast white layout for production printing and call sheets.
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-white tracking-wide uppercase">
+                  Export & Print Studio
+                </h3>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-slate-800 text-slate-400 border border-slate-700">
+                  ESC to close
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400">
+                Production-ready call sheets, blueprints, gear manifests & script packages
               </p>
             </div>
           </div>
 
-          {/* Section Mode Toggle: Floor Plan Only, Shot List Only, Combined */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700">
-              <button
-                onClick={() => setExportSection('floorplan')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  exportSection === 'floorplan'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Floor Plan Blueprint
-              </button>
-              <button
-                onClick={() => setExportSection('shotlist')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  exportSection === 'shotlist'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Shot List Only
-              </button>
-              <button
-                onClick={() => setExportSection('storyboard')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  exportSection === 'storyboard'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Storyboard
-              </button>
-              <button
-                onClick={() => setExportSection('linedscript')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  exportSection === 'linedscript'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Lined Script
-              </button>
-              <button
-                onClick={() => setExportSection('equipment')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  exportSection === 'equipment'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Equipment List
-              </button>
-              <button
-                onClick={() => setExportSection('combined')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                  exportSection === 'combined'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Complete Package
-              </button>
-            </div>
+          {/* Section Mode Segmented Switcher */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner overflow-x-auto custom-scrollbar">
+            <button
+              onClick={() => setExportSection('floorplan')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'floorplan'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Floor Plan Blueprint
+            </button>
+            <button
+              onClick={() => setExportSection('shotlist')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'shotlist'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Shot List
+            </button>
+            <button
+              onClick={() => setExportSection('storyboard')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'storyboard'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Storyboard
+            </button>
+            <button
+              onClick={() => setExportSection('linedscript')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'linedscript'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Lined Script
+            </button>
+            <button
+              onClick={() => setExportSection('equipment')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'equipment'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Equipment List
+            </button>
+            <button
+              onClick={() => setExportSection('combined')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'combined'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Complete Package
+            </button>
+          </div>
 
-            {/* Quick Actions: PNG, Print, CSV, Close */}
+          {/* Quick Action Buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Print / Save PDF */}
             <button
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold shadow-md transition-colors"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-3.5 h-3.5" />
               <span>Print / Save PDF</span>
             </button>
 
+            {/* PNG Export for Blueprint */}
             {(exportSection === 'floorplan' || exportSection === 'combined') && (
               <div className="flex items-center gap-1">
                 <select
                   value={pngScale}
                   onChange={(e) => setPngScale(Number(e.target.value) as 2 | 3)}
-                  title="PNG resolution"
+                  title="PNG resolution scale"
                   className="px-1.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   <option value={2}>2x</option>
@@ -464,36 +492,37 @@ export const PrintableShotPlan: React.FC = () => {
                 <button
                   onClick={handleExportPng}
                   title="Download transparent high-resolution PNG"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold transition-colors"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-3.5 h-3.5" />
                   <span>PNG</span>
                 </button>
               </div>
             )}
 
+            {/* CSV for Shot List */}
             {(exportSection === 'shotlist' || exportSection === 'combined') && (
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => exportShotListToCsv(activeSetup, project.title)}
                   title="Download this scene's shot list as Excel / CSV"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
                   <span>CSV</span>
                 </button>
                 <button
                   onClick={() => exportProjectToCsv(project)}
                   title="Download the whole project (all scenes) as Excel / CSV"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition-colors"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
                   <span>All Scenes</span>
                 </button>
               </div>
             )}
 
-            {/* Equipment Scope Switcher & CSV Export (Current Scene vs All Scenes) */}
+            {/* Equipment Scope Switcher & CSV Export */}
             {(exportSection === 'equipment' || exportSection === 'combined') && (
               <div className="flex items-center gap-1.5">
                 <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-xs font-semibold">
@@ -531,19 +560,19 @@ export const PrintableShotPlan: React.FC = () => {
                   title={`Download ${
                     equipmentScope === 'all' ? 'All Scenes Master Truck' : `Scene ${activeSetup.sceneNumber || '1'}`
                   } equipment manifest as Excel / CSV spreadsheet`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>CSV Spreadsheet</span>
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>CSV</span>
                 </button>
               </div>
             )}
 
-            {/* Storyboards toggle: controls thumbnails on the blueprint AND in the shot list */}
+            {/* Storyboards toggle */}
             <button
               onClick={() => setShowStoryboards((prev) => !prev)}
               title={showStoryboards ? 'Hide storyboard thumbnails' : 'Show storyboard thumbnails on the floor plan and in the shot list'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                 showStoryboards
                   ? 'bg-violet-600 text-white border-violet-500'
                   : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
@@ -559,7 +588,7 @@ export const PrintableShotPlan: React.FC = () => {
               Storyboards
             </button>
 
-            {/* Omit blank waypoints toggle for storyboard export */}
+            {/* Omit blank waypoints toggle */}
             {(exportSection === 'storyboard' || (exportSection === 'combined' && showStoryboards)) && (
               <button
                 onClick={() => setOmitBlankWaypoints((prev) => !prev)}
@@ -568,7 +597,7 @@ export const PrintableShotPlan: React.FC = () => {
                     ? 'Show all waypoint keyframes (including unboarded waypoints) on the exported storyboard'
                     : 'Omit blank waypoint keyframes (only print waypoints with attached art)'
                 }
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                   omitBlankWaypoints
                     ? 'bg-violet-600 text-white border-violet-500'
                     : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
@@ -581,12 +610,14 @@ export const PrintableShotPlan: React.FC = () => {
                 >
                   {omitBlankWaypoints ? '✓' : ''}
                 </span>
-                Omit Blank Waypoints
+                Omit Blank
               </button>
             )}
 
+            {/* Close Button */}
             <button
               onClick={closeExportModal}
+              title="Close (Esc or click outside)"
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors ml-1"
             >
               <X className="w-5 h-5" />
