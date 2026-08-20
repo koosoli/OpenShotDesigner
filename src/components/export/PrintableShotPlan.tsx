@@ -967,36 +967,40 @@ export const PrintableShotPlan: React.FC = () => {
               </p>
 
               {/* Blueprint Legend Bar */}
-              <div className="grid grid-cols-3 gap-3 mt-3 text-xs">
-                <div className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
-                  <span className="font-bold uppercase text-[10px] text-slate-500 block mb-1">
-                    Cameras In Scene ({cameras.length})
-                  </span>
-                  <div className="space-y-0.5 font-mono text-[11px]">
-                    {cameras.map((c) => (
-                      <div key={c.id} className="flex justify-between">
-                        <strong>Cam {c.cameraLabel}: {c.name}</strong>
-                        <span>{c.focalLength}mm ({c.aspectRatio})</span>
+              <div className="flex flex-col gap-3 mt-3 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
+                    <span className="font-bold uppercase text-[10px] text-slate-700 block mb-1">
+                      Actors & Blocking ({actors.length})
+                    </span>
+                    <div className="space-y-0.5 text-[11px]">
+                      {actors.map((a) => (
+                        <div key={a.id} className="flex justify-between">
+                          <strong>[{a.characterLetter}] {a.name}</strong>
+                          <span className="text-slate-600">{a.isStanding ? 'Standing' : 'Seated'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
+                    <span className="font-bold uppercase text-[10px] text-slate-700 block mb-1">
+                      Scene Summary
+                    </span>
+                    <div className="space-y-0.5 text-[11px] text-slate-700">
+                      <div className="flex justify-between">
+                        <span>Aspect Ratio:</span>
+                        <strong className="font-mono">{sceneAspectRatio}:1</strong>
                       </div>
-                    ))}
+                      <div className="flex justify-between">
+                        <span>Coverage Shots:</span>
+                        <strong className="font-mono">{activeSetup.shots.length} planned shots</strong>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
-                  <span className="font-bold uppercase text-[10px] text-slate-500 block mb-1">
-                    Actors & Blocking ({actors.length})
-                  </span>
-                  <div className="space-y-0.5 text-[11px]">
-                    {actors.map((a) => (
-                      <div key={a.id} className="flex justify-between">
-                        <strong>[{a.characterLetter}] {a.name}</strong>
-                        <span className="text-slate-500">{a.isStanding ? 'Standing' : 'Seated'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="col-span-1 md:col-span-3 p-3 bg-slate-50 border border-slate-300 rounded-lg">
+                <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold uppercase text-[10px] text-slate-700 tracking-wider flex items-center gap-1">
                       <Boxes className="w-3.5 h-3.5 text-sky-600" />
@@ -1069,6 +1073,114 @@ export const PrintableShotPlan: React.FC = () => {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* SECTION B: COVERAGE SHOT LIST BREAKDOWN TABLE                              */}
+          {/* ========================================================================= */}
+          {(exportSection === 'shotlist' || exportSection === 'combined') && (
+            <div className="mb-8 break-inside-avoid">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <Film className="w-4 h-4 text-sky-600" />
+                  <span>Coverage & Shot Breakdown Sheet</span>
+                </h3>
+                <span className="font-mono text-xs font-bold text-slate-700">
+                  {activeSetup.shots.length} Planned Shots
+                </span>
+              </div>
+
+              <div className="border border-slate-900 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-bold">
+                      {showStoryboards && (
+                        <th className="p-2.5 w-16">STORY</th>
+                      )}
+                      <th className="p-2.5 font-mono w-16">SHOT #</th>
+                      <th className="p-2.5 w-14">CAM</th>
+                      <th className="p-2.5 w-14">SIZE</th>
+                      <th className="p-2.5 w-14 font-mono">LENS</th>
+                      <th className="p-2.5 w-24">ANGLE</th>
+                      <th className="p-2.5 w-24">MOVEMENT</th>
+                      <th className="p-2.5">FRAMING & ACTION DESCRIPTION</th>
+                      <th className="p-2.5 font-mono w-20 text-center">TAKES</th>
+                      <th className="p-2.5 font-mono w-16 text-center">DONE</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-300">
+                    {activeSetup.shots.map((shot) => {
+                      const linkedCam = cameras.find((c) => c.id === shot.cameraId);
+                      return (
+                        <tr key={shot.id} className="hover:bg-slate-50">
+                          {showStoryboards && (
+                            <td className="p-2.5 align-middle">
+                              {shot.storyboardImage ? (
+                                <div
+                                  className="overflow-hidden rounded border border-slate-300 bg-slate-100"
+                                  style={{ width: 64, aspectRatio: `${sceneAspectRatio} / 1` }}
+                                >
+                                  <img
+                                    src={shot.storyboardImage}
+                                    alt={`Storyboard ${shot.shotNumber}`}
+                                    className="w-full h-full"
+                                    style={{
+                                      objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
+                                      objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-16 h-10 rounded border border-dashed border-slate-300 flex items-center justify-center text-[9px] text-slate-400">
+                                  No story
+                                </div>
+                              )}
+                            </td>
+                          )}
+                          <td className="p-2.5 font-mono font-black text-slate-900 text-sm">
+                            {shot.shotNumber}
+                          </td>
+                          <td className="p-2.5 font-bold">
+                            {linkedCam ? linkedCam.cameraLabel : '—'}
+                          </td>
+                          <td className="p-2.5 font-bold uppercase">
+                            {shot.shotSize}
+                          </td>
+                          <td className="p-2.5 font-mono">
+                            {shot.lensMm}mm
+                          </td>
+                          <td className="p-2.5 text-slate-800">
+                            {shot.cameraAngle}
+                          </td>
+                          <td className="p-2.5 text-slate-800">
+                            {shot.movement}
+                          </td>
+                          <td className="p-2.5 text-slate-800">
+                            <div className="font-bold text-slate-900">{shot.name}</div>
+                            {shot.framingDescription && (
+                              <div className="text-[11px] text-slate-600 mt-0.5">
+                                {shot.framingDescription}
+                              </div>
+                            )}
+                            {shot.equipmentNotes && (
+                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                Equipment: {shot.equipmentNotes}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-2.5 font-mono text-center font-bold">
+                            {shot.takesCount || 0}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <div className="w-4 h-4 border border-slate-900 rounded mx-auto" />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -1419,114 +1531,6 @@ export const PrintableShotPlan: React.FC = () => {
                   )}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* SECTION B: COVERAGE SHOT LIST BREAKDOWN TABLE                              */}
-          {/* ========================================================================= */}
-          {(exportSection === 'shotlist' || exportSection === 'combined') && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                  <Film className="w-4 h-4 text-sky-600" />
-                  <span>Coverage & Shot Breakdown Sheet</span>
-                </h3>
-                <span className="font-mono text-xs font-bold text-slate-700">
-                  {activeSetup.shots.length} Planned Shots
-                </span>
-              </div>
-
-              <div className="border border-slate-900 rounded-lg overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-bold">
-                      {showStoryboards && (
-                        <th className="p-2.5 w-16">STORY</th>
-                      )}
-                      <th className="p-2.5 font-mono w-16">SHOT #</th>
-                      <th className="p-2.5 w-14">CAM</th>
-                      <th className="p-2.5 w-14">SIZE</th>
-                      <th className="p-2.5 w-14 font-mono">LENS</th>
-                      <th className="p-2.5 w-24">ANGLE</th>
-                      <th className="p-2.5 w-24">MOVEMENT</th>
-                      <th className="p-2.5">FRAMING & ACTION DESCRIPTION</th>
-                      <th className="p-2.5 font-mono w-20 text-center">TAKES</th>
-                      <th className="p-2.5 font-mono w-16 text-center">DONE</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-300">
-                    {activeSetup.shots.map((shot) => {
-                      const linkedCam = cameras.find((c) => c.id === shot.cameraId);
-                      return (
-                        <tr key={shot.id} className="hover:bg-slate-50">
-                          {showStoryboards && (
-                            <td className="p-2.5 align-middle">
-                              {shot.storyboardImage ? (
-                                <div
-                                  className="overflow-hidden rounded border border-slate-300 bg-slate-100"
-                                  style={{ width: 64, aspectRatio: `${sceneAspectRatio} / 1` }}
-                                >
-                                  <img
-                                    src={shot.storyboardImage}
-                                    alt={`Storyboard ${shot.shotNumber}`}
-                                    className="w-full h-full"
-                                    style={{
-                                      objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
-                                      objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
-                                    }}
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-16 h-10 rounded border border-dashed border-slate-300 flex items-center justify-center text-[9px] text-slate-400">
-                                  No story
-                                </div>
-                              )}
-                            </td>
-                          )}
-                          <td className="p-2.5 font-mono font-black text-slate-900 text-sm">
-                            {shot.shotNumber}
-                          </td>
-                          <td className="p-2.5 font-bold">
-                            {linkedCam ? linkedCam.cameraLabel : '—'}
-                          </td>
-                          <td className="p-2.5 font-bold uppercase">
-                            {shot.shotSize}
-                          </td>
-                          <td className="p-2.5 font-mono">
-                            {shot.lensMm}mm
-                          </td>
-                          <td className="p-2.5 text-slate-800">
-                            {shot.cameraAngle}
-                          </td>
-                          <td className="p-2.5 text-slate-800">
-                            {shot.movement}
-                          </td>
-                          <td className="p-2.5 text-slate-800">
-                            <div className="font-bold text-slate-900">{shot.name}</div>
-                            {shot.framingDescription && (
-                              <div className="text-[11px] text-slate-600 mt-0.5">
-                                {shot.framingDescription}
-                              </div>
-                            )}
-                            {shot.equipmentNotes && (
-                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                                Equipment: {shot.equipmentNotes}
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-2.5 font-mono text-center font-bold">
-                            {shot.takesCount || 0}
-                          </td>
-                          <td className="p-2.5 text-center">
-                            <div className="w-4 h-4 border border-slate-900 rounded mx-auto" />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
             </div>
           )}
         </div>
