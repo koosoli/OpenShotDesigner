@@ -321,6 +321,7 @@ export interface DisplaySettings {
   showShotAngleOnCamera: boolean;
   showShotNumberOnCamera: boolean;
   showLensFovLabel: boolean;
+  fovConeOpacity?: number; // Master camera FOV cone opacity (0.05 to 1.0)
   // Category Opacity Controls
   categoryOpacity: CategoryOpacitySettings;
 }
@@ -359,6 +360,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showWaypoints: true,
   showWaypointCues: false,
   showFovCones: true,
+  fovConeOpacity: 1.0,
   showStoryboardThumbs: true,
   showLightBeams: true,
   showGrid: false, // Default grid to hidden as requested

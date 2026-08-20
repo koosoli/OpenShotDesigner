@@ -155,6 +155,7 @@ export const PrintableShotPlan: React.FC = () => {
         showWaypointCues: displaySettings.showWaypointCues === true,
         showStoryboardThumbs: showStoryboards && (displaySettings.showStoryboardThumbs !== false),
         showGrid: displaySettings.showGrid === true,
+        fovConeOpacity: displaySettings.fovConeOpacity ?? 1,
         labelOpacity: displaySettings.labelOpacity ?? 1,
         labelCategoryOpacity: displaySettings.labelCategoryOpacity || {
           cameras: 1,
@@ -1576,7 +1577,7 @@ export const PrintableShotPlan: React.FC = () => {
                         <g key={c.id}>
                           {/* FOV Cone */}
                           {eff.showFovCones && (
-                            <g opacity={c.fovOpacity ?? 1}>
+                            <g opacity={((eff as any).fovConeOpacity ?? 1) * (c.fovOpacity ?? 1)}>
                               <path
                                 d={fov.pathString}
                                 fill="#e0f2fe"

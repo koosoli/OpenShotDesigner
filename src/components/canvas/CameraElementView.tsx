@@ -159,7 +159,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
         }}
       >
         {displaySettings.showFovCones && (
-          <g className="pointer-events-none" opacity={camera.fovOpacity ?? 1}>
+          <g className="pointer-events-none" opacity={(displaySettings.fovConeOpacity ?? 1) * (camera.fovOpacity ?? 1)}>
             <defs>
               <radialGradient
                 id={`cam-fov-grad-${camera.id}`}

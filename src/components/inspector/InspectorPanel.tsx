@@ -1448,6 +1448,31 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               />
             </div>
+
+            {/* Camera FOV Cone Opacity Slider */}
+            {displaySettings.showFovCones !== false && (
+              <div className="pt-2.5 mt-2 border-t border-slate-700/30">
+                <div className="flex justify-between text-[11px] mb-1">
+                  <span className="opacity-70">Camera FOV Cone Opacity</span>
+                  <span className="font-mono text-sky-500 font-bold">
+                    {Math.round((displaySettings.fovConeOpacity ?? 1) * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={Math.round((displaySettings.fovConeOpacity ?? 1) * 100)}
+                  onChange={(e) =>
+                    updateDisplaySettings({
+                      fovConeOpacity: Number(e.target.value) / 100,
+                    })
+                  }
+                  className="w-full accent-sky-500 cursor-pointer h-1.5"
+                />
+              </div>
+            )}
           </RubricSection>
 
           {/* Rubric 7: Reference Images */}
