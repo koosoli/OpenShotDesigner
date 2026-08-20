@@ -127,6 +127,675 @@ export const EQUIPMENT_CATEGORIES: CategoryMeta[] = [
 export const getCategoryMeta = (cat: EquipmentCategory): CategoryMeta =>
   EQUIPMENT_CATEGORIES.find((c) => c.key === cat) || EQUIPMENT_CATEGORIES[EQUIPMENT_CATEGORIES.length - 1];
 
+export interface BrandModelOption {
+  brand: string;
+  models: string[];
+}
+
+export const DEPARTMENT_BRANDS_CATALOG: Record<EquipmentCategory, BrandModelOption[]> = {
+  lighting: [
+    {
+      brand: 'ARRI',
+      models: [
+        'SkyPanel S60-C',
+        'SkyPanel S30-C',
+        'SkyPanel S360-C',
+        'SkyPanel S120-C',
+        'Orbiter LED Spotlight',
+        'M18 1800W HMI',
+        'M40 4000W HMI',
+        'M90 9000W HMI',
+        'L7-C LED Fresnel',
+        'L5-C LED Fresnel',
+        'True Blue T1 1K Fresnel',
+        'True Blue T2 2K Fresnel',
+        '300W Tungsten Fresnel',
+        '650W Tungsten Fresnel',
+      ],
+    },
+    {
+      brand: 'Aputure',
+      models: [
+        'LS 600d Pro Daylight',
+        'LS 600c Pro RGBWW',
+        'LS 1200d Pro Daylight',
+        'LS 300d II Daylight',
+        'LS 300x Bi-Color',
+        'Nova P600c 2x1 Panel',
+        'Nova P300c 1x1 Panel',
+        'Electro Storm CS15 (1500W)',
+        'Electro Storm XT26 (2600W)',
+        'Amaran 200d S',
+        'Amaran 300c RGBWW',
+        'Accent B7c Practical Bulb',
+        'MC Pro RGBWW Mini',
+        'Infinibar PB12 Pixel Bar',
+      ],
+    },
+    {
+      brand: 'Nanlite',
+      models: [
+        'Forza 720B Bi-Color',
+        'Forza 500 II Daylight',
+        'Forza 300B II Bi-Color',
+        'Forza 60C RGBLAC',
+        'PavoTube II 30X 4ft Pixel Tube',
+        'PavoTube II 15X 2ft Pixel Tube',
+        'PavoTube II 6C 10"',
+        'Compac 200B Slim Studio Panel',
+        'PavoSlim 120C 2x1 RGBWW',
+      ],
+    },
+    {
+      brand: 'Astera',
+      models: [
+        'Titan Tube FP1 (4ft RGBWW)',
+        'Helios Tube FP2 (2ft RGBWW)',
+        'Hyperion Tube FP3 (8ft RGBWW)',
+        'AX5 TriplePAR Battery LED',
+        'AX9 PowerPAR 105W',
+        'NYX Bulb FP5 RGBWW',
+        'LeoFresnel Wireless Battery',
+        'PlutoFresnel Wireless Battery',
+        'PixelBar PB15 Wireless',
+      ],
+    },
+    {
+      brand: 'Quasar Science',
+      models: [
+        'Double Rainbow (RR100 / RR50)',
+        'Rainbow 2 (R2 4ft / 2ft)',
+        'Crossfade X Linear LED (4ft / 2ft)',
+        'Q-Lion Battery Powered Tube (24" / 12")',
+      ],
+    },
+    {
+      brand: 'Kino Flo',
+      models: [
+        'Celeb 850 LED DMX',
+        'Celeb 450Q LED',
+        'Celeb 250 LED',
+        'Freestyle 31 LED Fixture',
+        'Freestyle 21 LED Fixture',
+        'Diva-Lite 400 Fluorescent',
+        '4Bank 4ft Fluorescent System',
+        '2Bank 4ft Fluorescent System',
+      ],
+    },
+    {
+      brand: 'Creamsource',
+      models: [
+        'Vortex8 650W High Power 2x1',
+        'Vortex4 325W 1x1 RGBW',
+        'Micro Colour RGBW',
+        'SpaceMAX LED Spacelight',
+      ],
+    },
+    {
+      brand: 'Litepanels',
+      models: [
+        'Gemini 2x1 RGBW Soft Panel',
+        'Gemini 1x1 RGBW Soft Panel',
+        'Astra 6X Bi-Color 1x1',
+        'Astra 3X Bi-Color 1x1',
+      ],
+    },
+    {
+      brand: 'K5600 / Joker',
+      models: [
+        'Joker2 800W HMI Bug-Lite',
+        'Joker2 1600W HMI Bug-Lite',
+        'Joker 400W HMI Bug-Lite',
+        'Bug-A-Beam Source 4 Adapter',
+      ],
+    },
+    {
+      brand: 'ETC / Lekos',
+      models: [
+        'Source Four Ellipsoidal 750W (19°/26°/36°/50°)',
+        'Source Four LED Series 3 Lustr X8',
+        'Source 4 PAR 750W EA',
+      ],
+    },
+    {
+      brand: 'Matthews / Grip Flags',
+      models: [
+        'C-Stand 40" w/ Turtle Base & Arm',
+        'Solid Floppy Flag 4x4',
+        'Artificial Silk 4x4',
+        'Single Black Net 4x4',
+        'Double Black Net 4x4',
+        'Cutter Flag 18x48',
+        'Solid Flag 24x36',
+        'Single Net Flag 24x36',
+        'Double Net Flag 24x36',
+        'Silk Flag 24x36',
+        'Overhead Butterfly Frame 8x8 w/ Silk',
+        'Overhead Butterfly Frame 12x12 w/ Solid',
+      ],
+    },
+    {
+      brand: 'Generic / Custom',
+      models: ['Custom Lighting Fixture', 'Tungsten Open Face 1K', 'Par64 1kW Chrome Can', 'Beadboard 4x4 Bounce'],
+    },
+  ],
+  camera: [
+    {
+      brand: 'ARRI',
+      models: [
+        'Alexa 35 (Super 35 4.6K)',
+        'Alexa Mini LF (Large Format 4.5K)',
+        'Alexa LF (Large Format 4.5K)',
+        'Alexa Mini (Super 35 3.2K)',
+        'Amira (Super 35 4K UHD)',
+      ],
+    },
+    {
+      brand: 'Sony',
+      models: [
+        'FX6 Cinema Line (Full Frame 4K)',
+        'FX3 Cinema Line (Full Frame 4K)',
+        'FX9 (Full Frame 6K Sensor)',
+        'VENICE 2 8K (Full Frame)',
+        'VENICE 2 6K (Full Frame)',
+        'Burano 8K (Full Frame PL/E-mount)',
+        'FR7 Cinema PTZ (Full Frame)',
+        'a7S III (Full Frame 4K120p)',
+      ],
+    },
+    {
+      brand: 'RED Digital Cinema',
+      models: [
+        'V-Raptor 8K VV (VistaVision)',
+        'V-Raptor XL 8K VV',
+        'Komodo-X 6K (Super 35 Global Shutter)',
+        'Komodo 6K (Super 35 Global Shutter)',
+        'Monstro 8K VV',
+        'Gemini 5K S35',
+        'Helium 8K S35',
+      ],
+    },
+    {
+      brand: 'Blackmagic Design',
+      models: [
+        'URSA Cine 12K (Full Frame RGBW)',
+        'URSA Mini Pro 12K (Super 35)',
+        'Cinema Camera 6K (Full Frame L-Mount)',
+        'Pocket Cinema Camera 6K Pro',
+        'Pocket Cinema Camera 6K G2',
+        'Pocket Cinema Camera 4K',
+        'Micro Studio Camera 4K G2',
+      ],
+    },
+    {
+      brand: 'Canon',
+      models: [
+        'Cinema EOS C500 Mk II (Full Frame 5.9K)',
+        'Cinema EOS C300 Mk III (Super 35 DGO 4K)',
+        'Cinema EOS C70 (Super 35 RF Mount)',
+        'EOS R5 C (Full Frame 8K RAW)',
+        'Cinema EOS C200 (Super 35 4K)',
+      ],
+    },
+    {
+      brand: 'Panasonic',
+      models: [
+        'VariCam LT 4K (Super 35 Dual ISO)',
+        'Lumix S1H (Full Frame 6K)',
+        'Lumix BS1H Box Camera (Full Frame)',
+        'Lumix BGH1 Box Camera (MFT)',
+        'Lumix GH6 (MFT 5.7K)',
+      ],
+    },
+    {
+      brand: 'Cinema Lenses & Optics',
+      models: [
+        'Cooke S4/i Prime Set (18, 25, 35, 50, 75, 100mm)',
+        'ARRI / Zeiss Master Prime Set (T1.3)',
+        'Zeiss Supreme Prime Radiance Set',
+        'ARRI Signature Prime Set (T1.8 LPL)',
+        'Atlas Orion Anamorphic Prime Set (2x)',
+        'Angénieux Optimo Zoom 24-290mm T2.8',
+        'Canon Cine-Servo 17-120mm T2.95 PL',
+        'Fujinon Premista 28-100mm T2.9 Large Format',
+        'Sony FE C 16-35mm T3.1 G Cinema Zoom',
+        'DZOFilm Vespid Prime Lens Set (PL/EF)',
+      ],
+    },
+    {
+      brand: 'Wireless Video & Monitors',
+      models: [
+        'Teradek Bolt 4K LT 750 Transmitter & Receiver',
+        'Teradek Bolt 4K MAX Zero-Delay System',
+        'SmallHD Cine 7 7" Touchscreen On-Camera',
+        'SmallHD Indie 7 7" Touchscreen',
+        'SmallHD 702 Touch 7" Daylight Monitor',
+        'SmallHD Cine 13 4K High-Bright Production Monitor',
+        'OSee Megamon 15" Production Field Monitor',
+        'Hollyland Cosmo C1 SDI Wireless Video System',
+      ],
+    },
+    {
+      brand: 'Follow Focus & Matte Boxes',
+      models: [
+        'Tilta Nucleus-M Wireless Follow Focus Kit',
+        'ARRI WCU-4 Wireless Compact Unit',
+        'ARRI Hi-5 Wireless Hand Unit System',
+        'ARRI LMB 4x5 Lightweight Clamp-on Matte Box',
+        'Tilta Mirage 4x5.65 Matte Box w/ VND',
+        'Wooden Camera Zip Focus 15mm Rod System',
+      ],
+    },
+  ],
+  grip: [
+    {
+      brand: 'Matthews Studio Equipment',
+      models: [
+        'C-Stand 40" w/ Turtle Base & Grip Arm',
+        'C-Stand 20" Shorty w/ Grip Arm',
+        'Combo Stand 3-Riser Steel (Junior 1-1/8")',
+        'Beefy Baby Stand 3-Riser Steel (Baby 5/8")',
+        'Low Boy Junior Roller Stand (2-Riser)',
+        'Solid Floppy Flag 4x4 (Blackout)',
+        'Artificial Silk 4x4 Diffuser',
+        'Single Black Net Scrim 4x4',
+        'Double Black Net Scrim 4x4',
+        'Cutter Flag 18x48',
+        'Solid Flag 24x36',
+        'Full Apple Box Set (Baltic Birch)',
+        'Cardellini Clamp 2" End Jaw',
+        'Mafer Clamp w/ 5/8" Baby Pin',
+        'Duckbill / Quacker Beadboard Clamp',
+        'C-Boom Arm Telescopic Clamp',
+      ],
+    },
+    {
+      brand: 'Avenger / Manfrotto',
+      models: [
+        'A2033F C-Stand 40" w/ Grip Arm & Head',
+        'B6039CS Chrome Steel Wind-Up Stand 3-Riser',
+        'Baby Grid Clamp 1-1/4" Pipe (5/8" Pin)',
+        'Junior Pipe Clamp (1-1/8" Receiver)',
+        'Autopole 2.1m–3.7m Support System',
+        'Super Clamp 035 w/ Standard Stud',
+      ],
+    },
+    {
+      brand: 'Dana Dolly',
+      models: [
+        'Dana Dolly Portable Kit (Universal Track Ends)',
+        '6ft Precision Seamless Aluminum Pipe Set',
+        '8ft Precision Seamless Aluminum Pipe Set',
+        'Dana Dolly 100mm / 75mm Bowl Adapters',
+      ],
+    },
+    {
+      brand: 'Kupo',
+      models: [
+        'Master High C-Stand w/ Turtle Base 40"',
+        'Grip Head 2.5" w/ Ergonomic T-Handle',
+        'Junior Boom Arm Steel (Supports 66 lbs)',
+        'Convi Clamp Heavy Duty w/ Hex Baby Pin',
+        'Nesting Apple Box Set 4-Piece',
+      ],
+    },
+    {
+      brand: 'Modern Studio Equipment',
+      models: [
+        'Speed Rail 1-1/4" Schedule 40 Aluminum (10ft)',
+        'Speed Rail 1-1/4" Schedule 40 Aluminum (6ft)',
+        'Speed Rail External Pipe Joiner Sleeve',
+        'Corner Wall Spreader 3-Piece 2x4/Pipe Kit',
+        'Menace Arm Rigging Hardware Kit',
+        'Car Mount Hostess Tray & Suction Cup Kit',
+      ],
+    },
+    {
+      brand: 'Grip Truck Standard',
+      models: [
+        'Sandbag 20lb Shot Bag Heavy Duty Cordura',
+        'Sandbag 35lb Saddle Sandbag',
+        'Safety Aircraft Cable (Pack of 5)',
+        'Grip Clip #1 / #2 / #3 Spring Clamps (10pk)',
+        'C-47 Wooden Clothes Pins (Box of 50)',
+        'Ratchet Straps 1" x 15ft Heavy Duty',
+      ],
+    },
+  ],
+  audio: [
+    {
+      brand: 'Sennheiser',
+      models: [
+        'MKH 416-P48 Short Shotgun Interference Tube Mic',
+        'MKH 50-P48 Supercardioid Condenser Mic',
+        'MKH 8060 Moisture-Resistant Shotgun Mic',
+        'AVX Wireless ME2 Lavalier Digital Set',
+        'EW-DP ME2 All-in-One Digital Wireless Set',
+        'MKE 600 Camcorder Shotgun Microphone',
+      ],
+    },
+    {
+      brand: 'Sound Devices',
+      models: [
+        'Scorpio 32-Track / 16-Preamp Portable Mixer-Recorder',
+        '888 16-Track / 8-Preamp Production Recorder',
+        '833 8-Channel / 6-Preamp Field Recorder',
+        'MixPre-10 II 10-Channel 32-Bit Float Audio Recorder',
+        'MixPre-6 II 6-Channel 32-Bit Float Audio Recorder',
+        'CL-16 Linear Fader Mixing Surface',
+      ],
+    },
+    {
+      brand: 'Schoeps',
+      models: [
+        'CMIT 5U Blue Shotgun Microphone',
+        'MiniCMIT Compact Shotgun Microphone',
+        'Colette Modular Set CMC641 (MK41 Supercardioid)',
+        'SuperCMIT 2U Digital Shotgun Mic',
+      ],
+    },
+    {
+      brand: 'Røde',
+      models: [
+        'NTG3 Precision RF-Biased Shotgun Mic',
+        'NTG5 Lightweight Moisture-Resistant Shotgun',
+        'Wireless PRO Dual-Channel 32-Bit Float Lav Kit',
+        'Wireless GO II Dual Compact System',
+        'RødeLink Filmmaker Digital Wireless Kit',
+      ],
+    },
+    {
+      brand: 'Deity Microphones',
+      models: [
+        'S-Mic 2 Moisture-Resistant Shotgun Mic',
+        'Theos Digital Wireless Dual Transmitter Kit',
+        'PR-2 32-Bit Float Stereo Pocket Recorder',
+        'Connect 2.4GHz Digital Wireless Dual System',
+      ],
+    },
+    {
+      brand: 'Lectrosonics',
+      models: [
+        'DSQD 4-Channel Half-Rack Digital Receiver',
+        'DCR822 Dual-Channel Slot-Mount Digital Receiver',
+        'SMWB Wideband Miniature Beltpack Transmitter',
+        'HMa Plug-On Wireless Transmitter (Phantom Power)',
+      ],
+    },
+    {
+      brand: 'Wisycom',
+      models: [
+        'MCR54 Quad-Channel True-Diversity Receiver',
+        'MTP40S Wideband Miniature Bodypack Transmitter',
+        'BSR52 Smart Portable Dual Receiver',
+      ],
+    },
+    {
+      brand: 'K-Tek / Rycote / Comms',
+      models: [
+        'K-Tek Avalon Carbon Fiber Boom Pole 12ft (Internal XLR)',
+        'Rycote Modular Windshield WS 4 Complete Kit',
+        'Rycote Super-Shield Medium Shotgun Kit',
+        'Motorola CP200d UHF 16-Channel Walkie-Talkies (6-Pack)',
+        'Hollyland Solidcom C1 Pro Full-Duplex Wireless Intercom (4-Headsets)',
+        'Eartec UltraLITE Full Duplex Wireless Headset System',
+      ],
+    },
+  ],
+  power_media: [
+    {
+      brand: 'Anton Bauer',
+      models: [
+        'Titon 90 V-Mount (98Wh / 14.4V / 10A)',
+        'Titon 150 V-Mount (156Wh / 14.4V / 10A)',
+        'Titon 240 V-Mount (238Wh High-Draw)',
+        'Titon 150 Gold-Mount (156Wh)',
+        'Dionic XT90 Gold-Mount 99Wh',
+        'Performance Quad V-Mount Fast Charger',
+        'Performance Dual Charger',
+      ],
+    },
+    {
+      brand: 'Core SWX',
+      models: [
+        'Hypercore NEO 9 Mini V-Mount (98Wh)',
+        'Hypercore NEO 150 Mini V-Mount (147Wh)',
+        'Helix Dual Voltage 14.4V/28.8V B-Mount',
+        'Fleet Micro 4-Bay Simultaneous Fast Charger',
+      ],
+    },
+    {
+      brand: 'FXlion',
+      models: [
+        'Nano Two Ultra-Compact V-Mount 98Wh (D-Tap/USB-C)',
+        'Nano One Pocket V-Mount 50Wh',
+        'Nano Three V-Mount 150Wh',
+        'BP-M200 Square V-Mount 198Wh High-Power',
+        'FX-M4S 4-Channel Quad Simultaneous Charger',
+      ],
+    },
+    {
+      brand: 'SanDisk Professional',
+      models: [
+        'PRO-CINEMA CFexpress Type B Card 512GB (VPG400)',
+        'PRO-CINEMA CFexpress Type B Card 1TB',
+        'Extreme PRO SDXC UHS-II V90 128GB (300MB/s)',
+        'Extreme PRO SDXC UHS-II V90 256GB',
+        'PRO-BLADE Transport Modular NVMe SSD 2TB',
+        'PRO-BLADE Transport Modular NVMe SSD 4TB',
+        'G-DRIVE ArmorATD Rugged All-Terrain Drive 4TB',
+      ],
+    },
+    {
+      brand: 'Angelbird',
+      models: [
+        'AV PRO CFexpress Type B MK2 1TB',
+        'AV PRO CFexpress Type B MK2 2TB',
+        'Match Pack for ARRI Alexa 35 (2x 2TB)',
+        'AV PRO SD MK2 V90 UHS-II 128GB',
+        'AV PRO SD MK2 V90 UHS-II 256GB',
+        'SSD2GO PKT MK2 Rugged USB-C SSD 2TB',
+      ],
+    },
+    {
+      brand: 'Sony Media',
+      models: [
+        'TOUGH CFexpress Type A 160GB (800MB/s)',
+        'TOUGH CFexpress Type A 320GB (800MB/s)',
+        'TOUGH CFexpress Type A 640GB (800MB/s)',
+        'TOUGH SDXC UHS-II V90 128GB (SF-G128T)',
+        'TOUGH SDXC UHS-II V90 256GB (SF-G256T)',
+      ],
+    },
+    {
+      brand: 'Samsung',
+      models: [
+        'T7 Shield Rugged USB-C Portable SSD 2TB',
+        'T7 Shield Rugged USB-C Portable SSD 4TB',
+        '990 PRO NVMe PCIe 4.0 Internal M.2 SSD 2TB',
+      ],
+    },
+    {
+      brand: 'Generators & Inverters',
+      models: [
+        'Honda EU2200i Inverter Generator 2200W Ultra-Quiet',
+        'Honda EU7000iS Inverter Generator 7000W EFI',
+        'EcoFlow Delta Pro Portable Power Station (3.6kWh)',
+        'Goal Zero Yeti 3000X Lithium Portable Power',
+      ],
+    },
+  ],
+  cables: [
+    {
+      brand: 'Canare / Neutrik (SDI Video)',
+      models: [
+        '12G-SDI 4K/8K BNC Video Cable 50ft (L-5.5CUHD)',
+        '12G-SDI 4K/8K BNC Video Cable 25ft',
+        '12G-SDI 4K/8K BNC Video Cable 10ft',
+        'Thin 12G-SDI BNC Flexible Jumper Cable 3ft',
+        '3G-SDI Heavy Duty BNC Cable 100ft Reel',
+      ],
+    },
+    {
+      brand: 'Kondor Blue / Alvin’s Cables',
+      models: [
+        'Right-Angle 12G-SDI Coiled High-Flex Cable',
+        'High-Speed Braided HDMI 2.1 4K120 / 8K60 6ft',
+        'Thin Micro-HDMI to Full-HDMI Braided Cable 3ft',
+        'D-Tap to 2-Pin LEMO ARRI/RED Power Cable',
+        'D-Tap to 4-Pin XLR 12V Regulated Camera Cable',
+        '2-Pin LEMO to 2-Pin LEMO Teradek Power Cable',
+      ],
+    },
+    {
+      brand: 'Mogami / Canare (Audio XLR)',
+      models: [
+        'Mogami Gold Studio XLR-M to XLR-F Cable 50ft',
+        'Mogami Gold Studio XLR-M to XLR-F Cable 25ft',
+        'Mogami Gold Studio XLR-M to XLR-F Cable 10ft',
+        'Canare Star Quad XLR Balanced Audio Cable 50ft',
+        'Mini-XLR (TA3F) to Standard XLR-M 1.5ft Boom Cable',
+      ],
+    },
+    {
+      brand: 'Hubbell / Lex Products (AC Distro)',
+      models: [
+        'Heavy Duty AC Stinger Extension 12/3 AWG 50ft',
+        'Heavy Duty AC Stinger Extension 12/3 AWG 25ft',
+        'Heavy Duty AC Stinger Extension 10/3 AWG 100ft',
+        'Quad Box 12/3 15A Industrial Distro Stage Box',
+        'Neutrik PowerCon TRUE1 TOP Extension Cable 25ft',
+        'Bates 60A to 100A Stage Pin Distribution Cable',
+      ],
+    },
+    {
+      brand: 'Accu-Cable / ProPlex (DMX Control)',
+      models: [
+        '5-Pin DMX Shielded Lighting Cable 50ft',
+        '5-Pin DMX Shielded Lighting Cable 25ft',
+        '5-Pin DMX Shielded Lighting Cable 10ft',
+        '5-Pin XLR to 3-Pin XLR DMX Turnaround Adapter',
+        'DMX Terminator 120-Ohm 5-Pin Male Plug',
+      ],
+    },
+  ],
+  props: [
+    {
+      brand: 'Production Staged Furnishings',
+      models: [
+        'Mid-Century Leather Armchair',
+        'Executive Conference Table 8ft',
+        'Modern Office Desk & Ergonomic Chair',
+        'Solid Oak Dining Table & 6 Chairs',
+        'Velvet Living Room Sectional Sofa',
+        'Vintage Wooden Bookshelf 6ft (Set Dressed)',
+      ],
+    },
+    {
+      brand: 'Set Dressing & Practical Art',
+      models: [
+        'Floor Standing Brass Lamp (Practical Ready)',
+        'Area Rug 8x10ft Geometric Contemporary',
+        'Framed Clearance-Free Wall Art Pieces (Set of 3)',
+        'Indoor Potted Ficus Tree (6ft Silk)',
+        'Ceramic Tabletop Vases & Plant Dressing',
+      ],
+    },
+    {
+      brand: 'Hero Action Props',
+      models: [
+        'Cleared Hero Prop Smartphone (Custom Screen)',
+        'Vintage Leather Briefcase Satchel',
+        'Champagne Flutes & Wine Bottle Set (Cleared)',
+        'Restaurant Dinnerware & Cutlery Place Settings',
+        'Stunt Rubber Wrench / Prop Tools',
+      ],
+    },
+    {
+      brand: 'Picture Vehicles',
+      models: [
+        'Hero Sedan Production Picture Vehicle',
+        'Vintage Coupe 1968 Picture Vehicle',
+        'Police Cruiser Stunt Picture Vehicle',
+      ],
+    },
+  ],
+  expendables: [
+    {
+      brand: 'Pro Tapes / Pro Gaff',
+      models: [
+        'Pro Gaff 2" Premium Matte Black (55 yds)',
+        'Pro Gaff 2" Premium Matte White (55 yds)',
+        'Pro Gaff 2" Premium Matte Grey (55 yds)',
+        'Pro Gaff 1" Spike Tape (Set of 5 Fluorescent Colors)',
+        'Pro Artist Tape 1" White Low-Residue Console Paper',
+      ],
+    },
+    {
+      brand: 'Filmtools / Production Supplies',
+      models: [
+        'C-47 Wooden Clothes Pins (Box of 50)',
+        'Trick Line / Sash Cord #4 Black Glazed (100ft)',
+        'Blackwrap Cinefoil Matte Black Aluminum 24" x 50ft',
+        'Bongo Ties Elastic Heavy Duty Cable Wraps (10pk)',
+        'Dulling Spray 11oz Aerosol Can (Anti-Glare)',
+        'Compressed Air Duster Can 10oz (Dust-Off)',
+        'Velcro One-Wrap Cable Straps 8" (Pack of 25)',
+      ],
+    },
+    {
+      brand: 'Rosco / LEE Filters (Lighting Gels)',
+      models: [
+        'Rosco Cinegel Full CTO Orange Sheet 20" x 24"',
+        'Rosco Cinegel 1/2 CTO Orange Sheet 20" x 24"',
+        'Rosco Cinegel Full CTB Blue Sheet 20" x 24"',
+        'LEE 216 Full White Diffusion Sheet 21" x 24"',
+        'LEE 250 Half White Diffusion Sheet 21" x 24"',
+        'Rosco Cinegel Tough Plusgreen Sheet 20" x 24"',
+        'Rosco Cinegel 0.6 Neutral Density Sheet 20" x 24"',
+      ],
+    },
+    {
+      brand: 'Pancro / Kimwipes (Lens Cleaning)',
+      models: [
+        'Pancro Professional Lens Cleaning Fluid 4oz Spray',
+        'Kimwipes Delicate Task Optical Wipers (Box of 280)',
+        'Microfiber Optical Lens Cleaning Cloths (6-Pack)',
+        'Giottos Rocket Air Blower Large',
+      ],
+    },
+    {
+      brand: 'Look Solutions / Atmosphere',
+      models: [
+        'Viper NT Water-Based Fog Fluid 5L Canister',
+        'Tiny FX Battery-Operated Miniature Fogger Kit',
+        'Atmosphere Aerosol Spray Can 8oz (Haze in a Can)',
+        'Reel EFX Diffusion Hazer Fluid 1 Gallon',
+      ],
+    },
+  ],
+  other: [
+    {
+      brand: 'Generic Production',
+      models: ['Production First Aid Kit', 'Fire Extinguisher 10lb ABC', 'Director’s Folding Canvas Chair'],
+    },
+  ],
+};
+
+export const getBrandsForCategory = (cat: EquipmentCategory): string[] => {
+  const list = DEPARTMENT_BRANDS_CATALOG[cat] || [];
+  return list.map((b) => b.brand);
+};
+
+export const getModelsForBrand = (cat: EquipmentCategory, brandName: string): string[] => {
+  const list = DEPARTMENT_BRANDS_CATALOG[cat] || [];
+  const found = list.find((b) => b.brand.toLowerCase() === brandName.toLowerCase());
+  if (found) return found.models;
+
+  // If brand is generic or not found, return all models under that category
+  return list.flatMap((b) => b.models);
+};
+
 /** Formats fixture types into human-readable names. */
 const formatFixtureType = (type: string): { brand?: string; model: string } => {
   switch (type) {

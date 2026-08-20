@@ -31,12 +31,15 @@ import {
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { EquipmentCategory, EquipmentItem, MasterEquipmentItem } from '../../types';
 import {
+  DEPARTMENT_BRANDS_CATALOG,
   EQUIPMENT_CATEGORIES,
   EquipmentPreset,
   QUICK_EQUIPMENT_PRESETS,
   deriveAllScenesEquipment,
   deriveSceneEquipment,
+  getBrandsForCategory,
   getCategoryMeta,
+  getModelsForBrand,
 } from '../../utils/equipmentList';
 import { exportEquipmentToCsv } from '../../utils/exportEquipmentCsv';
 
@@ -175,12 +178,16 @@ export const EquipmentPanel: React.FC = () => {
   };
 
   const openAddModal = (presetCategory?: EquipmentCategory) => {
+    const cat = presetCategory || (selectedCategory !== 'all' ? selectedCategory : 'lighting');
+    const defaultBrand = getBrandsForCategory(cat)[0] || '';
+    const defaultModel = getModelsForBrand(cat, defaultBrand)[0] || '';
+
     setEditingItem(null);
     setFormData({
-      category: presetCategory || (selectedCategory !== 'all' ? selectedCategory : 'camera'),
-      name: '',
-      brand: '',
-      model: '',
+      category: cat,
+      name: defaultModel || '',
+      brand: defaultBrand,
+      model: defaultModel,
       quantity: 1,
       roleOrFunction: '',
       specs: '',
@@ -545,7 +552,7 @@ export const EquipmentPanel: React.FC = () => {
             <Info className="w-3.5 h-3.5 flex-shrink-0" />
             <span>
               {scope === 'current'
-                ? '💡 Click into any cell (Name, Brand, Model, Qty, Role, Specs) to modify it live, or click ✏️ for full options.'
+                ? '💡 Brand & Model drop-down templates available. Click any cell to modify live, or click ✏️ for full options.'
                 : '🔒 All Scenes master truck is a consolidated summary. Switch to "Current Scene" above to edit gear items.'}
             </span>
           </div>
@@ -559,6 +566,18 @@ export const EquipmentPanel: React.FC = () => {
 
       {/* 5. Equipment Main Content: Spreadsheet View (Default) vs Rubric Cards */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2.5">
+        {/* Render HTML5 datalists for all department brand & model templates */}
+        {EQUIPMENT_CATEGORIES.map((cat) => {
+          const brandList = getBrandsForCategory(cat.key);
+          return (
+            <datalist key={`dl-brand-${cat.key}`} id={`brand-datalist-${cat.key}`}>
+              {brandList.map((b) => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
+          );
+        })}
+
         {filteredItems.length === 0 ? (
           <div className={`m-4 p-8 text-center border border-dashed rounded-2xl ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
             <Boxes className="w-10 h-10 mx-auto mb-2 opacity-30 text-sky-500" />
@@ -600,8 +619,8 @@ export const EquipmentPanel: React.FC = () => {
                   >
                     <th className="p-2 w-28 whitespace-nowrap">DEPARTMENT</th>
                     <th className="p-2 min-w-[180px]">ITEM NAME (EDITABLE)</th>
-                    <th className="p-2 min-w-[110px]">BRAND</th>
-                    <th className="p-2 min-w-[120px]">MODEL / VARIANT</th>
+                    <th className="p-2 min-w-[130px]">BRAND (DROPDOWN)</th>
+                    <th className="p-2 min-w-[150px]">MODEL (DROPDOWN)</th>
                     <th className="p-2 w-28 text-center">QTY</th>
                     <th className="p-2 min-w-[140px]">ROLE / FUNCTION</th>
                     <th className="p-2 min-w-[200px]">TECHNICAL SPECS & NOTES</th>
@@ -617,6 +636,9 @@ export const EquipmentPanel: React.FC = () => {
                     const isMaster = 'usedInSetups' in item;
                     const masterItem = isMaster ? (item as MasterEquipmentItem) : null;
                     const isEditable = scope === 'current';
+
+                    // Models available for this item's category & brand
+                    const modelOptions = getModelsForBrand(item.category, item.brand || '');
 
                     return (
                       <tr
@@ -635,11 +657,16 @@ export const EquipmentPanel: React.FC = () => {
                           {isEditable ? (
                             <select
                               value={item.category}
-                              onChange={(e) =>
+                              onChange={(e) => {
+                                const newCat = e.target.value as EquipmentCategory;
+                                const firstBrand = getBrandsForCategory(newCat)[0] || item.brand;
+                                const firstModel = getModelsForBrand(newCat, firstBrand || '')[0] || item.model;
                                 updateEquipmentItem(item.id, {
-                                  category: e.target.value as EquipmentCategory,
-                                })
-                              }
+                                  category: newCat,
+                                  brand: firstBrand,
+                                  model: firstModel,
+                                });
+                              }}
                               className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer ${meta.badgeBg} ${meta.badgeText}`}
                             >
                               {EQUIPMENT_CATEGORIES.map((c) => (
@@ -689,19 +716,28 @@ export const EquipmentPanel: React.FC = () => {
                           )}
                         </td>
 
-                        {/* 3. Brand (Direct In-Place Edit) */}
+                        {/* 3. Brand (Drop-Down / Autocomplete) */}
                         <td className="p-2 align-middle">
                           {isEditable ? (
-                            <input
-                              type="text"
-                              value={item.brand || ''}
-                              onChange={(e) =>
-                                updateEquipmentItem(item.id, { brand: e.target.value })
-                              }
-                              placeholder="Brand (e.g. Sony)..."
-                              title="Click to edit brand"
-                              className={`${inputClass} font-semibold`}
-                            />
+                            <div className="relative">
+                              <input
+                                type="text"
+                                list={`brand-datalist-${item.category}`}
+                                value={item.brand || ''}
+                                onChange={(e) => {
+                                  const newBrand = e.target.value;
+                                  const models = getModelsForBrand(item.category, newBrand);
+                                  updateEquipmentItem(item.id, {
+                                    brand: newBrand,
+                                    // if current model doesn't match new brand, offer first model
+                                    model: models.length > 0 && !models.includes(item.model || '') ? models[0] : item.model,
+                                  });
+                                }}
+                                placeholder="Brand (e.g. ARRI, Aputure)..."
+                                title="Type or pick from template brands"
+                                className={`${inputClass} font-semibold`}
+                              />
+                            </div>
                           ) : (
                             <span className="font-semibold text-slate-700 dark:text-slate-300">
                               {item.brand || <span className="opacity-30">—</span>}
@@ -709,19 +745,33 @@ export const EquipmentPanel: React.FC = () => {
                           )}
                         </td>
 
-                        {/* 4. Model (Direct In-Place Edit) */}
+                        {/* 4. Model / Variant (Drop-Down / Autocomplete) */}
                         <td className="p-2 align-middle">
                           {isEditable ? (
-                            <input
-                              type="text"
-                              value={item.model || ''}
-                              onChange={(e) =>
-                                updateEquipmentItem(item.id, { model: e.target.value })
-                              }
-                              placeholder="Model / variant..."
-                              title="Click to edit model"
-                              className={`${inputClass} font-mono text-[11px]`}
-                            />
+                            <div>
+                              <datalist id={`model-datalist-${item.id}`}>
+                                {modelOptions.map((m) => (
+                                  <option key={m} value={m} />
+                                ))}
+                              </datalist>
+                              <input
+                                type="text"
+                                list={`model-datalist-${item.id}`}
+                                value={item.model || ''}
+                                onChange={(e) => {
+                                  const newModel = e.target.value;
+                                  // If the user picked a template model, automatically set the item name if matching
+                                  const updates: Partial<EquipmentItem> = { model: newModel };
+                                  if (!item.name || item.name.includes('Package') || item.name.includes('Custom')) {
+                                    updates.name = newModel;
+                                  }
+                                  updateEquipmentItem(item.id, updates);
+                                }}
+                                placeholder="Model / variant..."
+                                title="Type or pick from template models"
+                                className={`${inputClass} font-mono text-[11px]`}
+                              />
+                            </div>
                           ) : (
                             <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
                               {item.model || <span className="opacity-30">—</span>}
@@ -998,7 +1048,7 @@ export const EquipmentPanel: React.FC = () => {
                                   {masterItem.usedInSetups.map((s, sIdx) => (
                                     <span
                                       key={sIdx}
-                                      className="px-1 py-0.2 rounded text-[9px] font-mono bg-violet-500/15 text-violet-300 border border-violet-500/20"
+                                      className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-violet-500/15 text-violet-300 border border-violet-500/20"
                                     >
                                       {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
                                     </span>
@@ -1133,9 +1183,19 @@ export const EquipmentPanel: React.FC = () => {
                 </label>
                 <select
                   value={formData.category}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value as EquipmentCategory })
-                  }
+                  onChange={(e) => {
+                    const newCat = e.target.value as EquipmentCategory;
+                    const brands = getBrandsForCategory(newCat);
+                    const defaultBrand = brands[0] || '';
+                    const defaultModel = getModelsForBrand(newCat, defaultBrand)[0] || '';
+                    setFormData({
+                      ...formData,
+                      category: newCat,
+                      brand: defaultBrand,
+                      model: defaultModel,
+                      name: defaultModel || formData.name,
+                    });
+                  }}
                   className={`w-full p-2 text-xs rounded-lg border font-semibold ${
                     isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
                   }`}
@@ -1148,6 +1208,72 @@ export const EquipmentPanel: React.FC = () => {
                 </select>
               </div>
 
+              {/* Brand & Model Templates Selector */}
+              <div className="grid grid-cols-2 gap-2 bg-slate-500/5 p-2.5 rounded-xl border border-slate-500/20">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider opacity-75">
+                      Brand Template
+                    </label>
+                    <span className="text-[9px] opacity-60">Dropdown</span>
+                  </div>
+                  <select
+                    value={formData.brand}
+                    onChange={(e) => {
+                      const newBrand = e.target.value;
+                      const models = getModelsForBrand(formData.category, newBrand);
+                      const firstModel = models[0] || '';
+                      setFormData({
+                        ...formData,
+                        brand: newBrand,
+                        model: firstModel,
+                        name: firstModel || formData.name,
+                      });
+                    }}
+                    className={`w-full p-1.5 text-xs rounded-lg border font-semibold ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    }`}
+                  >
+                    <option value="">-- Custom Brand --</option>
+                    {getBrandsForCategory(formData.category).map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider opacity-75">
+                      Model Template
+                    </label>
+                    <span className="text-[9px] opacity-60">Dropdown</span>
+                  </div>
+                  <select
+                    value={formData.model}
+                    onChange={(e) => {
+                      const newModel = e.target.value;
+                      setFormData({
+                        ...formData,
+                        model: newModel,
+                        name: newModel || formData.name,
+                      });
+                    }}
+                    className={`w-full p-1.5 text-xs rounded-lg border font-mono text-[11px] ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    }`}
+                  >
+                    <option value="">-- Custom Model --</option>
+                    {getModelsForBrand(formData.category, formData.brand).map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               {/* Item Name & Quantity */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
@@ -1157,10 +1283,10 @@ export const EquipmentPanel: React.FC = () => {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Sony FX6, V-Mount Battery 98Wh, 12G-SDI Cable"
+                    placeholder="e.g. ARRI SkyPanel S60-C, Sony FX6, V-Mount Battery"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border focus:ring-1 focus:ring-sky-500 ${
+                    className={`w-full p-2 text-xs rounded-lg border focus:ring-1 focus:ring-sky-500 font-bold ${
                       isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
                     }`}
                   />
@@ -1183,7 +1309,7 @@ export const EquipmentPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* Brand & Model */}
+              {/* Freehand Brand & Model Customization */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 opacity-75">
@@ -1191,7 +1317,7 @@ export const EquipmentPanel: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Sony, ARRI, Aputure, Matthews"
+                    placeholder="e.g. ARRI, Aputure, Nanlite"
                     value={formData.brand}
                     onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border focus:ring-1 focus:ring-sky-500 ${
@@ -1205,10 +1331,10 @@ export const EquipmentPanel: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. FX6 Cinema Line, 600d Pro"
+                    placeholder="e.g. SkyPanel S60-C, LS 600d Pro"
                     value={formData.model}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border focus:ring-1 focus:ring-sky-500 ${
+                    className={`w-full p-2 text-xs rounded-lg border focus:ring-1 focus:ring-sky-500 font-mono text-[11px] ${
                       isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-800 border-slate-700 text-slate-100'
                     }`}
                   />
@@ -1222,7 +1348,7 @@ export const EquipmentPanel: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. A-Cam Main, Key Light, Overhead Boom, Hero Prop"
+                  placeholder="e.g. Key Light, Backlight / Rim, A-Cam Main, Overhead Boom"
                   value={formData.roleOrFunction}
                   onChange={(e) => setFormData({ ...formData, roleOrFunction: e.target.value })}
                   className={`w-full p-2 text-xs rounded-lg border focus:ring-1 focus:ring-sky-500 ${
