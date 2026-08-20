@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 #right-sidebar:not(.is-fullscreen) {
-  width: var(--sidebar-width, 780px);
+  width: var(--sidebar-width, 860px);
 }
 
 #right-sidebar.is-fullscreen {

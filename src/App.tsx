@@ -23,14 +23,14 @@ const MainLayout: React.FC = () => {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [isRightPanelFullscreen, setIsRightPanelFullscreen] = useState(false);
   const calculateDefaultSidebarWidth = (): number => {
-    if (typeof window === 'undefined') return 780;
+    if (typeof window === 'undefined') return 860;
     const vw = window.innerWidth;
-    // Tailored to 780px so Shot List, Storyboard, Script, Gear Manifest, and Inspector
-    // are 100% readable with all columns visible, without taking extra screen space away from the canvas.
-    if (vw >= 1600) return 780;
-    if (vw >= 1280) return 750;
-    if (vw >= 1024) return 700;
-    return 620;
+    // Extended ~10% more (860px) so Shot List, Storyboard, Script, Gear Manifest, and Inspector
+    // are completely open and readable with comfortable breathing room.
+    if (vw >= 1600) return 860;
+    if (vw >= 1280) return 820;
+    if (vw >= 1024) return 760;
+    return 660;
   };
 
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -38,8 +38,8 @@ const MainLayout: React.FC = () => {
       const saved = localStorage.getItem('openshotdesigner_sidebar_width');
       if (saved) {
         const parsed = Number(saved);
-        // If user previously had an oversized width stored (>920), calibrate to optimal 780px
-        if (!isNaN(parsed) && parsed >= 320 && parsed <= 920) {
+        if (!isNaN(parsed) && parsed >= 320 && parsed <= 1400) {
+          if (parsed <= 800) return 860;
           return parsed;
         }
       }

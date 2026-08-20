@@ -652,17 +652,36 @@ export const EquipmentPanel: React.FC = () => {
               <button
                 key={cat.key}
                 onClick={() => setSelectedCategory(cat.key)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-black whitespace-nowrap transition-colors flex items-center gap-1 border ${
+                className={`px-3 py-1.5 rounded-full text-xs font-black whitespace-nowrap transition-all flex items-center gap-1.5 border shadow-2xs ${
                   selectedCategory === cat.key
-                    ? `${cat.badgeBg} ${cat.badgeText} ${cat.borderColor} ring-2 ring-current shadow-xs`
+                    ? `${cat.badgeBg} ${cat.badgeText} ${cat.borderColor} ring-2 ring-sky-500 shadow-sm`
                     : isLight
-                      ? 'bg-slate-200/90 text-slate-900 border-slate-300 hover:bg-slate-300'
+                      ? 'bg-white text-slate-950 border-slate-300 hover:border-slate-400 hover:bg-slate-100'
                       : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
                 }`}
+                style={
+                  selectedCategory === cat.key && isLight
+                    ? { backgroundColor: cat.accentColor, color: '#ffffff', borderColor: cat.accentColor }
+                    : undefined
+                }
               >
-                {getCategoryIcon(cat.key, 'w-3 h-3')}
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: cat.accentColor }}
+                />
+                {getCategoryIcon(cat.key, 'w-3.5 h-3.5')}
                 <span>{cat.shortLabel}</span>
-                <span className="font-mono text-[10px] opacity-80">({count})</span>
+                <span
+                  className={`font-mono text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    selectedCategory === cat.key
+                      ? 'bg-black/20 text-white'
+                      : isLight
+                        ? 'bg-slate-200 text-slate-950'
+                        : 'bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -815,7 +834,12 @@ export const EquipmentPanel: React.FC = () => {
                                     model: firstModel,
                                   });
                                 }}
-                                className={`text-[10px] font-black uppercase rounded px-2 py-1 border cursor-pointer ${meta.badgeBg} ${meta.badgeText} ${meta.borderColor}`}
+                                className={`text-[11px] font-black uppercase tracking-wide rounded-md px-2 py-1 border shadow-xs cursor-pointer ${meta.badgeBg} ${meta.badgeText} ${meta.borderColor}`}
+                                style={{
+                                  backgroundColor: isLight ? meta.accentColor : undefined,
+                                  color: isLight ? '#ffffff' : undefined,
+                                  borderColor: isLight ? meta.accentColor : undefined,
+                                }}
                               >
                                 {EQUIPMENT_CATEGORIES.map((c) => (
                                   <option key={c.key} value={c.key} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
@@ -825,7 +849,12 @@ export const EquipmentPanel: React.FC = () => {
                               </select>
                             ) : (
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-black inline-flex items-center gap-1 border ${meta.badgeBg} ${meta.badgeText} ${meta.borderColor}`}
+                                className={`px-2 py-0.5 rounded-md text-[11px] font-black inline-flex items-center gap-1.5 border shadow-xs ${meta.badgeBg} ${meta.badgeText} ${meta.borderColor}`}
+                                style={{
+                                  backgroundColor: isLight ? meta.accentColor : undefined,
+                                  color: isLight ? '#ffffff' : undefined,
+                                  borderColor: isLight ? meta.accentColor : undefined,
+                                }}
                               >
                                 {getCategoryIcon(item.category, 'w-3 h-3')}
                                 <span>{meta.shortLabel}</span>
@@ -1247,7 +1276,12 @@ export const EquipmentPanel: React.FC = () => {
                                                         category: e.target.value as EquipmentCategory,
                                                       })
                                                     }
-                                                    className={`text-[9px] font-black uppercase rounded px-1.5 py-0.5 border cursor-pointer ${subMeta.badgeBg} ${subMeta.badgeText} ${subMeta.borderColor}`}
+                                                    className={`text-[10px] font-black uppercase tracking-wide rounded px-2 py-0.5 border shadow-2xs cursor-pointer ${subMeta.badgeBg} ${subMeta.badgeText} ${subMeta.borderColor}`}
+                                                    style={{
+                                                      backgroundColor: isLight ? subMeta.accentColor : undefined,
+                                                      color: isLight ? '#ffffff' : undefined,
+                                                      borderColor: isLight ? subMeta.accentColor : undefined,
+                                                    }}
                                                   >
                                                     {EQUIPMENT_CATEGORIES.map((c) => (
                                                       <option key={c.key} value={c.key} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
@@ -1256,7 +1290,14 @@ export const EquipmentPanel: React.FC = () => {
                                                     ))}
                                                   </select>
                                                 ) : (
-                                                  <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${subMeta.badgeBg} ${subMeta.badgeText} ${subMeta.borderColor}`}>
+                                                  <span
+                                                    className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border shadow-2xs ${subMeta.badgeBg} ${subMeta.badgeText} ${subMeta.borderColor}`}
+                                                    style={{
+                                                      backgroundColor: isLight ? subMeta.accentColor : undefined,
+                                                      color: isLight ? '#ffffff' : undefined,
+                                                      borderColor: isLight ? subMeta.accentColor : undefined,
+                                                    }}
+                                                  >
                                                     {subMeta.shortLabel}
                                                   </span>
                                                 )}
