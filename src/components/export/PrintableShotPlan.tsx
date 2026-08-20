@@ -983,11 +983,11 @@ export const PrintableShotPlan: React.FC = () => {
                         <thead>
                           <tr className="border-b border-slate-300 text-slate-600 font-bold uppercase text-[9px] font-mono">
                             <th className="py-1 px-1.5 w-12 text-center">Qty</th>
-                            <th className="py-1 px-1.5 w-24">Department</th>
-                            <th className="py-1 px-1.5">Item Name & Model</th>
-                            <th className="py-1 px-1.5">Brand</th>
+                            <th className="py-1 px-1.5 w-28">Brand</th>
+                            <th className="py-1 px-1.5">Unit Name / Model</th>
                             <th className="py-1 px-1.5">Role / Function</th>
-                            <th className="py-1 px-1.5 text-right">Technical Specs</th>
+                            <th className="py-1 px-1.5 w-24">Department</th>
+                            <th className="py-1 px-1.5 text-right">Specs / Output</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
@@ -996,17 +996,12 @@ export const PrintableShotPlan: React.FC = () => {
                             return (
                               <tr key={item.id} className="hover:bg-slate-100/60 font-sans">
                                 <td className="py-1 px-1.5 font-bold font-mono text-sky-700 text-center">x{item.quantity}</td>
-                                <td className="py-1 px-1.5">
-                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono">
-                                    {meta.shortLabel}
-                                  </span>
-                                </td>
+                                <td className="py-1 px-1.5 font-semibold text-slate-800">{item.brand || 'Generic / Unspecified'}</td>
                                 <td className="py-1 px-1.5 font-bold text-slate-900">
                                   {item.name} {item.model && item.model !== item.name && (
                                     <span className="font-normal text-slate-500 font-mono text-[10px]">({item.model})</span>
                                   )}
                                 </td>
-                                <td className="py-1 px-1.5 font-semibold text-slate-800">{item.brand || '—'}</td>
                                 <td className="py-1 px-1.5 text-slate-700">
                                   {item.roleOrFunction ? (
                                     <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-semibold">
@@ -1015,6 +1010,11 @@ export const PrintableShotPlan: React.FC = () => {
                                   ) : (
                                     '—'
                                   )}
+                                </td>
+                                <td className="py-1 px-1.5">
+                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono">
+                                    {meta.shortLabel}
+                                  </span>
                                 </td>
                                 <td className="py-1 px-1.5 text-right text-slate-600 text-[10px] font-mono">{item.specs || '—'}</td>
                               </tr>
@@ -1077,11 +1077,11 @@ export const PrintableShotPlan: React.FC = () => {
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-300 text-slate-700 font-bold text-[10px] font-mono uppercase">
-                              <th className="p-2 w-1/4">ITEM & MODEL</th>
-                              <th className="p-2 w-1/6">BRAND</th>
                               <th className="p-2 w-12 font-mono text-center">QTY</th>
+                              <th className="p-2 w-1/5">BRAND</th>
+                              <th className="p-2 w-1/4">UNIT NAME & MODEL</th>
                               <th className="p-2 w-1/5">ROLE / FUNCTION</th>
-                              <th className="p-2">TECHNICAL SPECS / NOTES</th>
+                              <th className="p-2">SPECS / OUTPUT / NOTES</th>
                               {equipmentScope === 'all' && (
                                 <th className="p-2 w-1/5 font-mono text-[9px]">SCENE BREAKDOWN</th>
                               )}
@@ -1093,23 +1093,29 @@ export const PrintableShotPlan: React.FC = () => {
                               const masterItem = isMaster ? (item as any) : null;
 
                               return (
-                                <tr key={item.id} className="hover:bg-slate-50/60">
-                                  <td className="p-2 align-top">
+                                <tr key={item.id} className="hover:bg-slate-50/60 font-mono">
+                                  <td className="p-2 align-top font-mono font-bold text-sky-700 text-center">
+                                    x{item.quantity}
+                                  </td>
+                                  <td className="p-2 align-top font-semibold text-slate-800 font-sans">
+                                    {item.brand || '—'}
+                                  </td>
+                                  <td className="p-2 align-top font-sans">
                                     <div className="font-bold text-slate-900">{item.name}</div>
                                     {item.model && item.model !== item.name && (
                                       <div className="text-[10px] font-mono text-slate-500">{item.model}</div>
                                     )}
                                   </td>
-                                  <td className="p-2 align-top font-semibold text-slate-800">
-                                    {item.brand || '—'}
+                                  <td className="p-2 align-top text-slate-700 font-sans">
+                                    {item.roleOrFunction ? (
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-semibold">
+                                        {item.roleOrFunction}
+                                      </span>
+                                    ) : (
+                                      '—'
+                                    )}
                                   </td>
-                                  <td className="p-2 align-top font-mono font-black text-slate-900 text-center">
-                                    {item.quantity}
-                                  </td>
-                                  <td className="p-2 align-top text-slate-700">
-                                    {item.roleOrFunction || '—'}
-                                  </td>
-                                  <td className="p-2 align-top text-slate-600 text-[11px] leading-relaxed">
+                                  <td className="p-2 align-top text-slate-600 text-[11px] leading-relaxed font-sans">
                                     {item.specs || '—'}
                                   </td>
                                   {equipmentScope === 'all' && masterItem && (
