@@ -1048,68 +1048,7 @@ const formatPropEquipment = (prop: PropElement): { category: EquipmentCategory; 
   }
 };
 
-export const getDefaultCameraPackageItems = (letter: string): EquipmentPackageItem[] => [
-  {
-    id: `pkg-${letter}-batt`,
-    category: 'power_media',
-    name: 'V-Mount Batteries (4-Pack) & Quad Fast Charger',
-    brand: 'Anton Bauer / Core SWX',
-    model: 'Titon 150 V-Mount (156Wh) & Quad Charger',
-    quantity: 4,
-    roleOrFunction: `Camera ${letter} Power`,
-    specs: '14.4V High-Draw · D-Tap / USB Outputs · 4-Bay Simultaneous Charger',
-  },
-  {
-    id: `pkg-${letter}-media`,
-    category: 'power_media',
-    name: 'Cinema Media Cards (4-Pack) & High-Speed Reader',
-    brand: 'SanDisk Pro / Angelbird',
-    model: 'CFexpress Type B 512GB (VPG400) / SD V90',
-    quantity: 4,
-    roleOrFunction: `Camera ${letter} Recording Media`,
-    specs: '1700 MB/s Read · 1500 MB/s Write · USB-C 20Gbps Reader',
-  },
-  {
-    id: `pkg-${letter}-mon`,
-    category: 'camera',
-    name: '7" On-Camera High-Bright Daylight Monitor',
-    brand: 'SmallHD',
-    model: 'Cine 7 / 702 Touch 7" Monitor',
-    quantity: 1,
-    roleOrFunction: `Camera ${letter} Focus / Operator Monitor`,
-    specs: '1800 nits Daylight Viewable · 12G-SDI & HDMI · PageOS 5 Focus Peaking',
-  },
-  {
-    id: `pkg-${letter}-tx`,
-    category: 'camera',
-    name: 'Zero-Delay Wireless Video Transmitter',
-    brand: 'Teradek',
-    model: 'Bolt 4K LT 750 Transmitter',
-    quantity: 1,
-    roleOrFunction: `Camera ${letter} Director / Video Village Feed`,
-    specs: '750ft Range · Zero-Delay 4K HDR · 12G-SDI & HDMI Loopout',
-  },
-  {
-    id: `pkg-${letter}-focus`,
-    category: 'camera',
-    name: 'Wireless Lens Follow Focus & Motor Kit',
-    brand: 'Tilta / ARRI',
-    model: 'Nucleus-M Wireless Follow Focus System',
-    quantity: 1,
-    roleOrFunction: `1st AC Focus Pulling`,
-    specs: 'Hand Unit FIZ Controller · High-Torque Lens Motors · Dual Handgrips',
-  },
-  {
-    id: `pkg-${letter}-mattebox`,
-    category: 'camera',
-    name: 'Lightweight Clamp-On Matte Box & VND Filter',
-    brand: 'Tilta / ARRI',
-    model: 'Mirage 4x5.65 Matte Box w/ VND Kit',
-    quantity: 1,
-    roleOrFunction: `Light Flare Control & Variable ND`,
-    specs: '4x5.65" Filter Trays · 95mm Clamp Adapter · Carbon Fiber Top Flag',
-  },
-];
+export const getDefaultCameraPackageItems = (_letter: string): EquipmentPackageItem[] => [];
 
 export const CAMERA_PACKAGE_PRESETS: {
   name: string;

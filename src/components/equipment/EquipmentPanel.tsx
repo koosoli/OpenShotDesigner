@@ -72,12 +72,8 @@ export const EquipmentPanel: React.FC = () => {
   const [editingItem, setEditingItem] = useState<EquipmentItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // Expand / collapse state for packages (defaults all packages to expanded so user immediately sees their kit)
-  const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({
-    'auto-cam-letter-A': true,
-    'auto-cam-letter-B': true,
-    'auto-cam-letter-C': true,
-  });
+  // Expand / collapse state for packages (collapsed by default so user controls expansion)
+  const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({});
 
   // Package target when adding an accessory to a specific package
   const [activePackageTargetId, setActivePackageTargetId] = useState<string | null>(null);
@@ -695,7 +691,7 @@ export const EquipmentPanel: React.FC = () => {
                     const masterItem = isMaster ? (item as MasterEquipmentItem) : null;
                     const isEditable = scope === 'current';
                     const isPackage = item.isPackage || (item.packageItems && item.packageItems.length > 0) || item.name.includes('Package');
-                    const isExpanded = expandedPackages[item.id] ?? (isPackage ? true : false);
+                    const isExpanded = !!expandedPackages[item.id];
                     const packageItems = item.packageItems || [];
 
                     // Models available for this item's category & brand
@@ -1359,7 +1355,7 @@ export const EquipmentPanel: React.FC = () => {
                       const isMaster = 'usedInSetups' in item;
                       const masterItem = isMaster ? (item as MasterEquipmentItem) : null;
                       const isPackage = item.isPackage || (item.packageItems && item.packageItems.length > 0) || item.name.includes('Package');
-                      const isExpanded = expandedPackages[item.id] ?? (isPackage ? true : false);
+                      const isExpanded = !!expandedPackages[item.id];
                       const packageItems = item.packageItems || [];
 
                       return (
