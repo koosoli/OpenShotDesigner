@@ -33,10 +33,18 @@ import { StoryboardThumbLayer } from '../canvas/StoryboardThumbLayer';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
 import { slotsOf, boardedFrames, visibleStoryboardSlots } from '../../utils/storyboardFrames';
+import { exportEquipmentToCsv } from '../../utils/exportEquipmentCsv';
+import {
+  deriveSceneEquipment,
+  deriveAllScenesEquipment,
+  EQUIPMENT_CATEGORIES,
+  getCategoryMeta,
+} from '../../utils/equipmentList';
 import { Shot } from '../../types';
 import {
   AppWindow,
   ArrowRight,
+  Boxes,
   Camera,
   DoorClosed,
   Download,
@@ -48,6 +56,7 @@ import {
   Layers,
   MapPin,
   Maximize2,
+  Package,
   Printer,
   Sparkles,
   Sun,
@@ -77,8 +86,11 @@ export const PrintableShotPlan: React.FC = () => {
   const [omitBlankWaypoints, setOmitBlankWaypoints] = useState(
     displaySettings.hideBlankStoryboardWaypoints ?? false
   );
+  const [equipmentScope, setEquipmentScope] = useState<'current' | 'all'>('current');
   const [exportViewMode, setExportViewMode] = useState<'full' | 'canvas'>('full');
   const [customOverrides, setCustomOverrides] = useState<Partial<DisplaySettings>>({});
+  const [scriptScope, setScriptScope] = useState<'lined' | 'full'>('lined');
+  const floorPlanSvgRef = useRef<SVGSVGElement>(null);
 
   // When the export opens, default the storyboard toggle ON if any shot has a
   // storyboard attached (still fully toggleable off/on by the user).
@@ -233,10 +245,13 @@ export const PrintableShotPlan: React.FC = () => {
     });
   };
 
-  // A lined script prints the covered material by default; the full screenplay
-  // is one click away.
-  const [scriptScope, setScriptScope] = useState<'lined' | 'full'>('lined');
-  const floorPlanSvgRef = useRef<SVGSVGElement>(null);
+  const exportEquipmentItems = React.useMemo(
+    () =>
+      equipmentScope === 'all'
+        ? deriveAllScenesEquipment(project.setups || [activeSetup])
+        : deriveSceneEquipment(activeSetup),
+    [equipmentScope, project.setups, activeSetup]
+  );
 
   if (!isExportModalOpen) return null;
 
@@ -274,6 +289,24 @@ export const PrintableShotPlan: React.FC = () => {
   // Default export scope: only the screenplay the user actually lined.
   const printedScriptLines =
     scriptScope === 'full' ? scriptLines : linedExcerpt(scriptLines, allScriptMarks);
+
+  const handleExportPng = () => {
+    if (floorPlanSvgRef.current) {
+      exportSvgAsPng(floorPlanSvgRef.current, {
+        scale: pngScale,
+        logo: project.logo,
+        fileName: `FloorPlan_Scene_${activeSetup.sceneNumber || '1'}_${activeSetup.name.replace(/[^a-zA-Z0-9]/g, '_')}.png`,
+        title: project.title,
+        subtitle: `SCENE ${activeSetup.sceneNumber}: ${activeSetup.name}`,
+        meta: [
+          `DATE: ${project.date || new Date().toISOString().split('T')[0]}`,
+          `DIR: ${project.director || '—'}`,
+          `DP: ${project.cinematographer || '—'}`,
+          `${activeSetup.location} (${activeSetup.timeOfDay})`,
+        ],
+      });
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -387,6 +420,16 @@ export const PrintableShotPlan: React.FC = () => {
                 Lined Script
               </button>
               <button
+                onClick={() => setExportSection('equipment')}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
+                  exportSection === 'equipment'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Equipment List
+              </button>
+              <button
                 onClick={() => setExportSection('combined')}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                   exportSection === 'combined'
@@ -419,24 +462,8 @@ export const PrintableShotPlan: React.FC = () => {
                   <option value={3}>3x</option>
                 </select>
                 <button
-                  onClick={() => {
-                    if (floorPlanSvgRef.current) {
-                      exportSvgAsPng(floorPlanSvgRef.current, {
-                        scale: pngScale,
-                        logo: project.logo,
-                        fileName: `FloorPlan_Scene_${activeSetup.sceneNumber || '1'}_${activeSetup.name.replace(/[^a-zA-Z0-9]/g, '_')}.png`,
-                        title: project.title,
-                        subtitle: `SCENE ${activeSetup.sceneNumber}: ${activeSetup.name}`,
-                        meta: [
-                          `DATE: ${project.date || new Date().toISOString().split('T')[0]}`,
-                          `DIR: ${project.director || '—'}`,
-                          `DP: ${project.cinematographer || '—'}`,
-                          `${activeSetup.location} (${activeSetup.timeOfDay})`,
-                        ],
-                      });
-                    }
-                  }}
-                  title="Download Floor Plan as PNG image"
+                  onClick={handleExportPng}
+                  title="Download transparent high-resolution PNG"
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold transition-colors"
                 >
                   <Download className="w-4 h-4" />
@@ -462,6 +489,52 @@ export const PrintableShotPlan: React.FC = () => {
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   <span>All Scenes</span>
+                </button>
+              </div>
+            )}
+
+            {/* Equipment Scope Switcher & CSV Export (Current Scene vs All Scenes) */}
+            {(exportSection === 'equipment' || exportSection === 'combined') && (
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-xs font-semibold">
+                  <button
+                    onClick={() => setEquipmentScope('current')}
+                    className={`px-2 py-1 rounded transition-colors ${
+                      equipmentScope === 'current'
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    Scene {activeSetup.sceneNumber || '1'} Gear
+                  </button>
+                  <button
+                    onClick={() => setEquipmentScope('all')}
+                    className={`px-2 py-1 rounded transition-colors ${
+                      equipmentScope === 'all'
+                        ? 'bg-violet-600 text-white shadow-xs'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    All Scenes Master Truck
+                  </button>
+                </div>
+
+                <button
+                  onClick={() =>
+                    exportEquipmentToCsv(
+                      activeSetup,
+                      project.title,
+                      equipmentScope,
+                      project.setups || [activeSetup]
+                    )
+                  }
+                  title={`Download ${
+                    equipmentScope === 'all' ? 'All Scenes Master Truck' : `Scene ${activeSetup.sceneNumber || '1'}`
+                  } equipment manifest as Excel / CSV spreadsheet`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>CSV Spreadsheet</span>
                 </button>
               </div>
             )}
@@ -672,6 +745,8 @@ export const PrintableShotPlan: React.FC = () => {
                       ? '• STORYBOARD'
                       : exportSection === 'linedscript'
                       ? '• LINED SHOOTING SCRIPT'
+                      : exportSection === 'equipment'
+                      ? (equipmentScope === 'all' ? '• ALL SCENES MASTER TRUCK MANIFEST' : '• SCENE EQUIPMENT PACKAGE')
                       : '• COMPLETE PRODUCTION CALL SHEET'}
                   </span>
                 </div>
@@ -679,7 +754,9 @@ export const PrintableShotPlan: React.FC = () => {
                   {project.title}
                 </h1>
                 <h2 className="text-sm font-bold text-slate-700">
-                  SCENE {activeSetup.sceneNumber}: {activeSetup.name}
+                  {exportSection === 'equipment' && equipmentScope === 'all'
+                    ? `ALL ${project.setups?.length || 1} SCENES MASTER PRODUCTION MANIFEST`
+                    : `SCENE ${activeSetup.sceneNumber}: ${activeSetup.name}`}
                 </h2>
                 </div>
               </div>
@@ -889,71 +966,172 @@ export const PrintableShotPlan: React.FC = () => {
                 </div>
 
                 <div className="col-span-1 md:col-span-3 p-3 bg-slate-50 border border-slate-300 rounded-lg">
-                  <span className="font-bold uppercase text-[10px] text-slate-600 block mb-2 tracking-wider">
-                    Equipment List & Lighting Inventory ({lights.length} Total Units)
-                  </span>
-                  {lights.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 italic">No lighting fixtures or grip equipment in this setup.</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold uppercase text-[10px] text-slate-700 tracking-wider flex items-center gap-1">
+                      <Boxes className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Scene {activeSetup.sceneNumber || '1'} Production Gear Package ({deriveSceneEquipment(activeSetup).reduce((s, i) => s + i.quantity, 0)} Total Units)</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-500">
+                      {deriveSceneEquipment(activeSetup).length} gear types
+                    </span>
+                  </div>
+                  {deriveSceneEquipment(activeSetup).length === 0 ? (
+                    <p className="text-[11px] text-slate-400 italic">No equipment recorded for this scene.</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-[11px] text-left border-collapse">
                         <thead>
-                          <tr className="border-b border-slate-300 text-slate-500 font-bold uppercase text-[9px]">
-                            <th className="py-1 px-1.5">Qty</th>
+                          <tr className="border-b border-slate-300 text-slate-600 font-bold uppercase text-[9px] font-mono">
+                            <th className="py-1 px-1.5 w-12 text-center">Qty</th>
+                            <th className="py-1 px-1.5 w-24">Department</th>
+                            <th className="py-1 px-1.5">Item Name & Model</th>
                             <th className="py-1 px-1.5">Brand</th>
-                            <th className="py-1 px-1.5">Unit Name / Model</th>
                             <th className="py-1 px-1.5">Role / Function</th>
-                            <th className="py-1 px-1.5">Fixture Type</th>
-                            <th className="py-1 px-1.5 text-right">Specs / Output</th>
+                            <th className="py-1 px-1.5 text-right">Technical Specs</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                          {(() => {
-                            const map = new Map<
-                              string,
-                              { brand: string; model: string; role: string; type: string; qty: number; specs: string }
-                            >();
-                            lights.forEach((l) => {
-                              const typeObj = LIGHT_FIXTURES.find((f) => f.type === l.fixtureType);
-                              const typeName = typeObj ? typeObj.name : l.fixtureType;
-                              const brand = l.brand || 'Generic / Unspecified';
-                              const unitName = isFlagFixture(l.fixtureType) ? flagLabel(l) : (l.name || l.fixtureModel || typeName);
-                              const roleObj = LIGHT_ROLES.find((r) => r.value === l.lightRole);
-                              const roleLabel = roleObj ? roleObj.label : 'Unassigned';
-                              const specs = isFlagFixture(l.fixtureType)
-                                ? (l.lightRole && l.lightRole !== 'unassigned' ? roleLabel : 'Grip / Flag')
-                                : `${l.colorTemp > 0 ? `${l.colorTemp}K` : 'RGB'} @ ${l.intensity}%`;
-
-                              const key = `${brand}|${unitName}|${roleLabel}|${specs}`;
-                              const existing = map.get(key);
-                              if (existing) {
-                                existing.qty += 1;
-                              } else {
-                                map.set(key, { brand, model: unitName, role: roleLabel, type: typeName, qty: 1, specs });
-                              }
-                            });
-
-                            return Array.from(map.values()).map((item, idx) => (
-                              <tr key={idx} className="hover:bg-slate-100/60 font-mono">
-                                <td className="py-1 px-1.5 font-bold text-sky-600">x{item.qty}</td>
-                                <td className="py-1 px-1.5 font-semibold text-slate-800">{item.brand}</td>
-                                <td className="py-1 px-1.5 font-bold text-slate-900">{item.model}</td>
-                                <td className="py-1 px-1.5 text-slate-700">
-                                  <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-sans font-semibold">
-                                    {item.role}
+                          {deriveSceneEquipment(activeSetup).map((item) => {
+                            const meta = getCategoryMeta(item.category);
+                            return (
+                              <tr key={item.id} className="hover:bg-slate-100/60 font-sans">
+                                <td className="py-1 px-1.5 font-bold font-mono text-sky-700 text-center">x{item.quantity}</td>
+                                <td className="py-1 px-1.5">
+                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono">
+                                    {meta.shortLabel}
                                   </span>
                                 </td>
-                                <td className="py-1 px-1.5 text-slate-600 font-sans">{item.type}</td>
-                                <td className="py-1 px-1.5 text-right font-semibold text-slate-700">{item.specs}</td>
+                                <td className="py-1 px-1.5 font-bold text-slate-900">
+                                  {item.name} {item.model && item.model !== item.name && (
+                                    <span className="font-normal text-slate-500 font-mono text-[10px]">({item.model})</span>
+                                  )}
+                                </td>
+                                <td className="py-1 px-1.5 font-semibold text-slate-800">{item.brand || '—'}</td>
+                                <td className="py-1 px-1.5 text-slate-700">
+                                  {item.roleOrFunction ? (
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-semibold">
+                                      {item.roleOrFunction}
+                                    </span>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </td>
+                                <td className="py-1 px-1.5 text-right text-slate-600 text-[10px] font-mono">{item.specs || '—'}</td>
                               </tr>
-                            ));
-                          })()}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* SECTION E: PRODUCTION EQUIPMENT PACKAGE & GEAR MANIFEST                   */}
+          {/* ========================================================================= */}
+          {(exportSection === 'equipment' || exportSection === 'combined') && (
+            <div className="mb-8 break-inside-avoid">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <Boxes className="w-4 h-4 text-sky-600" />
+                  <span>
+                    {equipmentScope === 'all'
+                      ? 'Master Production Equipment Package & Truck Manifest (All Scenes)'
+                      : `Scene ${activeSetup.sceneNumber || '1'} Equipment Package`}
+                  </span>
+                </h3>
+                <span className="font-mono text-xs font-bold text-slate-700">
+                  {exportEquipmentItems.reduce((sum, i) => sum + i.quantity, 0)} TOTAL UNITS · {exportEquipmentItems.length} GEAR TYPES
+                </span>
+              </div>
+
+              {exportEquipmentItems.length === 0 ? (
+                <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                  No equipment recorded for this scene. Add cameras, lights, or custom gear in the Equipment tab.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {EQUIPMENT_CATEGORIES.map((cat) => {
+                    const items = exportEquipmentItems.filter((i) => i.category === cat.key);
+                    if (items.length === 0) return null;
+                    const catTotal = items.reduce((sum, i) => sum + i.quantity, 0);
+
+                    return (
+                      <div key={cat.key} className="border border-slate-900 rounded-lg overflow-hidden break-inside-avoid">
+                        {/* Rubric Header Banner */}
+                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-900 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-900">
+                              {cat.label}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-600">
+                              ({items.length} items · {catTotal} units)
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Rubric Table */}
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-300 text-slate-700 font-bold text-[10px] font-mono uppercase">
+                              <th className="p-2 w-1/4">ITEM & MODEL</th>
+                              <th className="p-2 w-1/6">BRAND</th>
+                              <th className="p-2 w-12 font-mono text-center">QTY</th>
+                              <th className="p-2 w-1/5">ROLE / FUNCTION</th>
+                              <th className="p-2">TECHNICAL SPECS / NOTES</th>
+                              {equipmentScope === 'all' && (
+                                <th className="p-2 w-1/5 font-mono text-[9px]">SCENE BREAKDOWN</th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {items.map((item) => {
+                              const isMaster = 'usedInSetups' in item;
+                              const masterItem = isMaster ? (item as any) : null;
+
+                              return (
+                                <tr key={item.id} className="hover:bg-slate-50/60">
+                                  <td className="p-2 align-top">
+                                    <div className="font-bold text-slate-900">{item.name}</div>
+                                    {item.model && item.model !== item.name && (
+                                      <div className="text-[10px] font-mono text-slate-500">{item.model}</div>
+                                    )}
+                                  </td>
+                                  <td className="p-2 align-top font-semibold text-slate-800">
+                                    {item.brand || '—'}
+                                  </td>
+                                  <td className="p-2 align-top font-mono font-black text-slate-900 text-center">
+                                    {item.quantity}
+                                  </td>
+                                  <td className="p-2 align-top text-slate-700">
+                                    {item.roleOrFunction || '—'}
+                                  </td>
+                                  <td className="p-2 align-top text-slate-600 text-[11px] leading-relaxed">
+                                    {item.specs || '—'}
+                                  </td>
+                                  {equipmentScope === 'all' && masterItem && (
+                                    <td className="p-2 align-top text-[10px] font-mono text-slate-600">
+                                      <div>
+                                        {masterItem.usedInSetups.map((s: any) => (s.sceneNumber ? `Sc ${s.sceneNumber} (×${s.quantity})` : `${s.name} (×${s.quantity})`)).join(', ')}
+                                      </div>
+                                      <div className="text-[9px] text-slate-400 mt-0.5">
+                                        Peak: {masterItem.maxConcurrentQuantity} concurrent
+                                      </div>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

@@ -11,10 +11,12 @@ import { InspectorPanel } from './components/inspector/InspectorPanel';
 import { ViewfinderModal } from './components/viewfinder/ViewfinderModal';
 import { PrintableShotPlan } from './components/export/PrintableShotPlan';
 import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
+import { EquipmentPanel } from './components/equipment/EquipmentPanel';
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { useBreakpoint } from './utils/useMediaQuery';
-import { AlertTriangle, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Maximize2, Minimize2, X } from 'lucide-react';
+import { AlertTriangle, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Boxes } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { deriveSceneEquipment } from './utils/equipmentList';
 
 const MainLayout: React.FC = () => {
   const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning } = useFloorPlan();
@@ -28,6 +30,10 @@ const MainLayout: React.FC = () => {
 
   const isLight = theme === 'light';
   const sheetHeight = sheetSize === 'peek' ? '3.25rem' : sheetSize === 'full' ? '88vh' : 'min(52vh, 520px)';
+  const sceneEquipCount = React.useMemo(
+    () => deriveSceneEquipment(activeSetup).reduce((sum, item) => sum + item.quantity, 0),
+    [activeSetup]
+  );
 
   // Exit fullscreen on Escape key
   React.useEffect(() => {
@@ -197,9 +203,30 @@ const MainLayout: React.FC = () => {
                 </button>
 
                 <button
+                  id="tab-equipment"
+                  onClick={() => setActiveRightTab('equipment')}
+                  title="Per-scene equipment list & production gear manifest"
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                    activeRightTab === 'equipment'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : isLight
+                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <Boxes className="w-3.5 h-3.5" />
+                  <span>Gear</span>
+                  <span className={`ml-0.5 px-1 py-0.2 text-[10px] font-mono rounded-full ${
+                    isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-950/80 text-slate-300'
+                  }`}>
+                    {sceneEquipCount}
+                  </span>
+                </button>
+
+                <button
                   id="tab-inspector"
                   onClick={() => setActiveRightTab('inspector')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
                     activeRightTab === 'inspector'
                       ? 'bg-sky-600 text-white shadow-sm'
                       : isLight
@@ -291,6 +318,8 @@ const MainLayout: React.FC = () => {
                 <StoryboardPanel />
               ) : activeRightTab === 'script' ? (
                 <ScriptPanel />
+              ) : activeRightTab === 'equipment' ? (
+                <EquipmentPanel />
               ) : (
                 <InspectorPanel />
               )}

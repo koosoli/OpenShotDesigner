@@ -19,6 +19,7 @@ import {
   ScriptLine,
   ScriptMark,
   Shot,
+  EquipmentItem,
   Vector2D,
 } from '../types';
 import {
@@ -46,9 +47,10 @@ import {
   setActiveProjectId,
   writeProject,
 } from '../utils/projectLibrary';
+import { deriveSceneEquipment } from '../utils/equipmentList';
 
 /** Sections available in the export / print studio. */
-export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'combined';
+export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'equipment' | 'combined';
 
 /**
  * Collision-proof ids. `Date.now()` alone repeats when two shots are created
@@ -82,7 +84,7 @@ interface FloorPlanContextType {
   isViewfinderOpen: boolean;
   viewfinderCameraId: string | null;
   isExportModalOpen: boolean;
-  /** Which tab the export modal opens on (floor plan, shot list, lined script). */
+  /** Which tab the export modal opens on (floor plan, shot list, lined script, equipment). */
   exportSection: ExportSection;
   theme: 'dark' | 'light';
   displaySettings: DisplaySettings;
@@ -100,13 +102,19 @@ interface FloorPlanContextType {
   setShapeType: (shape: ShapeType) => void;
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
-  activeRightTab: 'shots' | 'storyboard' | 'script' | 'inspector';
-  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'inspector') => void;
+  activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'inspector';
+  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'inspector') => void;
   selectElement: (id: string | null, multi?: boolean) => void;
   selectElements: (ids: string[]) => void;
   clearSelection: () => void;
   selectShot: (shotId: string | null, focusCanvasCamera?: boolean) => void;
   setHighlightedElement: (id: string | null) => void;
+
+  // Equipment List Actions
+  addCustomEquipmentItem: (item: Omit<EquipmentItem, 'id'>) => void;
+  updateEquipmentItem: (id: string, updates: Partial<EquipmentItem>) => void;
+  deleteEquipmentItem: (id: string) => void;
+  resetSceneEquipment: () => void;
 
   // Element CRUD
   addElement: (element: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }) => string;
@@ -599,7 +607,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [exportSection, setExportSection] = useState<ExportSection>('floorplan');
 
   // Right Sidebar Tab State
-  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'inspector'>('shots');
+  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'equipment' | 'inspector'>('shots');
   const [scriptLinkShotId, setScriptLinkShotId] = useState<string | null>(null);
 
   // Playback engine
@@ -752,9 +760,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const isCamera = el?.type === 'camera';
 
     // Selecting on the canvas opens the inspector — unless:
-    // 1. The user is reading the lined script or storyboard.
+    // 1. The user is reading the lined script, storyboard, or equipment list.
     // 2. The element is a camera, which only opens inspector on double-click unless inspector is already open.
-    if (activeRightTab !== 'script' && activeRightTab !== 'storyboard') {
+    if (activeRightTab !== 'script' && activeRightTab !== 'storyboard' && activeRightTab !== 'equipment') {
       if (!isCamera || activeRightTab === 'inspector') {
         setActiveRightTab('inspector');
       }
@@ -787,7 +795,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedElementIds(ids);
     if (ids.length > 0) {
       const allCameras = ids.every((id) => activeSetup.elements.find((e) => e.id === id)?.type === 'camera');
-      if (activeRightTab !== 'script' && activeRightTab !== 'storyboard') {
+      if (activeRightTab !== 'script' && activeRightTab !== 'storyboard' && activeRightTab !== 'equipment') {
         if (!allCameras || activeRightTab === 'inspector') {
           setActiveRightTab('inspector');
         }
@@ -3199,6 +3207,56 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
   const closeExportModal = () => setIsExportModalOpen(false);
 
+  // Equipment Management
+  const addCustomEquipmentItem = (item: Omit<EquipmentItem, 'id'>) => {
+    const newItem: EquipmentItem = {
+      ...item,
+      id: `equip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      isCustom: true,
+    };
+    const current = activeSetup.customEquipment || [];
+    updateSetupMeta({ customEquipment: [...current, newItem] });
+  };
+
+  const updateEquipmentItem = (id: string, updates: Partial<EquipmentItem>) => {
+    const current = activeSetup.customEquipment || [];
+    const existingIndex = current.findIndex((c) => c.id === id || c.elementId === id);
+    if (existingIndex >= 0) {
+      const next = [...current];
+      next[existingIndex] = { ...next[existingIndex], ...updates };
+      updateSetupMeta({ customEquipment: next });
+    } else {
+      // Find the base item in derived equipment to preserve all auto attributes
+      const allDerived = deriveSceneEquipment(activeSetup);
+      const baseItem = allDerived.find((d) => d.id === id || d.elementId === id);
+      const newItem: EquipmentItem = {
+        id,
+        elementId: id.startsWith('auto-') ? id.replace(/^auto-[a-z]+-/, '') : undefined,
+        category: updates.category || baseItem?.category || 'other',
+        name: updates.name !== undefined ? updates.name : (baseItem?.name || 'Equipment Item'),
+        brand: updates.brand !== undefined ? updates.brand : baseItem?.brand,
+        model: updates.model !== undefined ? updates.model : baseItem?.model,
+        quantity: updates.quantity !== undefined ? updates.quantity : (baseItem?.quantity || 1),
+        roleOrFunction: updates.roleOrFunction !== undefined ? updates.roleOrFunction : baseItem?.roleOrFunction,
+        specs: updates.specs !== undefined ? updates.specs : baseItem?.specs,
+        notes: updates.notes !== undefined ? updates.notes : baseItem?.notes,
+        isCustom: false,
+        ...updates,
+      };
+      updateSetupMeta({ customEquipment: [...current, newItem] });
+    }
+  };
+
+  const deleteEquipmentItem = (id: string) => {
+    const current = activeSetup.customEquipment || [];
+    const next = current.filter((c) => c.id !== id && c.elementId !== id);
+    updateSetupMeta({ customEquipment: next });
+  };
+
+  const resetSceneEquipment = () => {
+    updateSetupMeta({ customEquipment: [] });
+  };
+
   return (
     <FloorPlanContext.Provider
       value={{
@@ -3229,6 +3287,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         activeRightTab,
         setActiveRightTab,
+
+        addCustomEquipmentItem,
+        updateEquipmentItem,
+        deleteEquipmentItem,
+        resetSceneEquipment,
 
         toggleTheme,
         setTheme,

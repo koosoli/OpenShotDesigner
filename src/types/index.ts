@@ -525,6 +525,38 @@ export interface BackgroundImage {
   naturalHeight?: number;
 }
 
+export type EquipmentCategory =
+  | 'camera'
+  | 'lighting'
+  | 'grip'
+  | 'audio'
+  | 'power_media'
+  | 'cables'
+  | 'props'
+  | 'expendables'
+  | 'other';
+
+export interface EquipmentItem {
+  id: string;
+  category: EquipmentCategory;
+  name: string;
+  brand?: string;
+  model?: string;
+  quantity: number;
+  roleOrFunction?: string;
+  specs?: string;
+  notes?: string;
+  isCustom?: boolean;
+  elementId?: string; // Links to canvas element if overridden
+}
+
+export interface MasterEquipmentItem extends EquipmentItem {
+  /** Setup / scene IDs and names where this gear is required */
+  usedInSetups: Array<{ id: string; name: string; sceneNumber?: string; quantity: number }>;
+  /** Peak concurrent quantity needed in any single scene */
+  maxConcurrentQuantity: number;
+}
+
 export interface SceneSetup {
   id: string;
   name: string; // e.g. "Setup 1: Master Wide & Dinner Dialogue"
@@ -534,6 +566,8 @@ export interface SceneSetup {
   timeOfDay: 'Day INT' | 'Night INT' | 'Day EXT' | 'Night EXT';
   elements: FloorPlanElement[];
   shots: Shot[];
+  /** Custom added or overridden equipment items for this scene */
+  customEquipment?: EquipmentItem[];
   scriptTitle?: string;
   scriptText?: string;
   scriptLines?: ScriptLine[];
