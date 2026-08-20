@@ -183,6 +183,18 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
           </g>
         )}
 
+        {actor.locked && (
+          <g
+            transform={`rotate(${-rotation}) translate(-16, -16)`}
+            className="pointer-events-none select-none"
+          >
+            <circle cx={0} cy={0} r={7.5} fill="#78350f" stroke="#f59e0b" strokeWidth={1} />
+            <text x={0} y={3} fill="#fef3c7" fontSize="8" fontWeight="bold" textAnchor="middle">
+              🔒
+            </text>
+          </g>
+        )}
+
         {showActorLabel && (
           <g
             transform={`rotate(${-rotation}) translate(0, 26) scale(${labelScale})`}

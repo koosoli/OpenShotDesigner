@@ -33,6 +33,96 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
     el.type === 'arrow' ||
     isLineShape;
 
+  if (selectedElement.locked) {
+    if (isLinear) {
+      let x1 = el.x;
+      let y1 = el.y;
+      let x2 = (el as any).x2 ?? el.x + 200;
+      let y2 = (el as any).y2 ?? el.y;
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+
+      return (
+        <g className="transform-controls pointer-events-none">
+          <line
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke="#f59e0b"
+            strokeWidth={2 / canvasScale}
+            strokeDasharray="4 4"
+            opacity={0.8}
+          />
+          <g transform={`translate(${midX}, ${midY - 14 / canvasScale})`}>
+            <rect
+              x={-28 / canvasScale}
+              y={-9 / canvasScale}
+              width={56 / canvasScale}
+              height={18 / canvasScale}
+              rx={3 / canvasScale}
+              fill="#78350f"
+              stroke="#f59e0b"
+              strokeWidth={1 / canvasScale}
+            />
+            <text
+              x={0}
+              y={3.5 / canvasScale}
+              textAnchor="middle"
+              fill="#fef3c7"
+              fontSize={9 / canvasScale}
+              fontWeight="bold"
+              fontFamily="sans-serif"
+            >
+              🔒 LOCKED
+            </text>
+          </g>
+        </g>
+      );
+    }
+
+    return (
+      <g
+        className="transform-controls pointer-events-none"
+        transform={`translate(${el.x}, ${el.y}) rotate(${rotation})`}
+      >
+        <circle
+          cx={0}
+          cy={0}
+          r={28 / canvasScale}
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth={1.5 / canvasScale}
+          strokeDasharray="4 4"
+          opacity={0.8}
+        />
+        <g transform={`translate(0, ${-34 / canvasScale}) rotate(${-rotation})`}>
+          <rect
+            x={-28 / canvasScale}
+            y={-9 / canvasScale}
+            width={56 / canvasScale}
+            height={18 / canvasScale}
+            rx={3 / canvasScale}
+            fill="#78350f"
+            stroke="#f59e0b"
+            strokeWidth={1 / canvasScale}
+          />
+          <text
+            x={0}
+            y={3.5 / canvasScale}
+            textAnchor="middle"
+            fill="#fef3c7"
+            fontSize={9 / canvasScale}
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            🔒 LOCKED
+          </text>
+        </g>
+      </g>
+    );
+  }
+
   if (isLinear && onEndpointDragStart) {
     let x1 = el.x;
     let y1 = el.y;

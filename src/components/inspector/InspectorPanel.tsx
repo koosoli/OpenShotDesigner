@@ -1615,6 +1615,37 @@ export const InspectorPanel: React.FC = () => {
               {selectedElementIds.length} Items Selected
             </h3>
           </div>
+
+          <button
+            onClick={() => {
+              const selectedEls = activeSetup.elements.filter((e) => selectedElementIds.includes(e.id));
+              const anyUnlocked = selectedEls.some((e) => !e.locked);
+              updateMultipleElements(
+                selectedElementIds.map((id) => ({ id, updates: { locked: anyUnlocked } })),
+                true
+              );
+            }}
+            title="Lock or unlock all selected elements (prevent accidental drag moves) [L]"
+            className={`py-1.5 px-2.5 rounded-lg border flex items-center gap-1.5 font-bold text-xs transition-colors ${
+              selectedElementIds.every((id) => activeSetup.elements.find((e) => e.id === id)?.locked)
+                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/30'
+                : isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+            }`}
+          >
+            {selectedElementIds.every((id) => activeSetup.elements.find((e) => e.id === id)?.locked) ? (
+              <>
+                <Lock className="w-3.5 h-3.5 text-amber-500" />
+                <span>All Locked</span>
+              </>
+            ) : (
+              <>
+                <Unlock className="w-3.5 h-3.5" />
+                <span>Lock All</span>
+              </>
+            )}
+          </button>
         </div>
 
         <p className="text-xs opacity-75">
@@ -1803,7 +1834,21 @@ export const InspectorPanel: React.FC = () => {
           </h3>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => updateElement(el.id, { locked: !el.locked })}
+            title={el.locked ? 'Unlock element (allow moving & rotating) [L]' : 'Lock element (prevent accidental drag moves) [L]'}
+            className={`px-2 py-1 rounded-lg border flex items-center gap-1 font-bold text-xs transition-colors ${
+              el.locked
+                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/30'
+                : isLight
+                  ? 'text-slate-600 hover:text-slate-900 border-slate-300 hover:bg-slate-100'
+                  : 'text-slate-400 hover:text-white border-slate-700 hover:bg-slate-800'
+            }`}
+          >
+            {el.locked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5" />}
+            <span>{el.locked ? 'Locked' : 'Lock'}</span>
+          </button>
           <button
             onClick={duplicateSelected}
             title="Duplicate (Ctrl+D)"

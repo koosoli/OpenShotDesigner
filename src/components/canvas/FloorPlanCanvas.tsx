@@ -758,18 +758,20 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     activeSetup.elements.forEach((el) => {
-      if (nextSelected.includes(el.id) || el.id === id) {
+      if ((nextSelected.includes(el.id) || el.id === id) && !el.locked) {
         startElementsMap.set(el.id, JSON.parse(JSON.stringify(el)));
       }
     });
 
-    setDragState({
-      type: 'move',
-      startMouse: { x: e.clientX, y: e.clientY },
-      startElements: startElementsMap,
-      selectedIds: nextSelected,
-      activeElementId: id,
-    });
+    if (startElementsMap.size > 0) {
+      setDragState({
+        type: 'move',
+        startMouse: { x: e.clientX, y: e.clientY },
+        startElements: startElementsMap,
+        selectedIds: nextSelected,
+        activeElementId: id,
+      });
+    }
   };
 
   // Rotate handle start
@@ -779,7 +781,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const activeId = selectedElementIds[0];
     const el = activeSetup.elements.find((e) => e.id === activeId);
-    if (!el) return;
+    if (!el || el.locked) return;
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
@@ -800,7 +802,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const activeId = selectedElementIds[0];
     const el = activeSetup.elements.find((e) => e.id === activeId);
-    if (!el) return;
+    if (!el || el.locked) return;
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
@@ -822,7 +824,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const activeId = selectedElementIds[0];
     const el = activeSetup.elements.find((e2) => e2.id === activeId);
-    if (!el) return;
+    if (!el || el.locked) return;
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
@@ -842,6 +844,9 @@ export const FloorPlanCanvas: React.FC = () => {
     e.stopPropagation();
     if (activeTool !== 'select') return;
 
+    const el = activeSetup.elements.find((e2) => e2.id === elementId);
+    if (el?.locked) return;
+
     selectElement(elementId);
 
     setDragState({
@@ -858,6 +863,9 @@ export const FloorPlanCanvas: React.FC = () => {
   const handleWaypointRotateStart = (elementId: string, waypointId: string, e: React.PointerEvent) => {
     e.stopPropagation();
     if (activeTool !== 'select') return;
+
+    const el = activeSetup.elements.find((e2) => e2.id === elementId);
+    if (el?.locked) return;
 
     selectElement(elementId);
 
@@ -1350,7 +1358,24 @@ export const FloorPlanCanvas: React.FC = () => {
         redo();
       }
 
-      // Nudge with arrow keys
+      // Lock / Unlock toggle shortcut (L or Ctrl+L)
+      if (((e.metaKey || e.ctrlKey) && (e.key === 'l' || e.key === 'L')) || (e.key === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+        if (selectedElementIds.length > 0) {
+          e.preventDefault();
+          const selectedEls = activeSetup.elements.filter((el) => selectedElementIds.includes(el.id));
+          const anyUnlocked = selectedEls.some((el) => !el.locked);
+          updateMultipleElements(
+            selectedElementIds.map((id) => ({ id, updates: { locked: anyUnlocked } })),
+            true
+          );
+        } else if (selectedBackgroundId) {
+          e.preventDefault();
+          const bg = activeSetup.backgroundImages?.find((b) => b.id === selectedBackgroundId);
+          if (bg) updateBackgroundImage(bg.id, { locked: !bg.locked });
+        }
+      }
+
+      // Nudge with arrow keys (only for unlocked elements)
       if (selectedElementIds.length > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
         const step = e.shiftKey ? 10 : 2;
@@ -1360,7 +1385,7 @@ export const FloorPlanCanvas: React.FC = () => {
         const updates = selectedElementIds
           .map((id) => {
             const el = activeSetup.elements.find((e) => e.id === id);
-            if (!el) return null;
+            if (!el || el.locked) return null;
             const hasX2 = 'x2' in el && typeof (el as any).x2 === 'number';
             const linearUpdates = hasX2
               ? { x2: (el as any).x2 + dx, y2: (el as any).y2 + dy }
@@ -1831,6 +1856,7 @@ export const FloorPlanCanvas: React.FC = () => {
                     ['Ctrl/Cmd + D', 'Duplicate selection'],
                     ['Ctrl/Cmd + C', 'Copy selected elements'],
                     ['Ctrl/Cmd + V', 'Paste copied elements'],
+                    ['L / Ctrl+L', 'Lock / Unlock selected elements (prevent accidental moves)'],
                     ['Arrow Keys', 'Nudge selection (Shift = 10px)'],
                     ['Esc', 'Deselect / cancel current tool'],
                   ],

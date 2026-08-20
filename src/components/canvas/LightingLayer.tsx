@@ -336,6 +336,18 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
                 </g>
               );
             })()}
+
+            {light.locked && (
+              <g
+                transform={`rotate(${-light.rotation}) translate(-16, -16)`}
+                className="pointer-events-none select-none"
+              >
+                <circle cx={0} cy={0} r={7.5} fill="#78350f" stroke="#f59e0b" strokeWidth={1} />
+                <text x={0} y={3} fill="#fef3c7" fontSize="8" fontWeight="bold" textAnchor="middle">
+                  🔒
+                </text>
+              </g>
+            )}
           </g>
         );
       })}
