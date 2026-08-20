@@ -22,7 +22,31 @@ const MainLayout: React.FC = () => {
   const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning } = useFloorPlan();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [isRightPanelFullscreen, setIsRightPanelFullscreen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState<number>(700); // Default wide enough to show the full shot list
+  const calculateDefaultSidebarWidth = (): number => {
+    if (typeof window === 'undefined') return 1050;
+    const vw = window.innerWidth;
+    // On wide screens (e.g. 1920px 1080p, 1440p, 4K, Ultrawides), allocate 50%-55% width
+    // so Shot List, Storyboard, Script, Gear Manifest, and Inspector are immediately fully visible!
+    if (vw >= 2500) return Math.min(1400, Math.floor(vw * 0.52)); // 4K / Ultrawide
+    if (vw >= 1800) return Math.min(1150, Math.floor(vw * 0.52)); // 1080p / 1440p
+    if (vw >= 1400) return Math.min(1000, Math.floor(vw * 0.50)); // Standard desktop
+    if (vw >= 1000) return Math.min(850, Math.floor(vw * 0.50));  // Compact laptops
+    return 700;
+  };
+
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('openshotdesigner_sidebar_width');
+      if (saved) {
+        const parsed = Number(saved);
+        if (!isNaN(parsed) && parsed >= 320 && parsed <= (typeof window !== 'undefined' ? window.innerWidth - 200 : 2200)) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return calculateDefaultSidebarWidth();
+  });
+
   const [isResizing, setIsResizing] = useState(false);
   const { isCompact: isMobile } = useBreakpoint();
   // Bottom-sheet height on phones: peek (tabs only), half, or nearly full screen.
@@ -55,8 +79,12 @@ const MainLayout: React.FC = () => {
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       const delta = startX - moveEvent.clientX;
-      const newWidth = Math.min(850, Math.max(280, startWidth + delta));
+      const maxAllowed = typeof window !== 'undefined' ? Math.min(window.innerWidth - 220, 2000) : 1800;
+      const newWidth = Math.min(maxAllowed, Math.max(320, startWidth + delta));
       setSidebarWidth(newWidth);
+      try {
+        localStorage.setItem('openshotdesigner_sidebar_width', String(newWidth));
+      } catch {}
     };
 
     const handlePointerUp = () => {
@@ -67,6 +95,25 @@ const MainLayout: React.FC = () => {
 
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
+  };
+
+  const toggleSidebarWidth = () => {
+    setSidebarWidth((prev) => {
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 1920;
+      let nextWidth: number;
+      // Cycle: Standard (~520) -> Wide (~1050) -> UltraWide (~60% screen)
+      if (prev < 750) {
+        nextWidth = Math.min(vw - 240, Math.max(1050, Math.floor(vw * 0.52)));
+      } else if (prev < Math.floor(vw * 0.58)) {
+        nextWidth = Math.min(vw - 240, Math.max(1250, Math.floor(vw * 0.62)));
+      } else {
+        nextWidth = 520;
+      }
+      try {
+        localStorage.setItem('openshotdesigner_sidebar_width', String(nextWidth));
+      } catch {}
+      return nextWidth;
+    });
   };
 
   return (
@@ -136,8 +183,8 @@ const MainLayout: React.FC = () => {
             {!isRightPanelFullscreen && (
               <div
                 onPointerDown={handleResizePointerDown}
-                onDoubleClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
-                title="Drag to resize panel (Double click to toggle wide/standard)"
+                onDoubleClick={toggleSidebarWidth}
+                title="Drag to resize panel (Double-click to toggle Wide / UltraWide / Standard)"
                 className={`absolute -left-1.5 top-0 bottom-0 w-3 cursor-col-resize z-30 group flex items-center justify-center`}
               >
                 <div className={`w-1 h-12 rounded-full transition-all ${
@@ -283,13 +330,13 @@ const MainLayout: React.FC = () => {
                 ) : (
                   !isRightPanelFullscreen && (
                     <button
-                      onClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
-                      title={sidebarWidth > 500 ? 'Compact panel width' : 'Expand panel width'}
-                      className={`p-1.5 rounded-lg text-xs transition-colors ${
-                        isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      onClick={toggleSidebarWidth}
+                      title="Toggle Side Panel Width (Standard / Wide / Ultra-Wide)"
+                      className={`p-1.5 rounded-lg text-xs font-bold transition-colors ${
+                        isLight ? 'text-slate-700 hover:text-slate-950 hover:bg-slate-200' : 'text-slate-300 hover:text-white hover:bg-slate-800'
                       }`}
                     >
-                      <span className="text-[10px] font-mono font-bold">{sidebarWidth > 500 ? '‹|›' : '›|‹'}</span>
+                      <span className="text-[11px] font-mono font-black">{sidebarWidth > 900 ? '‹‹|››' : sidebarWidth > 650 ? '‹|›' : '›|‹'}</span>
                     </button>
                   )
                 )}
