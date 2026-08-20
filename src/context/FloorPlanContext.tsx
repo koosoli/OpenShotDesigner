@@ -564,6 +564,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  // Sync theme class to document element for Tailwind dark mode classes
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   // Display / label preferences (UI-only, persisted separately from scene data)
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(() => {
     try {
