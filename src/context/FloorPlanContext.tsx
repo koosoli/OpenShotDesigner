@@ -313,6 +313,8 @@ export interface DisplaySettings {
   showLightBeams: boolean;
   /** Storyboard thumbnails pinned next to their camera on the floor plan. */
   showStoryboardThumbs: boolean;
+  /** When true, waypoint keyframes without artwork are omitted from the storyboard and exports. */
+  hideBlankStoryboardWaypoints?: boolean;
   showGrid: boolean;
   showShotSizeInScript: boolean; // show WS / CU in script (default true)
   // Shot info shown on the camera label
@@ -362,6 +364,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showFovCones: true,
   fovConeOpacity: 1.0,
   showStoryboardThumbs: true,
+  hideBlankStoryboardWaypoints: false,
   showLightBeams: true,
   showGrid: false, // Default grid to hidden as requested
   showShotSizeInScript: true,

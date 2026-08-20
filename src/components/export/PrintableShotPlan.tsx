@@ -32,7 +32,7 @@ import { WallLayer } from '../canvas/WallLayer';
 import { StoryboardThumbLayer } from '../canvas/StoryboardThumbLayer';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
-import { slotsOf, boardedFrames } from '../../utils/storyboardFrames';
+import { slotsOf, boardedFrames, visibleStoryboardSlots } from '../../utils/storyboardFrames';
 import { Shot } from '../../types';
 import {
   AppWindow,
@@ -74,6 +74,9 @@ export const PrintableShotPlan: React.FC = () => {
   } = useFloorPlan();
   const [pngScale, setPngScale] = useState<2 | 3>(2);
   const [showStoryboards, setShowStoryboards] = useState(false);
+  const [omitBlankWaypoints, setOmitBlankWaypoints] = useState(
+    displaySettings.hideBlankStoryboardWaypoints ?? false
+  );
   const [exportViewMode, setExportViewMode] = useState<'full' | 'canvas'>('full');
   const [customOverrides, setCustomOverrides] = useState<Partial<DisplaySettings>>({});
 
@@ -82,8 +85,9 @@ export const PrintableShotPlan: React.FC = () => {
   useEffect(() => {
     if (isExportModalOpen) {
       setShowStoryboards(activeSetup.shots.some((s) => !!s.storyboardImage));
+      setOmitBlankWaypoints(displaySettings.hideBlankStoryboardWaypoints ?? false);
     }
-  }, [isExportModalOpen, activeSetup]);
+  }, [isExportModalOpen, activeSetup, displaySettings.hideBlankStoryboardWaypoints]);
 
   // Derived effective display settings for the blueprint export
   const eff = React.useMemo(() => {
@@ -481,6 +485,32 @@ export const PrintableShotPlan: React.FC = () => {
               </span>
               Storyboards
             </button>
+
+            {/* Omit blank waypoints toggle for storyboard export */}
+            {(exportSection === 'storyboard' || (exportSection === 'combined' && showStoryboards)) && (
+              <button
+                onClick={() => setOmitBlankWaypoints((prev) => !prev)}
+                title={
+                  omitBlankWaypoints
+                    ? 'Show all waypoint keyframes (including unboarded waypoints) on the exported storyboard'
+                    : 'Omit blank waypoint keyframes (only print waypoints with attached art)'
+                }
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  omitBlankWaypoints
+                    ? 'bg-violet-600 text-white border-violet-500'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                }`}
+              >
+                <span
+                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] ${
+                    omitBlankWaypoints ? 'bg-white text-violet-700 border-white' : 'border-slate-500'
+                  }`}
+                >
+                  {omitBlankWaypoints ? '✓' : ''}
+                </span>
+                Omit Blank Waypoints
+              </button>
+            )}
 
             <button
               onClick={closeExportModal}
@@ -938,7 +968,17 @@ export const PrintableShotPlan: React.FC = () => {
                   <span>Storyboard</span>
                 </h3>
                 <span className="font-mono text-xs font-bold text-slate-700">
-                  {activeSetup.shots.length} FRAME{activeSetup.shots.length === 1 ? '' : 'S'} ·{' '}
+                  {orderedStoryboardShots(activeSetup).reduce(
+                    (sum, s) =>
+                      sum +
+                      visibleStoryboardSlots(
+                        s,
+                        cameras.find((c) => c.id === s.cameraId),
+                        omitBlankWaypoints
+                      ).length,
+                    0
+                  )}{' '}
+                  FRAME{orderedStoryboardShots(activeSetup).length === 1 ? '' : 'S'} ·{' '}
                   {activeSetup.aspectRatio || '16:9'}
                 </span>
               </div>
@@ -951,8 +991,8 @@ export const PrintableShotPlan: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {orderedStoryboardShots(activeSetup).map((shot) => {
                     const cam = cameras.find((camera) => camera.id === shot.cameraId);
-                    // One printed frame per camera keyframe
-                    const frameSlots = slotsOf(shot, cam);
+                    // One printed frame per camera keyframe (blank waypoints optionally omitted)
+                    const frameSlots = visibleStoryboardSlots(shot, cam, omitBlankWaypoints);
                     const hasMove = frameSlots.length > 1;
                     return (
                       <div

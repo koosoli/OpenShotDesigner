@@ -2,11 +2,16 @@ import React, { useRef, useState } from 'react';
 import {
   ArrowRight,
   Camera,
+  Check,
+  Eye,
+  EyeOff,
   GripVertical,
   Image as ImageIcon,
+  Layers,
   Maximize2,
   Plus,
   Printer,
+  SlidersHorizontal,
   Trash2,
   Upload,
   Video,
@@ -16,7 +21,17 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { AspectRatio, CameraElement, Shot } from '../../types';
 import { ASPECT_RATIOS } from '../../constants/presets';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
-import { FrameSlot, setFramePatch, slotsOf } from '../../utils/storyboardFrames';
+import {
+  FrameSlot,
+  START_SLOT,
+  isSlotOmitted,
+  setFramePatch,
+  setSlotOmittedPatch,
+  setSlotsPresetPatch,
+  slotsOf,
+  toggleSlotOmittedPatch,
+  visibleStoryboardSlots,
+} from '../../utils/storyboardFrames';
 import { loadStoryboardImageFile } from '../../utils/image';
 
 /** A moving shot is boarded on each of its camera's keyframes. */
@@ -44,10 +59,14 @@ export const StoryboardPanel: React.FC = () => {
     openExportModal,
     openViewfinder,
     updateSetupMeta,
+    displaySettings,
+    updateDisplaySettings,
     theme,
   } = useFloorPlan();
 
   const isLight = theme === 'light';
+  const hideBlankWaypoints = displaySettings.hideBlankStoryboardWaypoints ?? false;
+  const [openWaypointsShotId, setOpenWaypointsShotId] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [uploadTarget, setUploadTarget] = useState<{ shotId: string; slotKey: string } | null>(null);
@@ -93,9 +112,15 @@ export const StoryboardPanel: React.FC = () => {
   }`;
 
   /** One storyboard frame: the art (or a blank drop target) plus its controls. */
-  const renderFrame = (shot: Shot, slot: FrameSlot, showLabel: boolean) => {
+  const renderFrame = (
+    shot: Shot,
+    slot: FrameSlot,
+    showLabel: boolean,
+    camera?: CameraElement | null
+  ) => {
     const image = slot.frame?.image;
     const fit = slot.frame?.fit || 'cover';
+    const isStart = slot.key === START_SLOT;
 
     return (
       <div
@@ -150,6 +175,21 @@ export const StoryboardPanel: React.FC = () => {
           </span>
         )}
 
+        {/* Quick omit button for waypoint frames without art */}
+        {!isStart && !image && (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              updateShot(shot.id, setSlotOmittedPatch(shot, slot.key, true, camera, hideBlankWaypoints));
+            }}
+            title="Omit this waypoint picture from storyboard"
+            className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 hover:bg-black/80 text-white/90 hover:text-white text-[9px] font-semibold flex items-center gap-1 z-10"
+          >
+            <EyeOff className="w-2.5 h-2.5" />
+            <span>Omit</span>
+          </button>
+        )}
+
         {image && (
           <div className="absolute bottom-1.5 right-1.5 flex gap-1">
             <button
@@ -173,6 +213,18 @@ export const StoryboardPanel: React.FC = () => {
             >
               <Upload className="w-3 h-3" />
             </button>
+            {!isStart && (
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  updateShot(shot.id, setSlotOmittedPatch(shot, slot.key, true, camera, hideBlankWaypoints));
+                }}
+                title="Omit this waypoint picture from storyboard (keeps artwork safe)"
+                className="p-1 rounded-md bg-black/60 hover:bg-black/80 text-white"
+              >
+                <EyeOff className="w-3 h-3" />
+              </button>
+            )}
             <button
               onClick={(event) => {
                 event.stopPropagation();
@@ -219,6 +271,28 @@ export const StoryboardPanel: React.FC = () => {
           </select>
         </label>
 
+        {/* Toggle to leave out / include blank waypoint frames */}
+        <button
+          onClick={() =>
+            updateDisplaySettings({ hideBlankStoryboardWaypoints: !hideBlankWaypoints })
+          }
+          title={
+            hideBlankWaypoints
+              ? 'Currently omitting blank waypoint frames across all shots. Click to show all unboarded keyframes.'
+              : 'Click to omit unboarded waypoint frames from the storyboard.'
+          }
+          className={`px-2 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
+            hideBlankWaypoints
+              ? 'bg-violet-600 text-white border-violet-500 shadow-xs'
+              : isLight
+                ? 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>{hideBlankWaypoints ? 'Blank waypoints omitted' : 'Omit blank waypoints'}</span>
+        </button>
+
         <button
           onClick={() => openExportModal('storyboard')}
           title="Export / print the storyboard"
@@ -256,8 +330,12 @@ export const StoryboardPanel: React.FC = () => {
               const isSelected = selectedShotId === shot.id;
               const isDragging = draggedIndex === index;
               const isDragOver = dragOverIndex === index && draggedIndex !== index;
-              // One slot per camera keyframe (start + each waypoint)
-              const slots = slotsOf(shot, camera);
+              const isWaypointsOpen = openWaypointsShotId === shot.id;
+
+              // All slots vs visible slots
+              const allSlots = slotsOf(shot, camera);
+              const slots = visibleStoryboardSlots(shot, camera, hideBlankWaypoints);
+              const hiddenWaypointCount = allSlots.length - slots.length;
 
               return (
                 <div
@@ -276,18 +354,163 @@ export const StoryboardPanel: React.FC = () => {
                     setDragOverIndex(null);
                   }}
                   onClick={() => selectShot(shot.id, true)}
-                  className={`border rounded-xl overflow-hidden flex flex-col transition-all cursor-pointer ${card} ${
+                  className={`relative border rounded-xl overflow-hidden flex flex-col transition-all cursor-pointer ${card} ${
                     isSelected ? 'ring-2 ring-sky-500/70' : ''
                   } ${isDragging ? 'opacity-40' : ''} ${isDragOver ? 'ring-2 ring-violet-500' : ''}`}
                 >
+                  {/* Waypoints Frame Manager Popover */}
+                  {isWaypointsOpen && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute z-30 inset-x-1.5 top-1.5 rounded-xl p-2.5 shadow-2xl border flex flex-col gap-2 backdrop-blur-md ${
+                        isLight
+                          ? 'bg-white/95 border-slate-300 text-slate-900 shadow-slate-400/40'
+                          : 'bg-slate-900/95 border-slate-700 text-slate-100 shadow-black/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between border-b pb-1.5 border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          <SlidersHorizontal className="w-3.5 h-3.5 text-violet-500" />
+                          <span className="text-[11px] font-bold uppercase tracking-wider">Framing Beats</span>
+                        </div>
+                        <button
+                          onClick={() => setOpenWaypointsShotId(null)}
+                          className="p-1 rounded-md text-slate-400 hover:text-slate-200"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Presets */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => updateShot(shot.id, setSlotsPresetPatch(shot, camera, 'all'))}
+                          title="Show all waypoint keyframes"
+                          className="flex-1 px-1.5 py-1 rounded-md text-[9px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
+                        >
+                          All ({allSlots.length})
+                        </button>
+                        <button
+                          onClick={() => updateShot(shot.id, setSlotsPresetPatch(shot, camera, 'start-end'))}
+                          title="Only show the start framing and end framing (omit intermediate beats)"
+                          className="flex-1 px-1.5 py-1 rounded-md text-[9px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
+                        >
+                          Start & End
+                        </button>
+                        <button
+                          onClick={() => updateShot(shot.id, setSlotsPresetPatch(shot, camera, 'omit-blank'))}
+                          title="Omit unboarded waypoint frames on this shot"
+                          className="flex-1 px-1.5 py-1 rounded-md text-[9px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
+                        >
+                          With Art
+                        </button>
+                      </div>
+
+                      {/* Keyframes checklist */}
+                      <div className="flex flex-col gap-1 max-h-40 overflow-y-auto custom-scrollbar pr-0.5">
+                        {allSlots.map((s) => {
+                          const isOmitted = isSlotOmitted(shot, s.key, hideBlankWaypoints, s.frame?.image);
+                          const isStart = s.key === START_SLOT;
+                          const hasArt = !!s.frame?.image;
+
+                          return (
+                            <div
+                              key={s.key}
+                              onClick={() => {
+                                if (isStart) return;
+                                updateShot(
+                                  shot.id,
+                                  toggleSlotOmittedPatch(shot, s.key, camera, hideBlankWaypoints)
+                                );
+                              }}
+                              className={`flex items-center justify-between p-1.5 rounded-lg text-[10px] transition-colors ${
+                                isStart
+                                  ? 'opacity-80 cursor-default bg-slate-500/10'
+                                  : isOmitted
+                                    ? 'bg-slate-500/5 text-slate-400 hover:bg-slate-500/10 cursor-pointer'
+                                    : 'bg-violet-500/10 font-semibold text-violet-400 hover:bg-violet-500/20 cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[8px] font-bold ${
+                                    !isOmitted
+                                      ? 'bg-violet-600 text-white border-violet-500'
+                                      : 'border-slate-500 text-transparent'
+                                  }`}
+                                >
+                                  ✓
+                                </span>
+                                <span className="font-mono font-bold">
+                                  {s.short || s.label}
+                                </span>
+                                <span>{s.label}</span>
+                              </div>
+
+                              <div className="flex items-center gap-1 font-mono text-[9px]">
+                                {hasArt ? (
+                                  <span className="text-emerald-500 font-semibold">Art</span>
+                                ) : (
+                                  <span className="text-slate-500">Blank</span>
+                                )}
+                                {!isStart && (
+                                  <span className={isOmitted ? 'text-amber-500 font-semibold' : 'text-slate-400'}>
+                                    {isOmitted ? 'Omitted' : 'Shown'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* One frame per camera keyframe */}
                   <div className="relative">
                     {slots.length > 1 ? (
                       <div className="flex flex-col gap-1.5 p-1 bg-slate-700/40">
-                        {slots.map((slot) => renderFrame(shot, slot, true))}
+                        {slots.map((slot) => renderFrame(shot, slot, true, camera))}
                       </div>
                     ) : (
-                      renderFrame(shot, slots[0], false)
+                      renderFrame(shot, slots[0], allSlots.length > 1, camera)
+                    )}
+
+                    {/* Hidden blank/omitted waypoints indicator */}
+                    {hiddenWaypointCount > 0 && (
+                      <div
+                        className={`px-2 py-1 flex items-center justify-between text-[10px] border-b ${
+                          isLight ? 'bg-slate-100/90 border-slate-200 text-slate-600' : 'bg-slate-950/80 border-slate-800 text-slate-300'
+                        }`}
+                      >
+                        <span className="font-mono flex items-center gap-1">
+                          <Layers className="w-3 h-3 text-amber-500" />
+                          {hiddenWaypointCount} waypoint{hiddenWaypointCount === 1 ? '' : 's'} omitted
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setOpenWaypointsShotId(shot.id);
+                            }}
+                            title="Manage exactly which waypoint frames are shown"
+                            className="text-sky-500 hover:text-sky-400 font-semibold underline underline-offset-2"
+                          >
+                            Manage
+                          </button>
+                          <span className="opacity-30">·</span>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              updateShot(shot.id, setSlotsPresetPatch(shot, camera, 'all'));
+                            }}
+                            title="Show all waypoint frames for this shot"
+                            className="text-slate-400 hover:text-slate-200 font-semibold"
+                          >
+                            Show all
+                          </button>
+                        </div>
+                      </div>
                     )}
 
                     {/* What the move is, between the keyframes */}
@@ -319,6 +542,25 @@ export const StoryboardPanel: React.FC = () => {
                     </div>
 
                     <div className="absolute top-1.5 right-1.5 flex items-center gap-1 z-10">
+                      {/* Waypoints Framing Beats button when camera has moves */}
+                      {allSlots.length > 1 && (
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpenWaypointsShotId(isWaypointsOpen ? null : shot.id);
+                          }}
+                          title={`Manage waypoint frames (${slots.length}/${allSlots.length} active)`}
+                          className={`p-1 rounded-md text-[10px] font-mono font-bold flex items-center gap-1 transition-colors ${
+                            slots.length < allSlots.length
+                              ? 'bg-amber-500 text-black shadow-xs'
+                              : 'bg-black/60 text-white hover:bg-black/80'
+                          }`}
+                        >
+                          <SlidersHorizontal className="w-3 h-3" />
+                          <span>{slots.length}/{allSlots.length}</span>
+                        </button>
+                      )}
+
                       {/* Shoot this frame with the device camera through the finder */}
                       {shot.cameraId && (
                         <button

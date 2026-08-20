@@ -405,6 +405,11 @@ export interface Shot {
    * the camera's base position). See utils/storyboardFrames.
    */
   storyboardFrames?: Record<string, StoryboardFrame>;
+  /**
+   * Slot keys explicitly omitted from the storyboard and export contact sheet
+   * (e.g. intermediate waypoints or specific unboarded frames).
+   */
+  omittedStoryboardSlots?: string[];
   /** Legacy single end frame, folded into `storyboardFrames` when read. */
   storyboardImageEnd?: string;
   storyboardFitEnd?: 'cover' | 'contain';
