@@ -3419,6 +3419,46 @@ export const InspectorPanel: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                {/* Prop Opacity Slider */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="opacity-60">Opacity</span>
+                    <span className="font-mono text-purple-400 font-bold">
+                      {Math.round((prop.opacity ?? 1) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={5}
+                    max={100}
+                    step={5}
+                    value={Math.round((prop.opacity ?? 1) * 100)}
+                    onChange={(e) => updateElement(prop.id, { opacity: Number(e.target.value) / 100 })}
+                    className="w-full accent-purple-500 cursor-pointer h-1.5"
+                  />
+                </div>
+
+                {/* Color / Material Tint */}
+                <div>
+                  <label className="opacity-60 block mb-1">Color / Material Tint</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={prop.color || '#475569'}
+                      onChange={(e) => updateElement(prop.id, { color: e.target.value })}
+                      className="w-8 h-8 rounded border cursor-pointer flex-shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={prop.color || '#475569'}
+                      onChange={(e) => updateElement(prop.id, { color: e.target.value })}
+                      className={`flex-1 border rounded p-1 font-mono text-xs ${
+                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                      }`}
+                    />
+                  </div>
+                </div>
               </RubricSection>
             </div>
           );
