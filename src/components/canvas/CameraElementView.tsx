@@ -12,6 +12,7 @@ interface CameraElementViewProps {
   onSelect: (id: string, e: React.PointerEvent) => void;
   onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   onOpenViewfinder?: (id: string) => void;
+  onAddWaypoint?: (id: string) => void;
   onWaypointDragStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   onWaypointRotateStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
   displaySettings: DisplaySettings;
@@ -26,7 +27,8 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
   isPlaying: _isPlaying,
   onSelect,
   onDoubleClick,
-  onOpenViewfinder,
+  onOpenViewfinder: _onOpenViewfinder,
+  onAddWaypoint,
   onWaypointDragStart,
   onWaypointRotateStart,
   displaySettings,
@@ -356,15 +358,17 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
           </text>
         </g>
 
-        {isSelected && onOpenViewfinder && (
+        {isSelected && onAddWaypoint && (
           <g
             transform="translate(26, -26)"
             className="cursor-pointer hover:scale-110 transition-transform"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              onOpenViewfinder(camera.id);
+              onAddWaypoint(camera.id);
             }}
           >
+            <title>Add Camera Waypoint</title>
             <circle cx={0} cy={0} r={12} fill="#0284c7" stroke="#ffffff" strokeWidth={1.5} />
             <path
               d="M -5 0 L 5 0 M 0 -5 L 0 5"

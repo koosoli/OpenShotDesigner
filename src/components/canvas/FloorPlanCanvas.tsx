@@ -69,6 +69,7 @@ export const FloorPlanCanvas: React.FC = () => {
     addElement,
     updateElement,
     updateShot,
+    updateSetupMeta,
     updateMultipleElements,
     deleteSelectedElements,
     updateBackgroundImage,
@@ -870,6 +871,36 @@ export const FloorPlanCanvas: React.FC = () => {
     });
   };
 
+  // Add camera waypoint
+  const handleAddCameraWaypoint = (cameraId: string) => {
+    const cam = activeSetup.elements.find((e) => e.id === cameraId) as CameraElement | undefined;
+    if (!cam) return;
+    const existingPath = cam.path || [];
+    const nextBeat = Math.max(2, ...existingPath.map((wp) => wp.beat + 1));
+    const lastPoint = existingPath.length > 0
+      ? existingPath[existingPath.length - 1]
+      : { x: cam.x, y: cam.y, rotation: cam.rotation || 0 };
+
+    const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
+    const offsetDist = 60;
+    const spawnX = Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist);
+    const spawnY = Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist);
+
+    const newWp = {
+      id: `wp-${Date.now()}`,
+      x: spawnX,
+      y: spawnY,
+      rotation: lastPoint.rotation || 0,
+      beat: nextBeat,
+      dialogueCue: '',
+    };
+
+    updateElement(cam.id, { path: [...existingPath, newWp] });
+    if (nextBeat > (activeSetup.totalBeats || 1)) {
+      updateSetupMeta({ totalBeats: nextBeat });
+    }
+  };
+
   // Pointer Move
   const handlePointerMove = (e: React.PointerEvent) => {
     const mouseCanvas = screenToCanvas(e.clientX, e.clientY);
@@ -1543,6 +1574,7 @@ export const FloorPlanCanvas: React.FC = () => {
               onSelect={handleElementSelect}
               onDoubleClick={handleElementDoubleClick}
               onOpenViewfinder={openViewfinder}
+              onAddWaypoint={handleAddCameraWaypoint}
               onWaypointDragStart={handleWaypointDragStart}
               onWaypointRotateStart={handleWaypointRotateStart}
               displaySettings={displaySettings}
