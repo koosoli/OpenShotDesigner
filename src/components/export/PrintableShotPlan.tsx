@@ -967,111 +967,35 @@ export const PrintableShotPlan: React.FC = () => {
               </p>
 
               {/* Blueprint Legend Bar */}
-              <div className="flex flex-col gap-3 mt-3 text-xs">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
-                    <span className="font-bold uppercase text-[10px] text-slate-700 block mb-1">
-                      Actors & Blocking ({actors.length})
-                    </span>
-                    <div className="space-y-0.5 text-[11px]">
-                      {actors.map((a) => (
-                        <div key={a.id} className="flex justify-between">
-                          <strong>[{a.characterLetter}] {a.name}</strong>
-                          <span className="text-slate-600">{a.isStanding ? 'Standing' : 'Seated'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
-                    <span className="font-bold uppercase text-[10px] text-slate-700 block mb-1">
-                      Scene Summary
-                    </span>
-                    <div className="space-y-0.5 text-[11px] text-slate-700">
-                      <div className="flex justify-between">
-                        <span>Aspect Ratio:</span>
-                        <strong className="font-mono">{sceneAspectRatio}:1</strong>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-xs">
+                <div className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
+                  <span className="font-bold uppercase text-[10px] text-slate-700 block mb-1">
+                    Actors & Blocking ({actors.length})
+                  </span>
+                  <div className="space-y-0.5 text-[11px]">
+                    {actors.map((a) => (
+                      <div key={a.id} className="flex justify-between">
+                        <strong>[{a.characterLetter}] {a.name}</strong>
+                        <span className="text-slate-600">{a.isStanding ? 'Standing' : 'Seated'}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span>Coverage Shots:</span>
-                        <strong className="font-mono">{activeSetup.shots.length} planned shots</strong>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold uppercase text-[10px] text-slate-700 tracking-wider flex items-center gap-1">
-                      <Boxes className="w-3.5 h-3.5 text-sky-600" />
-                      <span>Scene {activeSetup.sceneNumber || '1'} Production Gear Package ({deriveSceneEquipment(activeSetup).reduce((s, i) => s + i.quantity, 0)} Total Units)</span>
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-500">
-                      {deriveSceneEquipment(activeSetup).length} gear types
-                    </span>
-                  </div>
-                  {deriveSceneEquipment(activeSetup).length === 0 ? (
-                    <p className="text-[11px] text-slate-400 italic">No equipment recorded for this scene.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-[11px] text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-slate-300 text-slate-600 font-bold uppercase text-[9px] font-mono">
-                            <th className="py-1 px-1.5 w-12 text-center">Qty</th>
-                            <th className="py-1 px-1.5 w-28">Brand</th>
-                            <th className="py-1 px-1.5">Unit Name / Model</th>
-                            <th className="py-1 px-1.5">Role / Function</th>
-                            <th className="py-1 px-1.5 w-24">Department</th>
-                            <th className="py-1 px-1.5 text-right">Specs / Output</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                          {deriveSceneEquipment(activeSetup).map((item) => {
-                            const meta = getCategoryMeta(item.category);
-                            return (
-                              <tr key={item.id} className="hover:bg-slate-100/60 font-sans">
-                                <td className="py-1 px-1.5 font-bold font-mono text-sky-700 text-center">x{item.quantity}</td>
-                                <td className="py-1 px-1.5 font-semibold text-slate-800">{item.brand || 'Generic / Unspecified'}</td>
-                                <td className="py-1 px-1.5 font-bold text-slate-900">
-                                  <div>
-                                    {item.name} {item.model && item.model !== item.name && (
-                                      <span className="font-normal text-slate-500 font-mono text-[10px]">({item.model})</span>
-                                    )}
-                                  </div>
-                                  {item.packageItems && item.packageItems.length > 0 && (
-                                    <div className="mt-1 text-[9px] font-normal text-slate-600 font-mono space-y-0.5">
-                                      {item.packageItems.map((pkgSub) => (
-                                        <div key={pkgSub.id} className="flex items-center gap-1">
-                                          <span className="font-bold text-sky-700">└─ x{pkgSub.quantity}</span>
-                                          <span>{pkgSub.name}</span>
-                                          {pkgSub.brand && <span className="text-slate-400">({pkgSub.brand})</span>}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="py-1 px-1.5 text-slate-700">
-                                  {item.roleOrFunction ? (
-                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-semibold">
-                                      {item.roleOrFunction}
-                                    </span>
-                                  ) : (
-                                    '—'
-                                  )}
-                                </td>
-                                <td className="py-1 px-1.5">
-                                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border font-mono ${meta.badgeBg} ${meta.badgeText} ${meta.borderColor}`}>
-                                    {meta.shortLabel}
-                                  </span>
-                                </td>
-                                <td className="py-1 px-1.5 text-right text-slate-600 text-[10px] font-mono">{item.specs || '—'}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                <div className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
+                  <span className="font-bold uppercase text-[10px] text-slate-700 block mb-1">
+                    Scene Summary
+                  </span>
+                  <div className="space-y-0.5 text-[11px] text-slate-700">
+                    <div className="flex justify-between">
+                      <span>Aspect Ratio:</span>
+                      <strong className="font-mono">{sceneAspectRatio}:1</strong>
                     </div>
-                  )}
+                    <div className="flex justify-between">
+                      <span>Coverage Shots:</span>
+                      <strong className="font-mono">{activeSetup.shots.length} planned shots</strong>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
