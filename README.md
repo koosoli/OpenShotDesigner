@@ -31,37 +31,40 @@ Line a speech in the script and a camera lands on the floor plan, a row appears 
 
 ## Features
 
-### Projects
+### Projects & Setup
 
 - **Project dashboard** — every production you have worked on in this browser, with scene and shot counts, whether it carries a screenplay, and when it was last saved. Reachable any time from the grid button in the top bar (or "All projects" in the overflow menu on small screens).
-- **Start in seconds** — name the production and press Create for an empty stage, or tick the box to start from the two example scenes: a dialogue master + shot/reverse and a two-camera interrogation, complete with a **page of screenplay already lined** against their shots, so every view has something to look at on the first run.
+- **Instant blocking bootstrap** — every new project and scene setup immediately starts with **Camera A** and **Actor A** pre-positioned in direct line of sight with default **Shot 1 (Medium Shot)**, so you can begin blocking immediately.
+- **Start with sample scenes** — tick the box to start from the bundled example scenes: a dialogue master + shot/reverse and a two-camera interrogation, complete with pre-lined screenplays.
 - **Manage them** — open, rename, duplicate, download as a project file, or delete, straight from the dashboard.
 - **Import lands beside your work** — importing a `.json` project file adds it as its own project instead of overwriting the one you have open.
-- **Safe storage** — each project is stored under its own key, so one production with heavy embedded storyboards can't push the others out. Projects made in earlier single-project versions are moved into the library automatically on first run.
+- **Safe storage** — each project is stored under its own key, so one production with heavy embedded storyboards can't push the others out.
 
-### Lined script
+### Lined Script & Screenplay Suite
 
-- **Import a real screenplay** — `.fountain`, Final Draft `.fdx`, or plain `.txt`, plus a paste box for a quick scene. Everything is reformatted into **standard Hollywood layout** (Courier, 60-column page, scene headings flush left, dialogue and character cues on the proper indents).
-- **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or the Final Draft scene-number attribute. New shots inherit the detected scene number.
-- **Highlight anything to make a shot** — select as little as a single word or as much as several speeches; the selection becomes a shot with its own camera on the floor plan, and the classic **vertical lining line** is drawn beside the text with the shot number in a bubble.
-- **Line shots you already have** — the script icon on any shot in the shot list jumps to the script and asks you to highlight the covered text, or pick the shot from "Line existing shot…" in the selection bar. The lined text becomes that shot's action in the shot list and shows on its storyboard frame under "From script".
-- **Descriptions on the lining** — whatever you type (or set as the shot's framing note) is written along the line, the way it is on a hand-lined script.
-- **Proper lining conventions** — lines start and end on a crossbar, and only get an arrowhead when you mark the shot as *continuing on the next page*. Any stretch where the subject leaves frame can be drawn as a **squiggle**, down to a few words.
-- **Adjustable coverage** — drag the round handles on a selected lining to extend or shorten it, or grow it to the current selection.
-- **One script, every scene** — the screenplay belongs to the production, so it stays open when you add or switch scenes, and the lined script shows the coverage of *all* scenes at once. Clicking a lining jumps to the scene that owns it.
+- **Lined Coverage view** — standard Hollywood layout (Courier, 60-column page) with fluid auto-scaling that dynamically fills available panel or fullscreen space.
+- **Screenplay Editor** — write and format scripts directly inside the browser with authentic 12pt Hollywood Courier formatting.
+  - **Natural Enter flow** — `Scene Heading` ➔ `Action` ➔ `Character` ➔ `Parenthetical` ➔ `Dialogue` ➔ `Action`.
+  - **Smart blank conversions** — pressing <kbd>Enter</kbd> on empty cues seamlessly converts Parentheticals to Dialogue, empty Characters to Action, and empty Actions to Scene Headings.
+  - **Tab cycling** — press <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to cycle across all 6 screenplay element types.
+  - **Fountain mode** — toggle between WYSIWYG Page View and raw Fountain syntax markdown code.
+- **AV Script (2-Column Audio/Visual)** — dedicated production AV table for commercials, documentaries, and multicam setups. Synchronized bidirectionally with floor plan cameras and lined coverage.
+- **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or Final Draft scene attributes.
+- **Highlight anything to make a shot** — select as little as a single word or multiple speeches; the selection creates a shot on the floor plan with classic vertical lining lines.
+- **Persistent text selection** — text highlights remain active and preserved across panel interactions.
+- **Adjustable coverage** — drag round handles on a selected lining to extend or shorten it, or grow it to the current selection.
 
 ### Floor plan & blocking
 
 - **Top-down floor plan canvas** — drag actors, cameras, and props onto a scaled room; move, resize, and rotate anything.
-- **Waypoint animation** — set multiple waypoints for actors and cameras, add rotation per waypoint, and watch a ghost preview of the move along the path. Beats print on the blueprint too: a **ghost camera** with its coverage cone and a **ghost figure** for the actor at every beat, plus the facing angle, the character letter, and any dialogue/action cue underneath.
+- **Full screen overlay** — dedicated full screen toggle (`Maximize2` / `Minimize2` or <kbd>Esc</kbd> to exit) across Shot List, Storyboard Board, Script, and Inspector.
+- **Waypoint animation** — set multiple waypoints for actors and cameras, add rotation per waypoint, and watch a ghost preview of the move along the path.
 - **Camera coverage** — FOV cones with configurable angle, focal length, and distance; easy match-frame blocking.
-- **Storyboard thumbnails on the plan** — a shot's artwork sits beside its camera on a leader line and can be dragged anywhere on the canvas (pointer capture, so a fast drag can't slip off); drop one onto another camera to copy the frame across. Hide them all with **Storyboard frames** in the scene inspector's display toggles.
-- **Basic shapes** — rectangle, circle, ellipse, triangle, diamond, pentagon, hexagon and star for blocking zones, carpets, light pools or callout areas. Place them from the tool palette or the quick search, then set fill colour and opacity, outline colour, weight, opacity and dash, corner radius, size, rotation and a label in the inspector.
-- **Reference images** — overlay set photos or blueprints as background images, with drag, resize, aspect-lock, opacity, and per-image visibility toggles.
-- **Props & lighting** — furniture presets (tables, chairs, doors, windows…), light sources with beam wedges, C-stand flags, and measurement lines.
-- **Display & label controls** — toggle per-category labels, colors, and declutter options (waypoints, paths, FOV cones, light beams).
-- **Multi-select & align** — select several elements to align or distribute them evenly.
-- **Production logo** — upload a logo in the inspector's Production Info; it is stamped on the printed plan, the call sheet, and the PNG title block.
+- **Storyboard thumbnails on the plan** — a shot's artwork sits beside its camera on a leader line and can be dragged anywhere on the canvas.
+- **Basic shapes & architectural walls** — walls, doors, windows, rectangles, circles, ellipses, triangles, diamonds, and stars for blocking zones and callout areas.
+- **Reference images** — overlay set photos or blueprints as background images with drag, resize, opacity, and visibility toggles.
+- **Props & lighting** — furniture presets, light sources with beam wedges, C-stand flags, and measurement lines.
+- **Production logo** — upload a logo in the inspector's Production Info; stamped on printed plans, call sheets, and PNG blueprints.
 
 ### Viewfinder & storyboard camera
 

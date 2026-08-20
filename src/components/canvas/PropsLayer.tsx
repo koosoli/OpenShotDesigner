@@ -893,6 +893,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
         const dist = Math.round(getDistance({ x: x1, y: y1 }, { x: x2, y: y2 }));
         const midX = (x1 + x2) / 2;
         const midY = (y1 + y2) / 2;
+        const angle = Math.atan2(y2 - y1, x2 - x1);
 
         return (
           <g
@@ -990,6 +991,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
         const midX = (x1 + x2) / 2;
         const midY = (y1 + y2) / 2;
         const labelOffsetY = (y2 - y1) !== 0 ? -1 : -10;
+        const labelOpacity = 1;
 
         return (
           <g

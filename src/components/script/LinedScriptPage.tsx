@@ -302,7 +302,8 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
         fontFamily: '"Courier New", Courier, monospace',
         fontSize: `${fontSize}px`,
         lineHeight: 1.35,
-        maxWidth: `${PAGE_COLUMNS * 0.62}em`,
+        width: '100%',
+        maxWidth: print ? '100%' : `${PAGE_COLUMNS * 0.65 + (Math.max(laneCount, 1) * LANE_WIDTH / Math.max(fontSize, 10)) + 4}em`,
         padding: `${fontSize}px`,
         paddingLeft: `${fontSize * 2.2}px`,
         paddingRight: `${fontSize * 0.8 + Math.max(laneCount, 1) * LANE_WIDTH}px`,
@@ -314,6 +315,15 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
           const type = (line.type || 'action') as ScriptElementType;
           const layout = LAYOUT[type] || LAYOUT.action;
           const inSelection = selection && index >= selection.from && index <= selection.to;
+          const selectionCover =
+            selection && inSelection && (selection as any).partial
+              ? {
+                  start: index === selection.from ? (selection as any).startOffset ?? 0 : 0,
+                  end: index === selection.to ? (selection as any).endOffset ?? line.text.length : line.text.length,
+                }
+              : null;
+          const isLineFullSelected = inSelection && !selectionCover;
+
           const selectedEntry = laidOutMarks.find(
             (entry) => entry.mark.shotId === selectedShotId && index >= entry.from && index <= entry.to
           );
@@ -336,10 +346,10 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
               }}
               onPointerDown={(event) => onLinePointerDown?.(event, line.id)}
               className={`relative rounded-sm transition-colors ${onLinePointerDown ? 'cursor-text' : ''} ${
-                inSelection
+                isLineFullSelected
                   ? isLight || print
-                    ? 'bg-amber-200/70'
-                    : 'bg-amber-400/25'
+                    ? 'bg-amber-200/70 ring-1 ring-amber-400/60'
+                    : 'bg-amber-400/25 ring-1 ring-amber-400/40'
                   : inSelectedShot && !partialCover && !print
                     ? isLight
                       ? 'bg-sky-100'
@@ -360,6 +370,20 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
               <span data-line-text className={`whitespace-pre-wrap break-words ${layout.className}`}>
                 {line.text}
               </span>
+
+              {/* Persistent selection highlight for partial text selection */}
+              {selectionCover && (selectionCover.start > 0 || selectionCover.end < line.text.length || isLineFullSelected) && (
+                <span
+                  aria-hidden
+                  className="absolute inset-0 whitespace-pre-wrap break-words pointer-events-none"
+                >
+                  <span className="invisible">{line.text.slice(0, selectionCover.start)}</span>
+                  <span className={isLight || print ? 'bg-amber-300/80 ring-1 ring-amber-500/40 rounded-sm' : 'bg-amber-400/35 ring-1 ring-amber-400/50 rounded-sm'}>
+                    {line.text.slice(selectionCover.start, selectionCover.end)}
+                  </span>
+                </span>
+              )}
+
               {/* Tint only the covered words when the selected lining is partial */}
               {covered && (covered.start > 0 || covered.end < line.text.length) && (
                 <span

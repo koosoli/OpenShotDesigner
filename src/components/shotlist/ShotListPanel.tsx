@@ -357,7 +357,7 @@ export const ShotListPanel: React.FC = () => {
 
             {/* Print View */}
             <button
-              onClick={openExportModal}
+              onClick={() => openExportModal('shotlist')}
               title="Print Shot List or Blueprint Floor Plan"
               className={`p-1.5 rounded-lg border text-xs transition-colors ${
                 isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'

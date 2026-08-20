@@ -14,6 +14,8 @@ import {
   SceneSetup,
   ShapeElement,
   ShapeType,
+  AVScriptRow,
+  ScriptFormatMode,
   ScriptLine,
   ScriptMark,
   Shot,
@@ -32,6 +34,7 @@ import { parseSampleScreenplay, sampleMarksFor } from '../utils/sampleContent';
 import {
   NewProjectOptions,
   ProjectSummary,
+  blankSetup,
   cloneProject,
   createProject as buildProject,
   getActiveProjectId,
@@ -171,6 +174,15 @@ interface FloorPlanContextType {
   setLiningDescription: (markId: string, text: string) => void;
   deleteScriptMark: (markId: string, options?: { deleteShot?: boolean }) => void;
   setScriptLines: (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string }) => void;
+  /** Audio-Visual (AV) 2-column commercial / documentary script rows. */
+  avScriptRows: AVScriptRow[];
+  setAVScriptRows: (rows: AVScriptRow[]) => void;
+  updateAVScriptRow: (id: string, updates: Partial<AVScriptRow>) => void;
+  addAVScriptRow: (row?: Partial<AVScriptRow>) => string;
+  deleteAVScriptRow: (id: string) => void;
+  scriptFormatMode: ScriptFormatMode;
+  setScriptFormatMode: (mode: ScriptFormatMode) => void;
+  syncAVRowToShot: (rowId: string) => string;
   createCameraOnly: (name: string, pos?: Vector2D) => string;
   createCameraForShot: (name: string, shotId: string, lensMm?: number, pos?: Vector2D) => string;
   setShotCameraLetter: (shotId: string, letter: string) => void;
@@ -249,9 +261,12 @@ export interface CategoryOpacitySettings {
   cameras: number;
   lights: number;
   props: number;
-  architecture: number;
-  shapes: number;
+  architecture?: number;
+  walls?: number;
+  shapes?: number;
   tracks: number;
+  measurements?: number;
+  storyboards?: number;
 }
 
 export interface LabelCategoryOpacitySettings {
@@ -897,6 +912,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         shots: [...activeSetup.shots, newShot],
       };
 
+      const newAVRow: AVScriptRow = {
+        id: `av-${shotId}`,
+        shotNumber,
+        shotName: newShot.name,
+        shotSize: newShot.shotSize,
+        video: newShot.framingDescription || 'Framed on subject',
+        audio: newShot.actionScriptNotes || '',
+        durationSec: newShot.estDurationSeconds || 15,
+        linkedShotId: shotId,
+      };
+
+      setProject((prev) => ({
+        ...prev,
+        avScriptRows: [...(prev.avScriptRows || avScriptRows), newAVRow],
+      }));
+
       commitSetupState(updatedSetup);
       setSelectedElementIds([id]);
       setSelectedShotId(shotId);
@@ -1138,6 +1169,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (selectedShotId && !updatedShots.find((s) => s.id === selectedShotId)) {
       setSelectedShotId(null);
     }
+    if (removedShotIds.size > 0) {
+      setProject((prev) => ({
+        ...prev,
+        avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
+      }));
+    }
     commitSetupState(updatedSetup);
   };
 
@@ -1159,6 +1196,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     setSelectedElementIds([]);
     setSelectedShotId(null);
+    if (removedShotIds.size > 0) {
+      setProject((prev) => ({
+        ...prev,
+        avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
+      }));
+    }
     commitSetupState(updatedSetup);
   };
 
@@ -1240,7 +1283,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // camera isn't orphaned in the shot list.
       if (pasted.type === 'camera') {
         const cam = pasted as CameraElement;
-        const linkedShot = activeSetup.shots.find((s) => s.id === el.associatedShotId);
+        const linkedShot = activeSetup.shots.find((s) => s.id === (el as CameraElement).associatedShotId);
         const copiedShotId = newShotId();
         cam.associatedShotId = copiedShotId;
         if (linkedShot) {
@@ -1758,6 +1801,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       scriptMarks: [...(activeSetup.scriptMarks || []), mark],
     };
 
+    const newAVRow: AVScriptRow = {
+      id: `av-${shotId}`,
+      shotNumber,
+      shotName: newShot.name,
+      shotSize: newShot.shotSize,
+      video: newShot.framingDescription || `${newShot.shotSize} coverage of scene ${sceneNum}`,
+      audio: coveredText,
+      durationSec: 20,
+      linkedShotId: shotId,
+    };
+
+    setProject((prev) => ({
+      ...prev,
+      avScriptRows: [...(prev.avScriptRows || avScriptRows), newAVRow],
+    }));
+
     commitSetupState(updatedSetup);
     setSelectedShotId(shotId);
     setSelectedElementIds([camId]);
@@ -1930,6 +1989,247 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ),
       })),
     }));
+  };
+
+  const avScriptRows: AVScriptRow[] = project.avScriptRows || [
+    {
+      id: 'av-1',
+      shotNumber: '1',
+      shotName: 'WS - Master Establishing',
+      shotSize: 'WS',
+      video: 'EXT. GLASS PAVILION - SUNRISE. Crane down slowly as the golden morning sun reflects off the glass facade.',
+      audio: 'MUSIC: Ethereal synth strings swell gently. Ambient birds chirping in the garden distance.',
+      durationSec: 6,
+    },
+    {
+      id: 'av-2',
+      shotNumber: '2',
+      shotName: 'MS - Protagonist Arrival',
+      shotSize: 'MS',
+      video: 'TRACKING SHOT with Marcus as he walks briskly toward the security entrance, briefcase in hand.',
+      audio: 'MARCUS (V.O.)\n(calm, measured)\nThey told me the vault was impenetrable. They lied.',
+      durationSec: 5,
+    },
+    {
+      id: 'av-3',
+      shotNumber: '3',
+      shotName: 'CU - Biometric Scan',
+      shotSize: 'CU',
+      video: 'INSERT - Scanner panel flashing emerald green as Marcus places his palm on the glass plate.',
+      audio: 'SFX: High-tech confirmation chime (DOUBLE BEEP). Pneumatic door lock releases with a hiss.',
+      durationSec: 3,
+    },
+  ];
+
+  const scriptFormatMode: ScriptFormatMode = project.scriptFormatMode || 'lined_coverage';
+
+  const setScriptFormatMode = (mode: ScriptFormatMode) => {
+    setProject((prev) => ({ ...prev, scriptFormatMode: mode }));
+  };
+
+  const setAVScriptRows = (rows: AVScriptRow[]) => {
+    setProject((prev) => ({
+      ...prev,
+      avScriptRows: rows,
+    }));
+  };
+
+  const updateAVScriptRow = (id: string, updates: Partial<AVScriptRow>) => {
+    setProject((prev) => {
+      const current = prev.avScriptRows || avScriptRows;
+      const target = current.find((r) => r.id === id);
+      if (target?.linkedShotId) {
+        const shotUpdates: Partial<Shot> = {};
+        if (updates.shotNumber !== undefined) shotUpdates.shotNumber = updates.shotNumber;
+        if (updates.shotName !== undefined) shotUpdates.name = updates.shotName;
+        if (updates.shotSize !== undefined) shotUpdates.shotSize = updates.shotSize;
+        if (updates.video !== undefined) shotUpdates.framingDescription = updates.video;
+        if (updates.audio !== undefined) shotUpdates.actionScriptNotes = updates.audio;
+        if (updates.durationSec !== undefined) shotUpdates.estDurationSeconds = updates.durationSec;
+        updateShot(target.linkedShotId, shotUpdates);
+      }
+      return {
+        ...prev,
+        avScriptRows: current.map((row) => (row.id === id ? { ...row, ...updates } : row)),
+      };
+    });
+  };
+
+  const addAVScriptRow = (row?: Partial<AVScriptRow>): string => {
+    const shotId = newShotId();
+    const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
+    const isMultiCam = activeSetup.shootMode === 'multi_cam';
+    const camLetter = isMultiCam ? String.fromCharCode(65 + (existingCameras.length % 26)) : 'A';
+    const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
+    const spawnPos = getNewCameraPosition();
+    const camId = `cam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+    const currentRows = project.avScriptRows || avScriptRows;
+    const nextNum = row?.shotNumber || String(currentRows.length + 1);
+    const shotName = row?.shotName || `Shot ${nextNum}`;
+    const shotSize = row?.shotSize || 'MS';
+    const video = row?.video || `Framed on subject (${shotSize})`;
+    const audio = row?.audio || '';
+    const duration = row?.durationSec || 5;
+
+    const newCamera: CameraElement = {
+      id: camId,
+      type: 'camera',
+      name: `Camera ${camLetter} (${shotName})`,
+      cameraLabel: camLetter,
+      color: camColor,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      rotation: 0,
+      locked: false,
+      visible: true,
+      focalLength: 35,
+      sensorFormat: 'Super35',
+      fovAngle: calculateFovAngle(35, 'Super35'),
+      aspectRatio: '16:9',
+      cameraHeight: 'Eye Level',
+      rigType: 'Tripod',
+      throwDistance: 160,
+      path: [],
+      associatedShotId: shotId,
+    };
+
+    const newShotItem: Shot = {
+      id: shotId,
+      sceneNumber: activeSetup.sceneNumber || '1',
+      shotNumber: nextNum,
+      name: shotName,
+      cameraId: camId,
+      cameraLabel: camLetter,
+      shotSize,
+      lensMm: 35,
+      cameraAngle: 'Eye Level',
+      movement: 'Static',
+      aspectRatio: '16:9',
+      frameRate: 24,
+      subjectActorIds: [],
+      framingDescription: video,
+      actionScriptNotes: audio,
+      status: 'planned',
+      takesCount: 0,
+      estDurationSeconds: duration,
+      order: activeSetup.shots.length + 1,
+    };
+
+    const avRowId = `av-${shotId}`;
+    const newRow: AVScriptRow = {
+      id: avRowId,
+      shotNumber: nextNum,
+      shotName,
+      shotSize,
+      video,
+      audio,
+      durationSec: duration,
+      linkedShotId: shotId,
+    };
+
+    const updatedSetup: SceneSetup = {
+      ...activeSetup,
+      elements: [...activeSetup.elements, newCamera],
+      shots: [...activeSetup.shots, newShotItem],
+    };
+
+    commitSetupState(updatedSetup);
+
+    setProject((prev) => ({
+      ...prev,
+      avScriptRows: [...(prev.avScriptRows || currentRows), newRow],
+    }));
+
+    setSelectedShotId(shotId);
+    setSelectedElementIds([camId]);
+    return avRowId;
+  };
+
+  const deleteAVScriptRow = (id: string) => {
+    const current = project.avScriptRows || avScriptRows;
+    const row = current.find((r) => r.id === id);
+    if (row?.linkedShotId) {
+      deleteShot(row.linkedShotId);
+    }
+    setProject((prev) => {
+      const rows = prev.avScriptRows || current;
+      return {
+        ...prev,
+        avScriptRows: rows.filter((r) => r.id !== id && r.linkedShotId !== row?.linkedShotId),
+      };
+    });
+  };
+
+  const syncAVRowToShot = (rowId: string): string => {
+    const current = project.avScriptRows || avScriptRows;
+    const row = current.find((r) => r.id === rowId);
+    if (!row) return '';
+
+    const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
+    const isMultiCam = activeSetup.shootMode === 'multi_cam';
+    const camLetter = isMultiCam ? String.fromCharCode(65 + (existingCameras.length % 26)) : 'A';
+    const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
+    const spawnPos = getNewCameraPosition();
+
+    const shotId = newShotId();
+    const camId = `cam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+    const newCamera: CameraElement = {
+      id: camId,
+      type: 'camera',
+      name: `Camera ${camLetter} (${row.shotName || `Shot ${row.shotNumber}`})`,
+      cameraLabel: camLetter,
+      color: camColor,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      rotation: 0,
+      locked: false,
+      visible: true,
+      focalLength: 35,
+      sensorFormat: 'Super35',
+      fovAngle: calculateFovAngle(35, 'Super35'),
+      aspectRatio: '16:9',
+      cameraHeight: 'Eye Level',
+      rigType: 'Tripod',
+      throwDistance: 160,
+      path: [],
+      associatedShotId: shotId,
+    };
+
+    const newShotItem: Shot = {
+      id: shotId,
+      sceneNumber: activeSetup.sceneNumber || '1',
+      shotNumber: row.shotNumber,
+      name: row.shotName || `Shot ${row.shotNumber}`,
+      cameraId: camId,
+      cameraLabel: camLetter,
+      shotSize: row.shotSize || 'MS',
+      lensMm: 35,
+      cameraAngle: 'Eye Level',
+      movement: 'Static',
+      aspectRatio: '16:9',
+      frameRate: 24,
+      subjectActorIds: [],
+      framingDescription: row.video,
+      actionScriptNotes: row.audio,
+      status: 'planned',
+      takesCount: 0,
+      estDurationSeconds: row.durationSec || 5,
+      order: activeSetup.shots.length,
+    };
+
+    // Update active scene setup with new camera and shot
+    commitSetupState({
+      ...activeSetup,
+      elements: [...activeSetup.elements, newCamera],
+      shots: [...activeSetup.shots, newShotItem],
+    });
+
+    // Link row back to created shot
+    updateAVScriptRow(rowId, { linkedShotId: shotId });
+    setSelectedShotId(shotId);
+    return shotId;
   };
 
   const createCameraOnly = (name: string, pos?: Vector2D): string => {
@@ -2340,6 +2640,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         shots: setup.shots.map((s) => (s.id === id ? ({ ...s, ...updates } as Shot) : s)),
       };
     });
+
+    setProject((prev) => ({
+      ...prev,
+      avScriptRows: (prev.avScriptRows || []).map((r) => {
+        if (r.linkedShotId !== id) return r;
+        return {
+          ...r,
+          ...(updates.shotNumber !== undefined ? { shotNumber: updates.shotNumber } : {}),
+          ...(updates.name !== undefined ? { shotName: updates.name } : {}),
+          ...(updates.shotSize !== undefined ? { shotSize: updates.shotSize } : {}),
+          ...(updates.framingDescription !== undefined ? { video: updates.framingDescription } : {}),
+          ...(updates.actionScriptNotes !== undefined ? { audio: updates.actionScriptNotes } : {}),
+          ...(updates.estDurationSeconds !== undefined ? { durationSec: updates.estDurationSeconds } : {}),
+        };
+      }),
+    }));
   };
 
   const deleteShot = (id: string) => {
@@ -2365,6 +2681,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         scriptMarks: (setup.scriptMarks || []).filter((mark) => mark.shotId !== id),
       };
     });
+
+    setProject((prev) => ({
+      ...prev,
+      avScriptRows: (prev.avScriptRows || []).filter((r) => r.linkedShotId !== id),
+    }));
   };
 
   const reorderShots = (arg1: number | Shot[], arg2?: number) => {
@@ -2610,27 +2931,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const addSetup = (name?: string) => {
     const nextNum = project.setups.length + 1;
-    const newSetup: SceneSetup = {
-      id: `setup-${Date.now()}`,
-      name: name || `Coverage ${nextNum}`,
-      sceneNumber: `${nextNum}`,
-      location: 'INT. STUDIO - DAY',
-      timeOfDay: 'Day INT',
-      elements: [],
-      shots: [],
-      currentBeat: 1,
-      totalBeats: 1,
-      aspectRatio: '16:9',
-      canvasScale: 1,
-      canvasOffset: { x: 50, y: 50 },
-      gridSettings: {
-        size: 30,
-        snap: true,
-        showGrid: false,
-        unit: 'm',
-        pixelsPerUnit: 30,
-      },
-    };
+    const newSetup = blankSetup(`${nextNum}`, name || `Coverage ${nextNum}`);
 
     setProject((prev) => ({
       ...prev,
@@ -2945,6 +3246,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         deleteSelectedElements,
         deleteElementById,
         duplicateSelected,
+        copySelectedElements,
+        pasteElements,
+        setShootMode,
         insertDoorInWall,
         insertWindowInWall,
 
@@ -2964,6 +3268,14 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setLiningDescription,
         deleteScriptMark,
         setScriptLines,
+        avScriptRows,
+        setAVScriptRows,
+        updateAVScriptRow,
+        addAVScriptRow,
+        deleteAVScriptRow,
+        scriptFormatMode,
+        setScriptFormatMode,
+        syncAVRowToShot,
         updateShot,
         deleteShot,
         reorderShots,

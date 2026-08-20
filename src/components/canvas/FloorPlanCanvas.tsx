@@ -472,8 +472,8 @@ export const FloorPlanCanvas: React.FC = () => {
     const canvasPos = screenToCanvas(e.clientX, e.clientY);
     const drawPos = getDrawingCursorPos(canvasPos);
 
-    // Shape tool: click to drop the current shape at that point
-    if (activeTool === 'shape') {
+    // Shape tool: click to drop the current shape at that point (except drag-drawn line shapes)
+    if (activeTool === 'shape' && activeShapeType !== 'line') {
       const newId = addElement({ type: 'shape', x: drawPos.x, y: drawPos.y });
       selectElement(newId);
       setTool('select');

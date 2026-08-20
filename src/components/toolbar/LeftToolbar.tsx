@@ -261,19 +261,21 @@ export const LeftToolbar: React.FC = () => {
         : 'text-slate-300 hover:bg-slate-800'
     }`;
 
-  const filteredProps = PROP_CATALOG.filter(
-    (p) =>
-      !propSearch ||
-      p.name.toLowerCase().includes(propSearch.toLowerCase()) ||
-      p.category.toLowerCase().includes(propSearch.toLowerCase())
-  );
+  const normalizeQuery = (text: string) => text.toLowerCase().replace(/[-_/\\+()#.,"'`]/g, ' ').trim();
 
-  const filteredLights = LIGHT_FIXTURES.filter(
-    (f) =>
-      !lightSearch ||
-      f.name.toLowerCase().includes(lightSearch.toLowerCase()) ||
-      f.type.toLowerCase().includes(lightSearch.toLowerCase())
-  );
+  const filteredProps = PROP_CATALOG.filter((p) => {
+    if (!propSearch) return true;
+    const qTokens = normalizeQuery(propSearch).split(' ').filter(Boolean);
+    const textToMatch = normalizeQuery(`${p.name} ${p.category} ${p.type}`);
+    return qTokens.every((tok) => textToMatch.includes(tok));
+  });
+
+  const filteredLights = LIGHT_FIXTURES.filter((f) => {
+    if (!lightSearch) return true;
+    const qTokens = normalizeQuery(lightSearch).split(' ').filter(Boolean);
+    const textToMatch = normalizeQuery(`${f.name} ${f.type} ${f.isFlag ? 'flag cstand grip' : 'light lamp'}`);
+    return qTokens.every((tok) => textToMatch.includes(tok));
+  });
 
   return (
     <aside

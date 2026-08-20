@@ -61,6 +61,8 @@ export const PrintableShotPlan: React.FC = () => {
     scriptLines,
     allScriptMarks,
     allShots,
+    avScriptRows,
+    scriptFormatMode,
     displaySettings,
   } = useFloorPlan();
   const [pngScale, setPngScale] = useState<2 | 3>(2);
@@ -678,7 +680,7 @@ export const PrintableShotPlan: React.FC = () => {
                   ))}
 
                   {/* 1. Draw Walls, Doors & Windows */}
-                  <g opacity={eff.categoryOpacity?.walls ?? 1}>
+                  <g opacity={eff.categoryOpacity?.walls ?? eff.categoryOpacity?.architecture ?? 1}>
                     {/* 1. Walls */}
                     {walls.map((wall) => {
                       const x1 = wall.x;
@@ -965,7 +967,7 @@ export const PrintableShotPlan: React.FC = () => {
                   </g>
 
                   {/* 3.6 Draw Measurements */}
-                  <g opacity={eff.categoryOpacity?.measurements ?? 1}>
+                  <g opacity={eff.categoryOpacity?.measurements ?? eff.categoryOpacity?.shapes ?? 1}>
                     {measurements.map((m) => {
                       const x1 = m.x;
                       const y1 = m.y;
@@ -1664,7 +1666,7 @@ export const PrintableShotPlan: React.FC = () => {
 
                   {/* 8. Storyboard Thumbnails on the Blueprint (near their camera) */}
                   {showStoryboards && eff.showStoryboardThumbs && (
-                    <g opacity={eff.categoryOpacity?.storyboards ?? 1}>
+                    <g opacity={eff.categoryOpacity?.cameras ?? 1}>
                       {activeSetup.shots
                         .flatMap((shot) => {
                           const cam = cameras.find((c) => c.id === shot.cameraId);
@@ -1945,59 +1947,115 @@ export const PrintableShotPlan: React.FC = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* SECTION L: LINED SHOOTING SCRIPT                                           */}
+          {/* SECTION L: SCRIPT / AV 2-COLUMN SCRIPT / LINED SHOOTING SCRIPT              */}
           {/* ========================================================================= */}
           {(exportSection === 'linedscript' || exportSection === 'combined') && (
             <div className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-violet-600" />
-                  <span>Lined Shooting Script</span>
-                </h3>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center rounded-lg border border-slate-300 p-0.5 print:hidden">
-                    <button
-                      onClick={() => setScriptScope('lined')}
-                      className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
-                        scriptScope === 'lined' ? 'bg-sky-600 text-white' : 'text-slate-600'
-                      }`}
-                    >
-                      Lined portions
-                    </button>
-                    <button
-                      onClick={() => setScriptScope('full')}
-                      className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
-                        scriptScope === 'full' ? 'bg-sky-600 text-white' : 'text-slate-600'
-                      }`}
-                    >
-                      Full screenplay
-                    </button>
+              {scriptFormatMode === 'av_script' ? (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                      <Film className="w-4 h-4 text-violet-600" />
+                      <span>Audio-Visual (AV) 2-Column Script Sheet</span>
+                    </h3>
+                    <span className="font-mono text-xs font-bold text-slate-700">
+                      {(avScriptRows || []).length} SHOTS
+                    </span>
                   </div>
-                  <span className="font-mono text-xs font-bold text-slate-700">
-                    {allScriptMarks.length} LINED SHOT{allScriptMarks.length === 1 ? '' : 'S'}
-                  </span>
+
+                  <div className="border border-slate-900 rounded-lg overflow-hidden">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-bold">
+                          <th className="p-2.5 font-mono w-16 text-center">SHOT #</th>
+                          <th className="p-2.5 w-44">NAME & SIZE</th>
+                          <th className="p-2.5 w-1/2">VIDEO (VISUALS & CAMERA)</th>
+                          <th className="p-2.5 w-1/2">AUDIO (VO, DIALOGUE, SFX, MUSIC)</th>
+                          <th className="p-2.5 font-mono w-16 text-center">TIME</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-300">
+                        {(avScriptRows || []).map((row) => (
+                          <tr key={row.id} className="hover:bg-slate-50">
+                            <td className="p-2.5 font-mono font-black text-slate-900 text-center">
+                              {row.shotNumber}
+                            </td>
+                            <td className="p-2.5">
+                              <div className="font-bold text-slate-900">{row.shotName || `Shot ${row.shotNumber}`}</div>
+                              {row.shotSize && (
+                                <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded bg-slate-200 text-slate-800 text-[10px] font-bold">
+                                  {row.shotSize}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-slate-800 whitespace-pre-wrap leading-relaxed">
+                              {row.video}
+                            </td>
+                            <td className="p-2.5 text-slate-800 whitespace-pre-wrap leading-relaxed font-mono text-[11px]">
+                              {row.audio}
+                            </td>
+                            <td className="p-2.5 font-mono text-center text-slate-600">
+                              {row.durationSec ? `${row.durationSec}s` : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-              {scriptLines.length === 0 ? (
-                <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
-                  No screenplay imported for this scene — load one in the Script panel to print a lined script.
-                </p>
               ) : (
-                <div className="border border-slate-300 rounded-lg p-3 bg-white">
-                  {printedScriptLines.length === 0 ? (
-                    <p className="text-xs text-slate-500 p-3">
-                      Nothing is lined yet — line a shot in the Script panel, or switch to “Full screenplay”.
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-violet-600" />
+                      <span>Lined Shooting Script</span>
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center rounded-lg border border-slate-300 p-0.5 print:hidden">
+                        <button
+                          onClick={() => setScriptScope('lined')}
+                          className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
+                            scriptScope === 'lined' ? 'bg-sky-600 text-white' : 'text-slate-600'
+                          }`}
+                        >
+                          Lined portions
+                        </button>
+                        <button
+                          onClick={() => setScriptScope('full')}
+                          className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
+                            scriptScope === 'full' ? 'bg-sky-600 text-white' : 'text-slate-600'
+                          }`}
+                        >
+                          Full screenplay
+                        </button>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-slate-700">
+                        {allScriptMarks.length} LINED SHOT{allScriptMarks.length === 1 ? '' : 'S'}
+                      </span>
+                    </div>
+                  </div>
+                  {scriptLines.length === 0 ? (
+                    <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                      No screenplay imported for this scene — load one in the Script panel to print a lined script.
                     </p>
                   ) : (
-                    <LinedScriptPage
-                      lines={printedScriptLines}
-                      marks={allScriptMarks}
-                      shots={allShots}
-                      fontSize={11}
-                      showShotSize={eff.showShotSizeInScript !== false}
-                      isLight
-                      print
-                    />
+                    <div className="border border-slate-300 rounded-lg p-3 bg-white">
+                      {printedScriptLines.length === 0 ? (
+                        <p className="text-xs text-slate-500 p-3">
+                          Nothing is lined yet — line a shot in the Script panel, or switch to “Full screenplay”.
+                        </p>
+                      ) : (
+                        <LinedScriptPage
+                          lines={printedScriptLines}
+                          marks={allScriptMarks}
+                          shots={allShots}
+                          fontSize={11}
+                          showShotSize={eff.showShotSizeInScript !== false}
+                          isLight
+                          print
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
               )}

@@ -13,12 +13,13 @@ import { PrintableShotPlan } from './components/export/PrintableShotPlan';
 import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { useBreakpoint } from './utils/useMediaQuery';
-import { AlertTriangle, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { AlertTriangle, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Maximize2, Minimize2, X } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const MainLayout: React.FC = () => {
   const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning } = useFloorPlan();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [isRightPanelFullscreen, setIsRightPanelFullscreen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(700); // Default wide enough to show the full shot list
   const [isResizing, setIsResizing] = useState(false);
   const { isCompact: isMobile } = useBreakpoint();
@@ -27,6 +28,17 @@ const MainLayout: React.FC = () => {
 
   const isLight = theme === 'light';
   const sheetHeight = sheetSize === 'peek' ? '3.25rem' : sheetSize === 'full' ? '88vh' : 'min(52vh, 520px)';
+
+  // Exit fullscreen on Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isRightPanelFullscreen) {
+        setIsRightPanelFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isRightPanelFullscreen]);
 
   // Sidebar drag to resize
   const handleResizePointerDown = (e: React.PointerEvent) => {
@@ -98,27 +110,35 @@ const MainLayout: React.FC = () => {
         {isRightPanelOpen ? (
           <aside
             id="right-sidebar"
-            style={{
-              '--sidebar-width': `${sidebarWidth}px`,
-              '--sheet-height': sheetHeight,
-              // Inline height wins over the h-full utility class on phones
-              ...(isMobile ? { height: sheetHeight } : null),
-            } as React.CSSProperties}
-            className={`h-full flex flex-col border-l shadow-2xl relative z-20 transition-colors flex-shrink-0 ${
-              isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+            style={
+              isRightPanelFullscreen
+                ? undefined
+                : ({
+                    '--sidebar-width': `${sidebarWidth}px`,
+                    '--sheet-height': sheetHeight,
+                    // Inline height wins over the h-full utility class on phones
+                    ...(isMobile ? { height: sheetHeight } : null),
+                  } as React.CSSProperties)
+            }
+            className={`transition-colors ${
+              isRightPanelFullscreen
+                ? `fixed inset-0 z-50 w-screen h-screen flex flex-col ${isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}`
+                : `h-full flex flex-col border-l shadow-2xl relative z-20 flex-shrink-0 ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`
             }`}
           >
-            {/* Resizing left edge bar */}
-            <div
-              onPointerDown={handleResizePointerDown}
-              onDoubleClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
-              title="Drag to resize panel (Double click to toggle wide/standard)"
-              className={`absolute -left-1.5 top-0 bottom-0 w-3 cursor-col-resize z-30 group flex items-center justify-center`}
-            >
-              <div className={`w-1 h-12 rounded-full transition-all ${
-                isResizing ? 'bg-sky-500 w-1.5' : 'bg-transparent group-hover:bg-sky-400/80'
-              }`} />
-            </div>
+            {/* Resizing left edge bar (hidden in fullscreen) */}
+            {!isRightPanelFullscreen && (
+              <div
+                onPointerDown={handleResizePointerDown}
+                onDoubleClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
+                title="Drag to resize panel (Double click to toggle wide/standard)"
+                className={`absolute -left-1.5 top-0 bottom-0 w-3 cursor-col-resize z-30 group flex items-center justify-center`}
+              >
+                <div className={`w-1 h-12 rounded-full transition-all ${
+                  isResizing ? 'bg-sky-500 w-1.5' : 'bg-transparent group-hover:bg-sky-400/80'
+                }`} />
+              </div>
+            )}
 
             {/* Tab Header (Shot List vs Inspector) */}
             <div className={`flex items-center justify-between border-b p-1.5 ${
@@ -195,8 +215,23 @@ const MainLayout: React.FC = () => {
                 </button>
               </div>
 
-              {/* Panel width presets (desktop) / bottom-sheet height (mobile) */}
+              {/* Panel width presets (desktop) / bottom-sheet height (mobile) & Fullscreen toggle */}
               <div className="flex items-center gap-0.5 ml-1">
+                {/* Full Screen Toggle Button */}
+                <button
+                  onClick={() => setIsRightPanelFullscreen((prev) => !prev)}
+                  title={isRightPanelFullscreen ? 'Exit Full Screen (Esc)' : 'Full Screen Panel View'}
+                  className={`p-1.5 rounded-lg text-xs transition-colors ${
+                    isRightPanelFullscreen
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : isLight
+                      ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  {isRightPanelFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                </button>
+
                 {isMobile ? (
                   <>
                     <button
@@ -219,20 +254,25 @@ const MainLayout: React.FC = () => {
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
-                    title={sidebarWidth > 500 ? 'Compact panel width' : 'Expand panel width'}
-                    className={`p-1.5 rounded-lg text-xs transition-colors ${
-                      isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    }`}
-                  >
-                    <span className="text-[10px] font-mono font-bold">{sidebarWidth > 500 ? '‹|›' : '›|‹'}</span>
-                  </button>
+                  !isRightPanelFullscreen && (
+                    <button
+                      onClick={() => setSidebarWidth((prev) => (prev > 500 ? 360 : 700))}
+                      title={sidebarWidth > 500 ? 'Compact panel width' : 'Expand panel width'}
+                      className={`p-1.5 rounded-lg text-xs transition-colors ${
+                        isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="text-[10px] font-mono font-bold">{sidebarWidth > 500 ? '‹|›' : '›|‹'}</span>
+                    </button>
+                  )
                 )}
 
                 {/* Collapse Sidebar Button */}
                 <button
-                  onClick={() => setIsRightPanelOpen(false)}
+                  onClick={() => {
+                    setIsRightPanelFullscreen(false);
+                    setIsRightPanelOpen(false);
+                  }}
                   title={isMobile ? 'Hide panel' : 'Collapse sidebar'}
                   className={`p-1.5 rounded-lg transition-colors ${
                     isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'

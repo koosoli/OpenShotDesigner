@@ -26,6 +26,7 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
   isInteractive,
   onDragThumb,
   onSelectCamera,
+  onDoubleClickCamera,
   onDropToCamera,
 }) => {
   const ratio = aspectRatio > 0 ? aspectRatio : 16 / 9;

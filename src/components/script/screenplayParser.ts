@@ -257,3 +257,137 @@ export const sceneNumberForLine = (lines: ScriptLine[], lineId: string): string 
   }
   return undefined;
 };
+
+/** Clean a parenthetical string ensuring it has single enclosing parentheses. */
+export const formatParenthetical = (text: string): string => {
+  const inner = text.replace(/^\s*\(*\s*/, '').replace(/\s*\)*\s*$/, '').trim();
+  return inner ? `(${inner})` : '()';
+};
+
+/**
+ * Serialize typed script lines to clean Fountain plain text format.
+ */
+export const serializeToFountain = (lines: ScriptLine[], title?: string): string => {
+  const out: string[] = [];
+  if (title) {
+    out.push(`Title: ${title}\nCredit: Written by\nAuthor: CinePlan\n\n===\n\n`);
+  }
+
+  let prevType: ScriptElementType | undefined;
+
+  lines.forEach((line) => {
+    const text = (line.text || '').trim();
+    if (!text) return;
+
+    switch (line.type) {
+      case 'scene': {
+        const sceneNum = line.sceneNumber ? ` #${line.sceneNumber}#` : '';
+        const isStandardPrefix = /^(INT|EXT|EST|INT\.?\/EXT|I\/E)[.\s]/i.test(text);
+        const prefix = isStandardPrefix ? '' : '.';
+        out.push(`\n${prefix}${text.toUpperCase()}${sceneNum}\n`);
+        break;
+      }
+      case 'character':
+        out.push(`\n${text.toUpperCase()}\n`);
+        break;
+      case 'parenthetical':
+        out.push(`${formatParenthetical(text)}\n`);
+        break;
+      case 'dialogue':
+        out.push(`${text}\n`);
+        break;
+      case 'transition':
+        out.push(`\n> ${text.toUpperCase()}\n`);
+        break;
+      case 'shot':
+        out.push(`\n${text.toUpperCase()}\n`);
+        break;
+      case 'note':
+        out.push(`\n[[ ${text} ]]\n`);
+        break;
+      case 'page-break':
+        out.push(`\n===\n`);
+        break;
+      case 'action':
+      default:
+        out.push(`\n${text}\n`);
+        break;
+    }
+    prevType = line.type;
+  });
+
+  return out.join('').trim() + '\n';
+};
+
+/**
+ * Parse an AV script from 2-column or tab-delimited text/CSV.
+ */
+export const parseAVScriptText = (raw: string): import('../../types').AVScriptRow[] => {
+  const rows: import('../../types').AVScriptRow[] = [];
+  const lines = raw.split(/\r?\n/);
+  let shotIndex = 1;
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    // Check for tab or CSV separator
+    let parts: string[] = [];
+    if (trimmed.includes('\t')) {
+      parts = trimmed.split('\t');
+    } else if (trimmed.includes(' | ')) {
+      parts = trimmed.split(' | ');
+    } else if (trimmed.includes(';')) {
+      parts = trimmed.split(';');
+    } else {
+      parts = [trimmed];
+    }
+
+    if (parts.length >= 2) {
+      const shotName = parts[0].trim();
+      const video = parts[1].trim();
+      const audio = parts[2] ? parts[2].trim() : '';
+      rows.push({
+        id: nextId('av'),
+        shotNumber: String(shotIndex++),
+        shotName,
+        video,
+        audio,
+      });
+    } else {
+      rows.push({
+        id: nextId('av'),
+        shotNumber: String(shotIndex++),
+        shotName: `Shot ${shotIndex - 1}`,
+        video: parts[0].trim(),
+        audio: '',
+      });
+    }
+  });
+
+  return rows.length ? rows : [
+    { id: nextId('av'), shotNumber: '1', shotName: 'WS - Establishing', video: 'Wide exterior shot of the building at sunrise.', audio: 'MUSIC: Upbeat ambient intro track begins to swell.' },
+    { id: nextId('av'), shotNumber: '2', shotName: 'MS - Presenter', video: 'Presenter walks into frame, gesturing toward camera.', audio: 'PRESENTER (V.O.)\nWelcome to the future of cinematic production planning.' },
+  ];
+};
+
+/**
+ * Serialize AV Script rows to clean 2-Column Markdown / Plain Text.
+ */
+export const serializeAVToPlainText = (rows: import('../../types').AVScriptRow[], title?: string): string => {
+  const out: string[] = [];
+  if (title) {
+    out.push(`# AV SCRIPT: ${title.toUpperCase()}\n\n`);
+  }
+  out.push('| SHOT # | SHOT NAME / SIZE | VIDEO (VISUALS & CAMERA) | AUDIO (VO, DIALOGUE, SFX) | EST. TIME |\n');
+  out.push('|---|---|---|---|---|\n');
+  rows.forEach((r) => {
+    const size = r.shotSize ? ` [${r.shotSize}]` : '';
+    const name = (r.shotName || '') + size;
+    const v = (r.video || '').replace(/[\r\n]+/g, ' ');
+    const a = (r.audio || '').replace(/[\r\n]+/g, ' / ');
+    const t = r.durationSec ? `${r.durationSec}s` : '-';
+    out.push(`| ${r.shotNumber} | ${name} | ${v} | ${a} | ${t} |\n`);
+  });
+  return out.join('');
+};

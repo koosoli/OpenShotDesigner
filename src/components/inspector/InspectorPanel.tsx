@@ -691,6 +691,7 @@ export const InspectorPanel: React.FC = () => {
     displaySettings,
     updateDisplaySettings,
     updateMultipleElements,
+    setGridSettings,
   } = useFloorPlan();
 
   const isLight = theme === 'light';

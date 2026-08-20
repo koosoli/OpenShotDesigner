@@ -430,6 +430,21 @@ export type ScriptElementType =
   | 'note'
   | 'page-break';
 
+/** Script view / format mode: Hollywood Screenplay, AV (Audio-Visual) 2-column, or Lined coverage. */
+export type ScriptFormatMode = 'screenplay' | 'av_script' | 'lined_coverage';
+
+/** A row in an Audio-Visual (AV) dual-column script (Commercials, Documentaries, Multi-Cam). */
+export interface AVScriptRow {
+  id: string;
+  shotNumber: string; // e.g. "1", "1A"
+  shotName?: string; // e.g. "WS - Office Lobby"
+  shotSize?: ShotSize; // e.g. "WS", "CU", "MS"
+  video: string; // Visuals, camera moves, lighting, graphics
+  audio: string; // Voiceover, dialogue, SFX, music
+  durationSec?: number; // Estimated timing in seconds
+  linkedShotId?: string; // Linked camera shot on floor plan
+}
+
 export interface ScriptLine {
   id: string;
   lineNumber: number;
@@ -517,6 +532,8 @@ export interface SceneSetup {
   scriptText?: string;
   scriptLines?: ScriptLine[];
   scriptMarks?: ScriptMark[];
+  avScriptRows?: AVScriptRow[];
+  scriptFormatMode?: ScriptFormatMode;
   /**
    * Shot ids in storyboard order. The board can be arranged independently of
    * the shot list; shots missing from this list simply follow at the end.
@@ -544,6 +561,8 @@ export interface Project {
   scriptTitle?: string;
   scriptText?: string;
   scriptLines?: ScriptLine[];
+  avScriptRows?: AVScriptRow[];
+  scriptFormatMode?: ScriptFormatMode;
   director: string;
   cinematographer: string;
   productionCompany?: string;

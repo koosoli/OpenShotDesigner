@@ -1,5 +1,6 @@
-import { Project, SceneSetup } from '../types';
+import { ActorElement, CameraElement, Project, SceneSetup, Shot } from '../types';
 import { SAMPLE_SCENES, SAMPLE_SCREENPLAY } from '../constants/presets';
+import { calculateFovAngle } from './geometry';
 import { parseSampleScreenplay, sampleMarksFor } from './sampleContent';
 
 /**
@@ -87,22 +88,86 @@ export const setActiveProjectId = (id: string) => localStorage.setItem(ACTIVE_KE
 export const newProjectId = () =>
   `proj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
-/** A fresh, empty stage — one scene, nothing on it. */
-const blankSetup = (): SceneSetup => ({
-  id: `setup-${Date.now().toString(36)}`,
-  name: 'Scene 1',
-  sceneNumber: '1',
-  location: 'INT. LOCATION - DAY',
-  timeOfDay: 'Day INT',
-  elements: [],
-  shots: [],
-  currentBeat: 1,
-  totalBeats: 1,
-  aspectRatio: '16:9',
-  canvasScale: 1,
-  canvasOffset: { x: 50, y: 50 },
-  gridSettings: { size: 30, snap: true, showGrid: false, unit: 'm', pixelsPerUnit: 30 },
-});
+/** A fresh scene setup starting with a first camera and an actor placed directly in front of it. */
+export const blankSetup = (sceneNumber = '1', name = 'Scene 1'): SceneSetup => {
+  const actorId = `actor-${Date.now().toString(36)}-1`;
+  const camId = `cam-${Date.now().toString(36)}-1`;
+  const shotId = `shot-${Date.now().toString(36)}-1`;
+
+  const actor: ActorElement = {
+    id: actorId,
+    type: 'actor',
+    name: 'Actor A',
+    characterLetter: 'A',
+    color: '#3b82f6',
+    x: 400,
+    y: 240,
+    rotation: 90,
+    isStanding: true,
+    actionNotes: 'Subject in frame',
+    path: [],
+  };
+
+  const camera: CameraElement = {
+    id: camId,
+    type: 'camera',
+    name: 'Camera A (Shot 1)',
+    cameraLabel: 'A',
+    color: '#0284c7',
+    x: 400,
+    y: 450,
+    rotation: -90,
+    locked: false,
+    visible: true,
+    focalLength: 35,
+    sensorFormat: 'Super35',
+    fovAngle: calculateFovAngle(35, 'Super35'),
+    aspectRatio: '16:9',
+    cameraHeight: 'Eye Level',
+    rigType: 'Tripod',
+    throwDistance: 210,
+    path: [],
+    associatedShotId: shotId,
+  };
+
+  const shot: Shot = {
+    id: shotId,
+    sceneNumber,
+    shotNumber: `${sceneNumber}/1`,
+    name: 'Shot 1',
+    cameraId: camId,
+    cameraLabel: 'A',
+    shotSize: 'MS',
+    lensMm: 35,
+    cameraAngle: 'Eye Level',
+    movement: 'Static',
+    aspectRatio: '16:9',
+    frameRate: 24,
+    subjectActorIds: [actorId],
+    framingDescription: 'Medium shot on Actor A',
+    actionScriptNotes: '',
+    status: 'planned',
+    takesCount: 0,
+    estDurationSeconds: 5,
+    order: 1,
+  };
+
+  return {
+    id: `setup-${Date.now().toString(36)}`,
+    name,
+    sceneNumber,
+    location: 'INT. LOCATION - DAY',
+    timeOfDay: 'Day INT',
+    elements: [actor, camera],
+    shots: [shot],
+    currentBeat: 1,
+    totalBeats: 1,
+    aspectRatio: '16:9',
+    canvasScale: 1,
+    canvasOffset: { x: 50, y: 50 },
+    gridSettings: { size: 30, snap: true, showGrid: false, unit: 'm', pixelsPerUnit: 30 },
+  };
+};
 
 export interface NewProjectOptions {
   title?: string;
@@ -127,6 +192,21 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     });
   }
 
+  const initialAVRows = withSamples
+    ? []
+    : [
+        {
+          id: `av-${setups[0].shots[0]?.id || '1'}`,
+          shotNumber: '1',
+          shotName: 'Shot 1',
+          shotSize: 'MS' as const,
+          video: 'Medium shot on Actor A',
+          audio: '',
+          durationSec: 5,
+          linkedShotId: setups[0].shots[0]?.id,
+        },
+      ];
+
   return {
     id: newProjectId(),
     title: options.title?.trim() || 'Untitled project',
@@ -135,6 +215,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     date: new Date().toISOString().split('T')[0],
     setups,
     activeSetupId: setups[0].id,
+    avScriptRows: initialAVRows,
     ...(withSamples
       ? { scriptTitle: 'Sample scene', scriptText: SAMPLE_SCREENPLAY, scriptLines }
       : {}),
