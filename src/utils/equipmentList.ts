@@ -872,26 +872,48 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
   const autoItems: EquipmentItem[] = [];
   const elements = setup.elements || [];
 
-  elements.forEach((elem: FloorPlanElement) => {
-    if (elem.type === 'camera') {
-      const cam = elem as CameraElement;
-      const lensMm = cam.focalLength || 35;
-      const rig = cam.rigType || 'tripod';
-      const label = (cam.cameraLabel || 'A').toUpperCase();
+  // 1. Group cameras by unique camera letter (A, B, C...) so Camera A is only ONE package
+  const cameras = elements.filter((e) => e.type === 'camera') as CameraElement[];
+  const cameraByLetter = new Map<string, CameraElement[]>();
 
-      autoItems.push({
-        id: `auto-cam-${cam.id}`,
-        elementId: cam.id,
-        category: 'camera',
-        name: `Camera ${label} Package`,
-        brand: cam.cameraModel ? cam.cameraModel.split(' ')[0] : 'Sony / ARRI',
-        model: cam.cameraModel || `Cinema Camera (Cam ${label})`,
-        quantity: 1,
-        roleOrFunction: `Camera ${label} Main`,
-        specs: `Prime Lens ${lensMm}mm · Rig: ${rig.toUpperCase()} · Sensor: ${cam.sensorFormat || 'Full Frame 35mm'}`,
-        isCustom: false,
-      });
-    } else if (elem.type === 'light') {
+  cameras.forEach((cam) => {
+    const letter = (cam.cameraLabel || 'A').toUpperCase().trim();
+    const existing = cameraByLetter.get(letter) || [];
+    existing.push(cam);
+    cameraByLetter.set(letter, existing);
+  });
+
+  cameraByLetter.forEach((camsInLetter, letter) => {
+    const primaryCam = camsInLetter[0];
+    const cameraModel = camsInLetter.find((c) => !!c.cameraModel)?.cameraModel || primaryCam.cameraModel;
+    
+    // Collect all focal lengths used by this camera letter in the scene
+    const focalLengths = Array.from(new Set(camsInLetter.map((c) => c.focalLength || 35))).sort((a, b) => a - b);
+    const rigs = Array.from(new Set(camsInLetter.map((c) => (c.rigType || 'tripod').toUpperCase())));
+    const sensor = camsInLetter.find((c) => !!c.sensorFormat)?.sensorFormat || primaryCam.sensorFormat || 'FullFrame';
+
+    const brand = cameraModel ? cameraModel.split(' ')[0] : 'Sony / ARRI';
+    const model = cameraModel || `Cinema Camera (Cam ${letter})`;
+    const lensStr = focalLengths.length === 1 ? `Prime Lens ${focalLengths[0]}mm` : `Lenses: ${focalLengths.map((f) => `${f}mm`).join(', ')}`;
+    const rigStr = `Rig: ${rigs.join(' / ')}`;
+
+    autoItems.push({
+      id: `auto-cam-letter-${letter}`,
+      elementId: `cam-letter-${letter}`,
+      category: 'camera',
+      name: `Camera ${letter} Package`,
+      brand,
+      model,
+      quantity: 1, // Exactly 1 physical camera package per camera letter
+      roleOrFunction: `Camera ${letter} Main`,
+      specs: `${lensStr} · ${rigStr} · Sensor: ${sensor}`,
+      isCustom: false,
+    });
+  });
+
+  // 2. Process non-camera elements (lights, props, tracks)
+  elements.forEach((elem: FloorPlanElement) => {
+    if (elem.type === 'light') {
       const light = elem as LightElement;
       const parsed = formatFixtureType(light.fixtureType);
       const kelvinStr = light.colorTemp ? `${light.colorTemp}K` : light.rgbColor ? `RGB Gel (${light.rgbColor})` : '5600K';
