@@ -1,7 +1,22 @@
 @import "tailwindcss";
 
-#right-sidebar {
+#right-sidebar:not(.is-fullscreen) {
   width: var(--sidebar-width, 700px);
+}
+
+#right-sidebar.is-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  z-index: 9999 !important;
+  border-radius: 0 !important;
+  border: none !important;
 }
 
 #floor-plan-canvas-container {
@@ -29,7 +44,7 @@
     max-width: 8rem;
   }
 
-  #right-sidebar {
+  #right-sidebar:not(.is-fullscreen) {
     position: absolute;
     z-index: 40;
     left: 0;

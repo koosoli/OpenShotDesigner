@@ -122,7 +122,7 @@ const MainLayout: React.FC = () => {
             }
             className={`transition-colors ${
               isRightPanelFullscreen
-                ? `fixed inset-0 z-50 w-screen h-screen flex flex-col ${isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}`
+                ? `is-fullscreen fixed inset-0 z-[9999] w-screen h-screen flex flex-col ${isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}`
                 : `h-full flex flex-col border-l shadow-2xl relative z-20 flex-shrink-0 ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`
             }`}
           >
