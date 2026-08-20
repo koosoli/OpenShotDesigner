@@ -2287,39 +2287,68 @@ export const InspectorPanel: React.FC = () => {
               </RubricSection>
 
               {/* Rubric 4: Waypoints & Storyboard */}
-              <RubricSection
-                title="Waypoints & Storyboard"
-                icon={<Compass className="w-3.5 h-3.5 text-emerald-500" />}
-                defaultOpen={false}
-                isLight={isLight}
-              >
-                {/* Camera Movement Waypoints */}
-                {(() => {
-                  const nextBeat = Math.max(2, ...(cam.path || []).map((wp) => wp.beat + 1));
-                  return (
+              {(() => {
+                const nextBeat = Math.max(2, ...(cam.path || []).map((wp) => wp.beat + 1));
+                const handleAddCamWp = () => {
+                  const existingPath = cam.path || [];
+                  const lastPoint = existingPath.length > 0
+                    ? existingPath[existingPath.length - 1]
+                    : { x: cam.x, y: cam.y, rotation: cam.rotation || 0 };
+                  const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
+                  const offsetDist = 60;
+                  const newWp = {
+                    id: `wp-${Date.now()}`,
+                    x: Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist),
+                    y: Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist),
+                    rotation: lastPoint.rotation || 0,
+                    beat: nextBeat,
+                    dialogueCue: '',
+                  };
+                  updateElement(cam.id, { path: [...existingPath, newWp] });
+                  if (nextBeat > (activeSetup.totalBeats || 1)) {
+                    updateSetupMeta({ totalBeats: nextBeat });
+                  }
+                };
+
+                return (
+                  <RubricSection
+                    title="Waypoints & Storyboard"
+                    icon={<Compass className="w-3.5 h-3.5 text-emerald-500" />}
+                    defaultOpen={true}
+                    isLight={isLight}
+                    headerRight={
+                      <button
+                        type="button"
+                        title={`Add camera movement waypoint (Beat ${nextBeat})`}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          handleAddCamWp();
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-bold rounded bg-sky-500 hover:bg-sky-600 active:scale-95 text-white transition-all cursor-pointer select-none"
+                      >
+                        + Waypoint
+                      </button>
+                    }
+                  >
+                    {/* Camera Movement Waypoints */}
                     <button
-                      onClick={() => {
-                        const newWp = {
-                          id: `wp-${Date.now()}`,
-                          x: cam.x + 60,
-                          y: cam.y + 60,
-                          rotation: cam.rotation,
-                          beat: nextBeat,
-                          dialogueCue: '',
-                        };
-                        updateElement(cam.id, { path: [...(cam.path || []), newWp] });
-                        if (nextBeat > (activeSetup.totalBeats || 1)) {
-                          updateSetupMeta({ totalBeats: nextBeat });
-                        }
+                      type="button"
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        handleAddCamWp();
                       }}
-                      className={`w-full py-1.5 border rounded-lg text-xs font-semibold ${
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
                         isLight ? 'bg-sky-50 text-sky-700 border-sky-300 hover:bg-sky-100' : 'bg-slate-800 hover:bg-slate-700 text-sky-300 border-slate-700'
                       }`}
                     >
                       + Add Camera Movement Waypoint (Beat {nextBeat})
                     </button>
-                  );
-                })()}
 
                 {/* Editable waypoint list */}
                 <WaypointListEditor
@@ -2383,9 +2412,11 @@ export const InspectorPanel: React.FC = () => {
                   );
                 })()}
               </RubricSection>
-            </div>
-          );
-        })()}
+            );
+          })()}
+        </div>
+      );
+    })()}
 
         {/* 4. ACTOR SPECIFIC INSPECTOR */}
         {el.type === 'actor' && (() => {
@@ -2476,39 +2507,68 @@ export const InspectorPanel: React.FC = () => {
               </RubricSection>
 
               {/* Rubric 2: Waypoints & Movement */}
-              <RubricSection
-                title="Waypoints & Trajectory"
-                icon={<Compass className="w-3.5 h-3.5 text-sky-500" />}
-                defaultOpen={true}
-                isLight={isLight}
-              >
-                {/* Add Waypoint Button */}
-                {(() => {
-                  const nextBeat = Math.max(2, ...(actor.path || []).map((wp) => wp.beat + 1));
-                  return (
+              {(() => {
+                const nextBeat = Math.max(2, ...(actor.path || []).map((wp) => wp.beat + 1));
+                const handleAddActorWp = () => {
+                  const existingPath = actor.path || [];
+                  const lastPoint = existingPath.length > 0
+                    ? existingPath[existingPath.length - 1]
+                    : { x: actor.x, y: actor.y, rotation: actor.rotation || 0 };
+                  const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
+                  const offsetDist = 50;
+                  const newWp = {
+                    id: `wp-${Date.now()}`,
+                    x: Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist),
+                    y: Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist),
+                    rotation: lastPoint.rotation || 0,
+                    beat: nextBeat,
+                    dialogueCue: '',
+                  };
+                  updateElement(actor.id, { path: [...existingPath, newWp] });
+                  if (nextBeat > (activeSetup.totalBeats || 1)) {
+                    updateSetupMeta({ totalBeats: nextBeat });
+                  }
+                };
+
+                return (
+                  <RubricSection
+                    title="Waypoints & Trajectory"
+                    icon={<Compass className="w-3.5 h-3.5 text-sky-500" />}
+                    defaultOpen={true}
+                    isLight={isLight}
+                    headerRight={
+                      <button
+                        type="button"
+                        title={`Add actor waypoint (Beat ${nextBeat})`}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          handleAddActorWp();
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition-all cursor-pointer select-none"
+                      >
+                        + Waypoint
+                      </button>
+                    }
+                  >
+                    {/* Add Waypoint Button */}
                     <button
-                      onClick={() => {
-                        const newWp = {
-                          id: `wp-${Date.now()}`,
-                          x: actor.x + 50,
-                          y: actor.y + 50,
-                          rotation: actor.rotation,
-                          beat: nextBeat,
-                          dialogueCue: '',
-                        };
-                        updateElement(actor.id, { path: [...(actor.path || []), newWp] });
-                        if (nextBeat > (activeSetup.totalBeats || 1)) {
-                          updateSetupMeta({ totalBeats: nextBeat });
-                        }
+                      type="button"
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        handleAddActorWp();
                       }}
-                      className={`w-full py-1.5 border rounded-lg text-xs font-semibold ${
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
                         isLight ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' : 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border-slate-700'
                       }`}
                     >
                       + Add Actor Waypoint (Beat {nextBeat})
                     </button>
-                  );
-                })()}
 
                 {/* Editable waypoint list */}
                 <WaypointListEditor
@@ -2519,9 +2579,11 @@ export const InspectorPanel: React.FC = () => {
                   isLight={isLight}
                 />
               </RubricSection>
-            </div>
-          );
-        })()}
+            );
+          })()}
+        </div>
+      );
+    })()}
 
         {/* 5. LIGHT SPECIFIC INSPECTOR */}
         {el.type === 'light' && (() => {

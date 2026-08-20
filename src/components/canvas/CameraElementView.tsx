@@ -360,20 +360,25 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
 
         {isSelected && onAddWaypoint && (
           <g
-            transform="translate(26, -26)"
-            className="cursor-pointer hover:scale-110 transition-transform"
-            onPointerDown={(e) => e.stopPropagation()}
+            transform={`rotate(${-rotation}) translate(28, -28)`}
+            className="cursor-pointer hover:scale-110 active:scale-95 transition-transform select-none"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onAddWaypoint(camera.id);
+            }}
             onClick={(e) => {
               e.stopPropagation();
-              onAddWaypoint(camera.id);
             }}
           >
             <title>Add Camera Waypoint</title>
-            <circle cx={0} cy={0} r={12} fill="#0284c7" stroke="#ffffff" strokeWidth={1.5} />
+            {/* Expanded invisible hit area */}
+            <circle cx={0} cy={0} r={18} fill="transparent" />
+            <circle cx={0} cy={0} r={12} fill="#0284c7" stroke="#ffffff" strokeWidth={2} className="drop-shadow-md" />
             <path
               d="M -5 0 L 5 0 M 0 -5 L 0 5"
               stroke="#ffffff"
-              strokeWidth={1.5}
+              strokeWidth={2}
               strokeLinecap="round"
             />
           </g>
