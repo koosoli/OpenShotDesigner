@@ -770,6 +770,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     const el = activeSetup.elements.find((e) => e.id === id);
+    // Locked elements are not selectable while locked.
+    if (el?.locked) return;
     const isCamera = el?.type === 'camera';
 
     // Selecting on the canvas opens the inspector — unless:
@@ -805,9 +807,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const selectElements = (ids: string[]) => {
-    setSelectedElementIds(ids);
-    if (ids.length > 0) {
-      const allCameras = ids.every((id) => activeSetup.elements.find((e) => e.id === id)?.type === 'camera');
+    // Locked elements are not selectable while locked.
+    const filtered = ids.filter((id) => !activeSetup.elements.find((e) => e.id === id)?.locked);
+    setSelectedElementIds(filtered);
+    if (filtered.length > 0) {
+      const allCameras = filtered.every((id) => activeSetup.elements.find((e) => e.id === id)?.type === 'camera');
       if (activeRightTab !== 'script' && activeRightTab !== 'storyboard' && activeRightTab !== 'equipment') {
         if (!allCameras || activeRightTab === 'inspector') {
           setActiveRightTab('inspector');
@@ -1207,7 +1211,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteSelectedElements = () => {
     if (selectedElementIds.length === 0) return;
-    const idsSet = new Set(selectedElementIds);
+    // Locked elements can never be deleted while locked.
+    const idsToDelete = selectedElementIds.filter(
+      (id) => !activeSetup.elements.find((e) => e.id === id)?.locked
+    );
+    if (idsToDelete.length === 0) return;
+    const idsSet = new Set(idsToDelete);
     const updatedElements = activeSetup.elements.filter((e) => !idsSet.has(e.id));
     const removedShotIds = new Set(
       activeSetup.shots.filter((s) => idsSet.has(s.cameraId)).map((s) => s.id)

@@ -248,6 +248,8 @@ export interface PropElement extends BaseElement {
   height: number;
   color?: string;
   label?: string;
+  /** Optional movement path (cars, trucks, furniture moves) — same beats as actors & cameras. */
+  path?: Waypoint[];
 }
 
 export interface TrackElement extends BaseElement {

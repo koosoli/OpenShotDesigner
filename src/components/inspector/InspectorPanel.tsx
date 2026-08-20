@@ -1601,6 +1601,7 @@ export const InspectorPanel: React.FC = () => {
 
   // Multi-element selection
   if (selectedElementIds.length > 1) {
+    const allLocked = selectedElementIds.every((id) => activeSetup.elements.find((e) => e.id === id)?.locked);
     return (
       <div
         id="inspector-panel-multi"
@@ -1793,7 +1794,13 @@ export const InspectorPanel: React.FC = () => {
         <div className="pt-3">
           <button
             onClick={deleteSelectedElements}
-            className="w-full flex items-center justify-center gap-2 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 rounded-lg text-xs font-semibold transition-colors"
+            disabled={allLocked}
+            title={allLocked ? 'Locked elements cannot be deleted' : 'Delete selected elements'}
+            className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-colors border ${
+              allLocked
+                ? 'bg-slate-500/10 text-slate-500 border-slate-600/30 cursor-not-allowed opacity-60'
+                : 'bg-red-500/10 hover:bg-red-500/20 text-red-500 border-red-500/30'
+            }`}
           >
             <Trash2 className="w-4 h-4 text-red-400" />
             <span>Delete {selectedElementIds.length} Selected Items</span>
@@ -1860,8 +1867,13 @@ export const InspectorPanel: React.FC = () => {
           </button>
           <button
             onClick={deleteSelectedElements}
-            title="Delete element (Del)"
-            className="p-1.5 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+            disabled={el.locked}
+            title={el.locked ? 'Locked elements cannot be deleted' : 'Delete element (Del)'}
+            className={`p-1.5 rounded-lg transition-colors ${
+              el.locked
+                ? 'text-slate-500 cursor-not-allowed opacity-50'
+                : 'text-red-500 hover:text-red-400 hover:bg-red-500/10'
+            }`}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -3685,6 +3697,80 @@ export const InspectorPanel: React.FC = () => {
                   </div>
                 </div>
               </RubricSection>
+
+              {/* Waypoints & Movement (cars / props that move during a shot) */}
+              {(() => {
+                const nextBeat = Math.max(2, ...(prop.path || []).map((wp) => wp.beat + 1));
+                const handleAddPropWp = () => {
+                  const existingPath = prop.path || [];
+                  const lastPoint = existingPath.length > 0
+                    ? existingPath[existingPath.length - 1]
+                    : { x: prop.x, y: prop.y, rotation: prop.rotation || 0 };
+                  const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
+                  const offsetDist = 70;
+                  const newWp = {
+                    id: `wp-${Date.now()}`,
+                    x: Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist),
+                    y: Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist),
+                    rotation: lastPoint.rotation || 0,
+                    beat: nextBeat,
+                    dialogueCue: '',
+                  };
+                  updateElement(prop.id, { path: [...existingPath, newWp] } as any);
+                  if (nextBeat > (activeSetup.totalBeats || 1)) {
+                    updateSetupMeta({ totalBeats: nextBeat });
+                  }
+                };
+
+                return (
+                  <RubricSection
+                    title="Waypoints & Trajectory"
+                    icon={<Compass className="w-3.5 h-3.5 text-purple-500" />}
+                    defaultOpen={true}
+                    isLight={isLight}
+                    headerRight={
+                      <button
+                        type="button"
+                        title={`Add movement waypoint (Beat ${nextBeat})`}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          handleAddPropWp();
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-bold rounded bg-purple-600 hover:bg-purple-700 active:scale-95 text-white transition-all cursor-pointer select-none"
+                      >
+                        + Waypoint
+                      </button>
+                    }
+                  >
+                    <button
+                      type="button"
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        handleAddPropWp();
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
+                        isLight ? 'bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100' : 'bg-slate-800 hover:bg-slate-700 text-purple-300 border-slate-700'
+                      }`}
+                    >
+                      + Add Prop Waypoint (Beat {nextBeat})
+                    </button>
+
+                    <WaypointListEditor
+                      elementId={prop.id}
+                      path={prop.path || []}
+                      baseRotation={prop.rotation}
+                      accentClass="text-purple-500"
+                      isLight={isLight}
+                    />
+                  </RubricSection>
+                );
+              })()}
             </div>
           );
         })()}

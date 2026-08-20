@@ -229,7 +229,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
         {isSelected && onAddWaypoint && (
           <g
             transform={`rotate(${-rotation}) translate(24, -24)`}
-            className="cursor-pointer hover:scale-110 active:scale-95 transition-transform select-none"
+            className="cursor-pointer select-none"
             onPointerDown={(e) => {
               e.stopPropagation();
               e.preventDefault();

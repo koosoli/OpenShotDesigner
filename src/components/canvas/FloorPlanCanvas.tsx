@@ -741,6 +741,9 @@ export const FloorPlanCanvas: React.FC = () => {
 
     if (activeTool === 'pan' || isSpacePressed) return;
 
+    // Locked elements are not selectable while locked — clicking one does nothing.
+    if (activeSetup.elements.find((el) => el.id === id)?.locked) return;
+
     let nextSelected = [...selectedElementIds];
     if (e.shiftKey) {
       if (nextSelected.includes(id)) {
@@ -939,6 +942,36 @@ export const FloorPlanCanvas: React.FC = () => {
     }
   };
 
+  // Add prop (car / vehicle / furniture) waypoint
+  const handleAddPropWaypoint = (propId: string) => {
+    const prop = activeSetup.elements.find((e) => e.id === propId) as PropElement | undefined;
+    if (!prop) return;
+    const existingPath = prop.path || [];
+    const nextBeat = Math.max(2, ...existingPath.map((wp) => wp.beat + 1));
+    const lastPoint = existingPath.length > 0
+      ? existingPath[existingPath.length - 1]
+      : { x: prop.x, y: prop.y, rotation: prop.rotation || 0 };
+
+    const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
+    const offsetDist = 70;
+    const spawnX = Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist);
+    const spawnY = Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist);
+
+    const newWp = {
+      id: `wp-${Date.now()}`,
+      x: spawnX,
+      y: spawnY,
+      rotation: lastPoint.rotation || 0,
+      beat: nextBeat,
+      dialogueCue: '',
+    };
+
+    updateElement(prop.id, { path: [...existingPath, newWp] } as any);
+    if (nextBeat > (activeSetup.totalBeats || 1)) {
+      updateSetupMeta({ totalBeats: nextBeat });
+    }
+  };
+
   // Pointer Move
   const handlePointerMove = (e: React.PointerEvent) => {
     const mouseCanvas = screenToCanvas(e.clientX, e.clientY);
@@ -980,7 +1013,7 @@ export const FloorPlanCanvas: React.FC = () => {
       const maxY = Math.max(dragState.startMouse.y, mouseCanvas.y);
 
       const insideIds = activeSetup.elements
-        .filter((el) => el.x >= minX && el.x <= maxX && el.y >= minY && el.y <= maxY)
+        .filter((el) => el.x >= minX && el.x <= maxX && el.y >= minY && el.y <= maxY && !el.locked)
         .map((el) => el.id);
 
       selectElements(insideIds);
@@ -1502,6 +1535,10 @@ export const FloorPlanCanvas: React.FC = () => {
             onUpdateText={(id, newText) => updateElement(id, { text: newText } as any)}
             pixelsPerUnit={gridSettings.pixelsPerUnit}
             displaySettings={displaySettings}
+            currentBeat={playback.currentBeat}
+            onAddWaypoint={handleAddPropWaypoint}
+            onWaypointDragStart={handleWaypointDragStart}
+            onWaypointRotateStart={handleWaypointRotateStart}
           />
 
           {/* 4. Lighting Beams & Fixtures */}

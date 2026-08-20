@@ -127,8 +127,10 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
         opacity={img.opacity ?? 0.5}
         preserveAspectRatio="none"
         style={{
-          pointerEvents: isInteractive ? 'auto' : 'none',
-          cursor: isInteractive ? (locked ? 'pointer' : 'move') : 'default',
+          // A locked reference image never grabs the pointer: clicks and lasso
+          // drags pass straight through it to the elements / canvas beneath.
+          pointerEvents: isInteractive && !locked ? 'auto' : 'none',
+          cursor: isInteractive && !locked ? 'move' : 'default',
         }}
         onPointerDown={(e) => handlePointerDown('move', e)}
       />
@@ -137,52 +139,18 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
       {isSelected && isInteractive && (
         <g className="bg-transform-gizmo">
           {locked ? (
-            /* Locked State Outline & Badge */
-            <>
-              <rect
-                x={x}
-                y={y}
-                width={width}
-                height={height}
-                fill="none"
-                stroke="#f59e0b"
-                strokeWidth={2 / canvasScale}
-                strokeDasharray="6 4"
-                style={{ pointerEvents: 'none' }}
-              />
-              {/* Interactive Unlock Badge on canvas */}
-              <g
-                transform={`translate(${x}, ${y - 16 / canvasScale})`}
-                className="pointer-events-auto cursor-pointer select-none"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUpdate({ locked: false });
-                }}
-              >
-                <title>Click to Unlock image (or press L)</title>
-                <rect
-                  x={0}
-                  y={-9 / canvasScale}
-                  width={118 / canvasScale}
-                  height={18 / canvasScale}
-                  rx={4 / canvasScale}
-                  fill="#78350f"
-                  stroke="#f59e0b"
-                  strokeWidth={1.5 / canvasScale}
-                />
-                <text
-                  x={59 / canvasScale}
-                  y={3.5 / canvasScale}
-                  textAnchor="middle"
-                  fill="#fef3c7"
-                  fontSize={9 / canvasScale}
-                  fontWeight="bold"
-                  fontFamily="sans-serif"
-                >
-                  🔒 LOCKED (Click / L)
-                </text>
-              </g>
-            </>
+            /* Locked State Outline (selection frame only) */
+            <rect
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              fill="none"
+              stroke="#f59e0b"
+              strokeWidth={2 / canvasScale}
+              strokeDasharray="6 4"
+              style={{ pointerEvents: 'none' }}
+            />
           ) : (
             /* Unlocked State Handles & Lock Badge */
             <>
@@ -257,6 +225,43 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
               </g>
             </>
           )}
+        </g>
+      )}
+
+      {/* Always-visible lock chip: a locked image's body lets pointer events pass
+          through (so lasso drags and elements placed on top still work), which
+          means its unlock control must stay on screen at all times. */}
+      {locked && isInteractive && (
+        <g
+          transform={`translate(${x}, ${y - 16 / canvasScale})`}
+          className="pointer-events-auto cursor-pointer select-none"
+          onClick={(e) => {
+            e.stopPropagation();
+            onUpdate({ locked: false });
+          }}
+        >
+          <title>Click to Unlock image (or press L)</title>
+          <rect
+            x={0}
+            y={-9 / canvasScale}
+            width={118 / canvasScale}
+            height={18 / canvasScale}
+            rx={4 / canvasScale}
+            fill="#78350f"
+            stroke="#f59e0b"
+            strokeWidth={1.5 / canvasScale}
+          />
+          <text
+            x={59 / canvasScale}
+            y={3.5 / canvasScale}
+            textAnchor="middle"
+            fill="#fef3c7"
+            fontSize={9 / canvasScale}
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            🔒 LOCKED (Click / L)
+          </text>
         </g>
       )}
     </g>

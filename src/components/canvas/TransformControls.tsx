@@ -181,7 +181,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
 
         {/* Endpoint 1 handle */}
         <g
-          className="cursor-move hover:scale-125 transition-transform"
+          className="cursor-move"
           onPointerDown={(e) => onEndpointDragStart('start', e)}
         >
           <circle
@@ -197,7 +197,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
 
         {/* Endpoint 2 handle */}
         <g
-          className="cursor-move hover:scale-125 transition-transform"
+          className="cursor-move"
           onPointerDown={(e) => onEndpointDragStart('end', e)}
         >
           <circle
@@ -258,7 +258,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                 fill="#ffffff"
                 stroke="#0284c7"
                 strokeWidth={1.5 / canvasScale}
-                className="cursor-nwse-resize hover:scale-125 transition-transform"
+                className="cursor-nwse-resize"
                 onPointerDown={(e) => onResizeStart('nw', e)}
               />
               {/* NE */}
@@ -270,7 +270,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                 fill="#ffffff"
                 stroke="#0284c7"
                 strokeWidth={1.5 / canvasScale}
-                className="cursor-nesw-resize hover:scale-125 transition-transform"
+                className="cursor-nesw-resize"
                 onPointerDown={(e) => onResizeStart('ne', e)}
               />
               {/* SE */}
@@ -282,7 +282,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                 fill="#ffffff"
                 stroke="#0284c7"
                 strokeWidth={1.5 / canvasScale}
-                className="cursor-nwse-resize hover:scale-125 transition-transform"
+                className="cursor-nwse-resize"
                 onPointerDown={(e) => onResizeStart('se', e)}
               />
               {/* SW */}
@@ -294,7 +294,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                 fill="#ffffff"
                 stroke="#0284c7"
                 strokeWidth={1.5 / canvasScale}
-                className="cursor-nesw-resize hover:scale-125 transition-transform"
+                className="cursor-nesw-resize"
                 onPointerDown={(e) => onResizeStart('sw', e)}
               />
 
@@ -308,7 +308,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                 fill="#ffffff"
                 stroke="#0284c7"
                 strokeWidth={1.5 / canvasScale}
-                className="cursor-ns-resize hover:scale-125 transition-transform"
+                className="cursor-ns-resize"
                 onPointerDown={(e) => onResizeStart('n', e)}
               />
               {/* S */}
@@ -320,7 +320,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                 fill="#ffffff"
                 stroke="#0284c7"
                 strokeWidth={1.5 / canvasScale}
-                className="cursor-ns-resize hover:scale-125 transition-transform"
+                className="cursor-ns-resize"
                 onPointerDown={(e) => onResizeStart('s', e)}
               />
               {/* E */}
@@ -332,7 +332,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                 fill="#ffffff"
                 stroke="#0284c7"
                 strokeWidth={1.5 / canvasScale}
-                className="cursor-ew-resize hover:scale-125 transition-transform"
+                className="cursor-ew-resize"
                 onPointerDown={(e) => onResizeStart('e', e)}
               />
               {/* W */}
@@ -344,7 +344,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                 fill="#ffffff"
                 stroke="#0284c7"
                 strokeWidth={1.5 / canvasScale}
-                className="cursor-ew-resize hover:scale-125 transition-transform"
+                className="cursor-ew-resize"
                 onPointerDown={(e) => onResizeStart('w', e)}
               />
             </>
@@ -378,7 +378,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
       {/* Rotation Grab Handle Knob with Curved Arrow & Degree Tooltip */}
       <g
         transform={`translate(${rotateHandleDistance}, 0)`}
-        className="cursor-grab active:cursor-grabbing hover:scale-115 transition-transform group"
+        className="cursor-grab active:cursor-grabbing group"
         onPointerDown={onRotateStart}
       >
         {/* Shadow glow */}

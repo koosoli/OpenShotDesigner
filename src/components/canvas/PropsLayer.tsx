@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowElement, MeasurementElement, PropElement, TextElement, TrackElement } from '../../types';
-import { getDistance } from '../../utils/geometry';
+import { ArrowElement, MeasurementElement, PropElement, TextElement, TrackElement, Waypoint } from '../../types';
+import { getDistance, getInterpolatedPositionAndRotation, getSmoothSplinePath } from '../../utils/geometry';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 import { ArrowGlyph } from './ArrowGlyph';
 
@@ -16,6 +16,11 @@ interface PropsLayerProps {
   onUpdateText?: (id: string, newText: string) => void;
   pixelsPerUnit?: number;
   displaySettings: DisplaySettings;
+  /** Playback beat used to animate prop movement along its waypoint path. */
+  currentBeat?: number;
+  onAddWaypoint?: (propId: string) => void;
+  onWaypointDragStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
+  onWaypointRotateStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
 }
 
 export const PropsLayer: React.FC<PropsLayerProps> = ({
@@ -30,6 +35,10 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
   onUpdateText,
   pixelsPerUnit = 30,
   displaySettings,
+  currentBeat = 1,
+  onAddWaypoint,
+  onWaypointDragStart,
+  onWaypointRotateStart,
 }) => {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editTextValue, setEditTextValue] = useState<string>('');
@@ -207,10 +216,50 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
         const color = prop.color || '#475569';
         const propOpacity = (displaySettings.categoryOpacity?.props ?? 1.0) * (prop.opacity ?? 1.0);
 
+        // Waypoint movement path (cars / props that move during a shot)
+        const waypoints: Waypoint[] = prop.path || [];
+        const hasPath = waypoints.length > 0;
+        const showWaypoints = displaySettings.showWaypoints !== false;
+        const dynamicState =
+          hasPath && currentBeat > 1
+            ? getInterpolatedPositionAndRotation(
+                { x: prop.x, y: prop.y },
+                prop.rotation,
+                prop.path || [],
+                currentBeat
+              )
+            : { position: { x: prop.x, y: prop.y }, rotation: prop.rotation };
+        const position = dynamicState.position;
+        const rotation = dynamicState.rotation;
+        const trajectoryPoints = [{ x: prop.x, y: prop.y }, ...waypoints.map((wp) => ({ x: wp.x, y: wp.y }))];
+        const splinePathString = getSmoothSplinePath(trajectoryPoints);
+
         return (
+          <g key={prop.id} className="prop-item">
+            {/* Movement path trail + ghost footprints */}
+            {hasPath && showWaypoints && (
+              <g className="prop-path pointer-events-none">
+                <path
+                  d={splinePathString}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={2.5}
+                  strokeDasharray="6 4"
+                  strokeOpacity={0.6}
+                />
+                {waypoints.map((wp, i) => {
+                  const wpRot = wp.rotation ?? prop.rotation;
+                  return (
+                    <g key={wp.id || i} transform={`translate(${wp.x}, ${wp.y}) rotate(${wpRot})`} opacity={0.35}>
+                      <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} fillOpacity={0.22} stroke={color} strokeWidth={1.5} rx={6} />
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+
           <g
-            key={prop.id}
-            transform={`translate(${prop.x}, ${prop.y}) rotate(${prop.rotation})`}
+            transform={`translate(${position.x}, ${position.y}) rotate(${rotation})`}
             opacity={propOpacity}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(prop.id, e)}
@@ -859,7 +908,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
             {/* Prop Label (always upright, positioned cleanly below the icon) */}
             {showPropLabel && (
               <g
-                transform={`rotate(${-prop.rotation}) translate(0, ${Math.max(h / 2 + 14, 28)}) scale(${labelScale})`}
+                transform={`rotate(${-rotation}) translate(0, ${Math.max(h / 2 + 14, 28)}) scale(${labelScale})`}
                 opacity={propLabelOpacity}
               >
                 <text
@@ -879,8 +928,66 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 </text>
               </g>
             )}
+
+            {/* Add movement waypoint button (top-right, stays upright) */}
+            {isSelected && onAddWaypoint && (
+              <g
+                transform={`rotate(${-rotation}) translate(${Math.max(w / 2, 28) + 4}, ${-Math.max(h / 2, 28) - 4})`}
+                className="pointer-events-auto cursor-pointer"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onAddWaypoint(prop.id);
+                }}
+              >
+                <circle cx={0} cy={0} r={11} fill="#22c55e" stroke="#0f172a" strokeWidth={1.5} className="drop-shadow-md" />
+                <text x={0} y={4.5} fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle" className="select-none">
+                  +
+                </text>
+              </g>
+            )}
           </g>
-        );
+
+          {/* Interactive waypoint markers & rotation handles */}
+          {hasPath && showWaypoints && (
+            <g className={isSelected ? 'prop-waypoint-handles pointer-events-auto' : 'prop-waypoint-handles pointer-events-none'}>
+              {waypoints.map((wp, i) => {
+                const wpRot = wp.rotation ?? prop.rotation;
+                return (
+                  <g
+                    key={wp.id || i}
+                    transform={`translate(${wp.x}, ${wp.y})`}
+                    onPointerDown={
+                      isSelected && onWaypointDragStart
+                        ? (e) => onWaypointDragStart!(prop.id, wp.id, e)
+                        : undefined
+                    }
+                  >
+                    {isSelected && onWaypointRotateStart && (
+                      <g transform={`rotate(${wpRot})`} className="pointer-events-auto">
+                        <line x1={16} y1={0} x2={30} y2={0} stroke="#38bdf8" strokeWidth={1.5} strokeDasharray="3 3" />
+                        <circle
+                          cx={33}
+                          cy={0}
+                          r={6}
+                          fill="#38bdf8"
+                          stroke="#0f172a"
+                          strokeWidth={1.5}
+                          className="cursor-grab active:cursor-grabbing"
+                          onPointerDown={(e) => onWaypointRotateStart!(prop.id, wp.id, e)}
+                        />
+                      </g>
+                    )}
+                    <circle cx={0} cy={0} r={11} fill="#0f172a" stroke={isSelected ? '#38bdf8' : color} strokeWidth={isSelected ? 3 : 2} className="drop-shadow-md" />
+                    <text x={0} y={3.5} fill={color} fontSize="9" fontWeight="bold" textAnchor="middle" className="select-none font-mono">
+                      B{wp.beat}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          )}
+        </g>
+      );
       })}
 
       {/* 3. Measurement Rulers */}
