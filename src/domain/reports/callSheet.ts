@@ -13,6 +13,17 @@ export type DocumentLifecycle = 'draft' | 'published' | 'superseded';
 export interface CallSheetLocation {
   name: string;
   address?: string;
+  /** Optional pin (WGS84) so paperwork can link out to a map provider. */
+  lat?: number;
+  lng?: number;
+}
+
+/** Company contact block derived onto every sheet (single canonical source). */
+export interface CallSheetCompanyInfo {
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
 }
 
 export interface CallSheetEntry {
@@ -36,6 +47,7 @@ export interface CallSheetPerson {
 export interface CallSheetData {
   productionTitle: string;
   productionCompany?: string;
+  productionCompanyInfo?: CallSheetCompanyInfo;
   productionLogo?: string;
   dayName: string;
   date?: string;
@@ -74,6 +86,7 @@ export interface DeriveCallSheetInput {
   blocks: ScheduleBlock[];
   productionTitle: string;
   productionCompany?: string;
+  productionCompanyInfo?: CallSheetCompanyInfo;
   productionLogo?: string;
   people?: Person[];
   /** When supplied, only these cast/talent people are called for the day. */
@@ -107,7 +120,7 @@ const formatClockMinutes = (total: number): string => {
  * missing estimates surface as warnings — they never silently disappear.
  */
 export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
-  const { day, blocks, productionTitle, productionCompany, productionLogo, people = [], locations = [] } = input;
+  const { day, blocks, productionTitle, productionCompany, productionCompanyInfo, productionLogo, people = [], locations = [] } = input;
   const warnings: string[] = [];
 
   const scheduled = day.scheduleBlockIds
@@ -194,6 +207,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   return {
     productionTitle,
     productionCompany,
+    productionCompanyInfo,
     productionLogo,
     dayName: day.name,
     date: day.date,

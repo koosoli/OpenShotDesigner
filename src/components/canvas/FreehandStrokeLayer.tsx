@@ -1,6 +1,7 @@
 import React from 'react';
 import type { StrokeElement, StrokePoint } from '../../types';
 import { getFreehandStrokeAppearance } from '../../domain/plan';
+import { boundsCenterOfPoints } from '../../utils/geometry';
 
 interface FreehandStrokeLayerProps {
   strokes: StrokeElement[];
@@ -10,6 +11,13 @@ interface FreehandStrokeLayerProps {
   liveOpacity?: number;
   liveToolStyle?: NonNullable<StrokeElement['toolStyle']>;
   ariaLabel?: string;
+  /**
+   * Editor-only interactivity: invisible wide hit-areas so strokes can be
+   * selected, dragged and rotated. Printable exports omit this entirely.
+   */
+  onStrokePointerDown?: (stroke: StrokeElement, e: React.PointerEvent) => void;
+  /** Ids rendered with a selection halo (editor only). */
+  selectedStrokeIds?: string[];
 }
 
 /** Shared stroke renderer used by both the editor canvas and printable exports. */
@@ -21,35 +29,71 @@ export const FreehandStrokeLayer: React.FC<FreehandStrokeLayerProps> = ({
   liveOpacity = 1,
   liveToolStyle = 'pen',
   ariaLabel = 'Freehand annotations',
-}) => (
-  <g className="pointer-events-none" aria-label={ariaLabel}>
-    {strokes
-      .filter((stroke) => stroke.visible !== false)
-      .map((stroke) => {
-        const appearance = getFreehandStrokeAppearance(stroke);
-        return (
-          <polyline
-            key={stroke.id}
-            points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')}
-            fill="none"
-            stroke={stroke.color}
-            strokeWidth={appearance.strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={appearance.opacity}
-          />
-        );
-      })}
-    {liveStroke && liveStroke.length > 1 && (
-      <polyline
-        points={liveStroke.map((point) => `${point.x},${point.y}`).join(' ')}
-        fill="none"
-        stroke={liveColor}
-        strokeWidth={liveToolStyle === 'highlighter' ? liveWidth * 3 : liveWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity={liveOpacity}
-      />
-    )}
-  </g>
-);
+  onStrokePointerDown,
+  selectedStrokeIds,
+}) => {
+  const selectedSet = new Set(selectedStrokeIds ?? []);
+  return (
+    <g className={onStrokePointerDown ? undefined : 'pointer-events-none'} aria-label={ariaLabel}>
+      {strokes
+        .filter((stroke) => stroke.visible !== false)
+        .map((stroke) => {
+          const appearance = getFreehandStrokeAppearance(stroke);
+          const pointsAttr = stroke.points.map((point) => `${point.x},${point.y}`).join(' ');
+          // Strokes keep absolute vertices; rotation is a render transform
+          // around the ink's bounding-box centre, so existing saved projects
+          // (rotation 0) render identically without any data migration.
+          const centre = boundsCenterOfPoints(stroke.points);
+          const rotationDeg = stroke.rotation || 0;
+          return (
+            <g key={stroke.id} transform={centre && rotationDeg ? `rotate(${rotationDeg} ${centre.x} ${centre.y})` : undefined}>
+              {selectedSet.has(stroke.id) && (
+                <polyline
+                  points={pointsAttr}
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeOpacity={0.35}
+                  strokeWidth={appearance.strokeWidth + 10}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+              <polyline
+                points={pointsAttr}
+                fill="none"
+                stroke={stroke.color}
+                strokeWidth={appearance.strokeWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={appearance.opacity}
+              />
+              {/* Invisible fat hit-line: makes strokes clickable/draggable in the editor. */}
+              {onStrokePointerDown && (
+                <polyline
+                  points={pointsAttr}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={Math.max(appearance.strokeWidth * 3, 18)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ pointerEvents: 'stroke', cursor: 'move' }}
+                  onPointerDown={(e) => onStrokePointerDown(stroke, e)}
+                />
+              )}
+            </g>
+          );
+        })}
+      {liveStroke && liveStroke.length > 1 && (
+        <polyline
+          points={liveStroke.map((point) => `${point.x},${point.y}`).join(' ')}
+          fill="none"
+          stroke={liveColor}
+          strokeWidth={liveToolStyle === 'highlighter' ? liveWidth * 3 : liveWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={liveOpacity}
+        />
+      )}
+    </g>
+  );
+};

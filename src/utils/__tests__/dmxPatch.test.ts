@@ -8,6 +8,7 @@ import {
   isDmxFixture,
   nextFreeAddress,
   previewFixturePlacement,
+  sortedPatchRows,
   universeOccupancy,
 } from '../dmxPatch';
 import type { FixturePatch } from '../dmxPatch';
@@ -344,5 +345,32 @@ describe('previewFixturePlacement', () => {
       fits: false,
       issue: 'outside_universe',
     });
+  });
+});
+
+describe('sortedPatchRows (printable patch sheet)', () => {
+  it('orders rows by universe then address and trails unpatched fixtures last', () => {
+    const patches = [
+      makePatch('led_panel', 2, 10),
+      makePatch('fresnel', 1, 20),
+      makePatch('spotlight', undefined, undefined),
+      makePatch('kino_flo', 1, 5),
+    ];
+    const rows = sortedPatchRows(findConflicts(patches));
+    // Unpatched fixture is still listed (with unknown address) at the end.
+    expect(rows).toHaveLength(4);
+    const order = rows.map((row) => `${row.universe ?? '—'}:${row.address ?? '—'}`);
+    expect(order).toEqual(['1:5', '1:20', '2:10', '—:—']);
+  });
+
+  it('computes inclusive end addresses clamped to the universe', () => {
+    const rows = sortedPatchRows(findConflicts([makePatch('spotlight', 1, 505)]));
+    expect(rows[0].endAddress).toBe(512);
+    expect(rows[0].conflict).toBe(true);
+  });
+
+  it('omits non-DMX grip entirely from the sheet', () => {
+    const rows = sortedPatchRows([makePatch('flag_solid', 1, 1)]);
+    expect(rows).toHaveLength(0);
   });
 });

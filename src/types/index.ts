@@ -810,6 +810,17 @@ export interface Project {
   /** Production logo (data URL) stamped on exported plans and call sheets. */
   logo?: string;
   logoName?: string;
+  /**
+   * Production-company contact details rendered on paperwork (call sheets).
+   * Optional and absent-safe; the canonical single source (plan rule 37) —
+   * reports derive from it instead of storing hidden copies.
+   */
+  productionCompanyInfo?: {
+    address?: string;
+    phone?: string;
+    email?: string;
+    website?: string;
+  };
   date: string;
   setups: SceneSetup[];
   activeSetupId: string;

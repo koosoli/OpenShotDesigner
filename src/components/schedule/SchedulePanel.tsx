@@ -19,14 +19,21 @@ import {
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { CoverageMatrixEditor } from './CoverageMatrixEditor';
+import { TimelineCalendar } from './TimelineCalendar';
 import { createId } from '../../domain/ids';
 import {
+  defaultNewEventPeriod,
   deriveDaySummary,
   findScheduleConflicts,
+  followingDayAfterLast,
 } from '../../domain/scheduling';
+import type {
+  CallSheetLocation,
+  CallSheetData,
+} from '../../domain/reports';
+import type { Location } from '../../domain/locations';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
 import { deriveCallSheet } from '../../domain/reports';
-import type { CallSheetData } from '../../domain/reports';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { CallSheetWorkspace } from './CallSheetWorkspace';
 
@@ -58,12 +65,6 @@ const formatMinutes = (total: number): string => {
   const h = Math.floor(total / 60);
   const m = total % 60;
   return h > 0 ? `${h}h ${m}m`.trim() : `${m}m`;
-};
-
-const isoDayNumber = (value: string): number | null => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const parsed = Date.parse(`${value}T00:00:00Z`);
-  return Number.isFinite(parsed) ? Math.floor(parsed / 86_400_000) : null;
 };
 
 /** Human label for a block, resolved against the project's optional collections. */
@@ -162,66 +163,6 @@ export const SchedulePanel: React.FC = () => {
     [sceneNames, setupNames, segmentNames, shotNames]
   );
 
-  /** Derive the call sheet for one day, reusing the panel's label resolution. */
-  const buildCallSheet = (day: ProductionDay): CallSheetData => {
-    const locations: { name: string; address?: string }[] = [];
-    const seenLocations = new Set<string>();
-    const scheduledCharacterIds = new Set<string>();
-    for (const id of day.scheduleBlockIds) {
-      const block = blocks.find((b) => b.id === id);
-      if (!block) continue;
-      if (block.kind === 'setup') {
-        const setup = project.setups?.find((s) => s.id === block.setupId);
-        if (setup?.location && !seenLocations.has(setup.location)) {
-          seenLocations.add(setup.location);
-          locations.push({ name: setup.location });
-        }
-      }
-      if (block.kind === 'shots') {
-        for (const shotId of block.shotIds) {
-          const owner = shotEntries.find((entry) => entry.shot.id === shotId)?.setup;
-          if (owner?.location && !seenLocations.has(owner.location)) {
-            seenLocations.add(owner.location);
-            locations.push({ name: owner.location });
-          }
-        }
-      }
-      if (block.kind === 'scene') {
-        const scene = project.scriptScenes?.find((candidate) => candidate.id === block.scriptSceneId);
-        for (const characterId of scene?.characterIds ?? []) scheduledCharacterIds.add(characterId);
-        const location = project.locations?.find((candidate) => candidate.id === scene?.locationId);
-        if (location && !seenLocations.has(location.id)) {
-          seenLocations.add(location.id);
-          locations.push({ name: location.name, address: location.address });
-        }
-      }
-      if (block.kind === 'setup') {
-        const setup = project.setups.find((candidate) => candidate.id === block.setupId);
-        if (setup?.location && !seenLocations.has(setup.location)) {
-          seenLocations.add(setup.location);
-          locations.push({ name: setup.location });
-        }
-      }
-    }
-    const castPersonIds = (project.castAssignments ?? [])
-      .filter((assignment) => scheduledCharacterIds.has(assignment.characterId))
-      .map((assignment) => assignment.personId);
-    return deriveCallSheet({
-      day,
-      blocks,
-      productionTitle: project.title,
-      productionCompany: project.productionCompany,
-      productionLogo: project.logo,
-      people: project.people ?? [],
-      castPersonIds,
-      locations,
-      resolveSceneLabel: (id) => labelCtx.sceneNames.get(id),
-      resolveSetupLabel: (id) => labelCtx.setupNames.get(id),
-      resolveSegmentLabel: (id) => labelCtx.segmentNames.get(id),
-      resolveShotLabel: (ids) => ids.map((id) => labelCtx.shotNames.get(id)).filter((label): label is string => Boolean(label)).join(' + ') || undefined,
-    });
-  };
-
   // Mount the hidden document, let the browser paint it, print, then unmount.
   useEffect(() => {
     if (!printSheet) return;
@@ -318,16 +259,91 @@ export const SchedulePanel: React.FC = () => {
 
   const conflicts = useMemo(() => findScheduleConflicts(blocks), [blocks]);
 
-  const timelineBounds = useMemo(() => {
-    const values = [
-      ...calendarEvents.flatMap((event) => [isoDayNumber(event.startDate), isoDayNumber(event.endDate)]),
-      ...days.map((day) => day.date ? isoDayNumber(day.date) : null),
-    ].filter((value): value is number => value !== null);
-    if (values.length === 0) return null;
-    const start = Math.min(...values);
-    const end = Math.max(...values);
-    return { start, end, days: Math.max(1, end - start + 1) };
-  }, [calendarEvents, days]);
+  /**
+   * Locations linked to a day's blocks (rule 37: derived, never duplicated).
+   * Semantic location links resolve to canonical Location entities so their
+   * address/map data flows into call sheets; legacy free-text setup
+   * locations still work and are matched to an entity by name when possible.
+   */
+  const resolveDayLocations = (day: ProductionDay): CallSheetLocation[] => {
+    const out: CallSheetLocation[] = [];
+    const seenIds = new Set<string>();
+    const seenNames = new Set<string>();
+    const pushEntity = (entity: Location) => {
+      if (seenIds.has(entity.id)) return;
+      seenIds.add(entity.id);
+      seenNames.add(entity.name.toLocaleLowerCase());
+      out.push({ name: entity.name, address: entity.address, lat: entity.lat, lng: entity.lng });
+    };
+    const pushName = (name: string) => {
+      if (!name || seenNames.has(name.toLocaleLowerCase())) return;
+      seenNames.add(name.toLocaleLowerCase());
+      const entity = (project.locations ?? []).find(
+        (candidate) => candidate.name.toLocaleLowerCase() === name.toLocaleLowerCase()
+      );
+      if (entity) pushEntity(entity);
+      else out.push({ name });
+    };
+    for (const id of day.scheduleBlockIds) {
+      const block = blocks.find((b) => b.id === id);
+      if (!block) continue;
+      if (block.kind === 'setup') {
+        const setup = project.setups.find((s) => s.id === block.setupId);
+        const entity = setup?.locationId
+          ? (project.locations ?? []).find((candidate) => candidate.id === setup.locationId)
+          : undefined;
+        if (entity) pushEntity(entity);
+        else if (setup?.location) pushName(setup.location);
+      }
+      if (block.kind === 'scene') {
+        const entity = (project.locations ?? []).find((candidate) => candidate.id === project.scriptScenes?.find((s) => s.id === block.scriptSceneId)?.locationId);
+        if (entity) pushEntity(entity);
+      }
+      if (block.kind === 'shots') {
+        for (const shotId of block.shotIds) {
+          const owner = shotEntries.find((entry) => entry.shot.id === shotId)?.setup;
+          const entity = owner?.locationId
+            ? (project.locations ?? []).find((candidate) => candidate.id === owner.locationId)
+            : undefined;
+          if (entity) pushEntity(entity);
+          else if (owner?.location) pushName(owner.location);
+        }
+      }
+    }
+    return out;
+  };
+
+  /** Derive the call sheet for one day, reusing the panel's label resolution. */
+  const buildCallSheet = (day: ProductionDay): CallSheetData => {
+    const locations = resolveDayLocations(day);
+    const scheduledCharacterIds = new Set<string>();
+    for (const id of day.scheduleBlockIds) {
+      const block = blocks.find((b) => b.id === id);
+      if (!block) continue;
+      if (block.kind === 'scene') {
+        const scene = project.scriptScenes?.find((candidate) => candidate.id === block.scriptSceneId);
+        for (const characterId of scene?.characterIds ?? []) scheduledCharacterIds.add(characterId);
+      }
+    }
+    const castPersonIds = (project.castAssignments ?? [])
+      .filter((assignment) => scheduledCharacterIds.has(assignment.characterId))
+      .map((assignment) => assignment.personId);
+    return deriveCallSheet({
+      day,
+      blocks,
+      productionTitle: project.title,
+      productionCompany: project.productionCompany,
+      productionCompanyInfo: project.productionCompanyInfo,
+      productionLogo: project.logo,
+      people: project.people ?? [],
+      castPersonIds,
+      locations,
+      resolveSceneLabel: (id) => labelCtx.sceneNames.get(id),
+      resolveSetupLabel: (id) => labelCtx.setupNames.get(id),
+      resolveSegmentLabel: (id) => labelCtx.segmentNames.get(id),
+      resolveShotLabel: (ids) => ids.map((id) => labelCtx.shotNames.get(id)).filter((label): label is string => Boolean(label)).join(' + ') || undefined,
+    });
+  };
 
   // --- Mutations (all via updateProjectMeta, immutable) ---
 
@@ -335,6 +351,9 @@ export const SchedulePanel: React.FC = () => {
     const day: ProductionDay = {
       id: createId('day'),
       name: `Day ${days.length + 1}`,
+      // Default to the day AFTER the last dated shoot day so adding a week of
+      // days just works; undated projects start from today.
+      date: followingDayAfterLast(days),
       scheduleBlockIds: [],
     };
     updateProjectMeta({ productionDays: [...days, day] });
@@ -397,17 +416,32 @@ export const SchedulePanel: React.FC = () => {
 
   const addCalendarEvent = () => {
     const title = newEventTitle.trim();
-    if (!title || !newEventStart) return;
+    if (!title) return;
+    // No date typing required: new lines default to the FIRST production day
+    // (or today) as a one-day clip, ready to drag into place on the timeline.
+    const fallback = defaultNewEventPeriod(days);
+    const startDate = newEventStart || fallback.startDate;
+    const endDate = newEventEnd && newEventEnd >= startDate ? newEventEnd : startDate;
     const event: ProductionCalendarEvent = {
       id: createId('event'),
       title,
-      startDate: newEventStart,
-      endDate: newEventEnd && newEventEnd >= newEventStart ? newEventEnd : newEventStart,
+      startDate,
+      endDate,
       category: 'preproduction',
       status: 'planned',
     };
     updateProjectMeta({ productionCalendarEvents: [...calendarEvents, event] });
     setNewEventTitle('');
+    setNewEventStart('');
+    setNewEventEnd('');
+  };
+
+  const updateCalendarEvent = (eventId: string, updates: Partial<ProductionCalendarEvent>) => {
+    updateProjectMeta({
+      productionCalendarEvents: calendarEvents.map((event) =>
+        event.id === eventId ? { ...event, ...updates } : event
+      ),
+    });
   };
 
   const deleteCalendarEvent = (eventId: string) => {
@@ -624,6 +658,18 @@ export const SchedulePanel: React.FC = () => {
           <button onClick={() => { setSelectedCallSheetDayId(day.id); setWorkspaceView('callsheets'); }} className="h-8 px-2.5 rounded-md bg-white/10 hover:bg-white/20 text-[9px] font-black uppercase flex items-center gap-1.5"><FileCheck2 className="w-3.5 h-3.5" /> Call sheet</button>
           <button onClick={() => deleteDay(day.id)} className="w-8 h-8 rounded-md hover:bg-red-500/20 text-slate-400 hover:text-red-400 flex items-center justify-center"><Trash2 className="w-3.5 h-3.5" /></button>
         </div>
+        {(() => {
+          const dayLocations = resolveDayLocations(day);
+          if (!dayLocations.length) return null;
+          return (
+            <div className={`px-3 py-1.5 flex flex-wrap items-center gap-1.5 text-[9px] font-bold border-b ${isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-slate-950/60 border-slate-800 text-slate-300'}`}>
+              <span className="uppercase tracking-wider text-[8px] text-cyan-600 font-black">Locations</span>
+              {dayLocations.map((location, index) => (
+                <span key={`${location.name}-${index}`} className="px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 max-w-[220px] truncate" title={location.address ?? location.name}>{location.name}</span>
+              ))}
+            </div>
+          );
+        })()}
         <div className={`grid grid-cols-[22px_42px_minmax(170px,1fr)_54px_64px_58px_68px] px-0 min-h-6 items-center text-[8px] font-black uppercase tracking-wider border-b ${isLight ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-950 text-slate-500 border-slate-800'}`}><span></span><span className="text-center">Sc.</span><span className="px-2">Scene / schedule item</span><span className="text-center">Pages</span><span className="text-center">Cast</span><span className="text-center">Time</span><span></span></div>
         <ol className="divide-y divide-slate-200 dark:divide-slate-800">{day.scheduleBlockIds.map((blockId, index) => { const block = blocks.find((candidate) => candidate.id === blockId); return block ? renderBlockRow(block, { day, indexInDay: index }) : null; })}</ol>
         {day.scheduleBlockIds.length === 0 && <div className={`m-2 min-h-14 rounded-md border border-dashed flex items-center justify-center text-[10px] ${mutedText} ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>Drag scene strips or banners into this shooting day</div>}
@@ -666,12 +712,31 @@ export const SchedulePanel: React.FC = () => {
       </div>}
 
       {workspaceView === 'calendar' && <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-3">
-        <div className={`rounded-lg border p-2.5 grid grid-cols-[1fr_120px_120px_auto] gap-2 items-end ${cardClass}`}><label className="text-[8px] font-black uppercase tracking-wider text-slate-500">Event or milestone<input value={newEventTitle} onChange={(event) => setNewEventTitle(event.target.value)} placeholder="Tech scout, principal photography, picture lock…" className={`${inputClass} mt-1 !min-h-8`} /></label><label className="text-[8px] font-black uppercase tracking-wider text-slate-500">Start<input type="date" value={newEventStart} onChange={(event) => setNewEventStart(event.target.value)} className={`${inputClass} mt-1 !min-h-8`} /></label><label className="text-[8px] font-black uppercase tracking-wider text-slate-500">End<input type="date" value={newEventEnd} onChange={(event) => setNewEventEnd(event.target.value)} className={`${inputClass} mt-1 !min-h-8`} /></label><button onClick={addCalendarEvent} disabled={!newEventTitle.trim() || !newEventStart} className="h-8 px-3 rounded-md bg-cyan-600 text-white text-[9px] font-black disabled:opacity-40">Add event</button></div>
-        <div className={`rounded-lg border overflow-x-auto custom-scrollbar ${cardClass}`}><div style={{ minWidth: timelineBounds ? Math.max(680, timelineBounds.days * 30 + 180) : 680 }}><div className="grid grid-cols-[170px_1fr] bg-slate-900 text-white h-9 items-center"><div className="px-3 text-[9px] font-black uppercase tracking-wider">Production timeline</div><div className="relative h-full">{timelineBounds && Array.from({ length: timelineBounds.days }, (_, index) => { const date = new Date((timelineBounds.start + index) * 86_400_000); return <span key={index} className="absolute inset-y-0 border-l border-slate-700 px-1 pt-2 text-[8px] font-mono text-slate-400" style={{ left: `${(index / timelineBounds.days) * 100}%` }}>{index === 0 || date.getUTCDate() === 1 ? `${date.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' })} ${date.getUTCDate()}` : date.getUTCDate()}</span>; })}</div></div>{calendarEvents.map((event) => { const start = isoDayNumber(event.startDate); const end = isoDayNumber(event.endDate); const left = timelineBounds && start !== null ? ((start - timelineBounds.start) / timelineBounds.days) * 100 : 0; const width = timelineBounds && start !== null && end !== null ? (Math.max(1, end - start + 1) / timelineBounds.days) * 100 : 0; return <div key={event.id} className={`grid grid-cols-[170px_1fr] min-h-11 items-center border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}><div className="px-3 flex items-center gap-2 min-w-0"><div className="min-w-0 flex-1"><div className="text-[9px] font-black truncate">{event.title}</div><div className={`text-[8px] uppercase ${mutedText}`}>{event.category}</div></div><button onClick={() => deleteCalendarEvent(event.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button></div><div className={`relative h-7 ${isLight ? 'bg-slate-50' : 'bg-slate-950'}`}><div className="absolute top-1 bottom-1 rounded bg-violet-600 text-white text-[8px] font-black px-2 flex items-center truncate" style={{ left: `${left}%`, width: `${Math.max(width, 1)}%` }}>{event.title}</div></div></div>; })}{!calendarEvents.length && <div className={`py-12 text-center text-[10px] ${mutedText}`}>Build a day/week/month production timeline with milestones and phases.</div>}</div></div>
+        <div className={`rounded-lg border p-2.5 grid grid-cols-[1fr_130px_130px_auto] gap-2 items-end ${cardClass}`}>
+          <label className="text-[8px] font-black uppercase tracking-wider text-slate-500">Event or milestone
+            <input value={newEventTitle} onChange={(event) => setNewEventTitle(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addCalendarEvent()} placeholder="Tech scout, principal photography, picture lock…" className={`${inputClass} mt-1 !min-h-8`} />
+          </label>
+          <label className="text-[8px] font-black uppercase tracking-wider text-slate-500">Start (optional)
+            <input type="date" value={newEventStart} onChange={(event) => setNewEventStart(event.target.value)} className={`${inputClass} mt-1 !min-h-8`} />
+          </label>
+          <label className="text-[8px] font-black uppercase tracking-wider text-slate-500">End (optional)
+            <input type="date" value={newEventEnd} onChange={(event) => setNewEventEnd(event.target.value)} className={`${inputClass} mt-1 !min-h-8`} />
+          </label>
+          <button onClick={addCalendarEvent} disabled={!newEventTitle.trim()} title="New lines default to the first production day — drag them into place on the timeline." className="h-8 px-3 rounded-md bg-cyan-600 text-white text-[9px] font-black disabled:opacity-40">Add line</button>
+        </div>
+        <TimelineCalendar
+          events={calendarEvents}
+          days={days}
+          isLight={isLight}
+          onUpdateEvent={updateCalendarEvent}
+          onDeleteEvent={deleteCalendarEvent}
+          onUpdateDay={updateDay}
+        />
+        <p className={`text-[9px] ${mutedText}`}>Drag a clip to move it between days · drag its edges to resize the period · shooting-day clips re-date their day. New lines start on the first production day.</p>
       </div>}
 
       {workspaceView === 'callsheets' && <div className="flex-1 min-h-0"><CallSheetWorkspace days={days} selectedDayId={selectedCallSheetDay?.id ?? null} onSelectDay={setSelectedCallSheetDayId} sheet={selectedCallSheet} updateDay={updateDay} onPrint={requestCallSheetPrint} isLight={isLight} /></div>}
-      {workspaceView === 'coverage' && <div className="flex-1 min-h-0 overflow-y-auto p-3"><CoverageMatrixEditor /></div>}
+      {workspaceView === 'coverage' && <div className="flex-1 min-h-0"><CoverageMatrixEditor /></div>}
 
       {printSheet && createPortal(<div className="call-sheet-print-host"><CallSheetPrintView sheet={printSheet} /></div>, document.body)}
     </div>

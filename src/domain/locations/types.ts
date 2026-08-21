@@ -23,6 +23,9 @@ export interface Location {
   parentLocationId?: string;
   type: LocationType;
   address?: string;
+  /** Optional map pin (WGS84 decimal degrees) resolved via the map adapter. */
+  lat?: number;
+  lng?: number;
   /** References to people-domain contacts (people.Person ids). */
   contactIds?: string[];
   notes?: string;

@@ -1,5 +1,6 @@
 import React from 'react';
 import type { CallSheetData, CallSheetEntry, CallSheetPerson } from '../../domain/reports';
+import { locationMapLinkUrl } from '../../domain/locations';
 
 interface CallSheetPrintViewProps {
   sheet: CallSheetData;
@@ -98,6 +99,11 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
               <strong>TYPE:</strong> {sheet.type.toUpperCase()}
             </span>
           </p>
+          {(sheet.productionCompanyInfo?.address || sheet.productionCompanyInfo?.phone || sheet.productionCompanyInfo?.email || sheet.productionCompanyInfo?.website) && (
+            <p style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 9.5, color: '#333', margin: '6px 0 0' }}>
+              {[sheet.productionCompanyInfo?.address, sheet.productionCompanyInfo?.phone, sheet.productionCompanyInfo?.email, sheet.productionCompanyInfo?.website].filter(Boolean).join(' · ')}
+            </p>
+          )}
         </header>
 
         {(sheet.weatherSummary || sheet.parking || sheet.nearestHospital) && (
@@ -127,6 +133,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                 <tr>
                   <th>Name</th>
                   <th>Address</th>
+                  <th style={{ width: '18mm' }}>Map</th>
                 </tr>
               </thead>
               <tbody>
@@ -134,6 +141,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                   <tr key={`loc-${i}`}>
                     <td>{loc.name}</td>
                     <td>{loc.address ?? '—'}</td>
+                    <td><a href={locationMapLinkUrl(loc)} style={{ color: '#0369a1' }}>Open map</a></td>
                   </tr>
                 ))}
               </tbody>

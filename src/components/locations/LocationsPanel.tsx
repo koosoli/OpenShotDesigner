@@ -7,9 +7,18 @@
  * detach-style snapshot (§13.1) offered from the Inspector, not here.
  */
 import React, { useMemo, useState } from 'react';
-import { MapPin, Plus, Trash2, Crosshair } from 'lucide-react';
+import { ExternalLink, MapPin, Navigation, Plus, Trash2, Crosshair, X } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
+import {
+  geocodeLocation,
+  locationMapLinkUrl,
+  locationOsmLinkUrl,
+  locationPoint,
+  locationQuery,
+  osmEmbedUrl,
+} from '../../domain/locations';
+import type { GeoPoint } from '../../domain/locations';
 import type { LocationType } from '../../domain/locations';
 
 const LOCATION_TYPES: LocationType[] = ['location', 'studio', 'stage', 'venue', 'arena', 'outdoor', 'other'];
@@ -59,6 +68,9 @@ export const LocationsPanel: React.FC = () => {
   // New-location form state (session-only UI state — rule 38).
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<LocationType>('location');
+  /** Per-location geocode session state (rule 38: never persisted). */
+  const [geocodingId, setGeocodingId] = useState<string | null>(null);
+  const [geocodeMessage, setGeocodeMessage] = useState<{ id: string; text: string } | null>(null);
 
   const addLocation = () => {
     const location = {
@@ -72,12 +84,36 @@ export const LocationsPanel: React.FC = () => {
     setNewType('location');
   };
 
-  const updateLocation = (id: string, updates: Partial<{ name: string; type: LocationType; address?: string; parentLocationId?: string; notes?: string }>) => {
+  const updateLocation = (id: string, updates: Partial<{ name: string; type: LocationType; address?: string; parentLocationId?: string; notes?: string; lat?: number; lng?: number }>) => {
     updateProjectMeta({
       locations: locations.map((l) =>
         l.id === id ? { ...l, ...updates } : l
       ),
     });
+  };
+
+  /** Resolve the location's address (or name) into a map pin via OSM Nominatim. */
+  const locateOnMap = async (loc: { id: string; name: string; address?: string }) => {
+    if (geocodingId) return;
+    setGeocodeMessage(null);
+    setGeocodingId(loc.id);
+    try {
+      const result = await geocodeLocation(locationQuery(loc));
+      switch (result.status) {
+        case 'ok':
+          updateLocation(loc.id, { lat: result.point.lat, lng: result.point.lng });
+          setGeocodeMessage({ id: loc.id, text: 'Pin placed from OpenStreetMap.' });
+          break;
+        case 'not_found':
+          setGeocodeMessage({ id: loc.id, text: 'No match found — refine the address and retry.' });
+          break;
+        case 'unavailable':
+          setGeocodeMessage({ id: loc.id, text: result.message });
+          break;
+      }
+    } finally {
+      setGeocodingId(null);
+    }
   };
 
   /**
@@ -235,6 +271,82 @@ export const LocationsPanel: React.FC = () => {
                   </select>
                 </label>
               </div>
+
+              {/* Map (OpenStreetMap default — keyless, standalone-safe; Google Maps link-out) */}
+              {(() => {
+                const point = locationPoint(loc);
+                return (
+                  <div className={`rounded-lg border p-2 space-y-2 ${subCardClass}`}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Navigation className={`w-3 h-3 flex-shrink-0 ${point ? 'text-emerald-500' : 'text-slate-400'}`} />
+                      <span className={`text-[10px] font-medium flex-1 min-w-0 ${mutedText}`}>
+                        {point ? `Pinned at ${loc.lat?.toFixed(5)}, ${loc.lng?.toFixed(5)}` : 'No map pin yet'}
+                      </span>
+                      <button
+                        onClick={() => locateOnMap(loc)}
+                        disabled={geocodingId === loc.id}
+                        title="Find this address on the map (OpenStreetMap)"
+                        aria-label={`Find ${loc.name} on the map`}
+                        className={`${secondaryBtnClass} !min-h-[28px] !px-2 !text-[10px] disabled:opacity-50`}
+                      >
+                        {geocodingId === loc.id ? 'Locating…' : 'Find on map'}
+                      </button>
+                      {point && (
+                        <>
+                          <a
+                            href={locationMapLinkUrl(loc)}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Open in Google Maps"
+                            aria-label={`Open ${loc.name} in Google Maps`}
+                            className={`${iconBtnClass} !min-w-[28px] !min-h-[28px] !w-7 !h-7`}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                          <a
+                            href={locationOsmLinkUrl(loc)}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Open in OpenStreetMap"
+                            aria-label={`Open ${loc.name} in OpenStreetMap`}
+                            className={`${iconBtnClass} !min-w-[28px] !min-h-[28px] !w-7 !h-7 font-mono !text-[9px] font-bold`}
+                          >
+                            OSM
+                          </a>
+                          <button
+                            onClick={() => updateLocation(loc.id, { lat: undefined, lng: undefined })}
+                            title="Clear map pin"
+                            aria-label={`Clear map pin for ${loc.name}`}
+                            className={`${iconBtnClass} !min-w-[28px] !min-h-[28px] !w-7 !h-7 hover:!text-red-500`}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {point ? (
+                      <iframe
+                        title={`Map of ${loc.name}`}
+                        src={osmEmbedUrl(point)}
+                        loading="lazy"
+                        className="w-full h-36 rounded-md border-0"
+                      />
+                    ) : (
+                      <p className={`text-[9px] leading-snug ${mutedText}`}>
+                        Enter an address above, then “Find on map” places an OpenStreetMap pin. The pin and map links follow the location into the scheduler and call sheets.
+                      </p>
+                    )}
+                    {geocodeMessage?.id === loc.id && (
+                      <p className="text-[9px] italic text-sky-600 dark:text-sky-300">{geocodeMessage.text}</p>
+                    )}
+                    {point && (
+                      <p className="text-[8px] text-slate-400">
+                        Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline">OpenStreetMap</a> contributors
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               <label className="flex flex-col gap-1">
                 <span className={`text-[10px] font-medium ${mutedText}`}>Notes</span>

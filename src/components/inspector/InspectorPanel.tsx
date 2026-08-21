@@ -1370,7 +1370,7 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
             </div>
-            {/* Production logo */}
+            {/* Production logo (mirrored with Schedule → Call sheets) */}
             <div>
               <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Logo</label>
               <div className="flex items-center gap-2">
@@ -1425,6 +1425,77 @@ export const InspectorPanel: React.FC = () => {
                 </div>
               </div>
             </div>
+            {/* Company contact block (same canonical fields as the call-sheet workspace) */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2">
+                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Address</label>
+                <input
+                  type="text"
+                  value={project.productionCompanyInfo?.address || ''}
+                  placeholder="Street, city"
+                  onChange={(e) =>
+                    updateProjectMeta({
+                      productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), address: e.target.value || undefined },
+                    })
+                  }
+                  className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Phone</label>
+                <input
+                  type="text"
+                  value={project.productionCompanyInfo?.phone || ''}
+                  placeholder="+49 …"
+                  onChange={(e) =>
+                    updateProjectMeta({
+                      productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), phone: e.target.value || undefined },
+                    })
+                  }
+                  className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Email</label>
+                <input
+                  type="text"
+                  value={project.productionCompanyInfo?.email || ''}
+                  placeholder="office@studio.example"
+                  onChange={(e) =>
+                    updateProjectMeta({
+                      productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), email: e.target.value || undefined },
+                    })
+                  }
+                  className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  }`}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Website</label>
+                <input
+                  type="text"
+                  value={project.productionCompanyInfo?.website || ''}
+                  placeholder="https://…"
+                  onChange={(e) =>
+                    updateProjectMeta({
+                      productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), website: e.target.value || undefined },
+                    })
+                  }
+                  className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  }`}
+                />
+              </div>
+            </div>
+            <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+              These details also appear on every call sheet — the same fields are editable in{' '}
+              <span className="font-semibold not-italic">Schedule → Call sheets → Production company</span>.
+            </p>
           </RubricSection>
 
           {/* Rubric 3: Display & Labels */}

@@ -18,7 +18,7 @@ import {
   WallElement,
   WindowElement,
 } from '../../types';
-import { findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
+import { boundsCenterOfPoints, boundsHalfExtentsOfPoints, findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
 import { ASPECT_RATIOS, CABLE_TYPES } from '../../constants/presets';
 import { boardedFrames, setFramePatch, START_SLOT } from '../../utils/storyboardFrames';
 import { ActorElementView } from './ActorElementView';
@@ -191,6 +191,22 @@ export const FloorPlanCanvas: React.FC = () => {
         minY = Math.min(el.y, anyEl.y2) - pad;
         maxX = Math.max(el.x, anyEl.x2) + pad;
         maxY = Math.max(el.y, anyEl.y2) + pad;
+      } else if (Array.isArray(anyEl.points) && anyEl.points.length > 0) {
+        // Freehand strokes: bounds span their sampled vertices.
+        minX = Infinity;
+        minY = Infinity;
+        maxX = -Infinity;
+        maxY = -Infinity;
+        for (const point of anyEl.points as StrokePoint[]) {
+          minX = Math.min(minX, point.x);
+          minY = Math.min(minY, point.y);
+          maxX = Math.max(maxX, point.x);
+          maxY = Math.max(maxY, point.y);
+        }
+        minX -= pad;
+        minY -= pad;
+        maxX += pad;
+        maxY += pad;
       } else if (typeof anyEl.width === 'number' || typeof anyEl.height === 'number') {
         const w = anyEl.width ?? 40;
         const h = anyEl.height ?? 40;
@@ -1397,34 +1413,52 @@ export const FloorPlanCanvas: React.FC = () => {
 
       const updates: { id: string; updates: Partial<FloorPlanElement> }[] = [];
 
+      // Multi-element drags snap ONCE and apply the identical final delta to
+      // EVERY element. Snapping each member independently would re-grid
+      // off-grid icons (e.g. fine-placed with Alt) onto different lattice
+      // points, visually scattering the group. Single-element drags keep the
+      // original per-element snapping behaviour.
+      const draggingMultiple = dragState.startElements.size > 1;
+      let snapAdjustX = 0;
+      let snapAdjustY = 0;
+      if (draggingMultiple && gridSettings.snap && !altDownRef.current) {
+        const primary = dragState.startElements.values().next().value as FloorPlanElement;
+        const rawPrimaryX = primary.x + deltaCanvasX;
+        const rawPrimaryY = primary.y + deltaCanvasY;
+        snapAdjustX = snapToGrid(rawPrimaryX, gridSettings.size, true) - rawPrimaryX;
+        snapAdjustY = snapToGrid(rawPrimaryY, gridSettings.size, true) - rawPrimaryY;
+      }
+
       dragState.startElements.forEach((origEl, id) => {
-        let nextX = origEl.x + deltaCanvasX;
-        let nextY = origEl.y + deltaCanvasY;
+        const nextX = origEl.x + deltaCanvasX + snapAdjustX;
+        const nextY = origEl.y + deltaCanvasY + snapAdjustY;
+        let finalX = nextX;
+        let finalY = nextY;
         let nextRotation = origEl.rotation;
 
-        if ((origEl.type === 'door' || origEl.type === 'window') && dragState.startElements.size === 1 && walls.length > 0 && !altDownRef.current) {
+        if ((origEl.type === 'door' || origEl.type === 'window') && !draggingMultiple && walls.length > 0 && !altDownRef.current) {
           const snapMatch = findNearestWall({ x: nextX, y: nextY }, walls, 50);
           if (snapMatch) {
-            nextX = snapMatch.point.x;
-            nextY = snapMatch.point.y;
+            finalX = snapMatch.point.x;
+            finalY = snapMatch.point.y;
             const angleDiff = Math.abs((((origEl.rotation - snapMatch.angle) % 360) + 360) % 360);
             const isFlipped = angleDiff > 90 && angleDiff < 270;
             nextRotation = isFlipped ? Math.round((snapMatch.angle + 180) % 360) : snapMatch.angle;
           } else if (gridSettings.snap) {
-            nextX = snapToGrid(nextX, gridSettings.size, true);
-            nextY = snapToGrid(nextY, gridSettings.size, true);
+            finalX = snapToGrid(finalX, gridSettings.size, true);
+            finalY = snapToGrid(finalY, gridSettings.size, true);
           }
-        } else if (gridSettings.snap && !altDownRef.current) {
-          nextX = snapToGrid(nextX, gridSettings.size, true);
-          nextY = snapToGrid(nextY, gridSettings.size, true);
+        } else if (!draggingMultiple && gridSettings.snap && !altDownRef.current) {
+          finalX = snapToGrid(finalX, gridSettings.size, true);
+          finalY = snapToGrid(finalY, gridSettings.size, true);
         }
 
-        const dx = nextX - origEl.x;
-        const dy = nextY - origEl.y;
+        const dx = finalX - origEl.x;
+        const dy = finalY - origEl.y;
 
         const updateObj: Partial<FloorPlanElement> = {
-          x: nextX,
-          y: nextY,
+          x: finalX,
+          y: finalY,
           rotation: nextRotation,
         };
 
@@ -1441,6 +1475,16 @@ export const FloorPlanCanvas: React.FC = () => {
           }));
         }
 
+        // Freehand strokes store absolute vertices — translate them with the
+        // element so dragging actually moves the ink.
+        if ('points' in origEl && Array.isArray((origEl as any).points)) {
+          (updateObj as any).points = ((origEl as any).points as StrokePoint[]).map((point) => ({
+            ...point,
+            x: point.x + dx,
+            y: point.y + dy,
+          }));
+        }
+
         updates.push({ id, updates: updateObj });
       });
 
@@ -1453,7 +1497,13 @@ export const FloorPlanCanvas: React.FC = () => {
       const origEl = dragState.startElements.get(dragState.activeElementId);
       if (!origEl) return;
 
-      let angle = getAngleBetweenPoints({ x: origEl.x, y: origEl.y }, mouseCanvas);
+      // Freehand strokes pivot around their bounding-box centre (the visual
+      // middle of the ink); every other element pivots on its anchor point.
+      const pivot = origEl.type === 'stroke'
+        ? boundsCenterOfPoints((origEl as StrokeElement).points) ?? { x: origEl.x, y: origEl.y }
+        : { x: origEl.x, y: origEl.y };
+
+      let angle = getAngleBetweenPoints(pivot, mouseCanvas);
 
       if (e.shiftKey) {
         angle = Math.round(angle / 45) * 45;
@@ -1889,12 +1939,24 @@ export const FloorPlanCanvas: React.FC = () => {
             const linearUpdates = hasX2
               ? { x2: (el as any).x2 + dx, y2: (el as any).y2 + dy }
               : {};
+            // Strokes nudge via their absolute vertices.
+            const strokeUpdates =
+              el.type === 'stroke' && Array.isArray((el as any).points)
+                ? {
+                    points: ((el as any).points as StrokePoint[]).map((point) => ({
+                      ...point,
+                      x: point.x + dx,
+                      y: point.y + dy,
+                    })),
+                  }
+                : {};
             return {
               id,
               updates: {
                 x: el.x + dx,
                 y: el.y + dy,
                 ...linearUpdates,
+                ...strokeUpdates,
               },
             };
           })
@@ -2299,8 +2361,9 @@ export const FloorPlanCanvas: React.FC = () => {
           )}
 
           {/* 9c. Freehand annotation strokes (plan §6.2): above most content,
-              below selection handles; not interactive (select/delete via
-              undo or future tooling). Highlighter = 3× width, ~0.35 opacity. */}
+              below selection handles. Interactive in the editor: click to
+              select, drag to move, rotate handle to pivot; highlighter =
+              3× width, ~0.35 opacity. */}
           <FreehandStrokeLayer
             strokes={strokes}
             liveStroke={liveStroke}
@@ -2308,6 +2371,8 @@ export const FloorPlanCanvas: React.FC = () => {
             liveWidth={freehandSettings.strokeWidth}
             liveOpacity={freehandSettings.opacity}
             liveToolStyle={freehandSettings.toolStyle}
+            onStrokePointerDown={(stroke, e) => handleElementSelect(stroke.id, e)}
+            selectedStrokeIds={selectedElementIds}
           />
 
           {calibratingBackgroundId && calibrationPoints.length > 0 && (

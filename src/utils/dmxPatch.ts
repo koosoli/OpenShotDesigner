@@ -268,3 +268,50 @@ export const previewFixturePlacement = (
   }
   return { address, end, channels, fits: true };
 };
+
+/** One printable row of the DMX patch sheet. */
+export interface DmxPatchSheetRow {
+  id: string;
+  label: string;
+  universe?: number;
+  address?: number;
+  /** Inclusive last channel of the footprint; undefined when unknown. */
+  endAddress?: number;
+  channels?: number;
+  fixtureType?: string;
+  dmxModeName?: string;
+  conflict: boolean;
+}
+
+/**
+ * Printable patch rows ordered for a console readout: by universe, then start
+ * address; unpatched fixtures trail at the end so the patched block reads
+ * top-to-bottom. Pure — shared by the print views and tests.
+ */
+export const sortedPatchRows = (patches: FixturePatch[]): DmxPatchSheetRow[] => {
+  const rows: DmxPatchSheetRow[] = patches
+    .filter((patch) => patch.dmxable)
+    .map((patch) => ({
+      id: patch.light.id,
+      label: patch.label,
+      universe: patch.universe,
+      address: patch.address,
+      endAddress:
+        typeof patch.address === 'number' && typeof patch.channels === 'number'
+          ? Math.min(DMX_CHANNELS_PER_UNIVERSE, patch.address + clampChannelCount(patch.channels) - 1)
+          : undefined,
+      channels: patch.channels,
+      fixtureType: patch.light.fixtureType,
+      dmxModeName: patch.light.dmxModeName,
+      conflict: patch.conflict,
+    }));
+  return rows.sort((a, b) => {
+    const aUniverse = a.universe ?? Number.POSITIVE_INFINITY;
+    const bUniverse = b.universe ?? Number.POSITIVE_INFINITY;
+    if (aUniverse !== bUniverse) return aUniverse - bUniverse;
+    const aAddress = a.address ?? Number.POSITIVE_INFINITY;
+    const bAddress = b.address ?? Number.POSITIVE_INFINITY;
+    if (aAddress !== bAddress) return aAddress - bAddress;
+    return a.label.localeCompare(b.label);
+  });
+};

@@ -62,6 +62,45 @@ export function snapToGrid(val: number, gridSize: number, enabled: boolean): num
 }
 
 /**
+ * Bounding-box centre of a point cloud (e.g. freehand stroke vertices).
+ * Returns null for empty input so callers can fall back to the element anchor.
+ */
+export function boundsCenterOfPoints(
+  points: ReadonlyArray<Vector2D>
+): Vector2D | null {
+  if (!points || points.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+}
+
+/** Half extents (width/height ÷ 2) of a point cloud's bounding box. */
+export function boundsHalfExtentsOfPoints(
+  points: ReadonlyArray<Vector2D>
+): { halfWidth: number; halfHeight: number } | null {
+  if (!points || points.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+  return { halfWidth: (maxX - minX) / 2, halfHeight: (maxY - minY) / 2 };
+}
+
+/**
  * Distance between two points
  */
 export function getDistance(p1: Vector2D, p2: Vector2D): number {

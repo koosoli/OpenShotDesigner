@@ -34,6 +34,8 @@ export interface ProductionCalendarEvent {
   endDate: string;
   category: 'development' | 'preproduction' | 'shoot' | 'post' | 'delivery' | 'custom';
   status?: 'planned' | 'in_progress' | 'blocked' | 'done';
+  /** Per-line clip color on the timeline calendar; undefined = default violet. */
+  color?: string;
   notes?: string;
   assigneeIds?: string[];
   dependencyIds?: string[];

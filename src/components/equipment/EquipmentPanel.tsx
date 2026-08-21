@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Anchor,
   BatteryCharging,
@@ -45,7 +46,8 @@ import {
 } from '../../utils/equipmentList';
 import { exportEquipmentToCsv } from '../../utils/exportEquipmentCsv';
 import { computePowerSummary } from '../../utils/powerPlanning';
-import { autoPatchFixtures, collectFixturePatches, dmxChannelsForFixture, findConflicts, fixtureLabel } from '../../utils/dmxPatch';
+import { autoPatchFixtures, collectFixturePatches, dmxChannelsForFixture, findConflicts, fixtureLabel, sortedPatchRows } from '../../utils/dmxPatch';
+import { DmxPatchPrintView } from '../reports/DmxPatchPrintView';
 import { DmxUniverseView } from './DmxUniverseView';
 import { SignalFlowView } from './SignalFlowView';
 
@@ -153,6 +155,23 @@ export const EquipmentPanel: React.FC = () => {
   const [dmxPatchOpen, setDmxPatchOpen] = useState(false);
   const [isUniverseViewOpen, setIsUniverseViewOpen] = useState(false);
   const [isSignalFlowOpen, setIsSignalFlowOpen] = useState(false);
+  /** When true, the printable DMX patch sheet is mounted and printing starts. */
+  const [dmxPrintOpen, setDmxPrintOpen] = useState(false);
+  const dmxSheetRows = useMemo(() => sortedPatchRows(dmxPatches), [dmxPatches]);
+
+  // Mount the hidden patch sheet, let the browser paint it, print, unmount.
+  useEffect(() => {
+    if (!dmxPrintOpen) return;
+    const unmount = () => setDmxPrintOpen(false);
+    window.addEventListener('afterprint', unmount);
+    const printTimer = window.setTimeout(() => window.print(), 50);
+    const fallbackTimer = window.setTimeout(unmount, 10000);
+    return () => {
+      window.removeEventListener('afterprint', unmount);
+      window.clearTimeout(printTimer);
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [dmxPrintOpen]);
 
   const handleAutoPatch = () => {
     const assigned = autoPatchFixtures(
@@ -856,6 +875,19 @@ export const EquipmentPanel: React.FC = () => {
                 }`}
               >
                 <Zap className="w-3.5 h-3.5" /> Universe View
+              </button>
+              <button
+                onClick={() => setDmxPrintOpen(true)}
+                disabled={dmxSheetRows.length === 0}
+                title="Print the DMX patch sheet"
+                aria-label="Print DMX patch sheet"
+                className={`shrink-0 mr-2 px-2.5 py-1.5 rounded-lg border text-[11px] font-black flex items-center gap-1.5 transition-colors disabled:opacity-40 ${
+                  isLight
+                    ? 'border-slate-300 bg-white/80 text-slate-700 hover:bg-slate-100'
+                    : 'border-slate-700 bg-slate-950/40 text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Printer className="w-3.5 h-3.5" /> Print
               </button>
             </div>
 
@@ -2509,6 +2541,18 @@ export const EquipmentPanel: React.FC = () => {
       {isSignalFlowOpen && scope === 'current' && (
         <SignalFlowView onClose={() => setIsSignalFlowOpen(false)} />
       )}
+
+      {dmxPrintOpen &&
+        createPortal(
+          <div className="dmx-print-host">
+            <DmxPatchPrintView
+              rows={dmxSheetRows}
+              productionTitle={project.title}
+              sceneName={activeSetup.name ? `Scene ${activeSetup.sceneNumber || ''}: ${activeSetup.name}` : undefined}
+            />
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

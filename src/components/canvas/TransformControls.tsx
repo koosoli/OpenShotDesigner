@@ -1,5 +1,6 @@
 import React from 'react';
-import { FloorPlanElement, ShapeElement } from '../../types';
+import { FloorPlanElement, ShapeElement, StrokeElement } from '../../types';
+import { boundsCenterOfPoints, boundsHalfExtentsOfPoints } from '../../utils/geometry';
 
 export type ResizeHandle = 'nw' | 'ne' | 'se' | 'sw' | 'n' | 's' | 'e' | 'w';
 
@@ -289,6 +290,94 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
             );
           })()
         )}
+      </g>
+    );
+  }
+
+  // Freehand strokes: rotation ring around the ink's bounding-box centre.
+  if (el.type === 'stroke') {
+    const points = ((el as StrokeElement).points ?? []) as Array<{ x: number; y: number }>;
+    const centre = boundsCenterOfPoints(points) ?? { x: el.x, y: el.y };
+    const extents = boundsHalfExtentsOfPoints(points);
+    const rotateHandleDistance = Math.max(
+      52,
+      Math.max(extents?.halfWidth ?? 40, extents?.halfHeight ?? 40) + 30
+    );
+
+    return (
+      <g
+        transform={`translate(${centre.x}, ${centre.y})`}
+        className="transform-controls pointer-events-auto"
+      >
+        {/* Rotation guideline circle */}
+        <circle
+          cx={0}
+          cy={0}
+          r={rotateHandleDistance}
+          fill="none"
+          stroke="#38bdf8"
+          strokeWidth={1 / canvasScale}
+          strokeDasharray="3 3"
+          opacity={0.35}
+        />
+
+        {/* Rotation stalk line */}
+        <line
+          x1={0}
+          y1={0}
+          x2={rotateHandleDistance}
+          y2={0}
+          stroke="#38bdf8"
+          strokeWidth={1.5 / canvasScale}
+          strokeDasharray="3 3"
+        />
+
+        {/* Rotation grab handle */}
+        <g
+          transform={`translate(${rotateHandleDistance}, 0)`}
+          className="cursor-grab active:cursor-grabbing"
+          onPointerDown={onRotateStart}
+        >
+          <circle cx={0} cy={0} r={12 / canvasScale} fill="#0284c7" opacity={0.3} />
+          <circle
+            cx={0}
+            cy={0}
+            r={9 / canvasScale}
+            fill="#38bdf8"
+            stroke="#0f172a"
+            strokeWidth={2 / canvasScale}
+          />
+          <path
+            d={`M ${-3 / canvasScale} ${-3 / canvasScale} A ${4 / canvasScale} ${4 / canvasScale} 0 1 1 ${-3 / canvasScale} ${3 / canvasScale}`}
+            fill="none"
+            stroke="#0f172a"
+            strokeWidth={1.5 / canvasScale}
+            strokeLinecap="round"
+          />
+          <g transform={`translate(${16 / canvasScale}, 0)`}>
+            <rect
+              x={-14 / canvasScale}
+              y={-9 / canvasScale}
+              width={28 / canvasScale}
+              height={18 / canvasScale}
+              rx={3 / canvasScale}
+              fill="#0f172a"
+              stroke="#38bdf8"
+              strokeWidth={1 / canvasScale}
+            />
+            <text
+              x={0}
+              y={3.5 / canvasScale}
+              textAnchor="middle"
+              fill="#38bdf8"
+              fontSize={9 / canvasScale}
+              fontWeight="bold"
+              fontFamily="monospace"
+            >
+              {rotation}°
+            </text>
+          </g>
+        </g>
       </g>
     );
   }
