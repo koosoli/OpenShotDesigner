@@ -12,7 +12,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # jsdom 30 -> undici 8 needs Node >= 22 (webidl.util.markAsUncloneable).
+          # Keep in sync with the local dev runtime.
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run typecheck
