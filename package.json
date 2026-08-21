@@ -14,7 +14,11 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fixtures:build": "npx --yes tsx scripts/build-fixture-db.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -27,8 +31,12 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@vitest/coverage-v8": "^4.1.11",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.0.1",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vitest": "^4.1.11"
   }
 }

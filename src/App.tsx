@@ -12,16 +12,26 @@ import { ViewfinderModal } from './components/viewfinder/ViewfinderModal';
 import { PrintableShotPlan } from './components/export/PrintableShotPlan';
 import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
 import { EquipmentPanel } from './components/equipment/EquipmentPanel';
+import { SchedulePanel } from './components/schedule/SchedulePanel';
+import { MoodBoardPanel } from './components/moodboard/MoodBoardPanel';
+import { LocationsPanel } from './components/locations/LocationsPanel';
+import { PowerPanel } from './components/power/PowerPanel';
+import { LogisticsPanel } from './components/logistics/LogisticsPanel';
+import { RunOfShowPanel } from './components/runofshow/RunOfShowPanel';
+import { RiggingPanel } from './components/rigging/RiggingPanel';
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { useBreakpoint } from './utils/useMediaQuery';
-import { AlertTriangle, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Maximize2, Minimize2, X, Boxes } from 'lucide-react';
+import { AlertTriangle, Zap, Package, ListOrdered, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, MapPin, Maximize2, Minimize2 } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { deriveSceneEquipment } from './utils/equipmentList';
 
+type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'inspector';
+type WorkspaceGroup = 'creative' | 'production' | 'technical';
+
 const MainLayout: React.FC = () => {
-  const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning } = useFloorPlan();
+  const { activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning, isModuleVisible } = useFloorPlan();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
-  const [isRightPanelFullscreen, setIsRightPanelFullscreen] = useState(false);
+  const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
   const calculateDefaultSidebarWidth = (): number => {
     if (typeof window === 'undefined') return 860;
     const vw = window.innerWidth;
@@ -51,6 +61,7 @@ const MainLayout: React.FC = () => {
   const { isCompact: isMobile } = useBreakpoint();
   // Bottom-sheet height on phones: peek (tabs only), half, or nearly full screen.
   const [sheetSize, setSheetSize] = useState<'peek' | 'half' | 'full'>('half');
+  const [isProductionMenuOpen, setIsProductionMenuOpen] = useState(false);
 
   const isLight = theme === 'light';
   const sheetHeight = sheetSize === 'peek' ? '3.25rem' : sheetSize === 'full' ? '88vh' : 'min(52vh, 520px)';
@@ -59,16 +70,27 @@ const MainLayout: React.FC = () => {
     [activeSetup]
   );
 
-  // Exit fullscreen on Escape key
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isRightPanelFullscreen) {
-        setIsRightPanelFullscreen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRightPanelFullscreen]);
+  const workspaceModules: Array<{
+    id: WorkspaceModule;
+    group: WorkspaceGroup;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    count?: number;
+    visible: boolean;
+  }> = [
+    { id: 'shots', group: 'creative', label: 'Shot list', icon: Film, count: activeSetup.shots.length, visible: isModuleVisible('shots') },
+    { id: 'storyboard', group: 'creative', label: 'Storyboard', icon: ImageIcon, visible: isModuleVisible('storyboard') },
+    { id: 'script', group: 'creative', label: 'Script', icon: FileText, visible: isModuleVisible('script') },
+    { id: 'moodboard', group: 'creative', label: 'Moodboard', icon: Images, visible: isModuleVisible('moodboard') },
+    { id: 'locations', group: 'creative', label: 'Locations', icon: MapPin, visible: isModuleVisible('locations') },
+    { id: 'schedule', group: 'production', label: 'Schedule', icon: CalendarDays, visible: isModuleVisible('schedule') },
+    { id: 'equipment', group: 'production', label: 'Gear', icon: Boxes, count: sceneEquipCount, visible: isModuleVisible('equipment') },
+    { id: 'logistics', group: 'production', label: 'Logistics', icon: Package, visible: isModuleVisible('logistics') },
+    { id: 'run_of_show', group: 'production', label: 'Run of show', icon: ListOrdered, visible: isModuleVisible('run_of_show') },
+    { id: 'power', group: 'technical', label: 'Power', icon: Zap, visible: isModuleVisible('power') },
+    { id: 'rigging', group: 'technical', label: 'Rigging', icon: Anchor, visible: isModuleVisible('rigging') },
+    { id: 'inspector', group: 'technical', label: 'Inspector', icon: Sliders, visible: true },
+  ];
 
   // Sidebar drag to resize
   const handleResizePointerDown = (e: React.PointerEvent) => {
@@ -115,6 +137,10 @@ const MainLayout: React.FC = () => {
       return nextWidth;
     });
   };
+
+  const primaryModuleIds: WorkspaceModule[] = ['shots', 'storyboard', 'script', 'equipment', 'inspector'];
+  const productionToolIds: WorkspaceModule[] = ['schedule', 'locations', 'moodboard', 'logistics', 'run_of_show', 'power', 'rigging'];
+  const activeProductionTool = workspaceModules.find((module) => module.id === activeRightTab && productionToolIds.includes(module.id));
 
   return (
     <div id="app-root" className={`flex flex-col w-screen h-screen overflow-hidden font-sans select-none transition-colors ${
@@ -164,23 +190,17 @@ const MainLayout: React.FC = () => {
           <aside
             id="right-sidebar"
             style={
-              isRightPanelFullscreen
-                ? undefined
-                : ({
+              ({
                     '--sidebar-width': `${sidebarWidth}px`,
                     '--sheet-height': sheetHeight,
                     // Inline height wins over the h-full utility class on phones
                     ...(isMobile ? { height: sheetHeight } : null),
                   } as React.CSSProperties)
             }
-            className={`transition-colors ${
-              isRightPanelFullscreen
-                ? `is-fullscreen fixed inset-0 z-[9999] w-screen h-screen flex flex-col ${isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100'}`
-                : `h-full flex flex-col border-l shadow-2xl relative z-20 flex-shrink-0 ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`
-            }`}
+            className={`${isSidebarFullscreen ? 'is-fullscreen absolute inset-0 z-40 w-full' : 'h-full relative z-20 flex-shrink-0'} flex flex-col border-l shadow-2xl transition-colors ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}
           >
-            {/* Resizing left edge bar (hidden in fullscreen) */}
-            {!isRightPanelFullscreen && (
+            {/* Resizing left edge bar */}
+            {(
               <div
                 onPointerDown={handleResizePointerDown}
                 onDoubleClick={toggleSidebarWidth}
@@ -193,119 +213,46 @@ const MainLayout: React.FC = () => {
               </div>
             )}
 
-            {/* Tab Header (Shot List vs Inspector) */}
-            <div className={`flex items-center justify-between border-b p-1.5 ${
+            {/* Core tabs stay quiet; optional production modules live in one menu. */}
+            <div className={`flex items-center justify-between border-b px-2 py-1.5 gap-2 ${
               isLight ? 'border-slate-200 bg-slate-100/70' : 'border-slate-800 bg-slate-950/60'
             }`}>
-              <div className="flex items-center gap-1 flex-1">
-                <button
-                  id="tab-shot-list"
-                  onClick={() => setActiveRightTab('shots')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
-                    activeRightTab === 'shots'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : isLight
-                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                  }`}
-                >
-                  <Film className="w-3.5 h-3.5" />
-                  <span>Shot List</span>
-                  <span className={`ml-1 px-1.5 py-0.2 text-[10px] font-mono rounded-full ${
-                    isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-950/80 text-slate-300'
-                  }`}>
-                    {activeSetup.shots.length}
-                  </span>
-                </button>
-
-                <button
-                  id="tab-storyboard"
-                  onClick={() => setActiveRightTab('storyboard')}
-                  title="Storyboard view"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                    activeRightTab === 'storyboard'
-                      ? 'bg-violet-600 text-white shadow-sm'
-                      : isLight
-                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                  }`}
-                >
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  <span>Board</span>
-                </button>
-
-                <button
-                  id="tab-script"
-                  onClick={() => setActiveRightTab('script')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                    activeRightTab === 'script'
-                      ? 'bg-violet-600 text-white shadow-sm'
-                      : isLight
-                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Script</span>
-                </button>
-
-                <button
-                  id="tab-equipment"
-                  onClick={() => setActiveRightTab('equipment')}
-                  title="Per-scene equipment list & production gear manifest"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                    activeRightTab === 'equipment'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : isLight
-                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                  }`}
-                >
-                  <Boxes className="w-3.5 h-3.5" />
-                  <span>Gear</span>
-                  <span className={`ml-0.5 px-1 py-0.2 text-[10px] font-mono rounded-full ${
-                    isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-950/80 text-slate-300'
-                  }`}>
-                    {sceneEquipCount}
-                  </span>
-                </button>
-
-                <button
-                  id="tab-inspector"
-                  onClick={() => setActiveRightTab('inspector')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                    activeRightTab === 'inspector'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : isLight
-                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                  }`}
-                >
-                  <Sliders className="w-3.5 h-3.5" />
-                  <span>Inspector</span>
-                  {selectedElementIds.length > 0 && (
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  )}
-                </button>
-              </div>
+              <nav aria-label="Workspace modules" className="flex-1 min-w-0 flex items-center gap-1">
+                  {workspaceModules.filter((module) => primaryModuleIds.includes(module.id) && module.visible).map((module) => {
+                    const Icon = module.icon;
+                    const active = activeRightTab === module.id;
+                    return <button key={module.id} id={`tab-${module.id}`} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} title={module.label} className={`flex-1 min-w-0 h-8 px-2 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-colors ${active ? 'bg-sky-600 text-white shadow-sm' : isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{module.label}</span>{module.count !== undefined && <span className={`rounded px-1 font-mono text-[8px] ${active ? 'bg-white/20' : isLight ? 'bg-slate-200' : 'bg-slate-950'}`}>{module.count}</span>}{module.id === 'inspector' && selectedElementIds.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}</button>;
+                  })}
+                  <div className="relative flex-1 min-w-0">
+                    <button type="button" onClick={() => setIsProductionMenuOpen((open) => !open)} aria-expanded={isProductionMenuOpen} className={`w-full h-8 px-2 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-colors ${activeProductionTool ? 'bg-sky-600 text-white shadow-sm' : isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                      {activeProductionTool ? React.createElement(activeProductionTool.icon, { className: 'w-3.5 h-3.5 shrink-0' }) : <CalendarDays className="w-3.5 h-3.5 shrink-0" />}
+                      <span className="truncate">{activeProductionTool?.label ?? 'Production'}</span><ChevronDown className="w-3 h-3 shrink-0" />
+                    </button>
+                    {isProductionMenuOpen && <div className={`absolute top-10 right-0 z-50 w-64 rounded-xl border shadow-2xl p-2 ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700'}`}>
+                      {([
+                        ['Planning', ['schedule', 'locations', 'moodboard']],
+                        ['Operations', ['logistics', 'run_of_show']],
+                        ['Technical', ['power', 'rigging']],
+                      ] as Array<[string, WorkspaceModule[]]>).map(([label, ids]) => <section key={label} className="mb-2 last:mb-0"><div className={`px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>{ids.map((id) => workspaceModules.find((module) => module.id === id)).filter((module): module is NonNullable<typeof module> => Boolean(module?.visible)).map((module) => { const Icon = module.icon; return <button key={module.id} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} className={`w-full h-9 px-2 rounded-lg flex items-center gap-2 text-[11px] font-semibold ${activeRightTab === module.id ? 'bg-sky-600 text-white' : isLight ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-200 hover:bg-slate-800'}`}><Icon className="w-4 h-4" />{module.label}</button>; })}</section>)}
+                    </div>}
+                  </div>
+              </nav>
 
               {/* Panel width presets (desktop) / bottom-sheet height (mobile) & Fullscreen toggle */}
               <div className="flex items-center gap-0.5 ml-1">
-                {/* Full Screen Toggle Button */}
                 <button
-                  onClick={() => setIsRightPanelFullscreen((prev) => !prev)}
-                  title={isRightPanelFullscreen ? 'Exit Full Screen (Esc)' : 'Full Screen Panel View'}
-                  className={`p-1.5 rounded-lg text-xs transition-colors ${
-                    isRightPanelFullscreen
-                      ? 'bg-violet-600 text-white shadow-sm'
-                      : isLight
-                      ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  onClick={() => setIsSidebarFullscreen((fullscreen) => !fullscreen)}
+                  title={isSidebarFullscreen ? 'Restore side panel' : 'Open side panel full screen'}
+                  aria-label={isSidebarFullscreen ? 'Restore side panel' : 'Open side panel full screen'}
+                  aria-pressed={isSidebarFullscreen}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    isSidebarFullscreen
+                      ? 'bg-sky-600 text-white'
+                      : isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
                 >
-                  {isRightPanelFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                  {isSidebarFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                 </button>
-
                 {isMobile ? (
                   <>
                     <button
@@ -328,7 +275,7 @@ const MainLayout: React.FC = () => {
                     </button>
                   </>
                 ) : (
-                  !isRightPanelFullscreen && (
+                  (
                     <button
                       onClick={toggleSidebarWidth}
                       title="Toggle Side Panel Width (Standard / Wide / Ultra-Wide)"
@@ -344,7 +291,7 @@ const MainLayout: React.FC = () => {
                 {/* Collapse Sidebar Button */}
                 <button
                   onClick={() => {
-                    setIsRightPanelFullscreen(false);
+                    setIsSidebarFullscreen(false);
                     setIsRightPanelOpen(false);
                   }}
                   title={isMobile ? 'Hide panel' : 'Collapse sidebar'}
@@ -367,6 +314,20 @@ const MainLayout: React.FC = () => {
                 <ScriptPanel />
               ) : activeRightTab === 'equipment' ? (
                 <EquipmentPanel />
+              ) : activeRightTab === 'schedule' ? (
+                <SchedulePanel />
+              ) : activeRightTab === 'moodboard' ? (
+                <MoodBoardPanel />
+              ) : activeRightTab === 'locations' ? (
+                <LocationsPanel />
+              ) : activeRightTab === 'power' ? (
+                <PowerPanel />
+              ) : activeRightTab === 'logistics' ? (
+                <LogisticsPanel />
+              ) : activeRightTab === 'run_of_show' ? (
+                <RunOfShowPanel />
+              ) : activeRightTab === 'rigging' ? (
+                <RiggingPanel />
               ) : (
                 <InspectorPanel />
               )}

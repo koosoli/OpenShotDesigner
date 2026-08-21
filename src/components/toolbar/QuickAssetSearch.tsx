@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { getSymbolById, searchSymbols } from '../../domain/assets';
+import type { PlanSymbolDefinition } from '../../domain/assets';
 import { CameraRigType, CableType, FloorPlanElement, LightFixtureType, PropType, ShapeType } from '../../types';
 import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import {
@@ -66,7 +68,7 @@ const PROP_KEYWORDS: Record<PropType, string> = {
   plant: 'plant potted plant houseplant indoor plant green foliage flowerpot shrub bush botany flora',
   dining_set: 'dining set dining table chairs dinner table dining room banquet table kitchen table eating set',
   table_rect: 'rectangular table dining table office table conference table boardroom table banquet table desk table rect',
-  table_round: 'round table circular table round dining table poker table discussion table circular table round desk',
+  table_round: 'round table circular table round dining table four chairs 4 chairs dining set poker table discussion table circular table round desk',
   chair: 'chair dining chair side chair office chair seat seating stool desk chair dining chair',
   desk: 'desk office desk executive desk workstation computer desk writing desk table study work table',
   bar_counter: 'bar counter pub counter kitchen island reception desk high counter cash desk restaurant bar',
@@ -164,11 +166,26 @@ const CAMERA_ICON = <Camera className="w-4 h-4 text-sky-500" />;
 const LIGHT_ICON = <Lightbulb className="w-4 h-4 text-amber-500" />;
 const FLAG_ICON = <Flag className="w-4 h-4 text-slate-400" />;
 
+const SHARED_SYMBOL_BY_PROP_TYPE: Partial<Record<PropType, string>> = {
+  stage: 'staging.main-stage',
+  stage_riser: 'staging.stage-deck',
+  stage_runway: 'staging.runway',
+  stage_truss: 'staging.truss-tower',
+  broadcast_truck: 'broadcast.ob-van',
+  broadcast_van: 'broadcast.eng-van',
+  sat_truck: 'broadcast.satellite-truck',
+};
+
+const SYMBOL_SHAPE_COLOR = '#94a3b8';
+const SYMBOL_SHAPE_STROKE = '#64748b';
+
 function buildAssetList(): QuickAsset[] {
   const assets: QuickAsset[] = [];
 
   // 1. Props & Furniture Catalog
   PROP_CATALOG.forEach((p) => {
+    const sharedSymbolId = SHARED_SYMBOL_BY_PROP_TYPE[p.type];
+    const sharedSymbol = sharedSymbolId ? getSymbolById(sharedSymbolId) : undefined;
     const specificKw = PROP_KEYWORDS[p.type] || '';
     let categoryTag: QuickAsset['categoryTag'] = 'props';
     if (p.category === 'Studio & Stage' || p.category === 'Concert & Stage') categoryTag = 'grip';
@@ -192,12 +209,29 @@ function buildAssetList(): QuickAsset[] {
       keywords: `${p.name} ${p.category} ${p.type} prop ${specificKw}`,
       group: groupName,
       dimensions: `${p.defaultWidth}×${p.defaultHeight}cm`,
-      icon:
-        p.type === 'tree' ? <TreePine className="w-4 h-4 text-emerald-500" /> :
+      icon: sharedSymbol ? (
+        <svg className="w-5 h-5 text-sky-500" viewBox="0 0 100 100" aria-hidden="true">
+          <g dangerouslySetInnerHTML={{ __html: sharedSymbol.svg }} />
+        </svg>
+      ) : p.type === 'tree' ? <TreePine className="w-4 h-4 text-emerald-500" /> :
         p.category === 'Broadcast & Production' ? <Truck className="w-4 h-4 text-sky-500" /> :
         p.category === 'Concert & Stage' ? <Mic2 className="w-4 h-4 text-purple-500" /> :
         <Armchair className="w-4 h-4 text-purple-500" />,
-      buildPartial: () => ({ type: 'prop', propType: p.type } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
+      buildPartial: sharedSymbol
+        ? () => ({
+            type: 'shape',
+            shapeType: 'rectangle',
+            symbolId: sharedSymbol.id,
+            name: sharedSymbol.name,
+            width: sharedSymbol.defaultWidth,
+            height: sharedSymbol.defaultHeight,
+            label: sharedSymbol.name,
+            color: SYMBOL_SHAPE_COLOR,
+            filled: false,
+            strokeColor: SYMBOL_SHAPE_STROKE,
+            strokeWidth: 2,
+          } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] })
+        : () => ({ type: 'prop', propType: p.type } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }),
     });
   });
 
@@ -380,6 +414,12 @@ const CATEGORY_TABS: { id: 'all' | QuickAsset['categoryTag']; label: string; ico
   { id: 'shapes', label: 'Zones & Shapes', icon: '📐' },
 ];
 
+const SYMBOL_RESULT_LIMIT = 8;
+
+type ResultItem =
+  | { kind: 'asset'; key: string; asset: QuickAsset }
+  | { kind: 'symbol'; key: string; symbol: PlanSymbolDefinition };
+
 export const QuickAssetSearch: React.FC = () => {
   const { quickSearchOpen, setQuickSearchOpen, quickAddElement, theme } = useFloorPlan();
   const [query, setQuery] = useState('');
@@ -390,7 +430,7 @@ export const QuickAssetSearch: React.FC = () => {
 
   const isLight = theme === 'light';
 
-  const filtered = useMemo(() => {
+  const filtered = useMemo((): ResultItem[] => {
     const q = query.trim();
     let list = ALL_ASSETS;
 
@@ -398,14 +438,30 @@ export const QuickAssetSearch: React.FC = () => {
       list = list.filter((a) => a.categoryTag === activeCategory);
     }
 
-    if (!q) return list;
+    if (!q) {
+      return list.map((asset) => ({ kind: 'asset' as const, key: asset.id, asset }));
+    }
 
-    const scored = list
+    const items: ResultItem[] = [];
+    const seenNames = new Set<string>();
+    list
       .map((asset) => ({ asset, score: scoreAsset(asset, q) }))
-      .filter((item) => item.score > 0);
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .forEach(({ asset }) => {
+        seenNames.add(normalizeText(asset.label));
+        items.push({ kind: 'asset', key: asset.id, asset });
+      });
 
-    scored.sort((a, b) => b.score - a.score);
-    return scored.map((item) => item.asset);
+    // Merge curated production-symbol registry hits (deduped by name).
+    if (activeCategory === 'all') {
+      searchSymbols(q, { limit: SYMBOL_RESULT_LIMIT }).forEach(({ symbol }) => {
+        if (seenNames.has(normalizeText(symbol.name))) return;
+        items.push({ kind: 'symbol', key: `symbol-${symbol.id}`, symbol });
+      });
+    }
+
+    return items;
   }, [query, activeCategory]);
 
   useEffect(() => {
@@ -420,8 +476,25 @@ export const QuickAssetSearch: React.FC = () => {
     }
   }, [quickSearchOpen]);
 
-  const place = (asset: QuickAsset) => {
-    quickAddElement(asset.buildPartial());
+  const place = (item: ResultItem) => {
+    if (item.kind === 'asset') {
+      quickAddElement(item.asset.buildPartial());
+    } else {
+      const symbol = item.symbol;
+      quickAddElement({
+        type: 'shape',
+        shapeType: 'rectangle',
+        symbolId: symbol.id,
+        name: symbol.name,
+        width: symbol.defaultWidth,
+        height: symbol.defaultHeight,
+        label: symbol.name,
+        color: SYMBOL_SHAPE_COLOR,
+        filled: false,
+        strokeColor: SYMBOL_SHAPE_STROKE,
+        strokeWidth: 2,
+      } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] });
+    }
     setQuickSearchOpen(false);
     setQuery('');
   };
@@ -560,17 +633,30 @@ export const QuickAssetSearch: React.FC = () => {
               <p className="text-xs opacity-60 mt-1">Try searching for couch, c-stand, boom, desk, plant, car, gun, tree, softbox...</p>
             </div>
           ) : (
-            filtered.map((asset, idx) => {
-              const showGroup = !query.trim() && asset.group !== lastGroup;
-              if (showGroup) lastGroup = asset.group;
+            filtered.map((item, idx) => {
+              const showSymbolHeader =
+                item.kind === 'symbol' && (idx === 0 || filtered[idx - 1].kind !== 'symbol');
+              const showGroup =
+                !showSymbolHeader &&
+                item.kind === 'asset' &&
+                !query.trim() &&
+                item.asset.group !== lastGroup;
+              if (showGroup && item.kind === 'asset') lastGroup = item.asset.group;
               const active = idx === selectedIndex;
               return (
-                <div key={asset.id}>
-                  {showGroup && (
+                <div key={item.key}>
+                  {showSymbolHeader && (
                     <div className={`sticky top-0 z-10 px-4 py-1 text-[10px] font-bold uppercase tracking-wider ${
                       isLight ? 'bg-slate-100 text-slate-500 border-b border-slate-200' : 'bg-slate-950 text-slate-400 border-b border-slate-800'
                     }`}>
-                      {asset.group}
+                      Production Symbols
+                    </div>
+                  )}
+                  {showGroup && item.kind === 'asset' && (
+                    <div className={`sticky top-0 z-10 px-4 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                      isLight ? 'bg-slate-100 text-slate-500 border-b border-slate-200' : 'bg-slate-950 text-slate-400 border-b border-slate-800'
+                    }`}>
+                      {item.asset.group}
                     </div>
                   )}
                   <button
@@ -578,7 +664,7 @@ export const QuickAssetSearch: React.FC = () => {
                     onPointerEnter={() => setSelectedIndex(idx)}
                     onPointerDown={(e) => {
                       e.preventDefault();
-                      place(asset);
+                      place(item);
                     }}
                     className={`w-full flex items-center gap-3 px-4 py-2 text-left text-xs transition-colors ${
                       active
@@ -590,16 +676,34 @@ export const QuickAssetSearch: React.FC = () => {
                         : 'text-slate-300 hover:bg-slate-800/60'
                     }`}
                   >
-                    <span className="flex-shrink-0 p-1 rounded bg-slate-800/40">{asset.icon}</span>
+                    {item.kind === 'asset' ? (
+                      <span className="flex-shrink-0 p-1 rounded bg-slate-800/40">{item.asset.icon}</span>
+                    ) : (
+                      <span
+                        className={`flex-shrink-0 p-1 rounded bg-slate-800/40 ${
+                          active ? 'text-violet-300' : isLight ? 'text-slate-600' : 'text-slate-400'
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {/* Registry SVG is our own static curated data, not user input. */}
+                        <svg viewBox="0 0 100 100" className="w-7 h-7" dangerouslySetInnerHTML={{ __html: item.symbol.svg }} />
+                      </span>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate">{asset.label}</span>
-                        {asset.dimensions && (
-                          <span className="text-[10px] font-mono opacity-50 flex-shrink-0">{asset.dimensions}</span>
+                        <span className="truncate">{item.kind === 'asset' ? item.asset.label : item.symbol.name}</span>
+                        {item.kind === 'asset' && item.asset.dimensions && (
+                          <span className="text-[10px] font-mono opacity-50 flex-shrink-0">{item.asset.dimensions}</span>
                         )}
                       </div>
                       <div className="text-[10px] opacity-45 truncate font-normal">
-                        {asset.group}
+                        {item.kind === 'asset' ? item.asset.group : (
+                          <span className={`inline-block mt-0.5 px-1.5 py-px rounded-full border uppercase tracking-wide ${
+                            isLight ? 'border-slate-200 bg-slate-100 text-slate-500' : 'border-slate-700 bg-slate-800/60 text-slate-400'
+                          }`}>
+                            {item.symbol.category}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {active && <span className="text-[10px] font-mono opacity-70 px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 flex-shrink-0">Place ↵</span>}

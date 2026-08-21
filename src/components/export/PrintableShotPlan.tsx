@@ -1,3 +1,4 @@
+import { BRANDING } from '../../config/branding';
 import React, { useEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
@@ -12,6 +13,7 @@ import {
   MeasurementElement,
   PropElement,
   ShapeElement,
+  StrokeElement,
   TextElement,
   TrackElement,
   WallElement,
@@ -25,6 +27,7 @@ import { FlagFixtureIcon, flagLabel, isFlagFixture } from '../canvas/FlagFixture
 import { FixtureGlyph } from '../canvas/FixtureGlyph';
 import { ArrowGlyph } from '../canvas/ArrowGlyph';
 import { ShapesLayer } from '../canvas/ShapesLayer';
+import { FreehandStrokeLayer } from '../canvas/FreehandStrokeLayer';
 import { ActorElementView } from '../canvas/ActorElementView';
 import { CameraElementView } from '../canvas/CameraElementView';
 import { LightingLayer } from '../canvas/LightingLayer';
@@ -74,6 +77,7 @@ import {
   X,
 } from 'lucide-react';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
+import { selectPrintablePlanElements } from '../../domain/plan';
 
 export const PrintableShotPlan: React.FC = () => {
   const {
@@ -285,19 +289,21 @@ export const PrintableShotPlan: React.FC = () => {
 
   if (!isExportModalOpen) return null;
 
-  const cameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
-  const lights = activeSetup.elements.filter((e) => e.type === 'light') as LightElement[];
-  const actors = activeSetup.elements.filter((e) => e.type === 'actor') as ActorElement[];
-  const walls = activeSetup.elements.filter((e) => e.type === 'wall') as WallElement[];
-  const doors = activeSetup.elements.filter((e) => e.type === 'door') as DoorElement[];
-  const windows = activeSetup.elements.filter((e) => e.type === 'window') as WindowElement[];
-  const props = activeSetup.elements.filter((e) => e.type === 'prop') as PropElement[];
-  const tracks = activeSetup.elements.filter((e) => e.type === 'track') as TrackElement[];
-  const measurements = activeSetup.elements.filter((e) => e.type === 'measurement') as MeasurementElement[];
-  const texts = activeSetup.elements.filter((e) => e.type === 'text') as TextElement[];
-  const arrows = activeSetup.elements.filter((e) => e.type === 'arrow') as ArrowElement[];
-  const cables = activeSetup.elements.filter((e) => e.type === 'cable') as CableElement[];
-  const shapes = activeSetup.elements.filter((e) => e.type === 'shape') as ShapeElement[];
+  const printableElements = selectPrintablePlanElements(activeSetup.elements, activeSetup.layers);
+  const cameras = printableElements.filter((e) => e.type === 'camera') as CameraElement[];
+  const lights = printableElements.filter((e) => e.type === 'light') as LightElement[];
+  const actors = printableElements.filter((e) => e.type === 'actor') as ActorElement[];
+  const walls = printableElements.filter((e) => e.type === 'wall') as WallElement[];
+  const doors = printableElements.filter((e) => e.type === 'door') as DoorElement[];
+  const windows = printableElements.filter((e) => e.type === 'window') as WindowElement[];
+  const props = printableElements.filter((e) => e.type === 'prop') as PropElement[];
+  const tracks = printableElements.filter((e) => e.type === 'track') as TrackElement[];
+  const measurements = printableElements.filter((e) => e.type === 'measurement') as MeasurementElement[];
+  const texts = printableElements.filter((e) => e.type === 'text') as TextElement[];
+  const arrows = printableElements.filter((e) => e.type === 'arrow') as ArrowElement[];
+  const cables = printableElements.filter((e) => e.type === 'cable') as CableElement[];
+  const shapes = printableElements.filter((e) => e.type === 'shape') as ShapeElement[];
+  const strokes = printableElements.filter((e) => e.type === 'stroke') as StrokeElement[];
   const backgroundImages = (activeSetup.backgroundImages || []).filter((i) => i.visible) as BackgroundImage[];
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
@@ -1075,6 +1081,9 @@ export const PrintableShotPlan: React.FC = () => {
                       onSelectCamera={() => {}}
                     />
                   )}
+
+                  {/* 8. Freehand annotations — identical geometry and styling to the live canvas. */}
+                  <FreehandStrokeLayer strokes={strokes} />
                 </svg>
               </div>
 

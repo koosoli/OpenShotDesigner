@@ -35,10 +35,15 @@ import {
   PROP_CATALOG,
   SENSOR_FORMATS,
 } from '../../constants/presets';
+import { validateConnectionCompatibility } from '../../domain/cable';
+import { cloneSetupWithNewIds } from '../../domain/clone';
+import { createId } from '../../domain/ids';
+import { impliedEndpointInfo, impliedSignalTypeForCableType } from '../../domain/cable/cableTypeSignals';
 import { flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
+import { LayersPanel } from '../canvas/LayersPanel';
+import { DmxUniverseView } from '../equipment/DmxUniverseView';
 import { calculateFovAngle, ensureHexColor, hexToHsv, hexToRgbParts, hsvToHex, kelvinToHex, kelvinToRgb, rgbToHex } from '../../utils/geometry';
 import { APERTURES, FRAME_RATES, ISO_VALUES, ND_FILTERS, SHUTTER_ANGLES } from '../../constants/presets';
-import { collectFixturePatches, dmxChannelsForFixture, nextFreeAddress } from '../../utils/dmxPatch';
 
 const SHAPE_TYPES: ShapeType[] = [
   'line',
@@ -58,6 +63,7 @@ import {
   Circle,
   Compass,
   Copy,
+  Crosshair,
   DoorClosed,
   Eye,
   EyeOff,
@@ -69,10 +75,13 @@ import {
   Lightbulb,
   Lock,
   Maximize,
+  MapPin,
+  MessageCircle,
   Move3d,
   Palette,
   RotateCcw,
   RotateCw,
+  Ruler,
   Sliders,
   SquareSplitHorizontal,
   Sun,
@@ -105,7 +114,9 @@ import {
   MoveRight,
   Cable,
   Zap,
+  Package,
 } from 'lucide-react';
+import { AssembliesPanel, promptSaveAssemblyFromIds } from '../canvas/AssembliesPanel';
 
 type AlignMode = 'left' | 'right' | 'hcenter' | 'top' | 'bottom' | 'vcenter';
 
@@ -673,6 +684,7 @@ const WaypointListEditor: React.FC<{
 
 export const InspectorPanel: React.FC = () => {
   const logoInputRef = React.useRef<HTMLInputElement>(null);
+  const [dmxUniverseFixtureId, setDmxUniverseFixtureId] = useState<string | null>(null);
   const {
     activeSetup,
     project,
@@ -686,6 +698,7 @@ export const InspectorPanel: React.FC = () => {
     updateShot,
     playback,
     updateSetupMeta,
+    setActiveSetupId,
     insertDoorInWall,
     insertWindowInWall,
     rotateElementBy,
@@ -699,6 +712,9 @@ export const InspectorPanel: React.FC = () => {
     updateDisplaySettings,
     updateMultipleElements,
     setGridSettings,
+    calibratingBackgroundId,
+    startBackgroundCalibration,
+    cancelBackgroundCalibration,
   } = useFloorPlan();
 
   const isLight = theme === 'light';
@@ -706,6 +722,86 @@ export const InspectorPanel: React.FC = () => {
   const selectClass = `w-full border rounded px-1.5 py-1 text-[11px] ${
     isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
   }`;
+
+  // --- Location link (plan §4.13 semantic links + §13 master plans) ---
+
+  const assignedLocation = (project.locations ?? []).find(
+    (l) => l.id === activeSetup.locationId
+  );
+  /** The setup currently declared as master plan for the assigned location. */
+  const masterSetupForLocation = assignedLocation
+    ? project.setups.find((s) => s.masterPlanForLocationId === assignedLocation.id)
+    : undefined;
+  const isThisSetupTheMaster =
+    !!assignedLocation &&
+    (activeSetup.masterPlanForLocationId === assignedLocation.id ||
+      assignedLocation.masterPlanId === activeSetup.id);
+
+  /** Assign/unassign the semantic location link; releases mastership cleanly. */
+  const assignSetupLocation = (locationId: string) => {
+    const nextId = locationId || undefined;
+    const prevLocation = assignedLocation;
+    if (prevLocation && prevLocation.id !== nextId) {
+      const wasMasterHere =
+        prevLocation.masterPlanId === activeSetup.id ||
+        activeSetup.masterPlanForLocationId === prevLocation.id;
+      if (wasMasterHere) {
+        updateProjectMeta({
+          locations: (project.locations ?? []).map((l) =>
+            l.id === prevLocation.id ? { ...l, masterPlanId: undefined } : l
+          ),
+        });
+        updateSetupMeta({ locationId: nextId, masterPlanForLocationId: undefined });
+        return;
+      }
+    }
+    updateSetupMeta({ locationId: nextId });
+  };
+
+  /**
+   * Declare this setup as THE reusable master plan for its assigned location.
+   * Both sides are kept in sync: SceneSetup.masterPlanForLocationId (§4.13)
+   * and Location.masterPlanId. Any previous claimant is demoted first.
+   */
+  const makeThisSetupMasterPlan = () => {
+    const targetId = activeSetup.locationId;
+    if (!targetId) return;
+    updateProjectMeta({
+      locations: (project.locations ?? []).map((l) =>
+        l.id === targetId
+          ? { ...l, masterPlanId: activeSetup.id }
+          : l.masterPlanId === activeSetup.id
+          ? { ...l, masterPlanId: undefined }
+          : l
+      ),
+      setups: project.setups.map((s) =>
+        s.id !== activeSetup.id && s.masterPlanForLocationId === targetId
+          ? { ...s, masterPlanForLocationId: undefined }
+          : s
+      ),
+    });
+    updateSetupMeta({ masterPlanForLocationId: targetId });
+  };
+
+  const unsetMasterPlan = () => {
+    if (!assignedLocation) return;
+    updateProjectMeta({
+      locations: (project.locations ?? []).map((l) =>
+        l.id === assignedLocation.id ? { ...l, masterPlanId: undefined } : l
+      ),
+    });
+    updateSetupMeta({ masterPlanForLocationId: undefined });
+  };
+
+  /**
+   * Detach-style copy (§13.1): snapshot the master plan's elements into THIS
+   * setup with fresh ids — future edits stay independent on both sides.
+   */
+  const insertCopyOfMasterElements = () => {
+    if (!masterSetupForLocation) return;
+    const cloned = cloneSetupWithNewIds(masterSetupForLocation);
+    updateSetupMeta({ elements: [...activeSetup.elements, ...cloned.elements] });
+  };
 
   // Dedicated Reference Image inspector — shown when a background image is
   // selected on the canvas (separate from the Scene Setup inspector).
@@ -834,6 +930,39 @@ export const InspectorPanel: React.FC = () => {
           </div>
         </div>
 
+        <div className={`rounded-xl border p-3 space-y-2 ${
+          isLight ? 'bg-orange-50 border-orange-200' : 'bg-orange-950/20 border-orange-900/70'
+        }`}>
+          <div className="flex items-start gap-2">
+            <Ruler className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold">Set image scale from a known distance</div>
+              <p className="text-[10px] opacity-65 mt-0.5">
+                Mark both ends of a printed scale bar or known dimension, then enter its real length.
+              </p>
+            </div>
+          </div>
+          {selectedBg.calibration && (
+            <div className={`text-[10px] rounded-md px-2 py-1.5 ${isLight ? 'bg-white/80' : 'bg-slate-950/50'}`}>
+              Calibrated from {selectedBg.calibration.realLength}{selectedBg.calibration.unit} · image resized {selectedBg.calibration.appliedScaleFactor.toFixed(3)}×
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (calibratingBackgroundId === selectedBg.id) cancelBackgroundCalibration();
+              else if (selectedBg.id) startBackgroundCalibration(selectedBg.id);
+            }}
+            className={`w-full py-2 rounded-lg text-[11px] font-bold border transition-colors ${
+              calibratingBackgroundId === selectedBg.id
+                ? 'bg-slate-700 text-white border-slate-600'
+                : 'bg-orange-500 hover:bg-orange-400 text-slate-950 border-orange-400'
+            }`}
+          >
+            {calibratingBackgroundId === selectedBg.id ? 'Cancel scale calibration' : selectedBg.calibration ? 'Recalibrate scale' : 'Calibrate scale'}
+          </button>
+        </div>
+
         {/* Visibility / Lock */}
         <div className="grid grid-cols-2 gap-1.5">
           <button
@@ -900,6 +1029,7 @@ export const InspectorPanel: React.FC = () => {
             Scene Setup Inspector
           </h3>
         </div>
+        <AssembliesPanel />
         <div className="space-y-3">
           {/* Rubric 1: Scene & Environment */}
           <RubricSection
@@ -1046,6 +1176,121 @@ export const InspectorPanel: React.FC = () => {
                 </button>
               </div>
             </div>
+          </RubricSection>
+
+          {/* Rubric 1b: Location link (plan §4.13, §13 master plans) */}
+          <RubricSection
+            title="Location"
+            icon={<MapPin className="w-3.5 h-3.5 text-sky-500" />}
+            badge={
+              assignedLocation ? (
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-semibold truncate max-w-[110px]">
+                  {assignedLocation.name}
+                </span>
+              ) : undefined
+            }
+            defaultOpen={false}
+            isLight={isLight}
+          >
+            <div>
+              <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                Linked location
+              </label>
+              {(project.locations ?? []).length === 0 ? (
+                <p className={`text-[11px] italic mb-1 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                  No locations defined yet — add some in the Loc tab.
+                </p>
+              ) : null}
+              <select
+                value={activeSetup.locationId ?? ''}
+                onChange={(e) => assignSetupLocation(e.target.value)}
+                className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                }`}
+              >
+                <option value="">— none —</option>
+                {(project.locations ?? []).map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {assignedLocation && !isThisSetupTheMaster && (
+              <button
+                type="button"
+                onClick={makeThisSetupMasterPlan}
+                title="Declare this scene setup as the reusable master plan for the linked location"
+                className={`w-full py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                  isLight
+                    ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                    : 'border-emerald-700 text-emerald-300 hover:bg-emerald-900/30'
+                }`}
+              >
+                Make this setup the master plan
+              </button>
+            )}
+
+            {assignedLocation && isThisSetupTheMaster && (
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-[11px] flex items-center gap-1 min-w-0 ${
+                  isLight ? 'text-emerald-700' : 'text-emerald-300'
+                }`}>
+                  <Crosshair className="w-3 h-3 flex-shrink-0" />
+                  This is the master plan for “{assignedLocation.name}”.
+                </span>
+                <button
+                  type="button"
+                  onClick={unsetMasterPlan}
+                  title="Stop being the master plan (keeps this setup untouched)"
+                  className={`px-2 py-1 rounded-lg text-[10px] font-semibold border transition-colors flex-shrink-0 ${
+                    isLight
+                      ? 'border-slate-300 text-slate-600 hover:bg-slate-200/70'
+                      : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  Unset
+                </button>
+              </div>
+            )}
+
+            {assignedLocation && masterSetupForLocation && masterSetupForLocation.id !== activeSetup.id && (
+              <div className={`rounded-lg border p-2 space-y-1.5 ${
+                isLight ? 'bg-white border-slate-200' : 'bg-slate-950/60 border-slate-700'
+              }`}>
+                <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Master plan for this location: <strong>{masterSetupForLocation.name}</strong>
+                </p>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSetupId(masterSetupForLocation.id)}
+                    title="Switch to the master plan setup"
+                    className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                      isLight
+                        ? 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                        : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    Open master plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={insertCopyOfMasterElements}
+                    title="Copy the master plan's floor plan elements into this setup with fresh ids"
+                    className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                      isLight
+                        ? 'bg-sky-600 text-white hover:bg-sky-700'
+                        : 'bg-sky-600 text-white hover:bg-sky-500'
+                    }`}
+                  >
+                    Insert copy of master elements
+                  </button>
+                </div>
+                <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Copies current state — future edits stay independent.
+                </p>
+              </div>
+            )}
           </RubricSection>
 
           {/* Rubric 2: Production Info */}
@@ -1431,6 +1676,16 @@ export const InspectorPanel: React.FC = () => {
             </div>
           </RubricSection>
 
+          {/* Plan Layers (§6.1): visibility, lock & opacity per layer */}
+          <RubricSection
+            title="Layers"
+            icon={<Layers className="w-3.5 h-3.5 text-violet-500" />}
+            defaultOpen={false}
+            isLight={isLight}
+          >
+            <LayersPanel />
+          </RubricSection>
+
           {/* Rubric 6: Declutter Floor Plan */}
           <RubricSection
             title="Declutter Floor Plan"
@@ -1658,6 +1913,19 @@ export const InspectorPanel: React.FC = () => {
         <p className="text-xs opacity-75">
           Multiple floor plan elements selected. You can move them together or rotate the selection.
         </p>
+
+        {/* Reusable assemblies (plan §6.5): save the selection as a template */}
+        <button
+          onClick={() => promptSaveAssemblyFromIds(selectedElementIds, activeSetup.elements)}
+          className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+            isLight
+              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+              : 'bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border-emerald-800'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>Save Selection as Assembly</span>
+        </button>
 
         {/* Multi rotate buttons */}
         <div className="space-y-1.5 pt-2">
@@ -2572,6 +2840,16 @@ export const InspectorPanel: React.FC = () => {
         {/* 4. ACTOR SPECIFIC INSPECTOR */}
         {el.type === 'actor' && (() => {
           const actor = el as ActorElement;
+          const updateActorSpeech = (beat: number, text: string) => {
+            const cues = actor.speechCues || [];
+            const existing = cues.find((cue) => cue.beat === beat);
+            const next = text.length === 0
+              ? cues.filter((cue) => cue.beat !== beat)
+              : existing
+                ? cues.map((cue) => cue.id === existing.id ? { ...cue, text } : cue)
+                : [...cues, { id: createId('speech'), beat, text }];
+            updateElement(actor.id, { speechCues: next });
+          };
           return (
             <div className="space-y-3 pt-1">
               {/* Rubric 1: Character & Stance */}
@@ -2654,6 +2932,58 @@ export const InspectorPanel: React.FC = () => {
                       isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                     }`}
                   />
+                </div>
+              </RubricSection>
+
+              <RubricSection
+                title="Speech by Beat"
+                icon={<MessageCircle className="w-3.5 h-3.5 text-emerald-500" />}
+                badge={
+                  <button
+                    type="button"
+                    onClick={() => updateDisplaySettings({ showSpeechBubbles: !displaySettings.showSpeechBubbles })}
+                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                      displaySettings.showSpeechBubbles
+                        ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
+                        : isLight ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-900 text-slate-500 border-slate-700'
+                    }`}
+                  >
+                    Bubbles {displaySettings.showSpeechBubbles ? 'on' : 'off'}
+                  </button>
+                }
+                defaultOpen={true}
+                isLight={isLight}
+              >
+                <p className="text-[10px] opacity-60 mb-2">
+                  Dialogue follows the timeline even when the actor does not move. Empty beats stay silent.
+                </p>
+                <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                  {Array.from({ length: Math.max(1, playback.totalBeats) }, (_, index) => index + 1).map((beat) => {
+                    const cue = (actor.speechCues || []).find((item) => item.beat === beat);
+                    const active = Math.round(playback.currentBeat) === beat;
+                    return (
+                      <div
+                        key={beat}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border ${
+                          active
+                            ? 'border-emerald-500/60 bg-emerald-500/10'
+                            : isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'
+                        }`}
+                      >
+                        <span className={`w-7 text-[10px] font-mono font-bold ${active ? 'text-emerald-500' : 'opacity-50'}`}>B{beat}</span>
+                        <input
+                          type="text"
+                          value={cue?.text || ''}
+                          onChange={(event) => updateActorSpeech(beat, event.target.value)}
+                          placeholder={beat === 1 ? 'What does the actor say?' : 'Silent beat'}
+                          aria-label={`${actor.name} speech at beat ${beat}`}
+                          className={`flex-1 min-w-0 border rounded-md px-2 py-1 text-[11px] ${
+                            isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+                          }`}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </RubricSection>
 
@@ -3580,16 +3910,15 @@ export const InspectorPanel: React.FC = () => {
                   <>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="opacity-60 block mb-1">Universe (1–32)</label>
+                        <label className="opacity-60 block mb-1">Universe</label>
                         <input
                           type="number"
                           min={1}
-                          max={32}
                           value={light.dmxUniverse ?? ''}
                           onChange={(e) => {
                             const v = e.target.value;
                             if (v === '') updateElement(light.id, { dmxUniverse: undefined });
-                            else updateElement(light.id, { dmxUniverse: Math.max(1, Math.min(32, Number(v))) });
+                            else updateElement(light.id, { dmxUniverse: Math.max(1, Math.floor(Number(v))) });
                           }}
                           placeholder="1"
                           className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
@@ -3613,22 +3942,64 @@ export const InspectorPanel: React.FC = () => {
                       </div>
                     </div>
 
-                    {light.dmxUniverse && light.dmxAddress ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="opacity-60 block mb-1">Fixture mode</label>
+                        <input
+                          type="text"
+                          value={light.dmxModeName ?? ''}
+                          onChange={(e) => updateElement(light.id, { dmxModeName: e.target.value || undefined })}
+                          placeholder="e.g. RGBW 16-bit"
+                          className={`w-full border rounded p-1.5 text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="opacity-60 block mb-1">Mode footprint (channels)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={512}
+                          value={light.dmxChannelCount ?? ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            updateElement(light.id, { dmxChannelCount: value === '' ? undefined : Math.max(1, Math.min(512, Number(value))) });
+                          }}
+                          placeholder="Required"
+                          className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                        />
+                      </div>
+                    </div>
+
+                    {light.dmxUniverse && light.dmxAddress && light.dmxChannelCount ? (
                       <div className="text-[11px] rounded-lg px-2.5 py-2 border bg-yellow-950/40 border-yellow-800/50 text-yellow-300 font-mono flex items-center justify-between">
                         <span>
                           U{light.dmxUniverse}:{String(light.dmxAddress).padStart(3, '0')}
                           <span className="opacity-60">
-                            {' '}· {dmxChannelsForFixture(light.fixtureType)}ch (range{' '}
-                            {light.dmxAddress}–{light.dmxAddress + Math.max(1, dmxChannelsForFixture(light.fixtureType)) - 1})
+                            {' '}· {light.dmxChannelCount}ch (range{' '}
+                            {light.dmxAddress}–{light.dmxAddress + light.dmxChannelCount - 1})
                           </span>
                         </span>
                         <span className="opacity-70">PATCHED</span>
                       </div>
                     ) : (
                       <p className="text-[10px] opacity-60 leading-snug">
-                        Set a universe &amp; address to patch this fixture into your DMX run. The address shows on the
-                        floor plan label and in the equipment list.
+                        Set the real fixture mode footprint plus universe and address. Unknown mode data is never
+                        guessed, because different modes of the same fixture can consume very different ranges.
                       </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDmxUniverseFixtureId(light.id)}
+                      className="w-full min-h-[36px] rounded-lg border border-amber-500/60 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-black flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      Open DMX Patch Bay
+                    </button>
+                    {dmxUniverseFixtureId === light.id && (
+                      <DmxUniverseView
+                        focusFixtureId={light.id}
+                        onClose={() => setDmxUniverseFixtureId(null)}
+                      />
                     )}
                   </>
                 ) : (
@@ -4739,6 +5110,39 @@ export const InspectorPanel: React.FC = () => {
           const lengthVal = Math.round((Math.hypot((cable.x2 ?? cable.x + 150) - cable.x, (cable.y2 ?? cable.y) - cable.y) / ppu) * 10) / 10;
           const strokeWidth = cable.strokeWidth || 3.5;
           const inputClass = `w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`;
+          const linkableElements = activeSetup.elements.filter((e) => e.id !== cable.id);
+          const fromLinked = cable.fromElementId ? activeSetup.elements.find((e) => e.id === cable.fromElementId) : undefined;
+          const toLinked = cable.toElementId ? activeSetup.elements.find((e) => e.id === cable.toElementId) : undefined;
+          const impliedSignal = impliedSignalTypeForCableType(cable.cableType);
+          const endpointIssues =
+            fromLinked && toLinked
+              ? validateConnectionCompatibility(
+                  impliedEndpointInfo(cable.cableType),
+                  impliedEndpointInfo(cable.cableType),
+                )
+              : [];
+          const linkEndpoint = (side: 'from' | 'to', elementId: string) => {
+            const target = elementId ? activeSetup.elements.find((e) => e.id === elementId) : undefined;
+            if (side === 'from') {
+              updateElement(cable.id, {
+                fromElementId: target ? target.id : undefined,
+                ...(target ? { fromLabel: target.name } : {}),
+              });
+            } else {
+              updateElement(cable.id, {
+                toElementId: target ? target.id : undefined,
+                ...(target ? { toLabel: target.name } : {}),
+              });
+            }
+          };
+          const endpointChipClass = (linked: boolean) =>
+            `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+              linked
+                ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300'
+                : isLight
+                ? 'bg-slate-50 border-slate-300 text-slate-400'
+                : 'bg-slate-900/60 border-slate-700 text-slate-500'
+            }`;
 
           return (
             <div className="space-y-3 pt-1">
@@ -4797,6 +5201,69 @@ export const InspectorPanel: React.FC = () => {
                       className={inputClass}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="opacity-60 block text-[11px] font-semibold uppercase tracking-wide">
+                    Endpoint link
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <select
+                        value={cable.fromElementId || ''}
+                        onChange={(e) => linkEndpoint('from', e.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="">— none (label only) —</option>
+                        {linkableElements.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.name} [{e.type}]
+                          </option>
+                        ))}
+                      </select>
+                      <span className={endpointChipClass(!!fromLinked)}>
+                        {fromLinked ? `linked to ${fromLinked.name}` : 'unlinked'}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <select
+                        value={cable.toElementId || ''}
+                        onChange={(e) => linkEndpoint('to', e.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="">— none (label only) —</option>
+                        {linkableElements.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.name} [{e.type}]
+                          </option>
+                        ))}
+                      </select>
+                      <span className={endpointChipClass(!!toLinked)}>
+                        {toLinked ? `linked to ${toLinked.name}` : 'unlinked'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {fromLinked && toLinked && (
+                    <div className="rounded-lg px-2.5 py-2 border bg-slate-900/40 border-slate-800 space-y-1.5">
+                      <div className="text-[11px] text-slate-300">
+                        <span className="font-mono">{cableInfo.shortLabel}</span>
+                        {' → carries '}
+                        <span className="font-mono font-bold text-slate-100">
+                          {impliedSignal ?? 'unknown signal'}
+                        </span>
+                      </div>
+                      {endpointIssues.map((iss, i) => (
+                        <div
+                          key={`${iss.code}-${i}`}
+                          className="flex items-start gap-1.5 text-[11px] rounded px-2 py-1 border bg-amber-950/40 border-amber-700/50 text-amber-300"
+                        >
+                          <Zap className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                          <span>{iss.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between rounded-lg px-2.5 py-2 border bg-slate-900/40 border-slate-800">

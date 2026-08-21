@@ -6,7 +6,9 @@ import {
   Download,
   FileText,
   FolderOpen,
+  History,
   Layers,
+  Package,
   Pencil,
   Plus,
   Trash2,
@@ -14,6 +16,20 @@ import {
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { readProject } from '../../utils/projectLibrary';
+import { WORKSPACE_PRESETS, getPreset, type WorkspacePresetId } from '../../domain/workspace';
+import { BRANDING } from '../../config/branding';
+import { exportProjectPackage, importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
+
+const triggerDownload = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
 
 const formatUpdated = (iso: string): string => {
   if (!iso) return '—';
@@ -45,6 +61,7 @@ export const ProjectDashboard: React.FC = () => {
     renameProject,
     deleteProjectById,
     loadProjectFromJson,
+    restoreRevision,
     theme,
   } = useFloorPlan();
 
@@ -52,9 +69,14 @@ export const ProjectDashboard: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newTitle, setNewTitle] = useState('');
   const [startWithSamples, setStartWithSamples] = useState(false);
+  const [presetId, setPresetId] = useState<WorkspacePresetId>('shot_planning');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  /** Project whose revisions list is open (null = closed). */
+  const [revisionsProjectId, setRevisionsProjectId] = useState<string | null>(null);
+  /** Revision id awaiting restore confirmation. */
+  const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
 
   if (!isDashboardOpen) return null;
 
@@ -62,6 +84,7 @@ export const ProjectDashboard: React.FC = () => {
     createNewProject({
       title: newTitle.trim() || 'Untitled production',
       withSampleScenes: startWithSamples,
+      workspacePreset: presetId,
     });
     setNewTitle('');
   };
@@ -73,8 +96,22 @@ export const ProjectDashboard: React.FC = () => {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result));
-        if (parsed?.setups?.length) loadProjectFromJson(parsed);
-        else alert('That file is not an Open Shot Designer project.');
+        if (parsed?.manifest?.formatVersion === 1) {
+          // Project package (plan §5.2.2): re-register assets, then import.
+          void (async () => {
+            try {
+              const { project, assets } = await parseProjectPackage(file);
+              const count = await importProjectPackageAssets(assets);
+              if (assets.length > 0) {
+                alert(`Imported ${count}/${assets.length} attached media file(s).`);
+              }
+              loadProjectFromJson(project);
+            } catch (err) {
+              alert(`Package import failed: ${err instanceof Error ? err.message : 'unknown error'}`);
+            }
+          })();
+        } else if (parsed?.setups?.length) loadProjectFromJson(parsed);
+        else alert(`That file is not a ${BRANDING.productName} project.`);
       } catch {
         alert('That file could not be read as a project.');
       }
@@ -87,14 +124,26 @@ export const ProjectDashboard: React.FC = () => {
     const project = readProject(id);
     if (!project) return;
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${project.title.toLowerCase().replace(/\s+/g, '_')}_openshotdesigner.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    triggerDownload(blob, `${project.title.toLowerCase().replace(/\s+/g, '_')}_openshotdesigner.json`);
+  };
+
+  /** Full portable package: project + referenced assets (plan §5.2.2). */
+  const downloadProjectPackage = (id: string) => {
+    const project = readProject(id);
+    if (!project) return;
+    void exportProjectPackage(project).then((blob) => {
+      triggerDownload(blob, `${project.title.toLowerCase().replace(/\s+/g, '_')}_package.json`);
+    });
+  };
+
+  const revisionsProject = revisionsProjectId ? readProject(revisionsProjectId) : null;
+  const revisionsList = revisionsProject?.revisions || [];
+
+  const handleRestore = (revisionId: string) => {
+    if (!revisionsProjectId) return;
+    restoreRevision(revisionId, revisionsProjectId);
+    setConfirmRestoreId(null);
+    setRevisionsProjectId(null);
   };
 
   const panel = isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100';
@@ -173,6 +222,34 @@ export const ProjectDashboard: React.FC = () => {
               Start with the example scenes (dialogue coverage + noir interrogation) instead of an empty stage
             </span>
           </label>
+
+          {/* Workspace preset (plan §1.2): configures module visibility only */}
+          <div className="mt-4">
+            <div className="text-[10px] font-bold uppercase tracking-wide opacity-60 mb-1.5">
+              Workspace preset
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {WORKSPACE_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => setPresetId(preset.id)}
+                  title={preset.description}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                    presetId === preset.id
+                      ? 'bg-sky-600 border-sky-500 text-white'
+                      : isLight
+                        ? 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                        : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <p className={`mt-2 text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+              {getPreset(presetId).description} Presets only change which tools are shown — you can enable or hide modules at any time.
+            </p>
+          </div>
         </div>
 
         {/* Saved projects */}
@@ -275,6 +352,26 @@ export const ProjectDashboard: React.FC = () => {
                     <button onClick={() => downloadProject(entry.id)} title="Download project file" className={ghostButton}>
                       <Download className="w-3 h-3" />
                     </button>
+                    <button
+                      onClick={() => downloadProjectPackage(entry.id)}
+                      title="Download package (project + attached media)"
+                      className={ghostButton}
+                    >
+                      <Package className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRevisionsProjectId(entry.id);
+                        setConfirmRestoreId(null);
+                      }}
+                      title="Named revisions"
+                      className={ghostButton}
+                    >
+                      <History className="w-3 h-3" />
+                      {(readProject(entry.id)?.revisions?.length || 0) > 0 && (
+                        <span className="font-mono">{readProject(entry.id)?.revisions?.length}</span>
+                      )}
+                    </button>
 
                     {confirmDeleteId === entry.id ? (
                       <span className="flex items-center gap-1 ml-auto">
@@ -304,6 +401,87 @@ export const ProjectDashboard: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Revisions list for one project (named milestones, plan §13.2) */}
+        {revisionsProject && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div
+              className={`absolute inset-0 ${isLight ? 'bg-slate-950/40' : 'bg-black/60'}`}
+              onClick={() => {
+                setRevisionsProjectId(null);
+                setConfirmRestoreId(null);
+              }}
+            />
+            <div className={`relative w-full max-w-md border rounded-2xl shadow-2xl p-4 ${panel}`}>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-1.5">
+                    <History className="w-4 h-4 text-sky-500" /> Revisions — {revisionsProject.title}
+                  </h3>
+                  <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Named milestones of this production. Restoring keeps the revision history — a safety revision is saved first.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setRevisionsProjectId(null);
+                    setConfirmRestoreId(null);
+                  }}
+                  title="Close"
+                  className={`p-1.5 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {revisionsList.length === 0 ? (
+                <p className={`text-xs py-6 text-center ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                  No revisions saved yet. Use “Save revision…” in the top bar to mark one.
+                </p>
+              ) : (
+                <ul className="max-h-72 overflow-y-auto space-y-1.5">
+                  {[...revisionsList].reverse().map((revision) => (
+                    <li
+                      key={revision.id}
+                      className={`border rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${
+                        isLight ? 'border-slate-200' : 'border-slate-800'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold truncate">{revision.name}</div>
+                        <div className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {new Date(revision.createdAt).toLocaleString()}
+                          {revision.note ? ` · ${revision.note}` : ''}
+                        </div>
+                      </div>
+                      {confirmRestoreId === revision.id ? (
+                        <span className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => handleRestore(revision.id)}
+                            className="px-2 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold"
+                          >
+                            Confirm
+                          </button>
+                          <button onClick={() => setConfirmRestoreId(null)} className={ghostButton}>
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmRestoreId(revision.id)}
+                          title="Restore this revision"
+                          className={`${ghostButton} flex-shrink-0`}
+                        >
+                          Restore
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
       </div>

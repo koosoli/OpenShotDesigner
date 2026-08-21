@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActiveTool,
   AspectRatio,
@@ -11,11 +11,13 @@ import {
   LightElement,
   LightFixtureType,
   Project,
+  ProjectRevision,
   PropElement,
   PropType,
   SceneSetup,
   ShapeElement,
   ShapeType,
+  StrokeElement,
   AVScriptRow,
   ScriptFormatMode,
   ScriptLine,
@@ -24,8 +26,10 @@ import {
   CameraMovement,
   EquipmentItem,
   EquipmentPackageItem,
+  PlanGroup,
   Vector2D,
 } from '../types';
+import { createId } from '../domain/ids';
 import {
   ACTOR_COLOR_PALETTE,
   CAMERA_COLOR_PALETTE,
@@ -53,6 +57,20 @@ import {
   writeProject,
 } from '../utils/projectLibrary';
 import { deriveSceneEquipment } from '../utils/equipmentList';
+import { migrateProject } from '../domain/migrations';
+import { validateProject } from '../domain/validation';
+import {
+  createWorkspaceProfile,
+  setWorkspaceProfile as persistWorkspaceProfile,
+  withModuleToggled,
+} from '../domain/workspace';
+import {
+  ALL_MODULES_PROFILE,
+  isModuleEnabled as isModuleEnabledIn,
+  getWorkspaceProfile,
+  type ModuleId,
+  type WorkspaceProfile,
+} from '../domain/workspace';
 
 /** Sections available in the export / print studio. */
 export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'equipment' | 'combined';
@@ -109,8 +127,12 @@ interface FloorPlanContextType {
   setCableType: (cable: CableType) => void;
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
-  activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'inspector';
-  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'inspector') => void;
+  activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'inspector';
+  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'inspector') => void;
+  /** Workspace profile of the open project (module visibility, plan §1.2). */
+  workspaceProfile: WorkspaceProfile;
+  isModuleVisible: (moduleId: ModuleId) => boolean;
+  setModuleVisible: (moduleId: ModuleId, visible: boolean) => void;
   selectElement: (id: string | null, multi?: boolean, force?: boolean) => void;
   selectElements: (ids: string[]) => void;
   clearSelection: () => void;
@@ -139,6 +161,14 @@ interface FloorPlanContextType {
   commitCurrentState: () => void;
   insertDoorInWall: (wallId: string) => string | null;
   insertWindowInWall: (wallId: string) => string | null;
+
+  // Plan groups (plan §6.4)
+  /** Group every selected element into one new plan group. */
+  groupSelection: () => void;
+  /** Dissolve every group whose membership exactly matches the selection. */
+  ungroupSelection: () => void;
+  /** World-space position at the visual center of the visible canvas. */
+  getCanvasCenterPosition: () => Vector2D;
 
   // Shot CRUD (Synchronized with Cameras)
   addShot: (shotData?: Partial<Shot>) => string;
@@ -214,9 +244,12 @@ interface FloorPlanContextType {
   backgroundImages: BackgroundImage[];
   selectedBackgroundId: string | null;
   addBackgroundImage: (bg: BackgroundImage) => void;
-  updateBackgroundImage: (id: string, updates: Partial<BackgroundImage>) => void;
+  updateBackgroundImage: (id: string, updates: Partial<BackgroundImage>, recordHistory?: boolean) => void;
   removeBackgroundImage: (id: string) => void;
   setSelectedBackgroundId: (id: string | null) => void;
+  calibratingBackgroundId: string | null;
+  startBackgroundCalibration: (id: string) => void;
+  cancelBackgroundCalibration: () => void;
 
   // Rotation Helper
   rotateElementBy: (id: string, deltaDegrees: number) => void;
@@ -228,6 +261,19 @@ interface FloorPlanContextType {
   deleteSetup: (setupId: string) => void;
   updateSetupMeta: (updates: Partial<SceneSetup>) => void;
   updateProjectMeta: (updates: Partial<Project>) => void;
+
+  // Named revisions (plan §13.2): intentional milestones, distinct from undo.
+  /** Saved revisions of the open project (oldest first). */
+  revisions: ProjectRevision[];
+  /** Snapshot the current project as a named revision (capped at 20). */
+  saveRevision: (name: string, note?: string) => void;
+  /**
+   * Load a revision's snapshot into the project. Keeps the current project
+   * id/title/revision history; automatically saves a safety revision
+   * "Before restore <name>" first. Pass a projectId to restore into a stored
+   * (non-open) project from the library.
+   */
+  restoreRevision: (revisionId: string, projectId?: string) => void;
 
   // Project library (dashboard): several productions in one browser
   projects: ProjectSummary[];
@@ -331,6 +377,7 @@ export interface DisplaySettings {
   // Decluttering toggles
   showWaypoints: boolean;
   showWaypointCues: boolean; // toggle dialogue / action cues on floorplan waypoints (default true)
+  showSpeechBubbles: boolean;
   showFovCones: boolean;
   showLightBeams: boolean;
   /** Storyboard thumbnails pinned next to their camera on the floor plan. */
@@ -386,6 +433,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   },
   showWaypoints: true,
   showWaypointCues: false,
+  showSpeechBubbles: false,
   showFovCones: true,
   fovConeOpacity: 1.0,
   showStoryboardThumbs: true,
@@ -499,6 +547,54 @@ function findFreeSpawnPoint(
   return { x: 50, y: 50 };
 }
 
+/**
+ * Deep-clone a project for revision snapshots. The revisions list itself is
+ * stripped so snapshots never nest the history inside themselves.
+ */
+const cloneProjectForSnapshot = (source: Project): Project => {
+  const { revisions: _ignored, ...rest } = source;
+  const cloned =
+    typeof structuredClone === 'function'
+      ? structuredClone(rest)
+      : JSON.parse(JSON.stringify(rest));
+  return cloned as Project;
+};
+
+/** Maximum number of revisions kept per project; oldest are dropped. */
+const MAX_REVISIONS = 20;
+
+const capRevisions = (list: ProjectRevision[]): ProjectRevision[] => {
+  if (list.length <= MAX_REVISIONS) return list;
+  console.warn(
+    `[revisions] Cap of ${MAX_REVISIONS} reached — dropping ${list.length - MAX_REVISIONS} oldest revision(s).`
+  );
+  return list.slice(list.length - MAX_REVISIONS);
+};
+
+/**
+ * Build the restored project from a revision snapshot. Everything content-ish
+ * (setups, script, collections) comes from the snapshot; identity (id/title),
+ * schema version and the revision history stay with the current project — and
+ * a safety revision of the pre-restore state is appended first.
+ */
+const applyRevisionRestore = (base: Project, revision: ProjectRevision): Project => {
+  const snapshot = cloneProjectForSnapshot(revision.snapshot);
+  const safetyRevision: ProjectRevision = {
+    id: createId('rev'),
+    name: `Before restore ${revision.name}`,
+    createdAt: new Date().toISOString(),
+    snapshot: cloneProjectForSnapshot(base),
+  };
+  return {
+    ...base,
+    ...snapshot,
+    id: base.id,
+    title: base.title,
+    schemaVersion: base.schemaVersion,
+    revisions: capRevisions([...(base.revisions || []), safetyRevision]),
+  };
+};
+
 export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Open the project the user was last working on. Projects saved by earlier
   // (single-project) versions are moved into the library on first run.
@@ -519,14 +615,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // ignore and start fresh
     }
 
+    const starterScriptLines = parseSampleScreenplay();
+    const starterSetups = SAMPLE_SCENES.map((setup) => ({
+      ...setup,
+      scriptMarks: sampleMarksFor(setup.id, starterScriptLines, setup.sceneNumber),
+    }));
     return {
       id: 'proj-' + Date.now(),
       title: 'Short Film Floor Plan & Shot List',
       director: 'Film Director / Student',
       cinematographer: 'DP / Camera Operator',
       date: new Date().toISOString().split('T')[0],
-      setups: SAMPLE_SCENES,
-      activeSetupId: SAMPLE_SCENES[0].id,
+      scriptTitle: 'Sample scene',
+      scriptText: SAMPLE_SCREENPLAY,
+      scriptLines: starterScriptLines,
+      setups: starterSetups,
+      activeSetupId: starterSetups[0].id,
     };
   });
 
@@ -549,6 +653,24 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const activeSetup =
     project.setups.find((s) => s.id === project.activeSetupId) || project.setups[0];
+
+  // Workspace module visibility (plan §1.2): a local preference keyed by the
+  // project id. Projects without a stored preset show every module so legacy
+  // behavior is preserved.
+  const [workspaceProfile, setWorkspaceProfileState] = useState<WorkspaceProfile>(
+    () => getWorkspaceProfile(project.id) ?? ALL_MODULES_PROFILE,
+  );
+  useEffect(() => {
+    setWorkspaceProfileState(getWorkspaceProfile(project.id) ?? ALL_MODULES_PROFILE);
+  }, [project.id]);
+  const isModuleVisible = (moduleId: ModuleId) => isModuleEnabledIn(workspaceProfile, moduleId);
+  const setModuleVisible = (moduleId: ModuleId, visible: boolean) => {
+    setWorkspaceProfileState((current) => {
+      const next = withModuleToggled(current, moduleId, visible);
+      persistWorkspaceProfile(project.id, next);
+      return next;
+    });
+  };
 
   // Selection & UI state
   const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
@@ -635,8 +757,30 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [exportSection, setExportSection] = useState<ExportSection>('floorplan');
 
   // Right Sidebar Tab State
-  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'equipment' | 'inspector'>('shots');
+  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'inspector'>('shots');
   const [scriptLinkShotId, setScriptLinkShotId] = useState<string | null>(null);
+
+  // If the open project's workspace hides the current tab's module, fall back
+  // to the always-available Inspector (plan §1.2: hidden module ≠ deleted data).
+  useEffect(() => {
+    const tabModules: Record<string, ModuleId> = {
+      shots: 'shots',
+      storyboard: 'storyboard',
+      script: 'script',
+      equipment: 'equipment',
+      schedule: 'schedule',
+      power: 'power',
+      rigging: 'rigging',
+      logistics: 'logistics',
+      run_of_show: 'run_of_show',
+      moodboard: 'moodboard',
+      locations: 'locations',
+    };
+    const mod = tabModules[activeRightTab];
+    if (mod && !isModuleEnabledIn(workspaceProfile, mod)) {
+      setActiveRightTab('inspector');
+    }
+  }, [workspaceProfile, activeRightTab]);
 
   // Playback engine
   const [isPlaying, setIsPlaying] = useState(false);
@@ -847,6 +991,31 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedBackgroundId(null);
   };
 
+  // Plan groups (plan §6.4). Groups live on the setup and are updated through
+  // the existing setup-update path so history/undo keeps working.
+  const groupSelection = () => {
+    if (selectedElementIds.length < 2) return;
+    const newGroup: PlanGroup = {
+      id: createId('group'),
+      childIds: [...selectedElementIds],
+    };
+    updateSetupMeta({ groups: [...(activeSetup.groups || []), newGroup] });
+  };
+
+  const ungroupSelection = () => {
+    const selection = new Set(selectedElementIds);
+    const groups = activeSetup.groups || [];
+    const remaining = groups.filter(
+      (g) =>
+        !(
+          g.childIds.length === selection.size &&
+          g.childIds.every((id) => selection.has(id))
+        )
+    );
+    if (remaining.length === groups.length) return;
+    updateSetupMeta({ groups: remaining });
+  };
+
   // Select shot handler with bidirectional camera sync (keeps current tab by default)
   const selectShot = (shotId: string | null, focusCanvasCamera = true) => {
     setSelectedShotId(shotId);
@@ -896,6 +1065,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         color,
         isStanding: true,
         path: [],
+        speechCues: [],
         ...partial,
       };
     } else if (partial.type === 'camera') {
@@ -1113,6 +1283,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         toLabel: 'TO',
         ...partial,
       };
+    } else if (partial.type === 'stroke') {
+      newElement = {
+        ...baseDefaults,
+        type: 'stroke',
+        name: partial.name || 'Annotation',
+        points: [],
+        color: '#f59e0b',
+        strokeWidth: 3,
+        toolStyle: 'pen',
+        ...partial,
+      } as StrokeElement;
     } else {
       newElement = {
         ...baseDefaults,
@@ -1122,7 +1303,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         fontSize: 16,
         color: '#94a3b8',
         ...partial,
-      };
+      } as FloorPlanElement;
     }
 
     const updatedSetup: SceneSetup = {
@@ -1236,6 +1417,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     commitSetupState(updatedSetup, recordHistory);
   };
 
+  /**
+   * Group cleanup after deletions (plan §6.4): removed ids are dropped from
+   * every group's childIds; a group that loses its last member dissolves.
+   * Deleting a whole group's membership therefore removes the group too.
+   */
+  const pruneGroups = (
+    groups: PlanGroup[] | undefined,
+    removedIds: Set<string>
+  ): PlanGroup[] | undefined => {
+    if (!groups || groups.length === 0) return groups;
+    const next = groups
+      .map((g) => ({ ...g, childIds: g.childIds.filter((id) => !removedIds.has(id)) }))
+      .filter((g) => g.childIds.length > 0);
+    return next;
+  };
+
   const deleteElementById = (id: string) => {
     const updatedElements = activeSetup.elements.filter((e) => e.id !== id);
     // If it's a camera, its shots go with it — and so do their linings, so the
@@ -1250,6 +1447,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       elements: updatedElements,
       shots: updatedShots,
       scriptMarks: (activeSetup.scriptMarks || []).filter((mark) => !removedShotIds.has(mark.shotId)),
+      groups: pruneGroups(activeSetup.groups, new Set([id])),
     };
 
     setSelectedElementIds((prev) => prev.filter((i) => i !== id));
@@ -1284,6 +1482,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       elements: updatedElements,
       shots: updatedShots,
       scriptMarks: (activeSetup.scriptMarks || []).filter((mark) => !removedShotIds.has(mark.shotId)),
+      groups: pruneGroups(activeSetup.groups, idsSet),
     };
 
     setSelectedElementIds([]);
@@ -1301,12 +1500,14 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (selectedElementIds.length === 0) return;
     const newElements: FloorPlanElement[] = [];
     const newSelectedIds: string[] = [];
+    const duplicateIdMap = new Map<string, string>();
 
     selectedElementIds.forEach((id) => {
       const el = activeSetup.elements.find((e) => e.id === id);
       if (!el) return;
 
       const newId = `el-${el.type}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      duplicateIdMap.set(id, newId);
       const duplicated: FloorPlanElement = {
         ...el,
         id: newId,
@@ -1325,9 +1526,23 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       newSelectedIds.push(newId);
     });
 
+    // Duplicating a whole group duplicates the group itself, with childIds
+    // remapped to the cloned element ids (plan §6.4).
+    const duplicatedGroups: PlanGroup[] = (activeSetup.groups || [])
+      .filter((g) => g.childIds.length > 0 && g.childIds.every((cid) => duplicateIdMap.has(cid)))
+      .map((g) => ({
+        id: createId('group'),
+        name: g.name,
+        childIds: g.childIds.map((cid) => duplicateIdMap.get(cid)!),
+      }));
+
     const updatedSetup: SceneSetup = {
       ...activeSetup,
       elements: [...activeSetup.elements, ...newElements],
+      groups:
+        duplicatedGroups.length > 0
+          ? [...(activeSetup.groups || []), ...duplicatedGroups]
+          : activeSetup.groups,
     };
 
     commitSetupState(updatedSetup);
@@ -2948,6 +3163,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     : [];
 
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
+  const [calibratingBackgroundId, setCalibratingBackgroundId] = useState<string | null>(null);
+  const startBackgroundCalibration = (id: string) => {
+    setSelectedBackgroundId(id);
+    setCalibratingBackgroundId(id);
+    setActiveTool('select');
+  };
+  const cancelBackgroundCalibration = () => setCalibratingBackgroundId(null);
 
   const addBackgroundImage = (bg: BackgroundImage) => {
     const newBg = { ...bg, id: bg.id || `bg-${Date.now()}` };
@@ -2972,12 +3194,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setActiveRightTab('inspector');
   };
 
-  const updateBackgroundImage = (id: string, updates: Partial<BackgroundImage>) => {
+  const updateBackgroundImage = (id: string, updates: Partial<BackgroundImage>, recordHistory = false) => {
     const updatedSetup: SceneSetup = {
       ...activeSetup,
       backgroundImages: backgroundImages.map((b) => (b.id === id ? { ...b, ...updates } : b)),
     };
-    commitSetupState(updatedSetup, false);
+    commitSetupState(updatedSetup, recordHistory);
   };
 
   const removeBackgroundImage = (id: string) => {
@@ -2989,6 +3211,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     commitSetupState(updatedSetup);
     setSelectedBackgroundId((prev) => (prev === id ? null : prev));
+    setCalibratingBackgroundId((current) => (current === id ? null : current));
   };
 
   const rotateElementBy = (id: string, deltaDegrees: number) => {
@@ -3073,6 +3296,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedElementIds([]);
     setSelectedShotId(null);
     setSelectedBackgroundId(null);
+    setCalibratingBackgroundId(null);
     setActiveRightTab('shots');
     setIsDashboardOpen(false);
   };
@@ -3083,6 +3307,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const createNewProject = (options?: NewProjectOptions) => {
     const created = buildProject(options);
     writeProject(created);
+    // The workspace preset is a local preference about module visibility,
+    // stored outside the project document (plan §1.2, §5.7).
+    if (options?.workspacePreset) {
+      persistWorkspaceProfile(created.id, createWorkspaceProfile(options.workspacePreset));
+    }
     setProjects(loadLibrary());
     loadProjectIntoWorkspace(created);
   };
@@ -3132,6 +3361,56 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateProjectMeta = (updates: Partial<Project>) => {
     setProject((prev) => ({ ...prev, ...updates }));
+  };
+
+  // Named revisions (plan §13.2): user-created milestones, separate from the
+  // per-setup undo history. Persisted on the project so autosave keeps them.
+  const revisions: ProjectRevision[] = project.revisions || [];
+
+  const saveRevision = (name: string, note?: string) => {
+    setProject((prev) => {
+      const revision: ProjectRevision = {
+        id: createId('rev'),
+        name: name.trim() || 'Untitled revision',
+        createdAt: new Date().toISOString(),
+        ...(note && note.trim() ? { note: note.trim() } : {}),
+        snapshot: cloneProjectForSnapshot(prev),
+      };
+      return { ...prev, revisions: capRevisions([...(prev.revisions || []), revision]) };
+    });
+  };
+
+  const restoreRevision = (revisionId: string, projectId?: string) => {
+    const targetId = projectId || project.id;
+
+    // Restoring into a stored (non-open) project: apply and persist directly,
+    // then switch the workspace to it.
+    if (targetId !== project.id) {
+      const stored = readProject(targetId);
+      if (!stored) return;
+      const revision = (stored.revisions || []).find((r) => r.id === revisionId);
+      if (!revision) return;
+      const restored = applyRevisionRestore(stored, revision);
+      writeProject(restored);
+      setProjects(loadLibrary());
+      loadProjectIntoWorkspace(restored);
+      return;
+    }
+
+    const revision = revisions.find((r) => r.id === revisionId);
+    if (!revision) return;
+    const restored = applyRevisionRestore(project, revision);
+
+    setProject(restored);
+    // The canvas content changed wholesale — reset selection and rebuild the
+    // undo history from the restored active setup.
+    setSelectedElementIds([]);
+    setSelectedShotId(null);
+    setSelectedBackgroundId(null);
+    const restoredActive =
+      restored.setups.find((s) => s.id === restored.activeSetupId) || restored.setups[0];
+    setHistory([restoredActive]);
+    setHistoryIndex(0);
   };
 
   /**
@@ -3190,13 +3469,36 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const loadProjectFromJson = (newProject: Project) => {
     if (!newProject?.setups?.length) return;
+    // Imports are staged through migration + structural validation before
+    // anything is committed to the library (plan §3.6): partially parsed or
+    // corrupt files must never replace a valid saved project.
+    let candidate: Project;
+    try {
+      candidate = migrateProject(newProject).project;
+    } catch (err) {
+      alert(
+        `This project file could not be migrated: ${
+          err instanceof Error ? err.message : 'unknown error'
+        }`,
+      );
+      return;
+    }
+    const errors = validateProject(candidate).filter((issue) => issue.severity === 'error');
+    if (errors.length > 0) {
+      alert(
+        `Import rejected — ${errors.length} structural problem${errors.length === 1 ? '' : 's'} found:\n\n` +
+          errors.slice(0, 5).map((issue) => `• ${issue.message}`).join('\n') +
+          (errors.length > 5 ? `\n… and ${errors.length - 5} more` : ''),
+      );
+      return;
+    }
     // Imported files land in the library as their own project, so importing
     // never overwrites what is already saved here.
     const imported: Project = {
-      ...newProject,
-      id: projects.some((entry) => entry.id === newProject.id) || newProject.id === project.id
+      ...candidate,
+      id: projects.some((entry) => entry.id === candidate.id) || candidate.id === project.id
         ? newProjectId()
-        : newProject.id || newProjectId(),
+        : candidate.id || newProjectId(),
     };
     writeProject(imported);
     setProjects(loadLibrary());
@@ -3414,6 +3716,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         activeRightTab,
         setActiveRightTab,
+        workspaceProfile,
+        isModuleVisible,
+        setModuleVisible,
 
         addCustomEquipmentItem,
         updateEquipmentItem,
@@ -3453,6 +3758,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setShootMode,
         insertDoorInWall,
         insertWindowInWall,
+        groupSelection,
+        ungroupSelection,
+        getCanvasCenterPosition,
 
         addShot,
         insertShotAfter,
@@ -3499,6 +3807,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateBackgroundImage,
         removeBackgroundImage,
         setSelectedBackgroundId,
+        calibratingBackgroundId,
+        startBackgroundCalibration,
+        cancelBackgroundCalibration,
         rotateElementBy,
 
         setActiveSetupId,
@@ -3507,6 +3818,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         deleteSetup,
         updateSetupMeta,
         updateProjectMeta,
+        revisions,
+        saveRevision,
+        restoreRevision,
         projects,
         activeProjectId: project.id,
         isDashboardOpen,

@@ -11,7 +11,8 @@ export type ElementType =
   | 'measurement'
   | 'arrow'
   | 'shape'
-  | 'cable';
+  | 'cable'
+  | 'stroke';
 
 export interface Vector2D {
   x: number;
@@ -28,6 +29,13 @@ export interface Waypoint {
   hideCue?: boolean;
 }
 
+/** Dialogue shown above a virtual actor when the scene reaches this beat. */
+export interface ActorSpeechCue {
+  id: string;
+  beat: number;
+  text: string;
+}
+
 export interface BaseElement {
   id: string;
   type: ElementType;
@@ -38,6 +46,8 @@ export interface BaseElement {
   locked?: boolean;
   visible?: boolean;
   opacity?: number;
+  /** Owning plan layer (plan §6.1). Undefined = unlayered, always rendered. */
+  layerId?: string;
 }
 
 export interface ActorElement extends BaseElement {
@@ -49,6 +59,8 @@ export interface ActorElement extends BaseElement {
   isStanding: boolean; // standing or seated
   path: Waypoint[];
   actionNotes?: string;
+  /** Speech is independent from movement, so stationary actors can speak on any beat. */
+  speechCues?: ActorSpeechCue[];
   lookAtTargetId?: string; // another actor or camera or position
 }
 
@@ -179,6 +191,14 @@ export interface LightElement extends BaseElement {
   dmxUniverse?: number;
   /** DMX-512 start address (1-512). */
   dmxAddress?: number;
+  /** Explicit footprint for the selected fixture mode. Unknown until configured. */
+  dmxChannelCount?: number;
+  /** Human-readable selected mode, e.g. "RGBW 16-bit". */
+  dmxModeName?: string;
+  /** Stable id of the selected bundled or project fixture profile. */
+  fixtureProfileId?: string;
+  /** Stable id of the selected control mode within fixtureProfileId. */
+  fixtureModeId?: string;
 }
 
 export interface WallElement extends BaseElement {
@@ -340,6 +360,8 @@ export type ShapeType =
 /** A free-form graphic: blocking zone, set piece footprint, callout area. */
 export interface ShapeElement extends BaseElement {
   type: 'shape';
+  /** Shared Asset Library symbol rendered inside this shape footprint. */
+  symbolId?: string;
   shapeType: ShapeType;
   width: number;
   height: number;
@@ -397,6 +419,11 @@ export interface CableElement extends BaseElement {
   fromLabel: string;
   /** Where this cable terminates (e.g. "CCU 1", "MON 3", "Sub 1", "20A Ckt 4"). */
   toLabel: string;
+  /** Semantic endpoints (plan §20): element/port references when known. */
+  fromElementId?: string;
+  toElementId?: string;
+  fromPortId?: string;
+  toPortId?: string;
   /** Stroke color (defaults to the cable type's color). */
   color?: string;
   strokeWidth?: number;
@@ -419,7 +446,48 @@ export type FloorPlanElement =
   | MeasurementElement
   | ArrowElement
   | ShapeElement
-  | CableElement;
+  | CableElement
+  | StrokeElement;
+
+/** A single sampled point of a freehand stroke (plan §6.2). */
+export interface StrokePoint {
+  x: number;
+  y: number;
+  /** Pointer pressure 0–1 where the browser reports it. */
+  pressure?: number;
+}
+
+/**
+ * Freehand annotation stroke (plan §6.2). Lives on the Annotations layer;
+ * drawn with pen/highlighter via Pointer Events (mouse, touch, stylus).
+ */
+export interface StrokeElement extends BaseElement {
+  type: 'stroke';
+  points: StrokePoint[];
+  color: string;
+  strokeWidth: number;
+  toolStyle?: 'pen' | 'highlighter';
+}
+
+/** A real plan group (plan §6.4): table + chairs, drum kit, FOH tower… */
+export interface PlanGroup {
+  id: string;
+  name?: string;
+  childIds: string[];
+}
+
+/** Plan layer defaults (plan §6.1). */
+export interface PlanLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  /** 0–1; undefined = fully opaque. */
+  opacity?: number;
+  /** Whether this layer appears in print/PDF exports. */
+  printVisible?: boolean;
+  order: number;
+}
 
 export type ShotSize =
   | 'ELS' // Extreme Long Shot
@@ -602,6 +670,18 @@ export interface BackgroundImage {
   visible: boolean;
   naturalWidth?: number;
   naturalHeight?: number;
+  /** Last real-world scale calibration applied to this reference image. */
+  calibration?: BackgroundImageCalibration;
+}
+
+export interface BackgroundImageCalibration {
+  realLength: number;
+  unit: 'm' | 'ft';
+  measuredCanvasPixels: number;
+  appliedScaleFactor: number;
+  gridUnitAtCalibration: 'm' | 'ft';
+  pixelsPerUnitAtCalibration: number;
+  calibratedAt: string;
 }
 
 export type EquipmentCategory =
@@ -657,6 +737,10 @@ export interface SceneSetup {
   scriptPage?: string;
   location: string;
   timeOfDay: 'Day INT' | 'Night INT' | 'Day EXT' | 'Night EXT';
+  /** Semantic link to a canonical Location entity (plan §4.13). */
+  locationId?: string;
+  /** When set, this setup is the reusable MASTER PLAN for that location (§13). */
+  masterPlanForLocationId?: string;
   elements: FloorPlanElement[];
   shots: Shot[];
   /** Custom added or overridden equipment items for this scene */
@@ -674,6 +758,10 @@ export interface SceneSetup {
   storyboardOrder?: string[];
   backgroundImage?: BackgroundImage | null;
   backgroundImages?: BackgroundImage[];
+  /** Plan layers (plan §6.1). Absent in pre-v3 projects; migrated to defaults. */
+  layers?: PlanLayer[];
+  /** Real plan groups (plan §6.4). */
+  groups?: PlanGroup[];
   currentBeat: number;
   totalBeats: number;
   shootMode?: 'single_cam' | 'multi_cam'; // single_cam (default: Cam A across shots) vs multi_cam (Cam A, B, C concurrent)
@@ -683,8 +771,28 @@ export interface SceneSetup {
   canvasOffset: Vector2D;
 }
 
+/**
+ * A named revision is an intentional, user-created milestone — distinct from
+ * the per-setup undo history. The snapshot holds the full project content at
+ * the moment the revision was saved (minus the revisions list itself, so
+ * revisions never nest).
+ */
+export interface ProjectRevision {
+  id: string;
+  name: string;
+  /** ISO timestamp of when the revision was saved. */
+  createdAt: string;
+  note?: string;
+  snapshot: Project;
+}
+
 export interface Project {
   id: string;
+  /**
+   * Persisted schema version (plan §3.2). Absent = legacy v1; every schema
+   * change bumps this and adds a migration in src/domain/migrations/.
+   */
+  schemaVersion?: number;
   title: string;
   /**
    * The screenplay is a property of the production, not of one scene: it stays
@@ -705,6 +813,43 @@ export interface Project {
   date: string;
   setups: SceneSetup[];
   activeSetupId: string;
+  /**
+   * vNext production collections (plan §4). All optional for backward
+   * compatibility; absent in pre-v4 projects and backfilled to empty arrays
+   * by the v3→v4 migration.
+   */
+  locations?: import('../domain/locations').Location[];
+  people?: import('../domain/people').Person[];
+  castAssignments?: import('../domain/people').CastAssignment[];
+  characters?: import('../domain/script').Character[];
+  scriptScenes?: import('../domain/script').ScriptScene[];
+  breakdownItems?: import('../domain/script').BreakdownItem[];
+  productionSegments?: import('../domain/shots').ProductionSegment[];
+  productionDays?: import('../domain/scheduling').ProductionDay[];
+  scheduleBlocks?: import('../domain/scheduling').ScheduleBlock[];
+  productionCalendarEvents?: import('../domain/scheduling').ProductionCalendarEvent[];
+  /** v5 additions (plan §15.2, §22, §24). Optional; backfilled by migration. */
+  runOfShowCues?: import('../domain/scheduling').RunOfShowCue[];
+  powerPlan?: import('../domain/power').PowerPlan;
+  logisticsContainers?: import('../domain/logistics').LogisticsContainer[];
+  packedItems?: import('../domain/logistics').PackedItem[];
+  moodBoards?: import('../domain/moodboard').MoodBoard[];
+  /**
+   * vNext rigging collections (plan §11, §23). Optional and absent-safe —
+   * legacy projects without them load unchanged, so no migration is required
+   * yet; the next migration wave will formalize/backfill these fields.
+   */
+  trussProfiles?: import('../domain/rigging').TrussProfile[];
+  trussElements?: import('../domain/rigging').TrussElement[];
+  suspendedLoads?: import('../domain/rigging').SuspendedLoad[];
+  riggingItems?: import('../domain/rigging').RiggingItem[];
+  /** Named revisions (milestone snapshots, plan §13.2). Optional and absent-safe
+   *  legacy projects without them load unchanged; formalized/backfilled in the
+   *  next migration wave.
+   */
+  revisions?: ProjectRevision[];
+  /** Multi-camera coverage plan (plan §15.3). Optional and absent-safe. */
+  coverageMatrix?: import('../domain/scheduling').CoverageMatrix;
 }
 
 export type ActiveTool =
@@ -722,4 +867,5 @@ export type ActiveTool =
   | 'arrow'
   | 'text'
   | 'shape'
-  | 'cable';
+  | 'cable'
+  | 'stroke';

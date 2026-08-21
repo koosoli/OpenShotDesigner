@@ -1,14 +1,34 @@
-import { ActorElement, CameraElement, Project, SceneSetup, Shot } from '../types';
+import type { ActorElement, CameraElement, Project, SceneSetup, Shot } from '../types';
 import { SAMPLE_SCENES, SAMPLE_SCREENPLAY } from '../constants/presets';
 import { calculateFovAngle } from './geometry';
 import { parseSampleScreenplay, sampleMarksFor } from './sampleContent';
+import { createId } from '../domain/ids';
+import { cloneProjectWithNewIds } from '../domain/clone';
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  detectSchemaVersion,
+  migrateProject,
+} from '../domain/migrations';
+import {
+  idbDelete,
+  idbGet,
+  idbGetAllValues,
+  idbPut,
+  isIndexedDbAvailable,
+  openWorkspaceDb,
+  STORE_META,
+  STORE_PROJECTS,
+} from '../domain/storage/idb';
+import type { ProjectSummary } from '../domain/storage/types';
 
 /**
  * Project library: several productions live side by side in this browser.
  *
- * Each project is stored under its own key (`openshotdesigner_project_<id>`) so
- * one big project with embedded storyboards can't blow the quota for all the
- * others, and a small index keeps the dashboard fast to render.
+ * Persistence is IndexedDB-first (plan §5.1) behind a synchronous in-memory
+ * mirror so existing call sites stay synchronous. Writes hit memory instantly
+ * and are flushed to IndexedDB asynchronously; a localStorage fallback keeps
+ * working when IndexedDB is unavailable, and pre-existing localStorage data is
+ * imported into IndexedDB exactly once on first initialization.
  */
 
 const LIBRARY_KEY = 'openshotdesigner_library_v1';
@@ -17,21 +37,65 @@ const PROJECT_PREFIX = 'openshotdesigner_project_';
 /** Where the single-project builds of the app kept everything. */
 const SINGLE_PROJECT_KEY = 'openshotdesigner_project_v1';
 
-export interface ProjectSummary {
-  id: string;
-  title: string;
-  director?: string;
-  date?: string;
-  /** ISO timestamp of the last save. */
-  updatedAt: string;
-  setupCount: number;
-  shotCount: number;
-  hasScript: boolean;
-}
+export type { ProjectSummary };
 
-const projectKey = (id: string) => `${PROJECT_PREFIX}${id}`;
+// ---------------------------------------------------------------------------
+// Save-state tracking (plan §5.5 autosave/save-state contract)
+// ---------------------------------------------------------------------------
 
-const readJson = <T,>(key: string): T | null => {
+export type LibrarySaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+let saveState: LibrarySaveState = 'idle';
+const saveStateListeners = new Set<(state: LibrarySaveState) => void>();
+
+const setSaveState = (state: LibrarySaveState) => {
+  saveState = state;
+  saveStateListeners.forEach((listener) => listener(state));
+};
+
+/** Subscribe to library save-state changes. Returns an unsubscribe function. */
+export const subscribeSaveState = (
+  listener: (state: LibrarySaveState) => void,
+): (() => void) => {
+  saveStateListeners.add(listener);
+  return () => {
+    saveStateListeners.delete(listener);
+  };
+};
+
+// ---------------------------------------------------------------------------
+// Backend plumbing
+// ---------------------------------------------------------------------------
+
+type Backend = 'indexeddb' | 'localstorage';
+
+let backend: Backend = 'localstorage';
+let initialized = false;
+
+/** In-memory mirror — the synchronous source of truth for reads. */
+const memory = new Map<string, Project>();
+
+const pendingWrites = new Set<Promise<unknown>>();
+
+const trackWrite = (promise: Promise<void>) => {
+  setSaveState('saving');
+  const tracked = promise
+    .then(() => {
+      pendingWrites.delete(tracked);
+      if (pendingWrites.size === 0) setSaveState('saved');
+    })
+    .catch(() => {
+      pendingWrites.delete(tracked);
+      setSaveState('error');
+    });
+  pendingWrites.add(tracked);
+};
+
+/** Resolves once every queued persistence write has settled. */
+export const flushPendingWrites = (): Promise<void> =>
+  Promise.allSettled([...pendingWrites]).then(() => undefined);
+
+const lsReadJson = <T,>(key: string): T | null => {
   try {
     const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : null;
@@ -39,6 +103,31 @@ const readJson = <T,>(key: string): T | null => {
     return null;
   }
 };
+
+const persistProject = (project: Project): void => {
+  if (backend === 'indexeddb') {
+    trackWrite(idbPut(STORE_PROJECTS, project.id, project));
+  } else {
+    try {
+      localStorage.setItem(`${PROJECT_PREFIX}${project.id}`, JSON.stringify(project));
+    } catch {
+      // Quota errors surface through the storage warning in the app shell.
+      throw new Error('Local storage quota exceeded while saving the project.');
+    }
+  }
+};
+
+const persistDelete = (id: string): void => {
+  if (backend === 'indexeddb') {
+    trackWrite(idbDelete(STORE_PROJECTS, id));
+  } else {
+    localStorage.removeItem(`${PROJECT_PREFIX}${id}`);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Public API (synchronous, unchanged signatures)
+// ---------------------------------------------------------------------------
 
 export const summarize = (project: Project): ProjectSummary => ({
   id: project.id,
@@ -51,33 +140,52 @@ export const summarize = (project: Project): ProjectSummary => ({
   hasScript: (project.scriptLines || []).length > 0,
 });
 
-export const loadLibrary = (): ProjectSummary[] => {
-  const list = readJson<ProjectSummary[]>(LIBRARY_KEY);
-  if (!Array.isArray(list)) return [];
-  return [...list].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-};
+export const loadLibrary = (): ProjectSummary[] =>
+  [...memory.values()]
+    .map(summarize)
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
 
-const writeLibrary = (list: ProjectSummary[]) => {
-  localStorage.setItem(LIBRARY_KEY, JSON.stringify(list));
-};
-
+/**
+ * Read a project by id. Data stored under an older schema is migrated to the
+ * current version first (and the migrated result is persisted back).
+ */
 export const readProject = (id: string): Project | null => {
-  const project = readJson<Project>(projectKey(id));
-  return project?.setups?.length ? project : null;
+  const stored = memory.get(id);
+  if (!stored?.setups?.length) return null;
+
+  const version = detectSchemaVersion(stored);
+  if (version === CURRENT_PROJECT_SCHEMA_VERSION) return stored;
+
+  try {
+    const { project } = migrateProject(stored);
+    memory.set(id, project);
+    persistProject(project);
+    return project;
+  } catch {
+    return null;
+  }
 };
 
 /** Save a project and refresh its entry in the index. Throws when out of quota. */
 export const writeProject = (project: Project): ProjectSummary => {
-  localStorage.setItem(projectKey(project.id), JSON.stringify(project));
-  const summary = summarize(project);
-  const rest = loadLibrary().filter((entry) => entry.id !== project.id);
-  writeLibrary([summary, ...rest]);
-  return summary;
+  let storable = project;
+  if (detectSchemaVersion(project) !== CURRENT_PROJECT_SCHEMA_VERSION) {
+    try {
+      storable = migrateProject(project).project;
+    } catch {
+      // Keep the caller's data rather than failing the whole save.
+      storable = { ...project, schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION };
+    }
+  }
+
+  memory.set(storable.id, storable);
+  persistProject(storable);
+  return summarize(storable);
 };
 
 export const removeProject = (id: string) => {
-  localStorage.removeItem(projectKey(id));
-  writeLibrary(loadLibrary().filter((entry) => entry.id !== id));
+  memory.delete(id);
+  persistDelete(id);
   if (getActiveProjectId() === id) localStorage.removeItem(ACTIVE_KEY);
 };
 
@@ -85,14 +193,68 @@ export const getActiveProjectId = (): string | null => localStorage.getItem(ACTI
 
 export const setActiveProjectId = (id: string) => localStorage.setItem(ACTIVE_KEY, id);
 
-export const newProjectId = () =>
-  `proj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+export const newProjectId = () => createId('proj');
+
+/**
+ * Initialize the library: hydrate the in-memory mirror from IndexedDB (or the
+ * localStorage fallback), importing any pre-existing localStorage library
+ * exactly once. Must be awaited once at application startup.
+ */
+export const initProjectLibrary = async (): Promise<void> => {
+  if (initialized) return;
+  initialized = true;
+
+  const useIdb =
+    isIndexedDbAvailable() &&
+    await openWorkspaceDb()
+      .then(() => true)
+      .catch(() => false);
+
+  if (useIdb) {
+    backend = 'indexeddb';
+    try {
+      const stored = await idbGetAllValues<Project>(STORE_PROJECTS);
+      stored.forEach((project) => {
+        if (project?.setups?.length) memory.set(project.id, project);
+      });
+
+      // One-time import of the pre-IndexedDB localStorage library.
+      const alreadyMigrated = await idbGet<boolean>(STORE_META, 'lsImportedV1');
+      if (!alreadyMigrated) {
+        const legacySummaries = lsReadJson<ProjectSummary[]>(LIBRARY_KEY) || [];
+        for (const summary of legacySummaries) {
+          const raw = lsReadJson<Project>(`${PROJECT_PREFIX}${summary.id}`);
+          if (!raw?.setups?.length || memory.has(summary.id)) continue;
+          try {
+            const { project } = migrateProject(raw);
+            memory.set(project.id, project);
+            trackWrite(idbPut(STORE_PROJECTS, project.id, project));
+          } catch {
+            // A corrupt legacy entry must not block the rest of startup.
+          }
+        }
+        trackWrite(idbPut(STORE_META, 'lsImportedV1', true));
+      }
+      await flushPendingWrites();
+      return;
+    } catch {
+      backend = 'localstorage';
+    }
+  }
+
+  // localStorage fallback hydration.
+  const summaries = lsReadJson<ProjectSummary[]>(LIBRARY_KEY) || [];
+  for (const summary of summaries) {
+    const raw = lsReadJson<Project>(`${PROJECT_PREFIX}${summary.id}`);
+    if (raw?.setups?.length) memory.set(raw.id, raw);
+  }
+};
 
 /** A fresh scene setup starting with a first camera and an actor placed directly in front of it. */
 export const blankSetup = (sceneNumber = '1', name = 'Scene 1'): SceneSetup => {
-  const actorId = `actor-${Date.now().toString(36)}-1`;
-  const camId = `cam-${Date.now().toString(36)}-1`;
-  const shotId = `shot-${Date.now().toString(36)}-1`;
+  const actorId = createId('actor');
+  const camId = createId('cam');
+  const shotId = createId('shot');
 
   const actor: ActorElement = {
     id: actorId,
@@ -106,6 +268,7 @@ export const blankSetup = (sceneNumber = '1', name = 'Scene 1'): SceneSetup => {
     isStanding: true,
     actionNotes: 'Subject in frame',
     path: [],
+    speechCues: [],
   };
 
   const camera: CameraElement = {
@@ -153,7 +316,7 @@ export const blankSetup = (sceneNumber = '1', name = 'Scene 1'): SceneSetup => {
   };
 
   return {
-    id: `setup-${Date.now().toString(36)}`,
+    id: createId('setup'),
     name,
     sceneNumber,
     location: 'INT. LOCATION - DAY',
@@ -175,13 +338,39 @@ export interface NewProjectOptions {
   cinematographer?: string;
   /** Start from the bundled example scenes instead of an empty stage. */
   withSampleScenes?: boolean;
+  /**
+   * Workspace preset id (plan §1.2). Presets configure module visibility only.
+   * The `blank` preset also skips the Camera A + Actor A + Shot 1 bootstrap so
+   * a new floor-plan workspace starts genuinely empty.
+   */
+  workspacePreset?: import('../domain/workspace').WorkspacePresetId;
 }
+
+/** An empty setup with no bootstrap elements — used by the Blank preset. */
+export const emptySetup = (name = 'Scene 1'): SceneSetup => ({
+  id: createId('setup'),
+  name,
+  sceneNumber: '1',
+  location: 'INT. LOCATION - DAY',
+  timeOfDay: 'Day INT',
+  elements: [],
+  shots: [],
+  currentBeat: 1,
+  totalBeats: 1,
+  aspectRatio: '16:9',
+  canvasScale: 1,
+  canvasOffset: { x: 50, y: 50 },
+  gridSettings: { size: 30, snap: true, showGrid: false, unit: 'm', pixelsPerUnit: 30 },
+});
 
 export const createProject = (options: NewProjectOptions = {}): Project => {
   const withSamples = !!options.withSampleScenes;
+  const isBlankPreset = options.workspacePreset === 'blank';
   const setups = withSamples
     ? (JSON.parse(JSON.stringify(SAMPLE_SCENES)) as SceneSetup[])
-    : [blankSetup()];
+    : isBlankPreset
+      ? [emptySetup()]
+      : [blankSetup()];
 
   // The examples come pre-lined, so the script tab isn't empty on first run.
   let scriptLines;
@@ -192,11 +381,11 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     });
   }
 
-  const initialAVRows = withSamples
+  const initialAVRows = withSamples || isBlankPreset
     ? []
     : [
         {
-          id: `av-${setups[0].shots[0]?.id || '1'}`,
+          id: createId('av'),
           shotNumber: '1',
           shotName: 'Shot 1',
           shotSize: 'MS' as const,
@@ -213,6 +402,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     director: options.director || '',
     cinematographer: options.cinematographer || '',
     date: new Date().toISOString().split('T')[0],
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     setups,
     activeSetupId: setups[0].id,
     avScriptRows: initialAVRows,
@@ -222,12 +412,15 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
   };
 };
 
-/** Deep copy of a project under a new id and title. */
-export const cloneProject = (project: Project, title?: string): Project => ({
-  ...(JSON.parse(JSON.stringify(project)) as Project),
-  id: newProjectId(),
-  title: title || `${project.title} (Copy)`,
-});
+/**
+ * Deep copy of a project under a new id and title. Every nested entity gets a
+ * fresh globally unique id and all internal references are remapped, so the
+ * duplicate can never collide with the original (plan §3.1).
+ */
+export const cloneProject = (project: Project, title?: string): Project =>
+  cloneProjectWithNewIds(project, {
+    title: title || `${project.title} (Copy)`,
+  });
 
 /**
  * One-time move of the old single-project storage into the library, so an
@@ -235,7 +428,7 @@ export const cloneProject = (project: Project, title?: string): Project => ({
  */
 export const migrateSingleProject = (): ProjectSummary | null => {
   if (loadLibrary().length > 0) return null;
-  const legacy = readJson<Project>(SINGLE_PROJECT_KEY);
+  const legacy = lsReadJson<Project>(SINGLE_PROJECT_KEY);
   if (!legacy?.setups?.length) return null;
 
   const project: Project = { ...legacy, id: legacy.id || newProjectId() };

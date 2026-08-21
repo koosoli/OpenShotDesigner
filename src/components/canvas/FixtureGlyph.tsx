@@ -1,5 +1,4 @@
 import React from 'react';
-import { LightElement } from '../../types';
 
 interface FixtureGlyphProps {
   fixtureType: string;
@@ -115,23 +114,6 @@ export const FixtureGlyph: React.FC<FixtureGlyphProps> = ({ fixtureType, color, 
         <line x1="2" y1="-10" x2="12" y2="-10" stroke="rgba(255,255,255,0.4)" strokeWidth={0.75} strokeDasharray="2 2" />
         <line x1="2" y1="0" x2="12" y2="0" stroke="rgba(255,255,255,0.4)" strokeWidth={0.75} strokeDasharray="2 2" />
         <line x1="2" y1="10" x2="12" y2="10" stroke="rgba(255,255,255,0.4)" strokeWidth={0.75} strokeDasharray="2 2" />
-      </g>
-    );
-  }
-  if (fixtureType === 'led_panel') {
-    return (
-      <g>
-        <rect
-          x={-8}
-          y={-18}
-          width={16}
-          height={36}
-          fill="#1e293b"
-          stroke={selected ? '#38bdf8' : '#cbd5e1'}
-          strokeWidth={2}
-          rx={2}
-        />
-        <rect x={-4} y={-14} width={8} height={28} fill={color} opacity={0.9} />
       </g>
     );
   }

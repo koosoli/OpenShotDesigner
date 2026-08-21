@@ -512,7 +512,7 @@ export const PROP_CATALOG: {
   // Dining & Office
   { type: 'dining_set', name: 'Dining Table + 4 Chairs', category: 'Dining & Office', defaultWidth: 160, defaultHeight: 120, defaultColor: '#7c2d12' },
   { type: 'table_rect', name: 'Rectangular Table', category: 'Dining & Office', defaultWidth: 140, defaultHeight: 70, defaultColor: '#854d0e' },
-  { type: 'table_round', name: 'Round Dining Table', category: 'Dining & Office', defaultWidth: 90, defaultHeight: 90, defaultColor: '#854d0e' },
+  { type: 'table_round', name: 'Round Dining Table + 4 Chairs', category: 'Dining & Office', defaultWidth: 150, defaultHeight: 150, defaultColor: '#854d0e' },
   { type: 'chair', name: 'Dining Chair', category: 'Dining & Office', defaultWidth: 40, defaultHeight: 40, defaultColor: '#a16207' },
   { type: 'desk', name: 'Executive Office Desk', category: 'Dining & Office', defaultWidth: 140, defaultHeight: 70, defaultColor: '#334155' },
   { type: 'bar_counter', name: 'Bar Counter', category: 'Dining & Office', defaultWidth: 180, defaultHeight: 50, defaultColor: '#713f12' },

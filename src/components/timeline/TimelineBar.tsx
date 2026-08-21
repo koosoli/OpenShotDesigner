@@ -4,6 +4,7 @@ import {
   FastForward,
   Film,
   Layers,
+  MessageCircle,
   Pause,
   Play,
   Plus,
@@ -24,6 +25,8 @@ export const TimelineBar: React.FC = () => {
     removeBeat,
     activeSetup,
     theme,
+    displaySettings,
+    updateDisplaySettings,
   } = useFloorPlan();
 
   const isLight = theme === 'light';
@@ -33,6 +36,11 @@ export const TimelineBar: React.FC = () => {
   const dialogueBeats: { beat: number; actorName: string; cue: string }[] = [];
   activeSetup.elements.forEach((el) => {
     if (el.type === 'actor' && 'path' in el && Array.isArray(el.path)) {
+      (el.speechCues || []).forEach((cue) => {
+        if (cue.text.trim()) {
+          dialogueBeats.push({ beat: cue.beat, actorName: el.characterName || el.name, cue: cue.text });
+        }
+      });
       el.path.forEach((wp) => {
         if (wp.dialogueCue) {
           dialogueBeats.push({
@@ -114,6 +122,19 @@ export const TimelineBar: React.FC = () => {
           title="Loop Animation"
         >
           <Repeat className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => updateDisplaySettings({ showSpeechBubbles: !displaySettings.showSpeechBubbles })}
+          className={`p-2 rounded-lg border transition-colors ${
+            displaySettings.showSpeechBubbles
+              ? isLight ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-emerald-950/50 text-emerald-400 border-emerald-800'
+              : isLight ? 'text-slate-400 border-slate-200 hover:text-slate-700' : 'text-slate-500 border-slate-800 hover:text-slate-300'
+          }`}
+          title={displaySettings.showSpeechBubbles ? 'Hide actor speech bubbles' : 'Show actor speech bubbles'}
+          aria-pressed={displaySettings.showSpeechBubbles}
+        >
+          <MessageCircle className="w-4 h-4" />
         </button>
       </div>
 

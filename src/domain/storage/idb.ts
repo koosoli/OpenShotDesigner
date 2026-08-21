@@ -1,0 +1,80 @@
+/**
+ * Minimal IndexedDB helpers with a brand-neutral namespace (plan §3.7, §5.1).
+ * Database/stores deliberately avoid baking the product name in.
+ */
+
+const DB_NAME = 'local-workspace-v1';
+const DB_VERSION = 1;
+
+export const STORE_PROJECTS = 'projects';
+export const STORE_ASSETS = 'assets';
+export const STORE_ASSET_META = 'asset-meta';
+export const STORE_META = 'meta';
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+export const isIndexedDbAvailable = (): boolean =>
+  typeof indexedDB !== 'undefined';
+
+export const openWorkspaceDb = (): Promise<IDBDatabase> => {
+  if (!dbPromise) {
+    dbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE_PROJECTS)) db.createObjectStore(STORE_PROJECTS);
+        if (!db.objectStoreNames.contains(STORE_ASSETS)) db.createObjectStore(STORE_ASSETS);
+        if (!db.objectStoreNames.contains(STORE_ASSET_META)) db.createObjectStore(STORE_ASSET_META);
+        if (!db.objectStoreNames.contains(STORE_META)) db.createObjectStore(STORE_META);
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error ?? new Error('Failed to open IndexedDB'));
+    });
+  }
+  return dbPromise;
+};
+
+export const idbGet = <T>(store: string, key: string): Promise<T | undefined> =>
+  openWorkspaceDb().then(
+    (db) =>
+      new Promise<T | undefined>((resolve, reject) => {
+        const tx = db.transaction(store, 'readonly');
+        const req = tx.objectStore(store).get(key);
+        req.onsuccess = () => resolve(req.result as T | undefined);
+        req.onerror = () => reject(req.error);
+      }),
+  );
+
+export const idbGetAllValues = <T>(store: string): Promise<T[]> =>
+  openWorkspaceDb().then(
+    (db) =>
+      new Promise<T[]>((resolve, reject) => {
+        const tx = db.transaction(store, 'readonly');
+        const req = tx.objectStore(store).getAll();
+        req.onsuccess = () => resolve((req.result || []) as T[]);
+        req.onerror = () => reject(req.error);
+      }),
+  );
+
+export const idbPut = (store: string, key: string, value: unknown): Promise<void> =>
+  openWorkspaceDb().then(
+    (db) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      }),
+  );
+
+export const idbDelete = (store: string, key: string): Promise<void> =>
+  openWorkspaceDb().then(
+    (db) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      }),
+  );

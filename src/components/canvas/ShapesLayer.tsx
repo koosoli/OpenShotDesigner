@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShapeElement } from '../../types';
+import { getSymbolById } from '../../domain/assets';
 
 interface ShapesLayerProps {
   shapes: ShapeElement[];
@@ -59,6 +60,7 @@ export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, o
       if (hidden && !showHiddenGhosts) return null;
 
       const isSelected = selectedIds.includes(shape.id);
+      const symbol = shape.symbolId ? getSymbolById(shape.symbolId) : undefined;
       const fill = shape.filled === false ? 'none' : shape.color || '#38bdf8';
       const stroke = shape.strokeColor || shape.color || '#38bdf8';
       const strokeWidth = shape.strokeWidth ?? 2;
@@ -102,7 +104,18 @@ export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, o
           style={{ cursor: shape.locked ? 'default' : 'move' }}
           className="shape-element"
         >
-          {shape.shapeType === 'circle' || shape.shapeType === 'ellipse' ? (
+          {symbol && !hidden ? (
+            <g
+              transform={`translate(${-shape.width / 2}, ${-shape.height / 2}) scale(${shape.width / 100}, ${shape.height / 100})`}
+              color={stroke}
+              opacity={shape.opacity ?? 1}
+            >
+              <title>{symbol.name}</title>
+              <rect x="0" y="0" width="100" height="100" fill="transparent" />
+              {/* Registry markup is curated application data, never project/user HTML. */}
+              <g dangerouslySetInnerHTML={{ __html: symbol.svg }} />
+            </g>
+          ) : shape.shapeType === 'circle' || shape.shapeType === 'ellipse' ? (
             <ellipse rx={shape.width / 2} ry={shape.height / 2} {...common} />
           ) : shape.shapeType === 'rectangle' ? (
             <rect

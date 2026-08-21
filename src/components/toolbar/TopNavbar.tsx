@@ -1,13 +1,19 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useBreakpoint } from '../../utils/useMediaQuery';
 import brandIcon from '../../assets/brand-icon.png';
+import { BRANDING } from '../../config/branding';
+import { subscribeSaveState, type LibrarySaveState } from '../../utils/projectLibrary';
+import { OnSetModeOverlay } from '../onset/OnSetModeOverlay';
+import type { ModuleId } from '../../domain/workspace';
 import {
   Camera,
   ChevronDown,
+  Clapperboard,
   Download,
   Eye,
   FolderOpen,
+  History,
   Magnet,
   LayoutGrid,
   MoreHorizontal,
@@ -20,6 +26,20 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
+
+const WORKSPACE_TAB_MODULES: Array<{ id: ModuleId; label: string }> = [
+  { id: 'shots', label: 'Shot list' },
+  { id: 'storyboard', label: 'Storyboard' },
+  { id: 'script', label: 'Script' },
+  { id: 'moodboard', label: 'Moodboard' },
+  { id: 'locations', label: 'Locations' },
+  { id: 'schedule', label: 'Schedule & call sheets' },
+  { id: 'run_of_show', label: 'Run of show' },
+  { id: 'equipment', label: 'Gear & DMX' },
+  { id: 'logistics', label: 'Logistics' },
+  { id: 'power', label: 'Power' },
+  { id: 'rigging', label: 'Rigging' },
+];
 
 export const TopNavbar: React.FC = () => {
   const {
@@ -36,6 +56,7 @@ export const TopNavbar: React.FC = () => {
     duplicateCurrentSetup,
     deleteSetup,
     updateProjectMeta,
+    saveRevision,
     loadTemplateScene,
     loadProjectFromJson,
     setGridSettings,
@@ -44,12 +65,16 @@ export const TopNavbar: React.FC = () => {
     openDashboard,
     displaySettings,
     updateDisplaySettings,
+    isModuleVisible,
+    setModuleVisible,
   } = useFloorPlan();
 
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isSetupsOpen, setIsSetupsOpen] = useState(false);
   const [isViewingOptionsOpen, setIsViewingOptionsOpen] = useState(false);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
+  /** On-set / show-day mode overlay (plan §35) — local UI state, not persisted. */
+  const [isOnSetMode, setIsOnSetMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isCompact } = useBreakpoint();
 
@@ -84,13 +109,18 @@ export const TopNavbar: React.FC = () => {
           loadProjectFromJson(parsed);
         }
       } catch (err) {
-        alert('Invalid Open Shot Designer project file.');
+        alert(`Invalid ${BRANDING.productName} project file.`);
       }
     };
     reader.readAsText(file);
   };
 
   const isLight = theme === 'light';
+
+  // Local-first autosave status (plan §5.5): reflects the project library's
+  // persistence queue — distinct from shared/collaborative sync state.
+  const [saveState, setSaveState] = useState<LibrarySaveState>('idle');
+  useEffect(() => subscribeSaveState(setSaveState), []);
   const overflowItemClass = `w-full px-2.5 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
     isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
   }`;
@@ -116,13 +146,13 @@ export const TopNavbar: React.FC = () => {
 <div className="flex items-center gap-2">
             <img
               src={brandIcon}
-              alt="Open Shot Designer"
+              alt={BRANDING.productName}
               className="w-8 h-8 rounded-xl object-cover shadow-md shadow-sky-500/20 ring-1 ring-sky-500/30"
             />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className={`text-xs font-black tracking-widest uppercase ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  Open Shot Designer
+                  {BRANDING.productName}
                 </span>
               </div>
             </div>
@@ -140,6 +170,22 @@ export const TopNavbar: React.FC = () => {
           }`}
           title="Click to rename project"
         />
+
+        {saveState === 'saving' && (
+          <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-amber-600 bg-amber-50' : 'text-amber-300 bg-amber-900/30'}`}>
+            Saving…
+          </span>
+        )}
+        {saveState === 'saved' && (
+          <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-emerald-600 bg-emerald-50' : 'text-emerald-300 bg-emerald-900/30'}`}>
+            Saved locally
+          </span>
+        )}
+        {saveState === 'error' && (
+          <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-red-600 bg-red-50' : 'text-red-300 bg-red-900/30'}`}>
+            Save failed
+          </span>
+        )}
       </div>
 
       {/* 2. Scene / Setup Switcher Dropdown */}
@@ -374,7 +420,7 @@ export const TopNavbar: React.FC = () => {
 
               {isViewingOptionsOpen && (
                 <div
-                  className={`absolute right-0 top-full mt-1.5 w-72 border rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-1 space-y-3.5 ${
+                  className={`absolute right-0 top-full mt-1.5 w-80 max-h-[calc(100vh-76px)] overflow-y-auto custom-scrollbar border rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-1 space-y-3.5 ${
                     isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
                   }`}
                 >
@@ -425,6 +471,16 @@ export const TopNavbar: React.FC = () => {
                         type="checkbox"
                         checked={displaySettings.showWaypointCues === true}
                         onChange={(e) => updateDisplaySettings({ showWaypointCues: e.target.checked })}
+                        className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-semibold">Show Actor Speech Bubbles</span>
+                      <input
+                        type="checkbox"
+                        checked={displaySettings.showSpeechBubbles === true}
+                        onChange={(e) => updateDisplaySettings({ showSpeechBubbles: e.target.checked })}
                         className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
                       />
                     </label>
@@ -481,6 +537,37 @@ export const TopNavbar: React.FC = () => {
                           className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer"
                         />
                       </label>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Workspace tabs
+                        </div>
+                        <p className="text-[10px] opacity-60 mt-0.5">Project presets are defaults—you can expose any module.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => WORKSPACE_TAB_MODULES.forEach((module) => setModuleVisible(module.id, true))}
+                        className="px-2 py-1 rounded-md bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold whitespace-nowrap"
+                      >
+                        Show all
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                      {WORKSPACE_TAB_MODULES.map((module) => (
+                        <label key={module.id} className="flex items-center gap-2 cursor-pointer text-[11px] min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isModuleVisible(module.id)}
+                            onChange={(event) => setModuleVisible(module.id, event.target.checked)}
+                            className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer flex-shrink-0"
+                          />
+                          <span className="truncate">{module.label}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
 
@@ -620,6 +707,21 @@ export const TopNavbar: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
+                      const name = window.prompt(
+                        'Name this revision',
+                        `Revision ${(project.revisions?.length || 0) + 1}`
+                      );
+                      if (name === null) return;
+                      const note = window.prompt('Optional note (cancel to skip)');
+                      saveRevision(name, note ?? undefined);
+                      setIsOverflowOpen(false);
+                    }}
+                    className={overflowItemClass}
+                  >
+                    <span className="flex items-center gap-2"><History className="w-3.5 h-3.5" /> Save revision…</span>
+                  </button>
+                  <button
+                    onClick={() => {
                       setGridSettings({ snap: !gridSettings.snap });
                       setIsOverflowOpen(false);
                     }}
@@ -655,6 +757,15 @@ export const TopNavbar: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
+                      setIsOnSetMode(true);
+                      setIsOverflowOpen(false);
+                    }}
+                    className={overflowItemClass}
+                  >
+                    <span className="flex items-center gap-2"><Clapperboard className="w-3.5 h-3.5 text-emerald-500" /> Live shot tracker</span>
+                  </button>
+                  <button
+                    onClick={() => {
                       openViewfinder();
                       setIsOverflowOpen(false);
                     }}
@@ -686,6 +797,8 @@ export const TopNavbar: React.FC = () => {
           </div>
         )}
       </div>
+
+      {isOnSetMode && <OnSetModeOverlay onClose={() => setIsOnSetMode(false)} />}
     </header>
   );
 };

@@ -16,6 +16,7 @@ import {
   MoveHorizontal,
   MoveUpRight,
   Circle,
+  Pencil,
   Ruler,
   Search,
   BrickWall,
@@ -232,6 +233,12 @@ export const LeftToolbar: React.FC = () => {
       label: 'Text Annotation',
       shortcut: 'X',
       icon: <Type className="w-4 h-4 text-slate-400" />,
+    },
+    {
+      id: 'stroke',
+      label: 'Pen / Annotate',
+      shortcut: 'B',
+      icon: <Pencil className="w-4 h-4 text-amber-400" />,
     },
   ];
 
@@ -644,6 +651,7 @@ export const LeftToolbar: React.FC = () => {
         <input
           ref={floorplanInputRef}
           type="file"
+          aria-label="Choose floor plan image"
           accept="image/*"
           onChange={handleFloorplanUpload}
           className="hidden"

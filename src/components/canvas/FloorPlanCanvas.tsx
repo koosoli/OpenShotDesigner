@@ -7,9 +7,12 @@ import {
   DoorElement,
   FloorPlanElement,
   LightElement,
+  PlanLayer,
   PropElement,
   ShapeElement,
   Shot,
+  StrokeElement,
+  StrokePoint,
   TrackElement,
   Vector2D,
   WallElement,
@@ -21,10 +24,19 @@ import { boardedFrames, setFramePatch, START_SLOT } from '../../utils/storyboard
 import { ActorElementView } from './ActorElementView';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CameraElementView } from './CameraElementView';
+import { ElementContextMenu, ElementContextMenuState } from './ElementContextMenu';
 import { GridLayer } from './GridLayer';
 import { LightingLayer } from './LightingLayer';
 import { PropsLayer } from './PropsLayer';
 import { ShapesLayer } from './ShapesLayer';
+import { FreehandStrokeLayer } from './FreehandStrokeLayer';
+import { FreehandToolOptions } from './FreehandToolOptions';
+import {
+  getFreehandToolPreferences,
+  setFreehandToolPreferences,
+} from '../../domain/plan';
+import type { FreehandToolSettings } from '../../domain/plan';
+import { calibrateBackgroundImage } from '../../domain/plan';
 import { CableLayer } from './CableLayer';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
@@ -82,6 +94,8 @@ export const FloorPlanCanvas: React.FC = () => {
     backgroundImages,
     selectedBackgroundId,
     setSelectedBackgroundId,
+    calibratingBackgroundId,
+    cancelBackgroundCalibration,
     undo,
     redo,
     setTool,
@@ -124,6 +138,78 @@ export const FloorPlanCanvas: React.FC = () => {
   const [hoverCanvasPos, setHoverCanvasPos] = useState<Vector2D | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
+  // Freehand annotation stroke (plan §6.2): points accumulate in the ref while
+  // the pointer is down; `liveStroke` mirrors it for the rubberband preview.
+  // A second touch finger aborts the stroke so pinch/pan keeps working.
+  const [freehandSettings, setFreehandSettings] = useState<FreehandToolSettings>(getFreehandToolPreferences);
+  useEffect(() => setFreehandToolPreferences(freehandSettings), [freehandSettings]);
+  const activeStrokeRef = useRef<{ pointerId: number; points: StrokePoint[] } | null>(null);
+  const [liveStroke, setLiveStroke] = useState<StrokePoint[] | null>(null);
+  const [calibrationPoints, setCalibrationPoints] = useState<Vector2D[]>([]);
+  const [calibrationLength, setCalibrationLength] = useState('1');
+  const [calibrationUnit, setCalibrationUnit] = useState<'m' | 'ft'>('m');
+  const [calibrationError, setCalibrationError] = useState<string | null>(null);
+
+  // Context menu (plan §6.3): desktop right-click or touch long-press (~550ms)
+  // on an element. Long-press is cancelled by movement >10px, a second finger,
+  // pointer up/cancel — and never starts while a pen stroke is in progress.
+  const [contextMenu, setContextMenu] = useState<ElementContextMenuState | null>(null);
+  const longPressRef = useRef<{ timer: number; startX: number; startY: number } | null>(null);
+  const cancelLongPress = () => {
+    if (longPressRef.current) {
+      window.clearTimeout(longPressRef.current.timer);
+      longPressRef.current = null;
+    }
+  };
+
+  // Plan layers (§6.1): elements whose layerId maps to a hidden layer of the
+  // active setup are not rendered; locked layers render but are
+  // non-interactable. Elements without a layerId are unlayered → always shown.
+  const getLayerFor = (el: FloorPlanElement): PlanLayer | null =>
+    el.layerId ? activeSetup.layers?.find((l) => l.id === el.layerId) ?? null : null;
+  const isElementHidden = (el: FloorPlanElement): boolean => {
+    const layer = getLayerFor(el);
+    return !!layer && !layer.visible;
+  };
+  const isEffectivelyLocked = (el: FloorPlanElement): boolean => {
+    const layer = getLayerFor(el);
+    return !!el.locked || (!!layer && layer.locked);
+  };
+
+  // Lightweight hit-test for the context menu: topmost element whose
+  // approximate bounds contain the canvas point (hidden layers skipped).
+  const findElementAtPoint = (pos: Vector2D): FloorPlanElement | null => {
+    const pad = 12;
+    const elements = activeSetup.elements;
+    for (let i = elements.length - 1; i >= 0; i--) {
+      const el = elements[i];
+      if (isElementHidden(el)) continue;
+      const anyEl = el as any;
+      let minX: number, minY: number, maxX: number, maxY: number;
+      if (typeof anyEl.x2 === 'number') {
+        minX = Math.min(el.x, anyEl.x2) - pad;
+        minY = Math.min(el.y, anyEl.y2) - pad;
+        maxX = Math.max(el.x, anyEl.x2) + pad;
+        maxY = Math.max(el.y, anyEl.y2) + pad;
+      } else if (typeof anyEl.width === 'number' || typeof anyEl.height === 'number') {
+        const w = anyEl.width ?? 40;
+        const h = anyEl.height ?? 40;
+        minX = el.x - w / 2 - pad;
+        minY = el.y - h / 2 - pad;
+        maxX = el.x + w / 2 + pad;
+        maxY = el.y + h / 2 + pad;
+      } else {
+        minX = el.x - pad;
+        minY = el.y - pad;
+        maxX = el.x + pad;
+        maxY = el.y + pad;
+      }
+      if (pos.x >= minX && pos.x <= maxX && pos.y >= minY && pos.y <= maxY) return el;
+    }
+    return null;
+  };
+
+
   // Continuous / Connected architectural wall drawing state
   const [connectedWallStart, setConnectedWallStart] = useState<Vector2D | null>(null);
   const [wallChainFirstPoint, setWallChainFirstPoint] = useState<Vector2D | null>(null);
@@ -140,6 +226,12 @@ export const FloorPlanCanvas: React.FC = () => {
   const canvasScale = activeSetup?.canvasScale ?? 1;
   const canvasOffset = activeSetup?.canvasOffset ?? { x: 50, y: 50 };
   const gridSettings = activeSetup?.gridSettings || { size: 30, snap: true, showGrid: false, unit: 'm' as const, pixelsPerUnit: 30 };
+  useEffect(() => {
+    setCalibrationPoints([]);
+    setCalibrationLength('1');
+    setCalibrationUnit(gridSettings.unit);
+    setCalibrationError(null);
+  }, [calibratingBackgroundId, gridSettings.unit]);
 
   const canvasScaleRef = useRef(canvasScale);
   const canvasOffsetRef = useRef(canvasOffset);
@@ -227,6 +319,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const handleTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 2) return;
+      cancelLongPress();
       const a = touchPoint(event.touches[0]);
       const b = touchPoint(event.touches[1]);
       pinchRef.current = {
@@ -237,7 +330,12 @@ export const FloorPlanCanvas: React.FC = () => {
       };
       isPinchingRef.current = true;
       // A second finger cancels whatever the first finger started (dragging an
-      // element, a marquee) so the gesture is purely a viewport move.
+      // element, a marquee, an in-progress freehand stroke) so the gesture is
+      // purely a viewport move. Aborted strokes are never committed.
+      if (activeStrokeRef.current) {
+        activeStrokeRef.current = null;
+        setLiveStroke(null);
+      }
       setDragState(null);
     };
 
@@ -364,15 +462,18 @@ export const FloorPlanCanvas: React.FC = () => {
     fitToContent();
   }, [fitToContent, activeSetup.id]);
 
-  // Segregate elements for wall snapping & SVG z-ordering
-  const walls = activeSetup.elements.filter((e) => e.type === 'wall') as WallElement[];
-  const doors = activeSetup.elements.filter((e) => e.type === 'door') as DoorElement[];
-  const windows = activeSetup.elements.filter((e) => e.type === 'window') as WindowElement[];
-  const lights = activeSetup.elements.filter((e) => e.type === 'light') as LightElement[];
-  const propsList = activeSetup.elements.filter((e) => e.type === 'prop') as PropElement[];
-  const tracks = activeSetup.elements.filter((e) => e.type === 'track') as TrackElement[];
-  const actors = activeSetup.elements.filter((e) => e.type === 'actor') as ActorElement[];
-  const cameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
+  // Segregate elements for wall snapping & SVG z-ordering.
+  // Elements on hidden layers are filtered out here, so they are neither
+  // rendered, hit-tested, snapped against, nor exported to storyboard thumbs.
+  const visibleElements = activeSetup.elements.filter((el) => !isElementHidden(el));
+  const walls = visibleElements.filter((e) => e.type === 'wall') as WallElement[];
+  const doors = visibleElements.filter((e) => e.type === 'door') as DoorElement[];
+  const windows = visibleElements.filter((e) => e.type === 'window') as WindowElement[];
+  const lights = visibleElements.filter((e) => e.type === 'light') as LightElement[];
+  const propsList = visibleElements.filter((e) => e.type === 'prop') as PropElement[];
+  const tracks = visibleElements.filter((e) => e.type === 'track') as TrackElement[];
+  const actors = visibleElements.filter((e) => e.type === 'actor') as ActorElement[];
+  const cameras = visibleElements.filter((e) => e.type === 'camera') as CameraElement[];
 
   // Which shot's info to show under a camera: the selected shot if it uses this
   // camera, else the camera's associated shot, else the first linked shot.
@@ -387,16 +488,17 @@ export const FloorPlanCanvas: React.FC = () => {
     }
     return activeSetup.shots.find((s) => s.cameraId === camera.id) || null;
   };
-  const measurements = activeSetup.elements.filter((e) => e.type === 'measurement');
-  const arrows = activeSetup.elements.filter((e) => e.type === 'arrow');
-  const texts = activeSetup.elements.filter((e) => e.type === 'text');
-  const cables = activeSetup.elements.filter((e) => e.type === 'cable') as CableElement[];
+  const measurements = visibleElements.filter((e) => e.type === 'measurement');
+  const arrows = visibleElements.filter((e) => e.type === 'arrow');
+  const texts = visibleElements.filter((e) => e.type === 'text');
+  const cables = visibleElements.filter((e) => e.type === 'cable') as CableElement[];
+  const strokes = visibleElements.filter((e) => e.type === 'stroke') as StrokeElement[];
 
   // Storyboard thumbnails: shots that have a storyboard attached, shown near
   // their camera on the floor plan.
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
-  const shapes = activeSetup.elements.filter((e) => e.type === 'shape') as ShapeElement[];
+  const shapes = visibleElements.filter((e) => e.type === 'shape') as ShapeElement[];
   const storyboardThumbs = cameras
     .map((c) => ({ camera: c, shot: getShotForCamera(c) }))
     .filter(
@@ -497,8 +599,69 @@ export const FloorPlanCanvas: React.FC = () => {
 
     if (e.button !== 0) return; // Only left click for actions
 
+    // Touch long-press opens the element context menu (§6.3): select mode only,
+    // primary finger only, cancelled by drag/pinch/second finger. Never fires
+    // while a pen stroke is in progress (stroke tool bypasses this entirely).
+    if (e.pointerType === 'touch' && !e.isPrimary) {
+      cancelLongPress();
+    } else if (e.pointerType === 'touch' && activeTool === 'select') {
+      cancelLongPress();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const timer = window.setTimeout(() => {
+        longPressRef.current = null;
+        if (isPinchingRef.current || activeStrokeRef.current) return;
+        // A held press must not keep dragging under the open menu.
+        setDragState(null);
+        setBoxSelection(null);
+        const hit = findElementAtPoint(screenToCanvas(startX, startY));
+        setContextMenu({ x: startX, y: startY, elementId: hit?.id ?? null });
+      }, 550);
+      longPressRef.current = { timer, startX, startY };
+    }
+
     const canvasPos = screenToCanvas(e.clientX, e.clientY);
     const drawPos = getDrawingCursorPos(canvasPos);
+
+    if (calibratingBackgroundId) {
+      e.preventDefault();
+      const image = backgroundImages.find((background) => background.id === calibratingBackgroundId);
+      if (!image) {
+        cancelBackgroundCalibration();
+        return;
+      }
+      const insideImage =
+        canvasPos.x >= image.x && canvasPos.x <= image.x + image.width &&
+        canvasPos.y >= image.y && canvasPos.y <= image.y + image.height;
+      if (!insideImage) {
+        setCalibrationError('Place both marks on the selected reference image.');
+        return;
+      }
+      setCalibrationError(null);
+      setCalibrationPoints((current) => current.length >= 2 ? [canvasPos] : [...current, canvasPos]);
+      return;
+    }
+
+    // Freehand annotation stroke: mouse & stylus always draw; a touch finger
+    // only draws when it is the primary pointer and no pinch is in progress,
+    // so two-finger pinch/pan keeps working with the pen tool selected.
+    if (activeTool === 'stroke') {
+      const touchCanDraw = e.pointerType === 'touch' && e.isPrimary && !isPinchingRef.current;
+      const canDraw =
+        e.pointerType === 'mouse' || e.pointerType === 'pen' || touchCanDraw;
+      if (!canDraw) return;
+
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        // Pointer capture is best-effort; drawing still works inside the canvas.
+      }
+      const point: StrokePoint = { x: canvasPos.x, y: canvasPos.y };
+      if (e.pointerType === 'pen' && e.pressure > 0) point.pressure = e.pressure;
+      activeStrokeRef.current = { pointerId: e.pointerId, points: [point] };
+      setLiveStroke([point]);
+      return;
+    }
 
     // Shape tool: click to drop the current shape at that point (except drag-drawn line shapes)
     if (activeTool === 'shape' && activeShapeType !== 'line') {
@@ -827,7 +990,7 @@ export const FloorPlanCanvas: React.FC = () => {
       return;
     }
 
-    if (activeTool === 'wall' || activeTool === 'measure' || activeTool === 'arrow' || activeTool === 'cable' || (activeTool === 'shape' && activeShapeType === 'line')) {
+    if (activeTool === 'wall' || activeTool === 'measure' || activeTool === 'arrow' || activeTool === 'cable' || activeTool === 'stroke' || (activeTool === 'shape' && activeShapeType === 'line')) {
       // Connect wall to clicked element / start measuring from clicked element
       handlePointerDown(e);
       return;
@@ -839,7 +1002,9 @@ export const FloorPlanCanvas: React.FC = () => {
     // falls straight through as a lasso drag — so items sitting ON TOP of a
     // locked shape (things you often want to move away) can still be selected.
     // The lasso itself skips locked elements, so only the top items are grabbed.
-    if (activeSetup.elements.find((el) => el.id === id)?.locked) {
+    // Elements on a locked PLAN LAYER behave the same way (plan §6.1).
+    const targetElement = activeSetup.elements.find((el) => el.id === id);
+    if (targetElement && isEffectivelyLocked(targetElement)) {
       const canvasPos = screenToCanvas(e.clientX, e.clientY);
       if (!e.shiftKey) clearSelection();
       setDragState({
@@ -857,8 +1022,39 @@ export const FloorPlanCanvas: React.FC = () => {
       return;
     }
 
-    let nextSelected = [...selectedElementIds];
+  // Plan groups (plan §6.4): helpers for group-aware selection and dragging.
+  /** All live member ids of the group containing `elementId` (empty = none). */
+  const getGroupMemberIds = (elementId: string): string[] => {
+    const group = (activeSetup.groups || []).find((g) => g.childIds.includes(elementId));
+    if (!group) return [];
+    return group.childIds.filter((cid) => activeSetup.elements.some((el) => el.id === cid));
+  };
+
+  /**
+   * Expand a drag set to whole groups: moving ANY member of a group moves ALL
+   * members, by seeding every co-member into the drag's start snapshot so the
+   * move handler applies the same delta to them. Rotation/resize are untouched
+   * (separate handlers that never go through here).
+   */
+  const expandDragSetWithGroupMembers = (startElementsMap: Map<string, FloorPlanElement>, extraIds: string[]) => {
+    const draggedIds = new Set(extraIds);
+    startElementsMap.forEach((_, key) => draggedIds.add(key));
+    (activeSetup.groups || []).forEach((group) => {
+      if (!group.childIds.some((cid) => draggedIds.has(cid))) return;
+      group.childIds.forEach((cid) => {
+        if (draggedIds.has(cid)) return;
+        const member = activeSetup.elements.find((el) => el.id === cid);
+        // Locked members stay pinned, matching single-element behavior.
+        if (!member || isEffectivelyLocked(member)) return;
+        startElementsMap.set(cid, JSON.parse(JSON.stringify(member)));
+      });
+    });
+  };
+
+  let nextSelected = [...selectedElementIds];
     if (e.shiftKey) {
+      // Shift is today's multi-select modifier: it toggles the INDIVIDUAL
+      // element even when it belongs to a group (escape hatch from the group).
       if (nextSelected.includes(id)) {
         nextSelected = nextSelected.filter((i) => i !== id);
       } else {
@@ -867,17 +1063,28 @@ export const FloorPlanCanvas: React.FC = () => {
       selectElements(nextSelected);
     } else {
       if (!nextSelected.includes(id)) {
-        nextSelected = [id];
-        selectElement(id);
+        // Plain click on a grouped element selects its WHOLE group so the
+        // group moves as one; Alt+click opts for the individual element.
+        // (Locked elements already returned early above, so no lock check.)
+        const memberIds = e.altKey ? [] : getGroupMemberIds(id);
+        if (memberIds.length > 0) {
+          nextSelected = memberIds;
+          selectElements(memberIds);
+        } else {
+          nextSelected = [id];
+          selectElement(id);
+        }
       }
     }
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     activeSetup.elements.forEach((el) => {
-      if ((nextSelected.includes(el.id) || el.id === id) && !el.locked) {
+      if ((nextSelected.includes(el.id) || el.id === id) && !isEffectivelyLocked(el)) {
         startElementsMap.set(el.id, JSON.parse(JSON.stringify(el)));
       }
     });
+
+    expandDragSetWithGroupMembers(startElementsMap, [id]);
 
     if (startElementsMap.size > 0) {
       setDragState({
@@ -897,7 +1104,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const activeId = selectedElementIds[0];
     const el = activeSetup.elements.find((e) => e.id === activeId);
-    if (!el || el.locked) return;
+    if (!el || isEffectivelyLocked(el)) return;
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
@@ -918,7 +1125,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const activeId = selectedElementIds[0];
     const el = activeSetup.elements.find((e) => e.id === activeId);
-    if (!el || el.locked) return;
+    if (!el || isEffectivelyLocked(el)) return;
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
@@ -941,7 +1148,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const activeId = selectedElementIds[0];
     const el = activeSetup.elements.find((e2) => e2.id === activeId);
-    if (!el || el.locked) return;
+    if (!el || isEffectivelyLocked(el)) return;
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
@@ -962,7 +1169,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
     const activeId = selectedElementIds[0];
     const el = activeSetup.elements.find((e2) => e2.id === activeId);
-    if (!el || el.locked) return;
+    if (!el || isEffectivelyLocked(el)) return;
 
     const startElementsMap = new Map<string, FloorPlanElement>();
     startElementsMap.set(activeId, JSON.parse(JSON.stringify(el)));
@@ -983,7 +1190,7 @@ export const FloorPlanCanvas: React.FC = () => {
     if (activeTool !== 'select') return;
 
     const el = activeSetup.elements.find((e2) => e2.id === elementId);
-    if (el?.locked) return;
+    if (!el || isEffectivelyLocked(el)) return;
 
     selectElement(elementId);
 
@@ -1003,7 +1210,7 @@ export const FloorPlanCanvas: React.FC = () => {
     if (activeTool !== 'select') return;
 
     const el = activeSetup.elements.find((e2) => e2.id === elementId);
-    if (el?.locked) return;
+    if (!el || isEffectivelyLocked(el)) return;
 
     selectElement(elementId);
 
@@ -1109,8 +1316,34 @@ export const FloorPlanCanvas: React.FC = () => {
 
   // Pointer Move
   const handlePointerMove = (e: React.PointerEvent) => {
+    // Long-press is a HOLD: any real drag (>10px) cancels the pending menu.
+    const press = longPressRef.current;
+    if (press && Math.hypot(e.clientX - press.startX, e.clientY - press.startY) > 10) {
+      cancelLongPress();
+    }
+
     const mouseCanvas = screenToCanvas(e.clientX, e.clientY);
     setHoverCanvasPos(mouseCanvas);
+
+    // Freehand stroke sampling: use coalesced events when available so fast
+    // gestures keep every intermediate point instead of just the last one.
+    const stroke = activeStrokeRef.current;
+    if (stroke && e.pointerId === stroke.pointerId && !isPinchingRef.current) {
+      const native = e.nativeEvent as PointerEvent & { getCoalescedEvents?: () => PointerEvent[] };
+      const coalesced =
+        typeof native.getCoalescedEvents === 'function' ? native.getCoalescedEvents() : [];
+      const samples = coalesced.length > 0 ? coalesced : [native];
+      const next = [...stroke.points];
+      for (const sample of samples) {
+        const p = screenToCanvas(sample.clientX, sample.clientY);
+        const point: StrokePoint = { x: p.x, y: p.y };
+        if (sample.pointerType === 'pen' && sample.pressure > 0) point.pressure = sample.pressure;
+        next.push(point);
+      }
+      stroke.points = next;
+      setLiveStroke(next);
+      return;
+    }
 
     if (!dragState) return;
 
@@ -1148,7 +1381,7 @@ export const FloorPlanCanvas: React.FC = () => {
       const maxY = Math.max(dragState.startMouse.y, mouseCanvas.y);
 
       const insideIds = activeSetup.elements
-        .filter((el) => el.x >= minX && el.x <= maxX && el.y >= minY && el.y <= maxY && !el.locked)
+        .filter((el) => el.x >= minX && el.x <= maxX && el.y >= minY && el.y <= maxY && !isEffectivelyLocked(el))
         .map((el) => el.id);
 
       selectElements(insideIds);
@@ -1498,6 +1731,44 @@ export const FloorPlanCanvas: React.FC = () => {
     setBoxSelection(null);
   };
 
+  // Commit (or abort) an in-progress freehand stroke. Committed strokes go
+  // through addElement, so they get ids, autosave and undo history like any
+  // other element; aborted ones (second finger, pointercancel) vanish.
+  const finishStroke = (commit: boolean) => {
+    const stroke = activeStrokeRef.current;
+    if (!stroke) return;
+    activeStrokeRef.current = null;
+    setLiveStroke(null);
+    if (!commit || stroke.points.length < 2) return;
+    addElement({
+      type: 'stroke',
+      name: 'Annotation',
+      x: stroke.points[0].x,
+      y: stroke.points[0].y,
+      points: stroke.points,
+      color: freehandSettings.color,
+      strokeWidth: freehandSettings.strokeWidth,
+      opacity: freehandSettings.opacity,
+      toolStyle: freehandSettings.toolStyle,
+    });
+    // Strokes are annotations: don't leave them selected (addElement auto-selects).
+    clearSelection();
+  };
+
+  const handleCanvasPointerUp = (e: React.PointerEvent) => {
+    cancelLongPress();
+    if (activeStrokeRef.current && e.pointerId === activeStrokeRef.current.pointerId) {
+      finishStroke(true);
+      return;
+    }
+    handlePointerUp();
+  };
+
+  const handleCanvasPointerCancel = () => {
+    cancelLongPress();
+    finishStroke(false);
+  };
+
   // Finalize any in-progress drag when the button is released ANYWHERE (even
   // outside the canvas), so a dropped item is always placed and never stays
   // stuck to the cursor. handlePointerUp is idempotent, so the container's own
@@ -1542,6 +1813,8 @@ export const FloorPlanCanvas: React.FC = () => {
       }
 
       if (e.key === 'Escape') {
+        cancelBackgroundCalibration();
+        setContextMenu(null);
         clearSelection();
         finishConnectedWalls();
         finishConnectedCable();
@@ -1611,7 +1884,7 @@ export const FloorPlanCanvas: React.FC = () => {
         const updates = selectedElementIds
           .map((id) => {
             const el = activeSetup.elements.find((e) => e.id === id);
-            if (!el || el.locked) return null;
+            if (!el || isEffectivelyLocked(el)) return null;
             const hasX2 = 'x2' in el && typeof (el as any).x2 === 'number';
             const linearUpdates = hasX2
               ? { x2: (el as any).x2 + dx, y2: (el as any).y2 + dy }
@@ -1654,14 +1927,55 @@ export const FloorPlanCanvas: React.FC = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [selectedElementIds, deleteSelectedElements, clearSelection, undo, redo, activeSetup.elements, updateMultipleElements, setTool, selectedBackgroundId, removeBackgroundImage, setSelectedBackgroundId, duplicateSelected, copySelectedElements, pasteElements]);
+  }, [selectedElementIds, deleteSelectedElements, clearSelection, undo, redo, activeSetup.elements, updateMultipleElements, setTool, selectedBackgroundId, removeBackgroundImage, setSelectedBackgroundId, duplicateSelected, copySelectedElements, pasteElements, cancelBackgroundCalibration]);
 
-  const selectedElement =
+  const selectedElementRaw =
     selectedElementIds.length === 1
       ? activeSetup.elements.find((e) => e.id === selectedElementIds[0])
       : null;
+  // A selection whose layer was hidden afterwards keeps its data but gets no
+  // on-canvas transform handles while invisible.
+  const selectedElement = selectedElementRaw && !isElementHidden(selectedElementRaw)
+    ? selectedElementRaw
+    : null;
 
   const isLightMode = theme === 'light';
+
+  const applyBackgroundCalibration = () => {
+    if (!calibratingBackgroundId || calibrationPoints.length !== 2) return;
+    const image = backgroundImages.find((background) => background.id === calibratingBackgroundId);
+    const realLength = Number(calibrationLength);
+    if (!image || !Number.isFinite(realLength) || realLength <= 0) {
+      setCalibrationError('Enter a real length greater than zero.');
+      return;
+    }
+    const result = calibrateBackgroundImage(
+      image,
+      calibrationPoints[0],
+      calibrationPoints[1],
+      realLength,
+      calibrationUnit,
+      gridSettings,
+      new Date().toISOString(),
+    );
+    if (!result) {
+      setCalibrationError('The two marks are too close together. Mark a longer scale line.');
+      return;
+    }
+    updateBackgroundImage(
+      image.id!,
+      {
+        ...result.updates,
+        x: Math.round(result.updates.x * 100) / 100,
+        y: Math.round(result.updates.y * 100) / 100,
+        width: Math.round(result.updates.width * 100) / 100,
+        height: Math.round(result.updates.height * 100) / 100,
+      },
+      true,
+    );
+    cancelBackgroundCalibration();
+    setCalibrationPoints([]);
+  };
 
   // Live cursor snap indicator
   const activeDrawPos = hoverCanvasPos ? getDrawingCursorPos(hoverCanvasPos) : null;
@@ -1678,7 +1992,15 @@ export const FloorPlanCanvas: React.FC = () => {
       }`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onPointerUp={handleCanvasPointerUp}
+      onPointerCancel={handleCanvasPointerCancel}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        cancelLongPress();
+        if (isPinchingRef.current || activeStrokeRef.current) return;
+        const hit = findElementAtPoint(screenToCanvas(e.clientX, e.clientY));
+        setContextMenu({ x: e.clientX, y: e.clientY, elementId: hit?.id ?? null });
+      }}
       onDoubleClick={(e) => {
         finishConnectedWalls();
         finishConnectedCable();
@@ -1708,7 +2030,7 @@ export const FloorPlanCanvas: React.FC = () => {
             backgroundImages={backgroundImages}
             canvasScale={canvasScale}
             selectedBackgroundId={selectedBackgroundId}
-            isInteractive={activeTool === 'select'}
+            isInteractive={activeTool === 'select' && !calibratingBackgroundId}
             onSelectImage={(id) => {
               clearSelection();
               setSelectedBackgroundId(id);
@@ -1976,6 +2298,42 @@ export const FloorPlanCanvas: React.FC = () => {
           />
           )}
 
+          {/* 9c. Freehand annotation strokes (plan §6.2): above most content,
+              below selection handles; not interactive (select/delete via
+              undo or future tooling). Highlighter = 3× width, ~0.35 opacity. */}
+          <FreehandStrokeLayer
+            strokes={strokes}
+            liveStroke={liveStroke}
+            liveColor={freehandSettings.color}
+            liveWidth={freehandSettings.strokeWidth}
+            liveOpacity={freehandSettings.opacity}
+            liveToolStyle={freehandSettings.toolStyle}
+          />
+
+          {calibratingBackgroundId && calibrationPoints.length > 0 && (
+            <g className="pointer-events-none" aria-label="Scale calibration marks">
+              {calibrationPoints.length === 2 && (
+                <line
+                  x1={calibrationPoints[0].x}
+                  y1={calibrationPoints[0].y}
+                  x2={calibrationPoints[1].x}
+                  y2={calibrationPoints[1].y}
+                  stroke="#f97316"
+                  strokeWidth={3 / canvasScale}
+                  strokeDasharray={`${8 / canvasScale} ${5 / canvasScale}`}
+                />
+              )}
+              {calibrationPoints.map((point, index) => (
+                <g key={`${point.x}-${point.y}-${index}`}>
+                  <circle cx={point.x} cy={point.y} r={8 / canvasScale} fill="#fff7ed" stroke="#f97316" strokeWidth={3 / canvasScale} />
+                  <text x={point.x} y={point.y + 3 / canvasScale} textAnchor="middle" fontSize={9 / canvasScale} fontWeight="bold" fill="#9a3412">
+                    {index + 1}
+                  </text>
+                </g>
+              ))}
+            </g>
+          )}
+
           {/* 10. Interactive Transform Handles (Rotation & Linear Endpoints) */}
           {selectedElement && (
             <TransformControls
@@ -2005,6 +2363,83 @@ export const FloorPlanCanvas: React.FC = () => {
           )}
         </g>
       </svg>
+
+      {activeTool === 'stroke' && (
+        <FreehandToolOptions
+          settings={freehandSettings}
+          isLight={isLightMode}
+          onChange={setFreehandSettings}
+        />
+      )}
+
+      {calibratingBackgroundId && (
+        <section
+          aria-label="Floor plan scale calibration"
+          onPointerDown={(event) => event.stopPropagation()}
+          className={`absolute top-3 left-1/2 -translate-x-1/2 z-40 w-[min(680px,calc(100%-24px))] rounded-xl border shadow-2xl backdrop-blur-md p-3 ${
+            isLightMode ? 'bg-white/95 border-orange-200 text-slate-800' : 'bg-slate-900/95 border-orange-700 text-slate-100'
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-[190px] flex-1">
+              <div className="text-xs font-bold text-orange-500">Calibrate floor-plan scale</div>
+              <p className="text-[11px] opacity-70 mt-0.5">
+                {calibrationPoints.length === 0
+                  ? 'Click the first end of a known scale line on the image.'
+                  : calibrationPoints.length === 1
+                    ? 'Click the other end of that same scale line.'
+                    : 'Enter the real distance represented by the marked line.'}
+              </p>
+            </div>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold">
+              Distance
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={calibrationLength}
+                onChange={(event) => setCalibrationLength(event.target.value)}
+                className={`w-20 rounded-md border px-2 py-1.5 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'}`}
+              />
+              <select
+                aria-label="Calibration unit"
+                value={calibrationUnit}
+                onChange={(event) => setCalibrationUnit(event.target.value as 'm' | 'ft')}
+                className={`rounded-md border px-2 py-1.5 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'}`}
+              >
+                <option value="m">metres</option>
+                <option value="ft">feet</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={calibrationPoints.length !== 2}
+              onClick={applyBackgroundCalibration}
+              className="px-3 py-1.5 rounded-md bg-orange-500 hover:bg-orange-400 disabled:opacity-35 disabled:cursor-not-allowed text-slate-950 text-[11px] font-bold"
+            >
+              Apply scale
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCalibrationPoints([]);
+                setCalibrationError(null);
+              }}
+              className={`px-2 py-1.5 rounded-md text-[11px] font-semibold ${isLightMode ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}
+            >
+              Restart
+            </button>
+            <button
+              type="button"
+              onClick={cancelBackgroundCalibration}
+              className={`px-2 py-1.5 rounded-md text-[11px] font-semibold ${isLightMode ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}
+            >
+              Cancel
+            </button>
+          </div>
+          {calibrationError && <p className="text-[11px] text-red-500 font-semibold mt-2">{calibrationError}</p>}
+        </section>
+      )}
 
       {/* Floating Canvas Quick Controls (Zoom, Reset, Pan toggle) */}
       <div className="absolute bottom-5 right-5 flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-1.5 shadow-2xl z-20">
@@ -2144,6 +2579,8 @@ export const FloorPlanCanvas: React.FC = () => {
               <><strong>Click and drag</strong> to draw an arrow (Esc to cancel)</>
             ) : activeTool === 'cable' ? (
               <>Click &amp; drag to start a cable run, then <strong>click to add corners</strong> (double-click / Enter to finish)</>
+            ) : activeTool === 'stroke' ? (
+              <><strong>Draw</strong> freehand annotations with mouse or stylus • two fingers still pinch/zoom (Esc to cancel)</>
             ) : (
               <>Click on canvas to place <strong>{activeTool.toUpperCase()}</strong> (Press Esc to cancel)</>
             )}
@@ -2233,6 +2670,11 @@ export const FloorPlanCanvas: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Element context menu (right-click / touch long-press, plan §6.3) */}
+      {contextMenu && (
+        <ElementContextMenu state={contextMenu} onClose={() => setContextMenu(null)} />
       )}
 
       {/* Tiny scale indicator pinned to the bottom-left corner (5 units at current zoom) */}

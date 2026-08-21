@@ -358,7 +358,41 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 <circle cx={-w * 0.24} cy={h * 0.22} r={3} fill="#0f172a" />
                 <rect x={w * 0.05} y={h * 0.05} width={w * 0.3} height={h * 0.35} rx={2} fill="#0f172a" stroke="#475569" strokeWidth={1} />
               </g>
-            ) : prop.propType === 'table_round' || prop.propType === 'circle' ? (
+            ) : prop.propType === 'table_round' ? (
+              <g className="prop-round-dining-set">
+                {/* Four chairs are part of the asset footprint and rotate with the table. */}
+                {[
+                  { x: 0, y: -h * 0.4, rotation: 0 },
+                  { x: w * 0.4, y: 0, rotation: 90 },
+                  { x: 0, y: h * 0.4, rotation: 180 },
+                  { x: -w * 0.4, y: 0, rotation: 270 },
+                ].map((chair, index) => (
+                  <g key={index} transform={`translate(${chair.x} ${chair.y}) rotate(${chair.rotation})`}>
+                    <rect
+                      x={-w * 0.1}
+                      y={-h * 0.075}
+                      width={w * 0.2}
+                      height={h * 0.15}
+                      rx={Math.max(2, w * 0.025)}
+                      fill="#475569"
+                      stroke="#0f172a"
+                      strokeWidth={1.5}
+                    />
+                    <path
+                      d={`M ${-w * 0.1} ${-h * 0.075} Q 0 ${-h * 0.13} ${w * 0.1} ${-h * 0.075}`}
+                      fill="none"
+                      stroke="#0f172a"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                    />
+                  </g>
+                ))}
+                {/* Round tabletop, inset so chairs remain readable at low zoom. */}
+                <circle cx={0} cy={0} r={Math.min(w, h) * 0.29} fill={color} stroke="#1e293b" strokeWidth={2.5} />
+                <circle cx={0} cy={0} r={Math.min(w, h) * 0.23} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={1.5} />
+                <circle cx={0} cy={0} r={Math.max(3, Math.min(w, h) * 0.045)} fill="#422006" opacity={0.8} />
+              </g>
+            ) : prop.propType === 'circle' ? (
               <circle cx={0} cy={0} r={w / 2} fill={color} stroke="#1e293b" strokeWidth={2} />
             ) : prop.propType === 'table_coffee' ? (
               <g>

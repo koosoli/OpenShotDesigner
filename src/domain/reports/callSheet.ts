@@ -1,0 +1,240 @@
+/**
+ * Derived paperwork (plan §16, §4.12 derived-view rule).
+ *
+ * Call sheets / crew sheets DERIVE from canonical project data. Only explicit
+ * user overrides are stored — never a hidden duplicate copy of every field.
+ */
+
+import type { Person } from '../people';
+import type { ProductionDay, ScheduleBlock } from '../scheduling';
+
+export type DocumentLifecycle = 'draft' | 'published' | 'superseded';
+
+export interface CallSheetLocation {
+  name: string;
+  address?: string;
+}
+
+export interface CallSheetEntry {
+  label: string;
+  kind: ScheduleBlock['kind'];
+  estimatedMinutes?: number;
+  /** Derived clock time. Unknown after the first block without a duration. */
+  scheduledStart?: string;
+  /** True when the block referenced an entity we could not resolve. */
+  unresolved?: boolean;
+}
+
+export interface CallSheetPerson {
+  displayName: string;
+  department?: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface CallSheetData {
+  productionTitle: string;
+  productionCompany?: string;
+  productionLogo?: string;
+  dayName: string;
+  date?: string;
+  crewCall?: string;
+  plannedWrap?: string;
+  type: NonNullable<ProductionDay['callSheet']>['type'];
+  parking?: string;
+  nearestHospital?: string;
+  weatherSummary?: string;
+  safetyNotes?: string;
+  generalNotes?: string;
+  locations: CallSheetLocation[];
+  schedule: CallSheetEntry[];
+  cast: CallSheetPerson[];
+  crew: CallSheetPerson[];
+  totalEstimatedMinutes: number | null;
+  warnings: string[];
+}
+
+/** Explicit, user-entered exception on top of derived defaults (rule 37). */
+export interface SheetOverride {
+  /** Dotted field path into CallSheetData, e.g. 'crewCall'. */
+  field: string;
+  value: string;
+}
+
+export interface GeneratedSheet {
+  lifecycle: DocumentLifecycle;
+  derived: CallSheetData;
+  overrides: SheetOverride[];
+  generatedAt: string;
+}
+
+export interface DeriveCallSheetInput {
+  day: ProductionDay;
+  blocks: ScheduleBlock[];
+  productionTitle: string;
+  productionCompany?: string;
+  productionLogo?: string;
+  people?: Person[];
+  /** When supplied, only these cast/talent people are called for the day. */
+  castPersonIds?: string[];
+  /** Locations derived by the caller from the day's scheduled entities. */
+  locations?: CallSheetLocation[];
+  resolveSceneLabel?: (scriptSceneId: string) => string | undefined;
+  resolveSetupLabel?: (setupId: string) => string | undefined;
+  resolveSegmentLabel?: (segmentId: string) => string | undefined;
+  resolveCueLabel?: (cueId: string) => string | undefined;
+  resolveShotLabel?: (shotIds: string[]) => string | undefined;
+}
+
+const minutesOf = (block: ScheduleBlock): number | undefined =>
+  'estimatedMinutes' in block ? block.estimatedMinutes : undefined;
+
+const parseClockMinutes = (clock: string | undefined): number | null => {
+  if (!clock || !/^\d{1,2}:\d{2}$/.test(clock)) return null;
+  const [hours, minutes] = clock.split(':').map(Number);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+};
+
+const formatClockMinutes = (total: number): string => {
+  const wrapped = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
+};
+
+/**
+ * Build the derived call-sheet data for one production day. Missing links and
+ * missing estimates surface as warnings — they never silently disappear.
+ */
+export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
+  const { day, blocks, productionTitle, productionCompany, productionLogo, people = [], locations = [] } = input;
+  const warnings: string[] = [];
+
+  const scheduled = day.scheduleBlockIds
+    .map((id) => blocks.find((b) => b.id === id))
+    .filter((b): b is ScheduleBlock => !!b);
+
+  const unknownBlockIds = day.scheduleBlockIds.filter(
+    (id) => !blocks.some((b) => b.id === id),
+  );
+  if (unknownBlockIds.length > 0) {
+    warnings.push(`${unknownBlockIds.length} schedule block(s) could not be resolved.`);
+  }
+
+  let runningMinutes = parseClockMinutes(day.crewCall);
+  const schedule: CallSheetEntry[] = scheduled.map((block) => {
+    const scheduledStart = runningMinutes === null ? undefined : formatClockMinutes(runningMinutes);
+    const duration = minutesOf(block);
+    if (runningMinutes !== null) runningMinutes = duration === undefined ? null : runningMinutes + duration;
+    switch (block.kind) {
+      case 'scene': {
+        const label = input.resolveSceneLabel?.(block.scriptSceneId);
+        if (!label) warnings.push(`Scene ${block.scriptSceneId} not found.`);
+        return { label: label ?? `Unresolved scene ${block.scriptSceneId}`, kind: block.kind, estimatedMinutes: block.estimatedMinutes, scheduledStart, unresolved: !label };
+      }
+      case 'setup': {
+        const label = input.resolveSetupLabel?.(block.setupId);
+        if (!label) warnings.push(`Setup ${block.setupId} not found.`);
+        return { label: label ?? `Unresolved setup ${block.setupId}`, kind: block.kind, estimatedMinutes: block.estimatedMinutes, scheduledStart, unresolved: !label };
+      }
+      case 'segment': {
+        const label = input.resolveSegmentLabel?.(block.segmentId);
+        if (!label) warnings.push(`Segment ${block.segmentId} not found.`);
+        return { label: label ?? `Unresolved segment ${block.segmentId}`, kind: block.kind, estimatedMinutes: block.estimatedMinutes, scheduledStart, unresolved: !label };
+      }
+      case 'cue': {
+        const label = input.resolveCueLabel?.(block.cueId);
+        if (!label) warnings.push(`Cue ${block.cueId} not found.`);
+        return { label: label ?? `Unresolved cue ${block.cueId}`, kind: block.kind, estimatedMinutes: block.estimatedMinutes, scheduledStart, unresolved: !label };
+      }
+      case 'shots': {
+        const label = input.resolveShotLabel?.(block.shotIds);
+        if (input.resolveShotLabel && !label) warnings.push(`${block.shotIds.length} scheduled shot(s) could not be resolved.`);
+        return { label: label ?? `${block.shotIds.length} shot(s)`, kind: block.kind, estimatedMinutes: block.estimatedMinutes, scheduledStart, unresolved: Boolean(input.resolveShotLabel && !label) };
+      }
+      case 'manual':
+        return { label: block.label, kind: block.kind, estimatedMinutes: block.estimatedMinutes, scheduledStart };
+    }
+  });
+
+  for (const entry of schedule) {
+    if (entry.estimatedMinutes === undefined) {
+      warnings.push(`"${entry.label}" has no time estimate.`);
+    }
+  }
+
+  // Locations are derived by the caller from scheduled entities (rule 37).
+  const resolvedLocations = locations;
+
+  const castIdFilter = input.castPersonIds ? new Set(input.castPersonIds) : null;
+  const cast = people
+    .filter((p) => (p.kind === 'cast' || p.kind === 'talent') && (!castIdFilter || castIdFilter.has(p.id)))
+    .map((p) => ({ displayName: p.displayName, role: p.role, email: p.email, phone: p.phone }));
+  const crew = people
+    .filter((p) => p.kind === 'crew')
+    .map((p) => ({
+      displayName: p.displayName,
+      department: p.department,
+      role: p.role,
+      email: p.email,
+      phone: p.phone,
+    }));
+
+  const estimates = schedule.map((e) => e.estimatedMinutes);
+  const totalEstimatedMinutes = estimates.every((m) => m !== undefined)
+    ? estimates.reduce<number>((sum, m) => sum + (m ?? 0), 0)
+    : null;
+
+  if (!day.date) warnings.push('Shooting date is not set.');
+  if (!day.crewCall) warnings.push('Crew call is not set.');
+  if (schedule.length === 0) warnings.push('The shooting-day schedule is empty.');
+  if (resolvedLocations.length === 0) warnings.push('No shooting location is linked to this day.');
+  if (!day.callSheet?.nearestHospital) warnings.push('Nearest hospital / emergency facility is not set.');
+
+  return {
+    productionTitle,
+    productionCompany,
+    productionLogo,
+    dayName: day.name,
+    date: day.date,
+    crewCall: day.crewCall,
+    plannedWrap: day.plannedWrap,
+    type: day.callSheet?.type ?? 'shoot',
+    parking: day.callSheet?.parking,
+    nearestHospital: day.callSheet?.nearestHospital,
+    weatherSummary: day.callSheet?.weatherSummary,
+    safetyNotes: day.callSheet?.safetyNotes,
+    generalNotes: day.callSheet?.generalNotes,
+    locations: resolvedLocations,
+    schedule,
+    cast,
+    crew,
+    totalEstimatedMinutes,
+    warnings,
+  };
+};
+
+/**
+ * Apply explicit overrides on top of derived data. Overrides are sparse and
+ * deliberate — the canonical source stays authoritative for everything else.
+ */
+export const applyOverrides = (
+  derived: CallSheetData,
+  overrides: SheetOverride[],
+): CallSheetData => {
+  let result: CallSheetData = { ...derived };
+  for (const override of overrides) {
+    if (Object.prototype.hasOwnProperty.call(result, override.field)) {
+      result = { ...result, [override.field]: override.value } as CallSheetData;
+    }
+  }
+  return result;
+};
+
+/** Freeze a sheet as a published revision; later edits must supersede it. */
+export const publishSheet = (derived: CallSheetData, overrides: SheetOverride[] = []): GeneratedSheet => ({
+  lifecycle: 'published',
+  derived,
+  overrides,
+  generatedAt: new Date().toISOString(),
+});

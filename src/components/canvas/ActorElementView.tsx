@@ -2,6 +2,7 @@ import React from 'react';
 import { ActorElement, Vector2D } from '../../types';
 import { getInterpolatedPositionAndRotation, getSmoothSplinePath } from '../../utils/geometry';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
+import { speechCueAtBeat, wrapSpeechText } from '../../domain/plan';
 
 interface ActorElementViewProps {
   actor: ActorElement;
@@ -22,7 +23,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
   isSelected,
   isHighlighted,
   currentBeat,
-  isPlaying: _isPlaying,
+  isPlaying,
   onSelect,
   onDoubleClick,
   onAddWaypoint,
@@ -62,6 +63,12 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
 
   const actorOpacity = (displaySettings.categoryOpacity?.actors ?? 1.0) * (actor.opacity ?? 1.0);
   const showCues = displaySettings.showWaypointCues === true;
+  const activeSpeech = displaySettings.showSpeechBubbles
+    ? speechCueAtBeat(actor.speechCues, currentBeat)
+    : undefined;
+  const speechLines = activeSpeech ? wrapSpeechText(activeSpeech.text) : [];
+  const bubbleWidth = Math.max(100, Math.min(230, Math.max(...speechLines.map((line) => line.length), 10) * 6.2 + 24));
+  const bubbleHeight = 28 + speechLines.length * 14;
 
   return (
     <g className="actor-element" opacity={actorOpacity}>
@@ -252,6 +259,43 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
           </g>
         )}
       </g>
+
+      {activeSpeech && speechLines.length > 0 && (
+        <g
+          transform={`translate(${position.x}, ${position.y})`}
+          className={`actor-speech-bubble pointer-events-none ${isPlaying ? 'transition-opacity duration-150' : ''}`}
+        >
+          <path
+            d={`M ${-bubbleWidth / 2} ${-bubbleHeight - 46} h ${bubbleWidth} a 9 9 0 0 1 9 9 v ${bubbleHeight - 18} a 9 9 0 0 1 -9 9 h -${bubbleWidth / 2 - 12} l -12 13 l -2 -13 h -${bubbleWidth / 2 - 14} a 9 9 0 0 1 -9 -9 v -${bubbleHeight - 18} a 9 9 0 0 1 9 -9 z`}
+            fill="rgba(255,255,255,0.97)"
+            stroke={color}
+            strokeWidth={2}
+          />
+          <text
+            x={-bubbleWidth / 2 + 12}
+            y={-bubbleHeight - 29}
+            fill={color}
+            fontSize="9"
+            fontWeight="700"
+            className="select-none font-sans"
+          >
+            {(actor.characterName || actor.name).toUpperCase()} · B{Math.max(1, Math.round(currentBeat))}
+          </text>
+          <text
+            x={-bubbleWidth / 2 + 12}
+            y={-bubbleHeight - 13}
+            fill="#0f172a"
+            fontSize="11"
+            className="select-none font-sans"
+          >
+            {speechLines.map((line, index) => (
+              <tspan key={`${line}-${index}`} x={-bubbleWidth / 2 + 12} dy={index === 0 ? 0 : 14}>
+                {line}
+              </tspan>
+            ))}
+          </text>
+        </g>
+      )}
 
       {/* 3. Interactive Waypoint Markers & Rotation Handles (always on top) */}
       {hasPath && displaySettings.showWaypoints && (
