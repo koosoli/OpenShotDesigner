@@ -111,7 +111,9 @@ export const ShotListPanel: React.FC = () => {
   const [expandedShotId, setExpandedShotId] = useState<string | null>(null);
   const [isRenumberMenuOpen, setIsRenumberMenuOpen] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  // Insertion gap the blue line marks: 0 = above the first shot … n = below
+  // the last one. Unlike a row index this can express "place at the very end".
+  const [dropGap, setDropGap] = useState<number | null>(null);
   const [insertMenu, setInsertMenu] = useState<{ shotId: string; x: number; y: number } | null>(null);
   // Storyboard thumbnails in the shot list (like the print export). Defaults ON
   // when any shot in the current scope already carries a frame.
@@ -119,6 +121,7 @@ export const ShotListPanel: React.FC = () => {
     (project.setups.find((s) => s.id === activeSetup.id)?.shots || []).some((s) => !!s.storyboardImage)
   );
   const shotListContainerRef = useRef<HTMLDivElement>(null);
+  const dragGhostRef = useRef<HTMLDivElement | null>(null);
 
   // Aspect ratio the storyboard frames were drawn at, from the scene settings.
   const sceneAspectRatio =
@@ -221,32 +224,136 @@ export const ShotListPanel: React.FC = () => {
   };
 
   // Drag and Drop handlers
+
+  // Ghost chip that follows the cursor while dragging a shot — dragging from
+  // the small grip would otherwise show just the grip icon as the native drag
+  // image, with no hint which shot is being moved (the scheduler strips get
+  // this for free because their whole row is the drag source).
+  const showShotDragGhost = (e: React.DragEvent, shot?: Shot) => {
+    const ghost = dragGhostRef.current;
+    if (!ghost || !shot || typeof e.dataTransfer.setDragImage !== 'function') return;
+    ghost.replaceChildren();
+    const chip = document.createElement('div');
+    chip.style.cssText = [
+      'display:flex',
+      'align-items:center',
+      'gap:8px',
+      'padding:6px 12px',
+      'border-radius:10px',
+      'border:1.5px solid #0ea5e9',
+      `background:${isLight ? '#ffffff' : '#0f172a'}`,
+      `color:${isLight ? '#334155' : '#e0f2fe'}`,
+      'font-size:12px',
+      'font-weight:700',
+      'line-height:1',
+      'box-shadow:0 10px 28px rgba(14,165,233,0.35)',
+      'white-space:nowrap',
+    ].join(';');
+    if (showStoryboards) {
+      const thumbSrc = storyboardImageFor(shot);
+      if (thumbSrc) {
+        const img = document.createElement('img');
+        img.src = thumbSrc;
+        img.alt = '';
+        img.style.cssText = [
+          'width:48px',
+          `height:${Math.round(48 / sceneAspectRatio)}px`,
+          'border-radius:4px',
+          `background:${isLight ? '#f1f5f9' : '#020617'}`,
+          `object-fit:${shot.storyboardFit === 'contain' ? 'contain' : 'cover'}`,
+        ].join(';');
+        chip.appendChild(img);
+      }
+    }
+    const num = document.createElement('span');
+    num.textContent = shot.shotNumber || '—';
+    num.style.cssText =
+      'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#0ea5e9;';
+    chip.appendChild(num);
+    const camLabel = cameras.find(
+      (c: { id: string; cameraLabel?: string }) => c.id === shot.cameraId
+    )?.cameraLabel;
+    if (camLabel) {
+      const cam = document.createElement('span');
+      cam.textContent = `CAM ${String(camLabel).toUpperCase()}`;
+      cam.style.cssText = [
+        'padding:3px 7px',
+        'border-radius:999px',
+        `background:${isLight ? '#f1f5f9' : '#1e293b'}`,
+        'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
+        'font-size:10px',
+      ].join(';');
+      chip.appendChild(cam);
+    }
+    const sizeCode = SHOT_SIZES.find((s) => s.value === shot.shotSize)?.code;
+    if (sizeCode) {
+      const size = document.createElement('span');
+      size.textContent = sizeCode;
+      size.style.cssText = 'letter-spacing:0.05em;';
+      chip.appendChild(size);
+    }
+    ghost.appendChild(chip);
+    e.dataTransfer.setDragImage(ghost, 24, 24);
+  };
+
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', index.toString());
+    showShotDragGhost(e, filteredShots[index]);
+  };
+
+  /** Gap implied by the pointer: upper half of a row = before it, lower half = after it. */
+  const gapFromPointer = (e: React.DragEvent, index: number) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    return index + (e.clientY > rect.top + rect.height / 2 ? 1 : 0);
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
-    if (dragOverIndex !== index) {
-      setDragOverIndex(index);
+    const gap = gapFromPointer(e, index);
+    if (dropGap !== gap) {
+      setDropGap(gap);
     }
   };
 
-  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+  const handleDrop = (e: React.DragEvent, gap: number) => {
     e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== targetIndex) {
-      reorderShots(draggedIndex, targetIndex);
+    e.stopPropagation();
+    if (draggedIndex !== null) {
+      // After the dragged shot is removed, gaps right of it shift by one.
+      const insertAt = gap > draggedIndex ? gap - 1 : gap;
+      if (insertAt !== draggedIndex) {
+        reorderShots(draggedIndex, insertAt);
+      }
     }
     setDraggedIndex(null);
-    setDragOverIndex(null);
+    setDropGap(null);
+  };
+
+  // Pointer in the padding below the list or between rows (row handlers stop
+  // propagation, so this only sees the dead zones): once it is past the last
+  // shot's midpoint the line moves below the list, i.e. "place last".
+  const handleDragOverEnd = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!filteredShots.length) return;
+    const lastEl = shotListContainerRef.current?.lastElementChild as HTMLElement | null;
+    if (!lastEl) return;
+    const rect = lastEl.getBoundingClientRect();
+    if (e.clientY >= rect.top + rect.height / 2 && dropGap !== filteredShots.length) {
+      setDropGap(filteredShots.length);
+    }
+  };
+  const handleDropEnd = (e: React.DragEvent) => {
+    handleDrop(e, dropGap ?? filteredShots.length);
   };
 
   const handleDragEnd = () => {
     setDraggedIndex(null);
-    setDragOverIndex(null);
+    setDropGap(null);
   };
 
   // Every "+" quick-add in the shot list does the same thing as "+ Cam & Shot":
@@ -530,6 +637,8 @@ export const ShotListPanel: React.FC = () => {
       {/* 3. Main Content: Cards View or Table List View */}
       <div
         ref={shotListContainerRef}
+        onDragOver={handleDragOverEnd}
+        onDrop={handleDropEnd}
         className="flex-1 overflow-y-auto p-2.5 space-y-2 custom-scrollbar"
       >
         {filteredShots.length === 0 ? (
@@ -557,20 +666,23 @@ export const ShotListPanel: React.FC = () => {
             const shotSizeInfo = SHOT_SIZES.find((s) => s.value === shot.shotSize) || SHOT_SIZES[4];
             const linkedCamera = cameras.find((c) => c.id === shot.cameraId);
             const isBeingDragged = draggedIndex === index;
-            const isDragOver = dragOverIndex === index;
+            const isDropBefore = dropGap === index;
+            const isDropAfter = dropGap === index + 1;
 
             return (
               <div
                 key={shot.id}
                 id={`shot-card-${shot.id}`}
                 onDragOver={(e) => handleDragOver(e, index)}
-                onDrop={(e) => handleDrop(e, index)}
+                onDrop={(e) => handleDrop(e, gapFromPointer(e, index))}
                 onDragEnd={handleDragEnd}
                 onClick={() => selectShotAnywhere(shot)}
                 className={`group relative rounded-xl border transition-all cursor-pointer p-3 ${
                   isBeingDragged ? 'opacity-40 scale-95 border-dashed border-sky-400' : ''
                 } ${
-                  isDragOver ? 'border-t-4 border-t-sky-500' : ''
+                  isDropBefore ? 'border-t-4 border-t-sky-500' : ''
+                } ${
+                  isDropAfter ? 'border-b-4 border-b-sky-500' : ''
                 } ${
                   isSelected || isCameraSelected
                     ? isLight
@@ -925,20 +1037,23 @@ export const ShotListPanel: React.FC = () => {
                   const foreign = isForeignShot(shot);
                   const linkedCamera = cameras.find((c) => c.id === shot.cameraId);
                   const isBeingDragged = draggedIndex === index;
-                  const isDragOver = dragOverIndex === index;
+                  const isDropBefore = dropGap === index;
+                  const isDropAfter = dropGap === index + 1;
 
                   return (
                     <tr
                       key={shot.id}
                       id={`shot-card-${shot.id}`}
                       onDragOver={(e) => handleDragOver(e, index)}
-                      onDrop={(e) => handleDrop(e, index)}
+                      onDrop={(e) => handleDrop(e, gapFromPointer(e, index))}
                       onDragEnd={handleDragEnd}
                       onClick={() => selectShotAnywhere(shot)}
                       className={`cursor-pointer transition-colors ${
                         isBeingDragged ? 'opacity-30 bg-sky-100 dark:bg-sky-950' : ''
                       } ${
-                        isDragOver ? 'border-t-2 border-sky-500' : ''
+                        isDropBefore ? 'border-t-2 border-t-sky-500' : ''
+                      } ${
+                        isDropAfter ? 'border-b-2 border-b-sky-500' : ''
                       } ${
                         isSelected
                           ? isLight ? 'bg-sky-50 font-medium' : 'bg-slate-800 font-medium'
@@ -1185,6 +1300,11 @@ export const ShotListPanel: React.FC = () => {
       </div>
 
       {/* 4. Footer */}
+      <div
+        ref={dragGhostRef}
+        aria-hidden="true"
+        style={{ position: 'fixed', top: 0, left: -10000, pointerEvents: 'none' }}
+      />
       <div className={`p-2.5 border-t text-[11px] flex items-center justify-between ${
         isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-slate-800 bg-slate-950/80 text-slate-400'
       }`}>

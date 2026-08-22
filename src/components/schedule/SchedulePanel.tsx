@@ -12,6 +12,7 @@ import {
   FileCheck2,
   GripVertical,
   LayoutList,
+  Printer,
   Search,
   Plus,
   Trash2,
@@ -38,6 +39,12 @@ import type { Location } from '../../domain/locations';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
 import { deriveCallSheet } from '../../domain/reports';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
+import { StripboardPrintView } from '../reports/StripboardPrintView';
+import type { PrintableStripboardDay } from '../reports/StripboardPrintView';
+import { ScheduleCalendarPrintView } from '../reports/ScheduleCalendarPrintView';
+import type { PrintableCalendarDay, PrintableCalendarEvent } from '../reports/ScheduleCalendarPrintView';
+import { CoverageMatrixPrintView } from '../reports/CoverageMatrixPrintView';
+import type { PrintableCoverageRow } from '../reports/CoverageMatrixPrintView';
 import { CallSheetWorkspace } from './CallSheetWorkspace';
 
 type ManualType = NonNullable<
@@ -60,6 +67,15 @@ const MANUAL_TYPE_LABELS: Record<ManualType, string> = {
   load_in: 'Load In',
   strike: 'Strike',
   other: 'Other',
+};
+
+const BLOCK_KIND_LABELS: Record<ScheduleBlock['kind'], string> = {
+  scene: 'Scene',
+  setup: 'Setup',
+  segment: 'Segment',
+  manual: 'Banner',
+  shots: 'Shots',
+  cue: 'Cue',
 };
 
 /** "3h 15m" / "45m" / "0m" */
@@ -130,6 +146,8 @@ export const SchedulePanel: React.FC = () => {
 
   // Call-sheet printing: the derived sheet for the day being printed, or null.
   const [printSheet, setPrintSheet] = useState<CallSheetData | null>(null);
+  // Whole-view printing for the other tabs: stripboard, calendar, coverage.
+  const [printView, setPrintView] = useState<'stripboard' | 'calendar' | 'coverage' | null>(null);
 
   const sceneNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -171,10 +189,14 @@ export const SchedulePanel: React.FC = () => {
     [sceneNames, setupNames, segmentNames, shotNames]
   );
 
-  // Mount the hidden document, let the browser paint it, print, then unmount.
+  // Mount the hidden print document, let the browser paint it, print, then
+  // unmount. Covers the per-day call sheet and the whole-view printouts.
   useEffect(() => {
-    if (!printSheet) return;
-    const unmount = () => setPrintSheet(null);
+    if (!printSheet && !printView) return;
+    const unmount = () => {
+      setPrintSheet(null);
+      setPrintView(null);
+    };
     window.addEventListener('afterprint', unmount);
     const printTimer = window.setTimeout(() => window.print(), 50);
     const fallbackTimer = window.setTimeout(unmount, 10000);
@@ -183,7 +205,7 @@ export const SchedulePanel: React.FC = () => {
       window.clearTimeout(printTimer);
       window.clearTimeout(fallbackTimer);
     };
-  }, [printSheet]);
+  }, [printSheet, printView]);
 
   /** Blocks not referenced by any day. */
   const pooledBlockIds = useMemo(() => {
@@ -496,6 +518,85 @@ export const SchedulePanel: React.FC = () => {
     setPrintSheet(sheet);
   };
 
+  // --- Whole-view printouts (Board / Timeline / Coverage) ---
+
+  const printableBoardDays = useMemo<PrintableStripboardDay[]>(() => {
+    return days.map((day) => {
+      const items = day.scheduleBlockIds
+        .map((id) => blocks.find((block) => block.id === id))
+        .filter((block): block is ScheduleBlock => Boolean(block))
+        .map((block) => ({
+          label: blockLabel(block, labelCtx),
+          kindLabel: BLOCK_KIND_LABELS[block.kind],
+          minutes: 'estimatedMinutes' in block ? block.estimatedMinutes : undefined,
+        }));
+      return {
+        id: day.id,
+        name: day.name,
+        date: day.date,
+        crewCall: day.crewCall,
+        plannedWrap: day.plannedWrap,
+        items,
+        totalMinutes: items.reduce((sum, item) => sum + (item.minutes ?? 0), 0),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days, blocks, labelCtx]);
+
+  const printableCalendarEvents = useMemo<PrintableCalendarEvent[]>(
+    () =>
+      [...calendarEvents].sort((a, b) => a.startDate.localeCompare(b.startDate)).map((event) => ({
+        title: event.title,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        category: event.category,
+        status: event.status,
+      })),
+    [calendarEvents]
+  );
+
+  const printableCalendarDays = useMemo<PrintableCalendarDay[]>(
+    () =>
+      days.map((day) => ({
+        name: day.name,
+        date: day.date,
+        crewCall: day.crewCall,
+        plannedWrap: day.plannedWrap,
+        totalMinutes: deriveDaySummary(day, blocks).totalEstimatedMinutes,
+      })),
+    [days, blocks]
+  );
+
+  const printableCoverageRows = useMemo<PrintableCoverageRow[]>(() => {
+    const matrix = project.coverageMatrix;
+    if (!matrix) return [];
+    const cues = project.runOfShowCues ?? [];
+    const labelFor = (key: string) =>
+      matrix.rowLabels?.[key] ?? cues.find((cue) => cue.id === key)?.label ?? `Row ${key.slice(0, 6)}`;
+    return matrix.rowKeys.map((key) => ({
+      label: labelFor(key),
+      cells: matrix.cameraIds.map((cameraId) => matrix.cells[key]?.[cameraId] ?? ''),
+    }));
+  }, [project.coverageMatrix, project.runOfShowCues]);
+
+  /** The header Print button prints whatever tab is active. */
+  const handlePrintCurrent = () => {
+    switch (workspaceView) {
+      case 'stripboard':
+        setPrintView('stripboard');
+        break;
+      case 'calendar':
+        setPrintView('calendar');
+        break;
+      case 'callsheets':
+        if (selectedCallSheetDay) requestCallSheetPrint(selectedCallSheetDay);
+        break;
+      case 'coverage':
+        setPrintView('coverage');
+        break;
+    }
+  };
+
   const scheduleScene = (scriptSceneId: string, dayId: string | null, index?: number) => {
     const block: ScheduleBlock = {
       id: createId('block'),
@@ -744,8 +845,23 @@ export const SchedulePanel: React.FC = () => {
       <header className={`shrink-0 border-b ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
         <div className="h-12 px-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0"><div className="w-7 h-7 rounded-md bg-cyan-500 text-slate-950 flex items-center justify-center"><CalendarDays className="w-4 h-4" /></div><div className="min-w-0"><h2 className="text-sm font-black tracking-tight">Production Schedule</h2><p className={`text-[9px] truncate ${mutedText}`}>{days.length} shoot days · {days.reduce((sum, day) => sum + day.scheduleBlockIds.length, 0)} scheduled strips · {pooledBlockIds.length + unscheduledScenes.length + unscheduledSetups.length + unscheduledShots.length} available items</p></div></div>
-          <div className={`flex h-8 rounded-md border p-0.5 ${isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
-            {([['stripboard', LayoutList, 'Board'], ['calendar', CalendarRange, 'Timeline'], ['callsheets', FileCheck2, 'Call sheets'], ['coverage', Users, 'Coverage']] as const).map(([view, Icon, label]) => <button key={view} onClick={() => setWorkspaceView(view)} className={`px-2.5 rounded text-[9px] font-black flex items-center gap-1.5 transition-colors ${workspaceView === view ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-sm' : mutedText}`}><Icon className="w-3.5 h-3.5" />{label}</button>)}
+          <div className="flex items-center gap-2">
+            <div className={`flex h-8 rounded-md border p-0.5 ${isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+              {([['stripboard', LayoutList, 'Board'], ['calendar', CalendarRange, 'Timeline'], ['callsheets', FileCheck2, 'Call sheets'], ['coverage', Users, 'Coverage']] as const).map(([view, Icon, label]) => <button key={view} onClick={() => setWorkspaceView(view)} className={`px-2.5 rounded text-[9px] font-black flex items-center gap-1.5 transition-colors ${workspaceView === view ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-sm' : mutedText}`}><Icon className="w-3.5 h-3.5" />{label}</button>)}
+            </div>
+            <button
+              onClick={handlePrintCurrent}
+              disabled={workspaceView === 'callsheets' && !selectedCallSheetDay}
+              title={
+                workspaceView === 'stripboard' ? 'Print the stripboard (all shooting days)'
+                  : workspaceView === 'calendar' ? 'Print the production calendar'
+                    : workspaceView === 'callsheets' ? 'Print the selected call sheet'
+                      : 'Print the coverage matrix'
+              }
+              className={`h-8 px-2.5 rounded-md border text-[9px] font-black flex items-center gap-1.5 transition-colors disabled:opacity-40 ${isLight ? 'bg-white border-slate-300 hover:border-cyan-500 hover:text-cyan-700' : 'bg-slate-950 border-slate-800 hover:border-cyan-500 hover:text-cyan-400'}`}
+            >
+              <Printer className="w-3.5 h-3.5" />Print
+            </button>
           </div>
         </div>
       </header>
@@ -834,6 +950,29 @@ export const SchedulePanel: React.FC = () => {
       {workspaceView === 'coverage' && <div className="flex-1 min-h-0"><CoverageMatrixEditor /></div>}
 
       {printSheet && createPortal(<div className="call-sheet-print-host"><CallSheetPrintView sheet={printSheet} /></div>, document.body)}
+      {printView === 'stripboard' && createPortal(
+        <div className="schedule-print-host">
+          <StripboardPrintView productionTitle={project.title} company={project.productionCompany} days={printableBoardDays} />
+        </div>,
+        document.body
+      )}
+      {printView === 'calendar' && createPortal(
+        <div className="schedule-print-host">
+          <ScheduleCalendarPrintView productionTitle={project.title} company={project.productionCompany} events={printableCalendarEvents} days={printableCalendarDays} />
+        </div>,
+        document.body
+      )}
+      {printView === 'coverage' && createPortal(
+        <div className="schedule-print-host">
+          <CoverageMatrixPrintView
+            productionTitle={project.title}
+            company={project.productionCompany}
+            cameras={project.coverageMatrix?.cameraIds ?? []}
+            rows={printableCoverageRows}
+          />
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

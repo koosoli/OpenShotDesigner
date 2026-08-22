@@ -186,6 +186,19 @@ export const EquipmentPanel: React.FC = () => {
     if (elementId) selectElement(elementId);
   };
 
+  /** Clicking a gear row selects its element on the floor plan (the reverse of
+   *  canvas -> gear-list highlighting). Controls inside the row keep their own
+   *  behavior; double-click still opens the full editor on top of it. */
+  const handleGearRowClick = (
+    event: React.MouseEvent,
+    item: EquipmentItem | MasterEquipmentItem
+  ) => {
+    if (!resolveItemElementId(item)) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, a, input, select, textarea, label')) return;
+    locateGearOnPlan(item);
+  };
+
   // Mount the hidden patch sheet, let the browser paint it, print, unmount.
   useEffect(() => {
     if (!dmxPrintOpen) return;
@@ -1092,10 +1105,11 @@ export const EquipmentPanel: React.FC = () => {
                         {/* MAIN ITEM ROW */}
                         <tr
                           data-elem-id={resolveItemElementId(item) ?? undefined}
+                          onClick={(e) => handleGearRowClick(e, item)}
                           onDoubleClick={() => {
                             if (isEditable) openEditModal(item);
                           }}
-                          className={`transition-colors group ${
+                          className={`transition-colors group cursor-pointer ${
                             highlightedItemIds.has(item.id)
                               ? isLight
                                 ? '!bg-cyan-100 ring-2 ring-inset ring-cyan-500'
@@ -1887,7 +1901,11 @@ export const EquipmentPanel: React.FC = () => {
                       return (
                         <div
                           key={item.id}
-                          className={`p-3 flex flex-col gap-2 transition-colors ${rowBg}`}
+                          onClick={(e) => handleGearRowClick(e, item)}
+                          onDoubleClick={() => {
+                            if (scope === 'current') openEditModal(item);
+                          }}
+                          className={`p-3 flex flex-col gap-2 transition-colors cursor-pointer ${rowBg}`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
