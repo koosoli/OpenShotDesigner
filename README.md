@@ -34,6 +34,107 @@ A shot exists in four places at once, and every view edits the same thing:
 
 Line a speech in the script and a camera lands on the floor plan, a row appears in the shot list, and a frame appears on the board. Delete that camera and all three go with it.
 
+---
+
+## A look around
+
+Every screenshot below is the app running the bundled example production — the
+one you get by ticking **"Start with the example scenes"**, or from
+**Templates → Fill empty modules with examples** in a project you already have.
+
+### Block the scene, and the shot list writes itself
+
+![Floor plan and shot list](docs/screenshots/floor-plan.png)
+
+Cameras, actors, lights, props and walls on a scaled plan, with movement paths
+drawn as you set them. Each camera on the plan *is* a row in the shot list — and
+a lining in the script, and a frame on the board.
+
+### Line the script for coverage
+
+![Lined script](docs/screenshots/lined-script.png)
+
+Import a screenplay, highlight what a shot covers, and the classic vertical
+lining appears next to the text while a camera lands on the plan.
+
+### Storyboard, from drawings or your own camera
+
+![Storyboard](docs/screenshots/storyboard.png)
+
+One frame per shot — and one per camera keyframe, so a move is boarded at its
+start, each waypoint and its end. Drop artwork in, or shoot the frame through
+the simulated viewfinder with the device camera on the recce.
+
+### The gear list builds itself from the plan
+
+![Equipment manifest](docs/screenshots/equipment.png)
+
+Every camera becomes an expandable package with the scene's actual lenses and
+rig; lights carry their Kelvin, intensity and beam angle; track, props and
+cables all appear automatically. Export as a truck manifest or a spreadsheet.
+
+### Schedule it like an AD
+
+![Stripboard scheduling](docs/screenshots/schedule.png)
+
+A real strip board: shooting days, drag-or-tap placement from the unscheduled
+pool, time estimates, meal and company-move banners, day totals and conflict
+warnings. Scenes, setups *and* individual shots are all schedulable — so a
+project with no screenplay schedules just as well.
+
+### Issue the call sheet
+
+![Call sheet](docs/screenshots/call-sheet.png)
+
+A live paper preview with readiness warnings: crew call, locations with map
+links, scheduled cast, weather, parking, nearest hospital, safety bulletin,
+transport and per-person pick-ups, and a next-day look-ahead.
+
+And this is what comes out of the printer — the same data, laid out for paper:
+
+![Printed call sheet](docs/screenshots/call-sheet-print.png)
+
+### Crew, cast and the key roles
+
+![Crew and cast](docs/screenshots/crew.png)
+
+Assign Director, DP, 1st AD, Gaffer and the rest by role — the same fields the
+scene inspector and every export read, so they cannot drift apart. Cast link to
+screenplay characters, which are detected from the script automatically.
+
+### Power, per truss and per phase
+
+![Power planning](docs/screenshots/power.png)
+
+Sources, circuits and consumers with headroom, load broken down per truss run
+and per distro zone, and 3-phase leg assignment with a balance readout. Unknown
+wattages stay unknown — they are never counted as zero.
+
+### Locations, on a real map
+
+![Locations](docs/screenshots/locations.png)
+
+Drop a pin and the address fills itself in, or geocode from the address. Keyless
+OpenStreetMap, so it works in the static build with no API key.
+
+### Mood boards and the task board
+
+![Mood board](docs/screenshots/moodboard.png)
+
+![Task board](docs/screenshots/tasks.png)
+
+Boards from local files or URLs with a free-form collage and dominant-colour
+palette extraction; and a kanban with due dates, priorities, checklists and crew
+assignees grouped by department.
+
+### Print the whole package
+
+![Export and print studio](docs/screenshots/export.png)
+
+Floor plan, shot list, gear manifest, DMX patch, storyboards, lined script,
+breakdown reports, sides, stripboard, coverage matrix, contact list and mood
+board — in one print job, with your production logo on the paperwork.
+
 ## Features
 
 ### Projects & Setup
@@ -247,6 +348,9 @@ npm run lint
 
 # production build
 npm run build
+
+# regenerate the README screenshots (needs the dev server running)
+node scripts/capture-screenshots.mjs
 
 # preview the production build locally
 npm run preview

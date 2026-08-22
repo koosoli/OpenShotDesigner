@@ -142,11 +142,17 @@
     print-color-adjust: exact !important;
   }
 
-  /* Hide UI navigation, toolbars, and control bars */
-  header,
-  aside,
+  /* Hide UI navigation, toolbars, and control bars.
+
+     These are matched by ID, never by element name. A bare `header`/`aside`
+     rule also matched the <header> masthead of every printable report — call
+     sheet, stripboard, coverage, crew sheet, DMX patch, sides, mood board —
+     so those documents printed with no title block, no production name, no
+     date and no logo. Every piece of app chrome already carries an id, so
+     there is nothing the element selectors caught that these do not. */
   #left-toolbar,
   #top-navbar,
+  #right-sidebar,
   #timeline-bar,
   #floor-plan-canvas-container,
   .print\:hidden {
