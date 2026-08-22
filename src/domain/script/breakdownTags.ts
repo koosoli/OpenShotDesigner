@@ -183,3 +183,51 @@ export const breakdownForScene = (
   );
   return groupBreakdownItems(inScene);
 };
+
+/**
+ * Fill each scene's `breakdownItemIds` from the elements tagged inside it.
+ *
+ * `ScriptScene` has carried `breakdownItemIds` since v1 and every scene report
+ * reads it, but `deriveScriptBreakdown` always returns it empty — the scenes
+ * are derived from the script, and the script does not know about elements.
+ * Rather than storing the scene→element link a second time (it would drift from
+ * `sourceScriptLineIds` the moment a scene is renumbered), resolve it here and
+ * hand the reports scenes that already know what they need (rule 37).
+ *
+ * Ids already on a scene are kept and merged, so a scene that acquires its
+ * elements some other way is not overwritten.
+ */
+export const attachBreakdownItemsToScenes = <T extends ScriptScene>(
+  scenes: readonly T[],
+  lines: readonly BreakdownSourceLine[],
+  items: readonly BreakdownItem[],
+): T[] => {
+  if (items.length === 0) return [...scenes];
+
+  const sceneNumberByLineId = new Map<string, string>();
+  for (const line of lines) {
+    if (line.sceneNumber) sceneNumberByLineId.set(line.id, line.sceneNumber);
+  }
+
+  const itemIdsBySceneNumber = new Map<string, string[]>();
+  for (const item of items) {
+    for (const lineId of item.sourceScriptLineIds ?? []) {
+      const sceneNumber = sceneNumberByLineId.get(lineId);
+      if (!sceneNumber) continue;
+      const bucket = itemIdsBySceneNumber.get(sceneNumber);
+      if (bucket) {
+        if (!bucket.includes(item.id)) bucket.push(item.id);
+      } else {
+        itemIdsBySceneNumber.set(sceneNumber, [item.id]);
+      }
+    }
+  }
+
+  return scenes.map((scene) => {
+    const tagged = itemIdsBySceneNumber.get(scene.sceneNumber);
+    if (!tagged) return scene;
+    const merged = [...scene.breakdownItemIds];
+    for (const id of tagged) if (!merged.includes(id)) merged.push(id);
+    return merged.length === scene.breakdownItemIds.length ? scene : { ...scene, breakdownItemIds: merged };
+  });
+};

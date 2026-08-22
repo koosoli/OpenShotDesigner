@@ -3,6 +3,7 @@ import { SAMPLE_SCENES, SAMPLE_SCREENPLAY } from '../constants/presets';
 import { calculateFovAngle } from './geometry';
 import {
   parseSampleScreenplay,
+  sampleBreakdownItems,
   sampleCastAssignments,
   sampleMarksFor,
   samplePlanningMeta,
@@ -442,6 +443,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
   // The example characters are discovered from the example screenplay and then
   // persisted, so the cast links below stay pointed at stable character ids.
   let sampleCharacters: import('../domain/script').Character[] | undefined;
+  let sampleElements: import('../domain/script').BreakdownItem[] | undefined;
   let castAssignments;
   if (withSamples) {
     scriptLines = parseSampleScreenplay();
@@ -449,6 +451,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
       setup.scriptMarks = sampleMarksFor(setup.id, scriptLines!, setup.sceneNumber);
     });
     sampleCharacters = deriveScriptBreakdown(scriptLines).characters;
+    sampleElements = sampleBreakdownItems(scriptLines);
     castAssignments = sampleCastAssignments(sampleCharacters, scheduleMeta?.people ?? []);
 
     // Link each example actor marker to the script character it plays. The
@@ -506,6 +509,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
           scriptText: SAMPLE_SCREENPLAY,
           scriptLines,
           characters: sampleCharacters,
+          breakdownItems: sampleElements,
           castAssignments,
           ...scheduleMeta,
           ...planningMeta,

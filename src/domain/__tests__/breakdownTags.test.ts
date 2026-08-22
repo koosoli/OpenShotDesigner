@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BreakdownItem, ScriptScene } from '../script/types';
 import {
   BREAKDOWN_CATEGORIES,
+  attachBreakdownItemsToScenes,
   breakdownCategoryLabel,
   breakdownForScene,
   breakdownItemKey,
@@ -161,5 +162,46 @@ describe('breakdownItemKey', () => {
     expect(breakdownItemKey({ category: 'prop', name: ' Ledger ' })).toBe(
       breakdownItemKey({ category: 'prop', name: 'ledger' }),
     );
+  });
+});
+
+describe('attachBreakdownItemsToScenes', () => {
+  const items = [
+    ...tagBreakdownItem([], { category: 'prop', name: 'Ledger', scriptLineIds: ['l1'] }),
+    ...tagBreakdownItem([], { category: 'prop', name: 'Ashtray', scriptLineIds: ['l3'] }),
+    ...tagBreakdownItem([], { category: 'vehicle', name: 'Taxi', scriptLineIds: ['l3'] }),
+  ];
+
+  it('gives each scene the ids of the elements tagged inside it', () => {
+    const attached = attachBreakdownItemsToScenes(scenes, lines, items);
+    const scene4 = attached.find((s) => s.sceneNumber === '4')!;
+    const names = scene4.breakdownItemIds.map((id) => items.find((i) => i.id === id)!.name);
+    expect(names.sort()).toEqual(['Ledger']);
+    const scene9 = attached.find((s) => s.sceneNumber === '9')!;
+    expect(scene9.breakdownItemIds.map((id) => items.find((i) => i.id === id)!.name).sort())
+      .toEqual(['Ashtray', 'Taxi']);
+  });
+
+  it('keeps ids a scene already had rather than replacing them', () => {
+    const seeded = scenes.map((s) => ({ ...s, breakdownItemIds: ['pre-existing'] }));
+    const attached = attachBreakdownItemsToScenes(seeded, lines, items);
+    expect(attached[0].breakdownItemIds[0]).toBe('pre-existing');
+    expect(attached[0].breakdownItemIds.length).toBe(2);
+  });
+
+  it('does not duplicate an id when the same element is tagged twice in one scene', () => {
+    const twice = tagBreakdownItem(
+      tagBreakdownItem([], { category: 'prop', name: 'Ledger', scriptLineIds: ['l1'] }),
+      { category: 'prop', name: 'Ledger', scriptLineIds: ['l2'] },
+    );
+    expect(twice).toHaveLength(1);
+    const attached = attachBreakdownItemsToScenes(scenes, lines, twice);
+    expect(attached.find((s) => s.sceneNumber === '4')!.breakdownItemIds).toHaveLength(1);
+  });
+
+  it('ignores source lines that belong to no scene, and returns scenes untouched when nothing is tagged', () => {
+    const orphaned = tagBreakdownItem([], { category: 'prop', name: 'Cup', scriptLineIds: ['l4'] });
+    expect(attachBreakdownItemsToScenes(scenes, lines, orphaned)[0].breakdownItemIds).toEqual([]);
+    expect(attachBreakdownItemsToScenes(scenes, lines, [])).toEqual(scenes);
   });
 });

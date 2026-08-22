@@ -97,6 +97,7 @@ import {
 import { useMoodboardImageSrcs } from '../moodboard/moodboardAssets';
 import { buildScriptSides, sidesCharacterOptions, splitScenes } from '../../domain/script';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
+import { attachBreakdownItemsToScenes } from '../../domain/script';
 
 export const PrintableShotPlan: React.FC = () => {
   const {
@@ -182,11 +183,17 @@ export const PrintableShotPlan: React.FC = () => {
 
   // Script reports (scene list / characters / locations / DOOD) and the DMX
   // patch sheet are derived here so the print document stays a pure view.
-  const [reportSections, setReportSections] = useState({ scenes: true, characters: true, locations: true, dood: true });
-  const reportBreakdown = React.useMemo(
-    () => deriveScriptBreakdown(scriptLines, project.characters ?? [], project.locations ?? []),
-    [scriptLines, project.characters, project.locations],
-  );
+  const [reportSections, setReportSections] = useState({ scenes: true, characters: true, locations: true, elements: true, dood: true });
+  // Scenes come out of the script with `breakdownItemIds` empty — the script
+  // does not know about elements — so resolve the tagged ones onto them here
+  // rather than storing that link a second time (rule 37).
+  const reportBreakdown = React.useMemo(() => {
+    const derived = deriveScriptBreakdown(scriptLines, project.characters ?? [], project.locations ?? []);
+    return {
+      ...derived,
+      scenes: attachBreakdownItemsToScenes(derived.scenes, scriptLines, project.breakdownItems ?? []),
+    };
+  }, [scriptLines, project.characters, project.locations, project.breakdownItems]);
   const reportCharacterEntries = React.useMemo(
     () => reportBreakdown.characters
       .map((character) => deriveCharacterReport(character.id, {
@@ -1047,7 +1054,7 @@ export const PrintableShotPlan: React.FC = () => {
         {exportSection === 'scriptreports' && (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] uppercase font-bold text-slate-500">Include:</span>
-            {([['scenes', 'Scene list'], ['characters', 'Characters'], ['locations', 'Locations'], ['dood', 'Day out of days']] as const).map(([key, label]) => (
+            {([['scenes', 'Scene list'], ['characters', 'Characters'], ['locations', 'Locations'], ['elements', 'Elements'], ['dood', 'Day out of days']] as const).map(([key, label]) => (
               <label key={key} className="flex items-center gap-1.5 text-[11px] text-slate-300">
                 <input
                   type="checkbox"
@@ -1190,6 +1197,7 @@ export const PrintableShotPlan: React.FC = () => {
                 characterReports={reportCharacterEntries}
                 locations={reportBreakdown.locations}
                 dood={reportDood}
+                breakdownItems={project.breakdownItems}
                 sections={reportSections}
                 logo={project.logo}
               />
@@ -2007,7 +2015,8 @@ export const PrintableShotPlan: React.FC = () => {
                 characterReports={reportCharacterEntries}
                 locations={reportBreakdown.locations}
                 dood={reportDood}
-                sections={{ scenes: true, characters: true, locations: true, dood: true }}
+                breakdownItems={project.breakdownItems}
+                sections={{ scenes: true, characters: true, locations: true, elements: true, dood: true }}
                 logo={project.logo}
               />
             </div>

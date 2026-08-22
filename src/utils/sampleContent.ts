@@ -7,7 +7,8 @@ import {
 import { parseScreenplay } from '../components/script/screenplayParser';
 import { createId } from '../domain/ids';
 import type { CastAssignment, Person } from '../domain/people';
-import type { Character } from '../domain/script';
+import type { BreakdownCategory, BreakdownItem, Character } from '../domain/script';
+import { tagBreakdownItem } from '../domain/script';
 import type { PowerCircuit, PowerConsumer, PowerPlan, PowerSource } from '../domain/power';
 import type { RiggingItem, SuspendedLoad, TrussElement, TrussProfile } from '../domain/rigging';
 import type { Location } from '../domain/locations';
@@ -135,6 +136,44 @@ export const sampleMarksFor = (
       } as ScriptMark;
     })
     .filter((mark): mark is ScriptMark => !!mark);
+};
+
+/**
+ * Breakdown elements for the example screenplay, keyed to the action line each
+ * one is named in. The element half of the breakdown could not be created at
+ * all until this session, so the example production demonstrated an empty
+ * Elements report — which teaches nothing (plan §42).
+ */
+const SAMPLE_BREAKDOWN_TAGS: Array<{ category: BreakdownCategory; name: string; notes?: string; from: string }> = [
+  { category: 'prop', name: 'Ledger', notes: 'Hero prop — Alex turns a page on camera', from: 'Rain on the window' },
+  { category: 'sfx', name: 'Rain on window', notes: 'Rain bar outside the practical window', from: 'Rain on the window' },
+  { category: 'prop', name: 'Coffee table', from: 'coffee table. SARAH' },
+  { category: 'prop', name: 'Tape recorder', notes: 'Must run visibly — period reels', from: 'One lamp over a metal table' },
+  { category: 'special_equipment', name: 'Practical table lamp', notes: 'Dimmable, switched in shot', from: 'One lamp over a metal table' },
+  { category: 'prop', name: 'Handcuffs', notes: 'Quick-release for the performer', from: 'the edge of the pool of light' },
+  { category: 'wardrobe', name: 'Sweat-soaked shirt', notes: 'Three identical copies for continuity', from: 'table ring, shirt dark with sweat' },
+  { category: 'prop', name: 'Photograph', notes: 'Art department to supply the insert', from: 'He sits back down and slides' },
+];
+
+/**
+ * Tag the example elements against a parsed copy of the example screenplay.
+ * Matching by the opening words of an action line is the same trick
+ * `sampleMarksFor` uses: the template cannot know the line ids, which are
+ * generated fresh for every project.
+ */
+export const sampleBreakdownItems = (lines: ScriptLine[]): BreakdownItem[] => {
+  let items: BreakdownItem[] = [];
+  for (const tag of SAMPLE_BREAKDOWN_TAGS) {
+    const line = lines.find((candidate) => candidate.text.startsWith(tag.from));
+    if (!line) continue;
+    items = tagBreakdownItem(items, {
+      category: tag.category,
+      name: tag.name,
+      notes: tag.notes,
+      scriptLineIds: [line.id],
+    });
+  }
+  return items;
 };
 
 export { SAMPLE_DIALOGUE_SCREENPLAY, SAMPLE_NOIR_SCREENPLAY, SAMPLE_SCREENPLAY };
@@ -744,6 +783,18 @@ export const buildExampleProductionFill = (project: Project): ExampleFillResult 
           ? { ...day, callSheet: { ...day.callSheet, pickups: undefined } }
           : day,
       );
+    }
+  }
+
+  // Elements are tagged against the project's OWN script lines. A project
+  // carrying a different screenplay matches nothing and gets nothing, which is
+  // right: an element pointing at a line id from another script is worse than
+  // no element at all.
+  if (!hasItems(project.breakdownItems)) {
+    const elements = sampleBreakdownItems(project.scriptLines ?? []);
+    if (elements.length > 0) {
+      patch.breakdownItems = elements;
+      filled.push('script breakdown elements');
     }
   }
 

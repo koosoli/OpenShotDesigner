@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, CalendarDays, Clapperboard, MapPin, Plus, UserRound, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, Clapperboard, MapPin, Plus, Tag, UserRound, Users } from 'lucide-react';
 
 const DOOD_CELL: Record<DoodWorkStatus, { label: string; className: string; title: string }> = {
   start: { label: 'SW', className: 'bg-emerald-500 text-white', title: 'Start work' },
@@ -16,6 +16,7 @@ import type { DoodWorkStatus } from '../../domain/reports';
 import { deriveScriptBreakdown, parseSceneHeading } from '../../domain/script/logic';
 import { emptySetup } from '../../utils/projectLibrary';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { BreakdownElementsPanel } from './BreakdownElementsPanel';
 
 interface ScriptReportsPanelProps {
   lines: ScriptLine[];
@@ -35,7 +36,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
     setActiveSetupId,
     setActiveRightTab,
   } = useFloorPlan();
-  const [report, setReport] = useState<'characters' | 'locations' | 'dood'>('characters');
+  const [report, setReport] = useState<'characters' | 'locations' | 'elements' | 'dood'>('characters');
 
   const breakdown = useMemo(
     () => deriveScriptBreakdown(lines, project.characters || [], project.locations || []),
@@ -154,6 +155,9 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
             <button onClick={() => setReport('locations')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'locations' ? 'bg-violet-600 text-white' : muted}`}>
               <MapPin className="w-3.5 h-3.5" /> Locations
             </button>
+            <button onClick={() => setReport('elements')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'elements' ? 'bg-violet-600 text-white' : muted}`} title="Props, wardrobe, vehicles and effects tagged in the script">
+              <Tag className="w-3.5 h-3.5" /> Elements
+            </button>
             <button onClick={() => setReport('dood')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'dood' ? 'bg-violet-600 text-white' : muted}`} title="Day out of days: which cast works on which shooting day">
               <CalendarDays className="w-3.5 h-3.5" /> DOOD
             </button>
@@ -209,6 +213,8 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
               </div>
             )}
           </div>
+        ) : report === 'elements' ? (
+          <BreakdownElementsPanel lines={lines} scenes={breakdown.scenes} isLight={isLight} />
         ) : report === 'characters' ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {characterReports.map((entry) => (

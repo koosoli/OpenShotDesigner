@@ -43,6 +43,7 @@ import {
 } from '../../domain/script/logic';
 import { omittedSceneLabel, reconcileScriptLineIds, removeLineOrOmit, restoreScene } from '../../domain/script';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
+import { BreakdownTagControl } from './BreakdownTagControl';
 
 type ScriptWorkspaceView = ScriptFormatMode | 'reports';
 
@@ -394,6 +395,12 @@ export const ScriptPanel: React.FC = () => {
     if (!selection) return null;
     return { ...selection, startOffset: undefined, endOffset: undefined, text: undefined, partial: false };
   }, [textSelection, selection, indexById]);
+
+  /** Every script line the selection touches — what a tagged element points at. */
+  const selectedLineIds = useMemo(() => {
+    if (!effectiveRange) return [];
+    return lines.slice(effectiveRange.from, effectiveRange.to + 1).map((line) => line.id);
+  }, [effectiveRange, lines]);
 
   const selectedSceneNumber = useMemo(() => {
     if (!effectiveRange) return undefined;
@@ -1649,6 +1656,13 @@ export const ScriptPanel: React.FC = () => {
                     ))}
                   </select>
                 )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <BreakdownTagControl
+                  lineIds={selectedLineIds}
+                  selectedText={effectiveRange.text}
+                  isLight={isLight}
+                />
               </div>
             </div>
           )}

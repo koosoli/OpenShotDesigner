@@ -14,6 +14,7 @@ export type { ScriptSides, SidesLine, SidesOptions, SidesScene } from './sides';
 export type { ReconcilableLine } from './reconcile';
 export {
   BREAKDOWN_CATEGORIES,
+  attachBreakdownItemsToScenes,
   breakdownCategoryLabel,
   breakdownCategoryTint,
   breakdownForScene,

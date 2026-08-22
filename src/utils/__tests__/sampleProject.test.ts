@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createProject } from '../projectLibrary';
 import { keyCrewMember } from '../../domain/people';
 import { castPersonIdsForDay } from '../../domain/reports';
+import { attachBreakdownItemsToScenes, scenesForBreakdownItem } from '../../domain/script';
+import { deriveScriptBreakdown } from '../../domain/script/logic';
 
 /**
  * A template project has to demonstrate every module. The first-run project
@@ -36,6 +38,7 @@ describe('sample project content', () => {
     ['rigging items', 'riggingItems'],
     ['characters', 'characters'],
     ['cast assignments', 'castAssignments'],
+    ['breakdown elements', 'breakdownItems'],
   ] as const)('ships example %s', (_label, key) => {
     const value = (project as unknown as Record<string, unknown[]>)[key];
     expect(Array.isArray(value)).toBe(true);
@@ -204,5 +207,32 @@ describe('sample project content', () => {
     const other = createProject({ title: 'Second', withSampleScenes: true });
     const first = new Set((project.people ?? []).map((p) => p.id));
     for (const person of other.people ?? []) expect(first.has(person.id)).toBe(false);
+  });
+});
+
+/**
+ * The example elements are tagged by matching the opening words of an action
+ * line, so a wording change in the sample screenplay silently unhooks them —
+ * the element would still exist but belong to no scene, which is exactly the
+ * failure mode that made the example call sheet list no cast.
+ */
+describe('example breakdown elements reach the scenes they were tagged in', () => {
+  const project = createProject({ title: 'Sample', withSampleScenes: true });
+  const lines = project.scriptLines ?? [];
+  const items = project.breakdownItems ?? [];
+  const scenes = deriveScriptBreakdown(lines).scenes;
+
+  it('tags every example element against a line that still exists', () => {
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(scenesForBreakdownItem(item, lines, scenes).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('covers both example scenes', () => {
+    const attached = attachBreakdownItemsToScenes(scenes, lines, items);
+    for (const scene of attached) {
+      expect(scene.breakdownItemIds.length).toBeGreaterThan(0);
+    }
   });
 });

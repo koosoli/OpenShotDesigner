@@ -1,5 +1,6 @@
 import React from 'react';
-import type { Character, ScriptScene } from '../../domain/script';
+import type { BreakdownItem, Character, ScriptScene } from '../../domain/script';
+import { groupBreakdownItems } from '../../domain/script';
 import type { CharacterReport, DoodColumn, DoodRow, DoodWorkStatus } from '../../domain/reports';
 import type { ScriptLocationBreakdown } from '../../domain/script/logic';
 
@@ -10,7 +11,13 @@ interface ScriptReportsPrintViewProps {
   characterReports: CharacterReport[];
   locations: ScriptLocationBreakdown[];
   dood: { columns: DoodColumn[]; rows: DoodRow[] };
-  sections: { scenes: boolean; characters: boolean; locations: boolean; dood: boolean };
+  /**
+   * Tagged breakdown elements. Scenes must already carry their
+   * `breakdownItemIds` (see `attachBreakdownItemsToScenes`) — this view resolves
+   * ids to names and never works out the scene link itself.
+   */
+  breakdownItems?: BreakdownItem[];
+  sections: { scenes: boolean; characters: boolean; locations: boolean; elements: boolean; dood: boolean };
   /** Production logo (data URL) shown top-right above the report sections. */
   logo?: string;
 }
@@ -31,12 +38,29 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
   characterReports,
   locations,
   dood,
+  breakdownItems = [],
   sections,
   logo,
 }) => {
   const cell = 'border border-slate-300 px-2 py-1 align-top text-[10.5px]';
   const head = `${cell} bg-slate-100 font-bold uppercase tracking-wider text-[9px] text-slate-700`;
   const characterName = (id: string) => characters.find((c) => c.id === id)?.canonicalName ?? '—';
+
+  const itemById = new Map(breakdownItems.map((item) => [item.id, item]));
+  const sceneElementNames = (scene: ScriptScene) =>
+    scene.breakdownItemIds.map((id) => itemById.get(id)?.name).filter((name): name is string => !!name);
+
+  // Which scenes need each element, read back off the scenes so the two
+  // sections of this report can never disagree with each other.
+  const sceneNumbersByItemId = new Map<string, string[]>();
+  for (const scene of scenes) {
+    for (const id of scene.breakdownItemIds) {
+      const bucket = sceneNumbersByItemId.get(id);
+      if (bucket) bucket.push(scene.sceneNumber);
+      else sceneNumbersByItemId.set(id, [scene.sceneNumber]);
+    }
+  }
+  const elementGroups = groupBreakdownItems(breakdownItems);
 
   return (
     <div className="space-y-6">
@@ -59,6 +83,7 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
                 <th className={`${head} w-24`}>Time</th>
                 <th className={`${head} w-16`}>Pages</th>
                 <th className={head}>Cast</th>
+                <th className={head}>Elements</th>
               </tr>
             </thead>
             <tbody>
@@ -73,6 +98,7 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
                   <td className={cell}>{scene.timeOfDay ?? '—'}</td>
                   <td className={`${cell} font-mono`}>{scene.pageLengthEighths !== undefined ? `${scene.pageLengthEighths}/8` : '—'}</td>
                   <td className={cell}>{scene.characterIds.map(characterName).join(', ') || '—'}</td>
+                  <td className={cell}>{sceneElementNames(scene).join(', ') || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -133,6 +159,47 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
               ))}
             </tbody>
           </table>
+        </section>
+      )}
+
+      {sections.elements && (
+        <section className="print-section">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-1 mb-2">
+            Element breakdown · {breakdownItems.length} elements
+          </h3>
+          {elementGroups.length === 0 ? (
+            <p className="text-[10.5px] text-slate-500">
+              Nothing tagged yet — highlight a prop, vehicle or effect in the Script panel and press
+              Tag element.
+            </p>
+          ) : (
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className={`${head} w-40`}>Department</th>
+                  <th className={head}>Element</th>
+                  <th className={head}>Scenes</th>
+                  <th className={head}>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {elementGroups.flatMap((group) =>
+                  group.items.map((item, index) => (
+                    <tr key={item.id} className="break-inside-avoid">
+                      {index === 0 ? (
+                        <td className={`${cell} font-bold uppercase text-[9px] tracking-wider`} rowSpan={group.items.length}>
+                          {group.label}
+                        </td>
+                      ) : null}
+                      <td className={`${cell} font-semibold`}>{item.name}</td>
+                      <td className={`${cell} font-mono`}>{(sceneNumbersByItemId.get(item.id) ?? []).join(', ') || '—'}</td>
+                      <td className={cell}>{item.notes ?? ''}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+          )}
         </section>
       )}
 
