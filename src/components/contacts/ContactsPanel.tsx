@@ -180,8 +180,15 @@ export const ContactsPanel: React.FC = () => {
     () => deriveScriptBreakdown(scriptLines, project.characters ?? [], project.locations ?? []),
     [scriptLines, project.characters, project.locations],
   );
+  // Any person can play a character (assignCast accepts every id); order the
+  // dropdown cast-first, then talent, then everyone else, alphabetical within
+  // each group.
   const performers = useMemo(
-    () => people.filter((person) => person.kind === 'cast' || person.kind === 'talent'),
+    () =>
+      [...people].sort((a, b) => {
+        const rankOf = (person: Person) => (person.kind === 'cast' ? 0 : person.kind === 'talent' ? 1 : 2);
+        return rankOf(a) - rankOf(b) || a.displayName.localeCompare(b.displayName);
+      }),
     [people],
   );
 
@@ -396,7 +403,7 @@ export const ContactsPanel: React.FC = () => {
             <span className={`text-[10px] font-normal ${mutedCls}`}>character → performer (drives DOOD &amp; call-sheet cast)</span>
           </h3>
           {performers.length === 0 && (
-            <p className={`text-[11px] ${mutedCls}`}>Add people with type “Cast” or “Talent” to assign them to characters.</p>
+            <p className={`text-[11px] ${mutedCls}`}>Any person in the directory can be assigned to a character; cast and talent are listed first. Add people to get started.</p>
           )}
           <div className="grid gap-1.5 sm:grid-cols-2">
             {breakdown.characters.map((character) => {
@@ -406,7 +413,14 @@ export const ContactsPanel: React.FC = () => {
                   <span className="font-bold uppercase tracking-wide truncate min-w-0 flex-1">{character.canonicalName}</span>
                   <select value={assigned?.id ?? ''} onChange={(e) => setCast(character.id, e.target.value)} className={`${inputCls} w-40`}>
                     <option value="">— unassigned —</option>
-                    {performers.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+                    {performers.map((person) => {
+                      const hint = person.role ?? person.department;
+                      return (
+                        <option key={person.id} value={person.id}>
+                          {hint ? `${person.displayName} - ${hint}` : person.displayName}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
               );

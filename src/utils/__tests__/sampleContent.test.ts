@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { SAMPLE_SCENES } from '../../constants/presets';
-import { parseSampleScreenplay, sampleMarksFor, samplePlanningMeta, sampleScheduleMeta } from '../sampleContent';
+import {
+  parseSampleScreenplay,
+  sampleMarksFor,
+  samplePlanningMeta,
+  sampleScheduleMeta,
+  SAMPLE_DIALOGUE_SCREENPLAY,
+  SAMPLE_NOIR_SCREENPLAY,
+  SAMPLE_SCREENPLAY,
+} from '../sampleContent';
 
 describe('starter template screenplay', () => {
   it('ships a short screenplay with valid lining for both templates', () => {
@@ -16,6 +24,66 @@ describe('starter template screenplay', () => {
       expect(lines.some((line) => line.id === mark.startLineId)).toBe(true);
       expect(lines.some((line) => line.id === mark.endLineId)).toBe(true);
     }
+  });
+});
+
+describe('bundled template screenplays', () => {
+  it('gives the noir interrogation its own dialogue-heavy screenplay', () => {
+    const lines = parseSampleScreenplay('noir');
+    expect(lines.some((line) => line.type === 'scene' && line.text.startsWith('INT. INTERROGATION ROOM'))).toBe(true);
+    expect(lines.every((line) => !line.text.includes('INT. LIVING ROOM'))).toBe(true);
+
+    let lastCue = '';
+    let detectiveLines = 0;
+    let suspectLines = 0;
+    for (const line of lines) {
+      if (line.type === 'character') lastCue = line.text.toUpperCase();
+      if (line.type === 'dialogue' && lastCue === 'DETECTIVE') detectiveLines += 1;
+      if (line.type === 'dialogue' && lastCue === 'SUSPECT') suspectLines += 1;
+    }
+    expect(detectiveLines).toBeGreaterThanOrEqual(5);
+    expect(suspectLines).toBeGreaterThanOrEqual(5);
+    expect(detectiveLines + suspectLines).toBeGreaterThanOrEqual(10);
+    expect(lines.some((line) => line.type === 'parenthetical')).toBe(true);
+  });
+
+  it('lines each template against its own screenplay', () => {
+    const dialogueLines = parseSampleScreenplay('dialogue');
+    const noirLines = parseSampleScreenplay('noir');
+    const dialogueMarks = sampleMarksFor('setup-dialogue-classic', dialogueLines, '1');
+    const noirMarks = sampleMarksFor('setup-noir-interrogation', noirLines, '2');
+
+    expect(dialogueMarks.length).toBeGreaterThan(0);
+    expect(noirMarks.length).toBeGreaterThan(0);
+    for (const [marks, pool] of [
+      [dialogueMarks, dialogueLines],
+      [noirMarks, noirLines],
+    ] as const) {
+      for (const mark of marks) {
+        expect(pool.some((line) => line.id === mark.startLineId)).toBe(true);
+        expect(pool.some((line) => line.id === mark.endLineId)).toBe(true);
+      }
+    }
+
+    const noirShotIds = new Set(SAMPLE_SCENES[1].shots.map((shot) => shot.id));
+    expect(new Set(noirMarks.map((mark) => mark.shotId))).toEqual(noirShotIds);
+    const dialogueShotIds = new Set(SAMPLE_SCENES[0].shots.map((shot) => shot.id));
+    expect(new Set(dialogueMarks.map((mark) => mark.shotId))).toEqual(dialogueShotIds);
+  });
+
+  it('keeps the combined sample screenplay as both scenes concatenated', () => {
+    expect(SAMPLE_SCREENPLAY).toBe(SAMPLE_DIALOGUE_SCREENPLAY + SAMPLE_NOIR_SCREENPLAY);
+
+    const lines = parseSampleScreenplay();
+    const scenes = lines.filter((line) => line.type === 'scene');
+    expect(scenes.map((scene) => scene.text)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('INT. LIVING ROOM'),
+        expect.stringContaining('INT. INTERROGATION ROOM'),
+      ])
+    );
+    expect(scenes.map((scene) => scene.sceneNumber)).toContain('1');
+    expect(scenes.map((scene) => scene.sceneNumber)).toContain('2');
   });
 });
 

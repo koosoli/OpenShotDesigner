@@ -599,10 +599,11 @@ export const CAMERA_COLOR_PALETTE = [
 
 // Sample Scenes for Film Students & Directors
 /**
- * A page of screenplay that matches the two sample scenes, so a new project
- * started from the templates can be lined straight away.
+ * Screenplays for the bundled sample scenes. Each template ships its own
+ * script so it can be lined straight away on its own, while SAMPLE_SCREENPLAY
+ * keeps both scenes concatenated for projects that carry both templates.
  */
-export const SAMPLE_SCREENPLAY = `1   INT. LIVING ROOM - NIGHT   1
+export const SAMPLE_DIALOGUE_SCREENPLAY = `1   INT. LIVING ROOM - NIGHT   1
 
 Rain on the window. ALEX sits on the sofa, a ledger open on the
 coffee table. SARAH watches him from the armchair.
@@ -628,27 +629,101 @@ Ask your brother.
 She leaves. Alex doesn't move.
 
 CUT TO:
+`;
 
-2   INT. INTERROGATION ROOM - NIGHT   2
+/**
+ * The noir interrogation scene with its own full dialogue pass, so the
+ * per-character tools have real material to work with.
+ */
+export const SAMPLE_NOIR_SCREENPLAY = `2   INT. INTERROGATION ROOM - NIGHT   2
 
-One lamp over a metal table. MARCUS, cuffed, sweating. DET.
-MILLER sits opposite, jacket off.
+One lamp over a metal table. A tape recorder turns slowly at
+the edge of the pool of light. The SUSPECT sits cuffed to the
+table ring, shirt dark with sweat. The DETECTIVE sits opposite,
+jacket off, sleeves rolled.
 
-MILLER
+DETECTIVE
 Twelve minutes. That's how long you were
 in that stairwell.
 
-MARCUS
+SUSPECT
 I was having a smoke.
 
-Miller stands, walks around behind him, and lets him feel it.
+The DETECTIVE leans in and taps the tabletop twice.
 
-MILLER
-Then you won't mind telling me who was
-holding the door.
+DETECTIVE
+(sweet)
+Second floor of a non-smoking building.
 
-Marcus says nothing. The blinds cut the light across his face.
+SUSPECT
+So I broke a rule. Arrest me.
+
+The DETECTIVE stands, walks around behind him, and lets him
+feel it.
+
+DETECTIVE
+Who was holding the door?
+
+SUSPECT
+Nobody held a door.
+
+The DETECTIVE stops. He reaches past the SUSPECT's shoulder
+and switches off the lamp. Just the blind slashes now, blue
+and hard across the room.
+
+DETECTIVE
+(off his shoulder)
+A woman died in that stairwell.
+
+SUSPECT
+(quiet)
+That wasn't me.
+
+DETECTIVE
+Then say it louder.
+
+SUSPECT
+That wasn't me!
+
+DETECTIVE
+There it is. The first honest thing
+out of you all night.
+
+The SUSPECT laughs once, and there is nothing funny in it.
+
+SUSPECT
+You had nothing an hour ago. You have
+nothing now.
+
+DETECTIVE
+I have twelve minutes.
+
+He sits back down and slides a photograph across the metal
+into the light.
+
+SUSPECT
+(not looking at it)
+I want a lawyer.
+
+DETECTIVE
+A lawyer gets you what you had before
+midnight. Talk to me and maybe you
+keep what you have after.
+
+The SUSPECT looks at the photograph. Whatever is on it, he
+does not blink.
+
+SUSPECT
+Turn the lamp back on.
+
+The DETECTIVE clicks the lamp back on and keeps his hand on
+the hot shade a moment longer than he needs to.
+
+DETECTIVE
+Start with the stairwell.
 `;
+
+export const SAMPLE_SCREENPLAY = SAMPLE_DIALOGUE_SCREENPLAY + SAMPLE_NOIR_SCREENPLAY;
 
 export const SAMPLE_SCENES: SceneSetup[] = [
   /**
@@ -1033,8 +1108,8 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'actor-suspect',
         type: 'actor',
-        name: 'MARCUS',
-        characterLetter: 'M',
+        name: 'SUSPECT',
+        characterLetter: 'S',
         color: '#ef4444',
         x: 320,
         y: 330,
@@ -1046,14 +1121,14 @@ export const SAMPLE_SCENES: SceneSetup[] = [
       {
         id: 'actor-detective',
         type: 'actor',
-        name: 'MILLER',
+        name: 'DETECTIVE',
         characterLetter: 'D',
         color: '#3b82f6',
         x: 500,
         y: 330,
         rotation: 180,
         isStanding: false,
-        actionNotes: 'Gets up on beat 2 and comes round behind Marcus.',
+        actionNotes: 'Gets up on beat 2 and comes round behind the suspect.',
         path: [{ id: 'wp-d2', x: 330, y: 240, rotation: 135, beat: 2, dialogueCue: 'circles behind him' }],
       },
 
@@ -1134,7 +1209,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         id: 'shot-2a',
         sceneNumber: '2',
         shotNumber: '2/1',
-        name: 'Marcus — low angle push in',
+        name: 'Suspect — low angle push in',
         cameraId: 'noir-cam-a',
         cameraLabel: 'A',
         shotSize: 'CU',
@@ -1145,8 +1220,8 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         frameRate: 24,
         subjectActorIds: ['actor-suspect'],
         equipmentNotes: '35mm at T1.5',
-        framingDescription: 'Low angle close-up, Marcus alone in the pool of light.',
-        actionScriptNotes: 'He says nothing.',
+        framingDescription: 'Low angle close-up, the suspect alone in the pool of light.',
+        actionScriptNotes: 'Push in as he breaks.',
         status: 'ready',
         takesCount: 0,
         estDurationSeconds: 30,
@@ -1168,7 +1243,7 @@ export const SAMPLE_SCENES: SceneSetup[] = [
         subjectActorIds: ['actor-suspect', 'actor-detective'],
         equipmentNotes: '28mm handheld, slight dutch',
         framingDescription: 'Both in profile, blind slashes across the back wall.',
-        actionScriptNotes: 'Miller circles him on beat 2.',
+        actionScriptNotes: 'Detective circles him on beat 2.',
         status: 'planned',
         takesCount: 0,
         estDurationSeconds: 40,

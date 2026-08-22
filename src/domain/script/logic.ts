@@ -365,6 +365,79 @@ export const deriveScriptBreakdown = (
 };
 
 // ---------------------------------------------------------------------------
+// Character dialogue lookup (speech bubbles / sides)
+// ---------------------------------------------------------------------------
+
+/** One spoken dialogue line attributed to a character, for pickers. */
+export interface CharacterDialogueLine {
+  /** Source screenplay line id (stable, globally unique). */
+  lineId: string;
+  /** Scene number of the enclosing slugline, when known. */
+  sceneNumber?: string;
+  text: string;
+}
+
+const cueMatchesCharacter = (cue: string, canonicalName: string, aliases: string[]): boolean => {
+  const key = normalizedName(cue);
+  if (!key) return false;
+  if (normalizedName(canonicalName) === key) return true;
+  return aliases.some((alias) => normalizedName(alias) === key);
+};
+
+/**
+ * Collect all dialogue lines spoken by one character, in script order.
+ *
+ * A run of dialogue/parenthetical lines belongs to the most recent cue;
+ * any other line kind ends the run. Omitted scenes are skipped.
+ * Pure and deterministic; empty when the name matches nothing.
+ */
+export const collectCharacterDialogue = (
+  lines: ScriptBreakdownLine[],
+  canonicalName: string,
+  aliases: string[] = [],
+): CharacterDialogueLine[] => {
+  if (!normalizedName(canonicalName)) return [];
+
+  const out: CharacterDialogueLine[] = [];
+  let sceneNumber: string | undefined;
+  let sceneOmitted = false;
+  let speaking = false;
+
+  for (const line of lines) {
+    const text = (line.text || '').replace(/\s+/g, ' ').trim();
+    if (line.type === 'scene') {
+      sceneOmitted = !!line.omitted;
+      if (!sceneOmitted) sceneNumber = line.sceneNumber;
+      speaking = false;
+      continue;
+    }
+    if (sceneOmitted || line.omitted) continue;
+    if (!text) continue;
+    if (line.type === 'character') {
+      speaking = cueMatchesCharacter(
+        normalizeCharacterName(line.text).canonicalName,
+        canonicalName,
+        aliases,
+      );
+      continue;
+    }
+    if (!speaking) continue;
+    if (line.type === 'parenthetical') continue;
+    if (line.type === 'dialogue') {
+      out.push({
+        lineId: line.id,
+        ...(sceneNumber !== undefined ? { sceneNumber } : {}),
+        text,
+      });
+    } else {
+      speaking = false;
+    }
+  }
+
+  return out;
+};
+
+// ---------------------------------------------------------------------------
 // Suggestions
 // ---------------------------------------------------------------------------
 

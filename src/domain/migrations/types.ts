@@ -1,7 +1,7 @@
 import type { Project } from '../../types';
 
 /** Current persisted project schema version. Bump on every schema change. */
-export const CURRENT_PROJECT_SCHEMA_VERSION = 13;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 15;
 
 export interface MigrationResult {
   project: Project;

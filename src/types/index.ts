@@ -54,6 +54,8 @@ export interface ActorElement extends BaseElement {
   type: 'actor';
   characterLetter: string; // e.g. "A", "B", "JOHN", "SARAH"
   characterName?: string;
+  /** Script `Character.id` this marker plays (optional; absent = not linked / no script). */
+  characterId?: string;
   color: string;
   heightCm?: number;
   isStanding: boolean; // standing or seated
@@ -474,6 +476,15 @@ export interface PlanGroup {
   id: string;
   name?: string;
   childIds: string[];
+  /**
+   * Group animation keyframes (v14). Optional and absent-safe; reuses the
+   * Waypoint shape with group-specific semantics:
+   * - x/y = GROUP PIVOT position at that beat (not any member's position),
+   * - rotation = ROTATION DELTA in degrees relative to the members' base pose.
+   */
+  path?: Waypoint[];
+  /** Pivot (bbox centre of members) captured when the first keyframe was added. */
+  basePivot?: { x: number; y: number };
 }
 
 /** Plan layer defaults (plan §6.1). */

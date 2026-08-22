@@ -416,6 +416,25 @@ export const cloneProjectWithNewIds = (
     ...cloneProductionCollections(project, lineIdMap),
   };
 
+  // Actor markers reference project-level script characters; follow the
+  // character id remap (same collection order, so zip old → new ids).
+  if (project.characters && next.characters) {
+    const characterIdMap = new Map<string, string>();
+    project.characters.forEach((character, index) => {
+      const cloned = next.characters?.[index];
+      if (cloned) characterIdMap.set(character.id, cloned.id);
+    });
+    if (characterIdMap.size > 0) {
+      for (const setup of next.setups) {
+        for (const element of setup.elements) {
+          if (element.type === 'actor' && element.characterId) {
+            element.characterId = remap(characterIdMap, element.characterId);
+          }
+        }
+      }
+    }
+  }
+
   // Named revisions capture the ORIGINAL project's state — they must not leak
   // into the duplicate (their snapshots reference foreign entity ids). Same
   // for the coverage matrix, which is keyed by cue ids that were just remapped.

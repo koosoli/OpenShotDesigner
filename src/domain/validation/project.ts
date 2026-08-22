@@ -144,6 +144,18 @@ export const validateProject = (project: Project): ValidationIssue[] => {
     }
   }
 
+  const characterIds = new Set<string>();
+  for (const character of project.characters || []) {
+    characterIds.add(character.id);
+  }
+  for (const setup of project.setups) {
+    for (const element of setup.elements) {
+      if (element.type === 'actor' && element.characterId && !characterIds.has(element.characterId)) {
+        issues.push(issue('warning', 'DANGLING_CHARACTER_REF', `Actor "${element.name}" references missing script character "${element.characterId}".`, element.id));
+      }
+    }
+  }
+
   const calendarEventIds = new Set<string>();
   for (const event of project.productionCalendarEvents ?? []) {
     if (calendarEventIds.has(event.id)) {

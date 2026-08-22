@@ -9,9 +9,11 @@ import {
   FloorPlanElement,
   LightElement,
   PropElement,
+  SceneSetup,
   ShapeElement,
   Shot,
   ShapeType,
+  StrokeElement,
   TextElement,
   TrackElement,
   WallElement,
@@ -38,6 +40,8 @@ import {
 import { validateConnectionCompatibility } from '../../domain/cable';
 import { cloneSetupWithNewIds } from '../../domain/clone';
 import { createId } from '../../domain/ids';
+import { collectCharacterDialogue, deriveScriptBreakdown } from '../../domain/script/logic';
+import { bakeGroupRotation, groupPivotOf } from '../../domain/plan';
 import { impliedEndpointInfo, impliedSignalTypeForCableType } from '../../domain/cable/cableTypeSignals';
 import { flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
 import { LayersPanel } from '../canvas/LayersPanel';
@@ -735,6 +739,17 @@ export const InspectorPanel: React.FC = () => {
   const selectClass = `w-full border rounded px-1.5 py-1 text-[11px] ${
     isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
   }`;
+
+  // Script characters (persisted catalog merged with cues detected in the
+  // attached screenplay) for linking actor markers; empty when no script.
+  const scriptCharacters = React.useMemo(
+    () => deriveScriptBreakdown(
+      project.scriptLines || [],
+      project.characters || [],
+      project.locations || [],
+    ).characters,
+    [project.scriptLines, project.characters, project.locations],
+  );
 
   // --- Location link (plan §4.13 semantic links + §13 master plans) ---
 
@@ -1629,6 +1644,7 @@ export const InspectorPanel: React.FC = () => {
               </span>
               <div className="grid grid-cols-2 gap-1.5">
                 <PillToggle on={displaySettings.showActorLabels} onClick={() => updateDisplaySettings({ showActorLabels: !displaySettings.showActorLabels })} label="Actors" isLight={isLight} />
+                <PillToggle on={displaySettings.showCharacterNames !== false} onClick={() => updateDisplaySettings({ showCharacterNames: displaySettings.showCharacterNames === false })} label="Character names" isLight={isLight} />
                 <PillToggle on={displaySettings.showCameraLabels} onClick={() => updateDisplaySettings({ showCameraLabels: !displaySettings.showCameraLabels })} label="Cameras" isLight={isLight} />
                 <PillToggle on={displaySettings.showPropLabels} onClick={() => updateDisplaySettings({ showPropLabels: !displaySettings.showPropLabels })} label="Props" isLight={isLight} />
                 <PillToggle on={displaySettings.showTrackLabels} onClick={() => updateDisplaySettings({ showTrackLabels: !displaySettings.showTrackLabels })} label="Tracks" isLight={isLight} />
@@ -1997,6 +2013,42 @@ export const InspectorPanel: React.FC = () => {
   // Multi-element selection
   if (selectedElementIds.length > 1) {
     const allLocked = selectedElementIds.every((id) => activeSetup.elements.find((e) => e.id === id)?.locked);
+
+    // The one plan group whose full member set equals this selection.
+    const activeGroup = (activeSetup.groups || []).find(
+      (group) =>
+        selectedElementIds.length >= 2 &&
+        group.childIds.length === selectedElementIds.length &&
+        selectedElementIds.every((id) => group.childIds.includes(id)),
+    );
+    const persistGroups = (groups: SceneSetup['groups']) => updateSetupMeta({ groups } as Partial<SceneSetup>);
+    const groupMemberPoses = (transformed: FloorPlanElement): Record<string, unknown> => {
+      const patch: Record<string, unknown> = { x: transformed.x, y: transformed.y, rotation: transformed.rotation };
+      if ('x2' in transformed) {
+        patch.x2 = (transformed as WallElement).x2;
+        patch.y2 = (transformed as WallElement).y2;
+      }
+      if (transformed.type === 'stroke') {
+        patch.points = (transformed as StrokeElement).points;
+      } else if ('path' in transformed) {
+        patch.path = (transformed as { path?: Waypoint[] }).path;
+      }
+      return patch;
+    };
+    /** Whole-group rigid rotate around the shared pivot (falls back to per-element spins). */
+    const rotateMultiSelection = (delta: number) => {
+      if (!activeGroup) {
+        selectedElementIds.forEach((id) => rotateElementBy(id, delta));
+        return;
+      }
+      const baked = bakeGroupRotation(activeSetup.elements, activeGroup.childIds, delta);
+      const updates: { id: string; updates: Partial<FloorPlanElement> }[] = [];
+      activeSetup.elements.forEach((el, index) => {
+        const nextEl = baked[index];
+        if (nextEl !== el) updates.push({ id: el.id, updates: groupMemberPoses(nextEl) as Partial<FloorPlanElement> });
+      });
+      if (updates.length > 0) updateMultipleElements(updates, true);
+    };
     return (
       <div
         id="inspector-panel-multi"
@@ -2066,25 +2118,133 @@ export const InspectorPanel: React.FC = () => {
           <label className="text-[10px] font-bold uppercase opacity-60 block">Rotate Selection</label>
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => selectedElementIds.forEach((id) => rotateElementBy(id, -45))}
+              onClick={() => rotateMultiSelection(-45)}
               className={`py-2 px-3 border rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors ${
                 isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Rotate -45°</span>
+              <span>Rotate -45&deg;</span>
             </button>
             <button
-              onClick={() => selectedElementIds.forEach((id) => rotateElementBy(id, 45))}
+              onClick={() => rotateMultiSelection(45)}
               className={`py-2 px-3 border rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors ${
                 isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
             >
               <RotateCw className="w-3.5 h-3.5" />
-              <span>Rotate +45°</span>
+              <span>Rotate +45&deg;</span>
             </button>
           </div>
         </div>
+
+        {/* Plan group: rigid rotate + shared keyframe animation */}
+        {(() => {
+          if (!activeGroup) {
+            return (
+              <p className="text-[10px] opacity-50 leading-snug">
+                Tip: group items (right-click &gt; Group) to rotate them around a shared pivot and animate them together with keyframes.
+              </p>
+            );
+          }
+          const keyframes = (activeGroup.path || []).slice().sort((a, b) => a.beat - b.beat);
+          const nextBeat = Math.max(2, ...keyframes.map((wp) => wp.beat + 1));
+          const addGroupKeyframe = () => {
+            const members = activeGroup.childIds
+              .map((id) => activeSetup.elements.find((el) => el.id === id))
+              .filter((el): el is FloorPlanElement => !!el);
+            const pivot = groupPivotOf(members);
+            if (!pivot) return;
+            const carried = keyframes.length > 0 ? (keyframes[keyframes.length - 1].rotation ?? 0) : 0;
+            persistGroups([
+              ...(activeSetup.groups || []).map((g) =>
+                g.id !== activeGroup.id
+                  ? g
+                  : { ...g, path: [...(g.path || []), { id: createId('gpwp'), x: Math.round(pivot.x), y: Math.round(pivot.y), beat: nextBeat, rotation: carried }] },
+              ),
+            ]);
+            if (nextBeat > (activeSetup.totalBeats || 1)) updateSetupMeta({ totalBeats: nextBeat });
+          };
+          const updateGroupKeyframe = (wpId: string, patch: Partial<Waypoint>) => {
+            persistGroups(
+              (activeSetup.groups || []).map((g) =>
+                g.id !== activeGroup.id
+                  ? g
+                  : { ...g, path: (g.path || []).map((wp) => (wp.id === wpId ? { ...wp, ...patch } : wp)) },
+              ),
+            );
+          };
+          const deleteGroupKeyframe = (wpId: string) => {
+            persistGroups(
+              (activeSetup.groups || []).map((g) =>
+                g.id !== activeGroup.id
+                  ? g
+                  : { ...g, path: (g.path || []).filter((wp) => wp.id !== wpId) },
+              ),
+            );
+          };
+          return (
+            <>
+              <div className="space-y-1.5 pt-2">
+                <label className="text-[10px] font-bold uppercase opacity-60 block">
+                  Group ({activeGroup.childIds.length} items)
+                </label>
+                <p className="text-[10px] opacity-50 leading-snug">
+                  Rotation turns the whole group around its shared pivot. Keyframes move/rotate every member together during playback.
+                </p>
+                <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                  {keyframes.length === 0 && (
+                    <p className="text-[10px] opacity-50">No keyframes yet.</p>
+                  )}
+                  {keyframes.map((wp) => (
+                    <div
+                      key={wp.id}
+                      className={`flex items-center gap-1.5 p-1 rounded border ${
+                        isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'
+                      }`}
+                    >
+                      <span className="w-6 text-[10px] font-mono font-bold text-sky-500">B{wp.beat}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={wp.beat}
+                        onChange={(e) => updateGroupKeyframe(wp.id, { beat: Math.max(1, Math.round(Number(e.target.value)) || 1) })}
+                        title="Beat"
+                        aria-label={`Group keyframe beat (currently ${wp.beat})`}
+                        className={`w-12 border rounded px-1 py-0.5 text-[10px] font-mono ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}
+                      />
+                      <input
+                        type="number"
+                        value={Math.round(wp.rotation ?? 0)}
+                        onChange={(e) => updateGroupKeyframe(wp.id, { rotation: Number(e.target.value) || 0 })}
+                        title="Rotation delta at this keyframe (degrees)"
+                        aria-label="Group keyframe rotation delta in degrees"
+                        className={`flex-1 min-w-0 border rounded px-1 py-0.5 text-[10px] font-mono ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}
+                      />
+                      <span className="text-[9px] opacity-50">deg</span>
+                      <button
+                        onClick={() => deleteGroupKeyframe(wp.id)}
+                        title="Delete keyframe"
+                        aria-label="Delete group keyframe"
+                        className="p-1 rounded text-red-500 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={addGroupKeyframe}
+                  className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
+                    isLight ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' : 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border-slate-700'
+                  }`}
+                >
+                  + Add Group Keyframe (Beat {nextBeat})
+                </button>
+              </div>
+            </>
+          );
+        })()}
 
         {/* Align & Distribute tools */}
         <div className="space-y-3 pt-2">
@@ -2984,6 +3144,20 @@ export const InspectorPanel: React.FC = () => {
                 : [...cues, { id: createId('speech'), beat, text }];
             updateElement(actor.id, { speechCues: next });
           };
+          const linkedCharacter = scriptCharacters.find((c) => c.id === actor.characterId);
+          const nameMatchedCharacter = !linkedCharacter && (actor.characterName || '').trim()
+            ? scriptCharacters.find((c) =>
+                c.canonicalName === actor.characterName?.trim().toUpperCase() ||
+                c.aliases.some((alias) => alias.toUpperCase() === actor.characterName?.trim().toUpperCase()))
+            : undefined;
+          const effectiveCharacter = linkedCharacter ?? nameMatchedCharacter;
+          const scriptedLines = effectiveCharacter
+            ? collectCharacterDialogue(
+                project.scriptLines || [],
+                effectiveCharacter.canonicalName,
+                effectiveCharacter.aliases,
+              )
+            : [];
           return (
             <div className="space-y-3 pt-1">
               {/* Rubric 1: Character & Stance */}
@@ -3000,6 +3174,34 @@ export const InspectorPanel: React.FC = () => {
                 defaultOpen={true}
                 isLight={isLight}
               >
+                <div>
+                  <label className="opacity-60 block mb-1">Script Character</label>
+                  {scriptCharacters.length > 0 ? (
+                    <select
+                      value={actor.characterId || ''}
+                      onChange={(event) => {
+                        const picked = scriptCharacters.find((c) => c.id === event.target.value);
+                        updateElement(actor.id, {
+                          characterId: picked?.id,
+                          ...(picked ? { characterName: picked.canonicalName } : {}),
+                        });
+                      }}
+                      className={selectClass}
+                    >
+                      <option value="">Not from script / free text</option>
+                      {scriptCharacters.map((character) => (
+                        <option key={character.id} value={character.id}>
+                          {character.canonicalName}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-[10px] opacity-50 leading-snug">
+                      No script attached - name the character freely below.
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="opacity-60 block mb-1">Character Name / ID</label>
                   <input
@@ -3090,6 +3292,9 @@ export const InspectorPanel: React.FC = () => {
               >
                 <p className="text-[10px] opacity-60 mb-2">
                   Dialogue follows the timeline even when the actor does not move. Empty beats stay silent.
+                  {effectiveCharacter && scriptedLines.length > 0
+                    ? ` Scripted lines for ${effectiveCharacter.canonicalName} can be picked per beat.`
+                    : ''}
                 </p>
                 <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                   {Array.from({ length: Math.max(1, playback.totalBeats) }, (_, index) => index + 1).map((beat) => {
@@ -3098,23 +3303,48 @@ export const InspectorPanel: React.FC = () => {
                     return (
                       <div
                         key={beat}
-                        className={`flex items-center gap-2 p-1.5 rounded-lg border ${
+                        className={`rounded-lg border ${
                           active
                             ? 'border-emerald-500/60 bg-emerald-500/10'
                             : isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'
                         }`}
                       >
-                        <span className={`w-7 text-[10px] font-mono font-bold ${active ? 'text-emerald-500' : 'opacity-50'}`}>B{beat}</span>
-                        <input
-                          type="text"
-                          value={cue?.text || ''}
-                          onChange={(event) => updateActorSpeech(beat, event.target.value)}
-                          placeholder={beat === 1 ? 'What does the actor say?' : 'Silent beat'}
-                          aria-label={`${actor.name} speech at beat ${beat}`}
-                          className={`flex-1 min-w-0 border rounded-md px-2 py-1 text-[11px] ${
-                            isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
-                          }`}
-                        />
+                        <div className="flex items-center gap-2 p-1.5">
+                          <span className={`w-7 text-[10px] font-mono font-bold ${active ? 'text-emerald-500' : 'opacity-50'}`}>B{beat}</span>
+                          <input
+                            type="text"
+                            value={cue?.text || ''}
+                            onChange={(event) => updateActorSpeech(beat, event.target.value)}
+                            placeholder={beat === 1 ? 'What does the actor say?' : 'Silent beat'}
+                            aria-label={`${actor.name} speech at beat ${beat}`}
+                            className={`flex-1 min-w-0 border rounded-md px-2 py-1 text-[11px] ${
+                              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+                            }`}
+                          />
+                        </div>
+                        {scriptedLines.length > 0 && (
+                          <select
+                            value=""
+                            onChange={(event) => {
+                              const pickedLine = scriptedLines.find((line) => line.lineId === event.target.value);
+                              if (pickedLine) updateActorSpeech(beat, pickedLine.text);
+                            }}
+                            aria-label={`Pick a scripted line for ${actor.name} at beat ${beat}`}
+                            className={`w-full px-2 py-1 mb-1.5 mx-1 text-[10px] rounded-md border cursor-pointer ${
+                              isLight ? 'bg-white text-slate-600 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-700'
+                            }`}
+                            style={{ width: 'calc(100% - 0.5rem)' }}
+                          >
+                            <option value="">Pick line from script...</option>
+                            {scriptedLines.map((line, lineIndex) => (
+                              <option key={line.lineId} value={line.lineId}>
+                                {(line.sceneNumber ? `Sc${line.sceneNumber} ` : '') +
+                                  `#${lineIndex + 1} ` +
+                                  (line.text.length > 58 ? `${line.text.slice(0, 55)}...` : line.text)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     );
                   })}

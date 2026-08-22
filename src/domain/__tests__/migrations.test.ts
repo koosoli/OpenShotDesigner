@@ -133,7 +133,7 @@ describe('migrateProject', () => {
     expect(project.setups[0].scriptLines).toBeUndefined();
   });
 
-  it('migrates a v12 project to v13 without touching any content', () => {
+  it('migrates a v12 project to the current version without touching any content', () => {
     const raw = {
       ...buildLegacyRaw(),
       schemaVersion: 12,
@@ -142,12 +142,176 @@ describe('migrateProject', () => {
     };
     const { project, migratedFrom } = migrateProject(structuredClone(raw));
     expect(migratedFrom).toBe(12);
-    expect(project.schemaVersion).toBe(13);
+    expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     const { schemaVersion: _v, ...rest } = project as unknown as Record<string, unknown>;
     const { schemaVersion: _r, ...rawRest } = raw as unknown as Record<string, unknown>;
     expect(rest).toEqual(rawRest);
     expect(project.scriptLines?.[0].omitted).toBeUndefined();
     expect(project.moodBoards?.[0].cards[0].collageLayout).toBeUndefined();
+  });
+
+  it('migrates v13 groups to v14 without inventing animation data', () => {
+    const raw = {
+      ...buildLegacyRaw(),
+      schemaVersion: 13,
+      setups: [{
+        ...(buildLegacyRaw().setups as Record<string, unknown>[])[0],
+        groups: [
+          // Valid path: kept verbatim (plus beat coercion); basePivot kept.
+          {
+            id: 'group-keep',
+            childIds: ['a', 'b'],
+            path: [
+              { x: 10, y: 20, beat: 2 },
+              { x: 5, y: 5, beat: 1, rotation: 90, note: 'extra stays' },
+              // Junk below is dropped during normalization.
+              { x: Number.NaN, y: 3, beat: 3 },
+              { x: 7, y: 7, beat: Number.NaN },
+            ],
+            basePivot: { x: 6.5, y: 12.5 },
+          },
+          // No animation data: nothing invented.
+          { id: 'group-plain', childIds: [] },
+          // Invalid path only: both path and basePivot are dropped.
+          { id: 'group-invalid', childIds: ['c'], path: [{ x: 'x', y: 1, beat: 1 }], basePivot: { x: 1, y: 2 } },
+        ],
+      }],
+    };
+    const { project } = migrateProject(structuredClone(raw));
+    expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+
+    const groups = (project.setups[0] as unknown as { groups: Record<string, unknown>[] }).groups;
+    expect(groups).toHaveLength(3);
+
+    const [kept, plain, invalid] = groups;
+    expect(kept.path).toEqual([
+      { x: 5, y: 5, beat: 1, rotation: 90, note: 'extra stays' },
+      { x: 10, y: 20, beat: 2 },
+    ]);
+    expect(kept.basePivot).toEqual({ x: 6.5, y: 12.5 });
+    expect('path' in plain).toBe(false);
+    expect('basePivot' in plain).toBe(false);
+    expect(invalid.id).toBe('group-invalid');
+    expect('path' in invalid).toBe(false);
+    expect('basePivot' in invalid).toBe(false);
+  });
+
+  it('keeps v13 projects without group animation data losslessly unchanged', () => {
+    const raw = {
+      ...buildLegacyRaw(),
+      schemaVersion: 13,
+      setups: [{
+        ...(buildLegacyRaw().setups as Record<string, unknown>[])[0],
+        groups: [
+          { id: 'group-a', name: 'Dining set', childIds: ['a', 'b'] },
+          { id: 'group-b', childIds: [] },
+        ],
+      }],
+    };
+    const { project } = migrateProject(structuredClone(raw));
+    expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    const { schemaVersion: _v, ...rest } = project as unknown as Record<string, unknown>;
+    const { schemaVersion: _r, ...rawRest } = raw as unknown as Record<string, unknown>;
+    expect(rest).toEqual(rawRest);
+    const groups = (project.setups[0] as unknown as { groups: Record<string, unknown>[] }).groups;
+    expect('path' in groups[0]).toBe(false);
+    expect('basePivot' in groups[0]).toBe(false);
+  });
+
+  it('normalizes messy group paths: coerces beats, dedupes last, strips junk', () => {
+    const raw = {
+      ...buildLegacyRaw(),
+      schemaVersion: 13,
+      setups: [{
+        ...(buildLegacyRaw().setups as Record<string, unknown>[])[0],
+        groups: [
+          {
+            id: 'group-messy',
+            childIds: ['a'],
+            basePivot: { x: 12, y: 34 },
+            path: [
+              { id: 'w3', x: 30, y: 30, rotation: 90, beat: 3 },
+              { id: 'w-nan-x', x: Number.NaN, y: 20, beat: 2 }, // dropped: non-finite x
+              { id: 'w-inf-y', x: 1, y: Number.POSITIVE_INFINITY, beat: 9 }, // dropped
+              { id: 'w-nobeat', x: 5, y: 5 }, // dropped: un-coercible beat
+              'garbage', // dropped: not a waypoint record
+              { id: 'w-zero', x: 10, y: 10, beat: 0 }, // beat coerced to 1
+              { id: 'w-dup-a', x: 21, y: 21, beat: 2 }, // superseded by w-dup-b
+              { id: 'w-dup-b', x: 22, y: 22, rotation: 400, beat: 2 },
+              { id: 'w-str-rot', x: 40, y: 40, rotation: 'oops', beat: 4 }, // rotation stripped
+            ],
+          },
+        ],
+      }],
+    };
+    const { project } = migrateProject(structuredClone(raw));
+    const groups = (project.setups[0] as unknown as { groups: Array<Record<string, unknown>> }).groups;
+    expect(groups).toHaveLength(1);
+    const messy = groups[0];
+    expect(messy.basePivot).toEqual({ x: 12, y: 34 });
+    expect(messy.path).toEqual([
+      // Ascending by beat; identical beats keep the LAST occurrence.
+      { id: 'w-zero', x: 10, y: 10, beat: 1 },
+      { id: 'w-dup-b', x: 22, y: 22, rotation: 400, beat: 2 },
+      { id: 'w3', x: 30, y: 30, rotation: 90, beat: 3 },
+      // Non-finite optional rotation stripped; the waypoint itself survives.
+      { id: 'w-str-rot', x: 40, y: 40, beat: 4 },
+    ]);
+  });
+
+  it('drops basePivot whenever no usable path remains', () => {
+    const raw = {
+      ...buildLegacyRaw(),
+      schemaVersion: 13,
+      setups: [{
+        ...(buildLegacyRaw().setups as Record<string, unknown>[])[0],
+        groups: [
+          { id: 'g-empty-path', childIds: [], path: [], basePivot: { x: 5, y: 5 } },
+          { id: 'g-orphan-pivot', childIds: [], basePivot: { x: 1, y: 2 } },
+          { id: 'g-path-not-array', childIds: [], path: 'nope', basePivot: { x: 7, y: 7 } },
+          { id: 'g-bad-pivot', childIds: ['c'], path: [{ id: 'w1', x: 1, y: 1, beat: 1 }], basePivot: { x: Number.NaN, y: 0 } },
+          { id: 'g-negative-beat', childIds: ['c'], path: [{ id: 'w2', x: 2, y: 2, beat: -7 }] },
+        ],
+      }],
+    };
+    const { project } = migrateProject(structuredClone(raw));
+    const groups = (project.setups[0] as unknown as { groups: Array<Record<string, unknown>> }).groups;
+    expect(groups).toHaveLength(5);
+    for (const id of ['g-empty-path', 'g-orphan-pivot', 'g-path-not-array']) {
+      const g = groups.find((entry) => entry.id === id)!;
+      expect('path' in g).toBe(false);
+      expect('basePivot' in g).toBe(false);
+    }
+    const badPivot = groups.find((entry) => entry.id === 'g-bad-pivot')!;
+    expect(badPivot.path).toEqual([{ id: 'w1', x: 1, y: 1, beat: 1 }]);
+    expect('basePivot' in badPivot).toBe(false);
+    // Negative beats coerce into the >= 1 range.
+    const negativeBeat = groups.find((entry) => entry.id === 'g-negative-beat')!;
+    expect(negativeBeat.path).toEqual([{ id: 'w2', x: 2, y: 2, beat: 1 }]);
+  });
+
+  it('round-trips: migrated v14 group data passes through unchanged', () => {
+    const raw = {
+      ...buildLegacyRaw(),
+      schemaVersion: 13,
+      setups: [{
+        ...(buildLegacyRaw().setups as Record<string, unknown>[])[0],
+        groups: [{
+          id: 'group-rt',
+          childIds: ['a'],
+          basePivot: { x: 3, y: 4 },
+          path: [
+            { id: 'w2', x: 8, y: 8, rotation: 45, beat: 2 },
+            { id: 'w1', x: 3, y: 4, beat: 1 },
+          ],
+        }],
+      }],
+    };
+    const first = migrateProject(structuredClone(raw)).project;
+    expect(first.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    const second = migrateProject(structuredClone(first));
+    expect(second.migratedFrom).toBeNull();
+    expect(second.project).toEqual(first);
   });
 
   it('passes projects already at the current version through unchanged', () => {
@@ -216,6 +380,45 @@ describe('migrateProject', () => {
     expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect((project.setups[0].elements[0] as { speechCues?: unknown[] }).speechCues).toEqual([]);
     expect((project.setups[0].elements[1] as { speechCues?: unknown[] }).speechCues).toBeUndefined();
+  });
+
+  it('migrates v14 actor character links to v15, stripping junk but keeping valid ids', () => {
+    const raw = {
+      ...buildLegacyRaw(),
+      schemaVersion: 14,
+      characters: [{ id: 'char-1', canonicalName: 'SARAH', aliases: [] }],
+      setups: [{
+        ...(buildLegacyRaw().setups as Record<string, unknown>[])[0],
+        elements: [
+          { id: 'actor-keep', type: 'actor', name: 'Linked', characterId: 'char-1' },
+          { id: 'actor-blank', type: 'actor', name: 'Blank link', characterId: '   ' },
+          { id: 'actor-junk', type: 'actor', name: 'Junk link', characterId: 42 },
+          { id: 'actor-unlinked', type: 'actor', name: 'No link' },
+        ],
+      }],
+    };
+    const { project } = migrateProject(raw);
+    expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    const elements = project.setups[0].elements as Array<{ id: string; characterId?: string }>;
+    expect(elements.find((el) => el.id === 'actor-keep')?.characterId).toBe('char-1');
+    expect(elements.find((el) => el.id === 'actor-blank')?.characterId).toBeUndefined();
+    expect(elements.find((el) => el.id === 'actor-junk')).not.toHaveProperty('characterId');
+    expect(elements.find((el) => el.id === 'actor-unlinked')?.characterId).toBeUndefined();
+  });
+
+  it('passes projects already at the current version through unchanged (v15 actors)', () => {
+    const raw = {
+      ...buildCurrentRaw(),
+      setups: [{
+        ...(buildLegacyRaw().setups as Record<string, unknown>[])[0],
+        elements: [
+          { id: 'actor-1', type: 'actor', name: 'Alice', characterId: 'char-9' },
+        ],
+      }],
+    };
+    const { project, migratedFrom } = migrateProject(raw);
+    expect(migratedFrom).toBeNull();
+    expect(project).toEqual(raw);
   });
 
   it.each([

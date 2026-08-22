@@ -16,6 +16,7 @@ import {
   TrackElement,
   Vector2D,
   WallElement,
+  Waypoint,
   WindowElement,
 } from '../../types';
 import { boundsCenterOfPoints, boundsHalfExtentsOfPoints, findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
@@ -32,10 +33,16 @@ import { ShapesLayer } from './ShapesLayer';
 import { FreehandStrokeLayer } from './FreehandStrokeLayer';
 import { FreehandToolOptions } from './FreehandToolOptions';
 import {
+  computeGroupPoseOverrides,
   getFreehandToolPreferences,
+  groupPivotOf,
+  isEndpointElement,
+  isStrokeElement,
+  planElementBounds,
   setFreehandToolPreferences,
+  transformMemberElement,
 } from '../../domain/plan';
-import type { FreehandToolSettings } from '../../domain/plan';
+import type { ElementPose, FreehandToolSettings } from '../../domain/plan';
 import { calibrateBackgroundImage } from '../../domain/plan';
 import { CableLayer } from './CableLayer';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
@@ -58,7 +65,8 @@ interface DragState {
     | 'draw_cable'
     | 'waypoint'
     | 'waypoint_rotate'
-    | 'curve';
+    | 'curve'
+    | 'group_rotate';
   startMouse: Vector2D;
   startElements: Map<string, FloorPlanElement>;
   selectedIds: string[];
@@ -67,6 +75,10 @@ interface DragState {
   endpointType?: 'start' | 'end';
   handle?: ResizeHandle;
   waypointId?: string;
+  /** group_rotate gesture state. */
+  groupId?: string;
+  startPivot?: Vector2D;
+  startAngleDeg?: number;
 }
 
 export const FloorPlanCanvas: React.FC = () => {
@@ -257,6 +269,34 @@ export const FloorPlanCanvas: React.FC = () => {
   // True when the current drag actually changed element positions (used to push
   // exactly ONE history entry on release, so Ctrl+Z undoes a whole gesture).
   const dragChangedRef = useRef(false);
+
+  // Original geometry of linked cables, snapshotted the first time a move
+  // gesture cascades into them — keeps endpoint-following frame-independent.
+  const movedCableSnapshotsRef = useRef<Map<string, CableElement>>(new Map());
+
+  /** Point-anchored device kinds a cable end can attach to. */
+  const ATTACHABLE_DEVICE_TYPES: ReadonlyArray<FloorPlanElement['type']> = ['camera', 'light', 'actor', 'prop'];
+
+  /** Nearest attachable device anchor within `radius` canvas units, if any. */
+  const findAttachableDeviceAt = (
+    point: Vector2D,
+    elements: FloorPlanElement[],
+    radius = 26,
+  ): FloorPlanElement | undefined => {
+    let best: { el: FloorPlanElement; dist: number } | undefined;
+    for (const candidate of elements) {
+      if (!ATTACHABLE_DEVICE_TYPES.includes(candidate.type)) continue;
+      const dist = Math.hypot(candidate.x - point.x, candidate.y - point.y);
+      if (dist <= radius && (!best || dist < best.dist)) best = { el: candidate, dist };
+    }
+    return best?.el;
+  };
+
+  /** Display label used for cable end labels (e.g. "CAM A"). */
+  const deviceLabelOf = (el: FloorPlanElement): string =>
+    el.type === 'camera' && (el as CameraElement).cameraLabel
+      ? `CAM ${(el as CameraElement).cameraLabel.toUpperCase()}`
+      : el.name;
 
   // Convert client viewport coordinates to Canvas space
   const screenToCanvas = useCallback(
@@ -482,14 +522,46 @@ export const FloorPlanCanvas: React.FC = () => {
   // Elements on hidden layers are filtered out here, so they are neither
   // rendered, hit-tested, snapped against, nor exported to storyboard thumbs.
   const visibleElements = activeSetup.elements.filter((el) => !isElementHidden(el));
-  const walls = visibleElements.filter((e) => e.type === 'wall') as WallElement[];
-  const doors = visibleElements.filter((e) => e.type === 'door') as DoorElement[];
-  const windows = visibleElements.filter((e) => e.type === 'window') as WindowElement[];
-  const lights = visibleElements.filter((e) => e.type === 'light') as LightElement[];
-  const propsList = visibleElements.filter((e) => e.type === 'prop') as PropElement[];
-  const tracks = visibleElements.filter((e) => e.type === 'track') as TrackElement[];
-  const actors = visibleElements.filter((e) => e.type === 'actor') as ActorElement[];
-  const cameras = visibleElements.filter((e) => e.type === 'camera') as CameraElement[];
+
+  // Group animation (§6.4): members of keyed groups render from their
+  // interpolated pose at the current beat. Ephemeral render state only —
+  // editing keeps targeting base data, so pauses/drags stay stable.
+  const groupPoseOverrides = new Map<string, ElementPose>();
+  if (!dragState) {
+    for (const group of activeSetup.groups || []) {
+      if (!group.path || group.path.length === 0) continue;
+      computeGroupPoseOverrides(visibleElements, group, playback.currentBeat).forEach((pose, id) =>
+        groupPoseOverrides.set(id, pose),
+      );
+    }
+  }
+  const renderedElements =
+    groupPoseOverrides.size === 0
+      ? visibleElements
+      : visibleElements.map((el) => {
+          const pose = groupPoseOverrides.get(el.id);
+          if (!pose) return el;
+          const merged: Record<string, unknown> = { ...el, x: pose.x, y: pose.y, rotation: pose.rotation };
+          if ('x2' in el) {
+            merged.x2 = pose.x2;
+            merged.y2 = pose.y2;
+          }
+          if (el.type === 'stroke') {
+            merged.points = pose.strokePoints;
+          } else if (pose.pathPoints && 'path' in el) {
+            merged.path = pose.pathPoints;
+          }
+          return merged as unknown as FloorPlanElement;
+        });
+
+  const walls = renderedElements.filter((e) => e.type === 'wall') as WallElement[];
+  const doors = renderedElements.filter((e) => e.type === 'door') as DoorElement[];
+  const windows = renderedElements.filter((e) => e.type === 'window') as WindowElement[];
+  const lights = renderedElements.filter((e) => e.type === 'light') as LightElement[];
+  const propsList = renderedElements.filter((e) => e.type === 'prop') as PropElement[];
+  const tracks = renderedElements.filter((e) => e.type === 'track') as TrackElement[];
+  const actors = renderedElements.filter((e) => e.type === 'actor') as ActorElement[];
+  const cameras = renderedElements.filter((e) => e.type === 'camera') as CameraElement[];
 
   // Which shot's info to show under a camera: the selected shot if it uses this
   // camera, else the camera's associated shot, else the first linked shot.
@@ -504,17 +576,17 @@ export const FloorPlanCanvas: React.FC = () => {
     }
     return activeSetup.shots.find((s) => s.cameraId === camera.id) || null;
   };
-  const measurements = visibleElements.filter((e) => e.type === 'measurement');
-  const arrows = visibleElements.filter((e) => e.type === 'arrow');
-  const texts = visibleElements.filter((e) => e.type === 'text');
-  const cables = visibleElements.filter((e) => e.type === 'cable') as CableElement[];
-  const strokes = visibleElements.filter((e) => e.type === 'stroke') as StrokeElement[];
+  const measurements = renderedElements.filter((e) => e.type === 'measurement');
+  const arrows = renderedElements.filter((e) => e.type === 'arrow');
+  const texts = renderedElements.filter((e) => e.type === 'text');
+  const cables = renderedElements.filter((e) => e.type === 'cable') as CableElement[];
+  const strokes = renderedElements.filter((e) => e.type === 'stroke') as StrokeElement[];
 
   // Storyboard thumbnails: shots that have a storyboard attached, shown near
   // their camera on the floor plan.
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
-  const shapes = visibleElements.filter((e) => e.type === 'shape') as ShapeElement[];
+  const shapes = renderedElements.filter((e) => e.type === 'shape') as ShapeElement[];
   const storyboardThumbs = cameras
     .map((c) => ({ camera: c, shot: getShotForCamera(c) }))
     .filter(
@@ -587,6 +659,22 @@ export const FloorPlanCanvas: React.FC = () => {
 
   // Finish continuous cable routing (keeps the cable tool selected so a new run can start)
   const finishConnectedCable = () => {
+    // Attach the run's final vertex to a nearby device, so dragging that
+    // device afterwards drags the cable end with it.
+    if (connectedCableStart) {
+      const el = activeSetup.elements.find((e) => e.id === connectedCableStart.cableId);
+      if (el && el.type === 'cable') {
+        const device = findAttachableDeviceAt(
+          { x: connectedCableStart.x, y: connectedCableStart.y },
+          activeSetup.elements,
+        );
+        updateElement(el.id, {
+          ...(device
+            ? { toElementId: device.id, toLabel: deviceLabelOf(device) }
+            : { toElementId: undefined }),
+        } as any);
+      }
+    }
     setConnectedCableStart(null);
     lastCableClickRef.current = null;
   };
@@ -833,14 +921,19 @@ export const FloorPlanCanvas: React.FC = () => {
     if (activeTool === 'cable') {
       if (!connectedCableStart) {
         // First vertex of the run: initiate a drag so the user can either drag
-        // a single segment or click once to start chaining.
+        // a single segment or click once to start chaining. Starting on a
+        // device attaches the run's from-end to it.
+        const startDevice = findAttachableDeviceAt(drawPos, activeSetup.elements);
         const cableId = addElement({
           type: 'cable',
           cableType: activeCableType,
-          x: drawPos.x,
-          y: drawPos.y,
+          x: startDevice ? startDevice.x : drawPos.x,
+          y: startDevice ? startDevice.y : drawPos.y,
           x2: drawPos.x,
           y2: drawPos.y,
+          ...(startDevice
+            ? { fromElementId: startDevice.id, fromLabel: deviceLabelOf(startDevice) }
+            : {}),
         } as any);
 
         setDragState({
@@ -1121,6 +1214,7 @@ export const FloorPlanCanvas: React.FC = () => {
     expandDragSetWithGroupMembers(startElementsMap, [id]);
 
     if (startElementsMap.size > 0) {
+      movedCableSnapshotsRef.current.clear();
       setDragState({
         type: 'move',
         startMouse: { x: e.clientX, y: e.clientY },
@@ -1150,6 +1244,50 @@ export const FloorPlanCanvas: React.FC = () => {
       selectedIds: [activeId],
       activeElementId: activeId,
     });
+  };
+
+  // The single group whose FULL member set equals the current selection —
+  // the target for whole-group rotate and keyframe editing.
+  const activeGroup = (activeSetup.groups || []).find(
+    (group) =>
+      selectedElementIds.length >= 2 &&
+      group.childIds.length === selectedElementIds.length &&
+      selectedElementIds.every((id) => group.childIds.includes(id)),
+  );
+
+  // Whole-group rotate handle start: rotates every member rigidly around the
+  // group's bbox-centre pivot. One gesture = one undo step (committed on release).
+  const handleGroupRotateStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (!activeGroup) return;
+    const startElementsMap = new Map<string, FloorPlanElement>();
+    for (const childId of activeGroup.childIds) {
+      const member = activeSetup.elements.find((el) => el.id === childId);
+      if (!member || isEffectivelyLocked(member)) return;
+      startElementsMap.set(childId, JSON.parse(JSON.stringify(member)));
+    }
+    const members = Array.from(startElementsMap.values());
+    const pivot = groupPivotOf(members);
+    if (!pivot) return;
+    const startPos = screenToCanvas(e.clientX, e.clientY);
+    setDragState({
+      type: 'group_rotate',
+      startMouse: { x: e.clientX, y: e.clientY },
+      startElements: startElementsMap,
+      selectedIds: [...activeGroup.childIds],
+      activeElementId: activeGroup.id,
+      groupId: activeGroup.id,
+      startPivot: pivot,
+      startAngleDeg: getAngleBetweenPoints(pivot, startPos),
+    });
+  };
+
+  // Current rotation delta of an in-progress group-rotate gesture, in degrees.
+  const groupRotateDeltaNow = (ds: DragState, nowPos: Vector2D): number => {
+    if (!ds.startPivot || ds.startAngleDeg === undefined) return 0;
+    let delta = getAngleBetweenPoints(ds.startPivot, nowPos) - ds.startAngleDeg;
+    delta = ((delta % 360) + 540) % 360 - 180;
+    return Math.round(delta / 5) * 5;
   };
 
   // Endpoint drag start for walls/tracks/rulers
@@ -1447,6 +1585,10 @@ export const FloorPlanCanvas: React.FC = () => {
         snapAdjustY = snapToGrid(rawPrimaryY, gridSettings.size, true) - rawPrimaryY;
       }
 
+      // Final per-element translation for this frame, consumed by the
+      // attached-cable cascade below.
+      const movedDeltas = new Map<string, { dx: number; dy: number }>();
+
       dragState.startElements.forEach((origEl, id) => {
         const nextX = origEl.x + deltaCanvasX + snapAdjustX;
         const nextY = origEl.y + deltaCanvasY + snapAdjustY;
@@ -1504,7 +1646,56 @@ export const FloorPlanCanvas: React.FC = () => {
         }
 
         updates.push({ id, updates: updateObj });
+        movedDeltas.set(id, { dx, dy });
       });
+
+      // Attached cable ends follow their devices: any cable whose semantic
+      // endpoint references a dragged element (but which is not itself being
+      // dragged) gets its anchored end translated by the same delta. Endpoint
+      // geometry is anchored on a per-gesture snapshot, so repeated pointer
+      // moves never accumulate drift.
+      if (movedDeltas.size > 0) {
+        const draggedIds = new Set(dragState.startElements.keys());
+        for (const el of activeSetup.elements) {
+          if (el.type !== 'cable') continue;
+          const cable = el as CableElement;
+          if (draggedIds.has(cable.id)) continue;
+          const fromDelta = cable.fromElementId ? movedDeltas.get(cable.fromElementId) : undefined;
+          const toDelta = cable.toElementId ? movedDeltas.get(cable.toElementId) : undefined;
+          if (!fromDelta && !toDelta) continue;
+
+          let snapshot = movedCableSnapshotsRef.current.get(cable.id);
+          if (!snapshot) {
+            snapshot = {
+              ...cable,
+              ...(cable.path ? { path: cable.path.map((point) => ({ ...point })) } : {}),
+            };
+            movedCableSnapshotsRef.current.set(cable.id, snapshot);
+          }
+
+          const updateObj: Partial<FloorPlanElement> = {};
+          if (fromDelta) {
+            updateObj.x = snapshot.x + fromDelta.dx;
+            updateObj.y = snapshot.y + fromDelta.dy;
+          }
+          if (toDelta) {
+            (updateObj as any).x2 = snapshot.x2 + toDelta.dx;
+            (updateObj as any).y2 = snapshot.y2 + toDelta.dy;
+          }
+          if (snapshot.path && snapshot.path.length > 0) {
+            const interiorDx = ((fromDelta?.dx ?? 0) + (toDelta?.dx ?? 0)) / ((fromDelta ? 1 : 0) + (toDelta ? 1 : 0) || 1);
+            const interiorDy = ((fromDelta?.dy ?? 0) + (toDelta?.dy ?? 0)) / ((fromDelta ? 1 : 0) + (toDelta ? 1 : 0) || 1);
+            (updateObj as any).path = snapshot.path.map((point) => ({
+              ...point,
+              x: point.x + interiorDx,
+              y: point.y + interiorDy,
+            }));
+          }
+          if ('x' in updateObj || 'x2' in updateObj || 'path' in updateObj) {
+            updates.push({ id: cable.id, updates: updateObj });
+          }
+        }
+      }
 
       dragChangedRef.current = true;
       updateMultipleElements(updates, false);
@@ -1531,6 +1722,38 @@ export const FloorPlanCanvas: React.FC = () => {
 
       dragChangedRef.current = true;
       updateElement(dragState.activeElementId, { rotation: (angle + 360) % 360 }, false);
+      return;
+    }
+
+    if (dragState.type === 'group_rotate' && dragState.groupId) {
+      let delta = groupRotateDeltaNow(dragState, mouseCanvas);
+      if (e.shiftKey) delta = Math.round(delta / 45) * 45;
+      const pivot = dragState.startPivot!;
+      const updates: { id: string; updates: Partial<FloorPlanElement> }[] = [];
+      dragState.startElements.forEach((origEl, id) => {
+        const transformed = transformMemberElement(origEl, {
+          deltaDeg: delta,
+          center: pivot,
+          translation: { x: 0, y: 0 },
+        });
+        const updateObj: Record<string, unknown> = {
+          x: transformed.x,
+          y: transformed.y,
+          rotation: transformed.rotation,
+        };
+        if (isEndpointElement(transformed)) {
+          updateObj.x2 = transformed.x2;
+          updateObj.y2 = transformed.y2;
+        }
+        if (isStrokeElement(transformed)) {
+          updateObj.points = transformed.points;
+        } else if ('path' in transformed) {
+          updateObj.path = (transformed as { path?: Waypoint[] }).path;
+        }
+        updates.push({ id, updates: updateObj as Partial<FloorPlanElement> });
+      });
+      dragChangedRef.current = true;
+      updateMultipleElements(updates, false);
       return;
     }
 
@@ -1760,6 +1983,15 @@ export const FloorPlanCanvas: React.FC = () => {
       const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
       if (el && 'x2' in el) {
         const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
+        // Re-evaluate the from-end attachment wherever the start landed.
+        if (el.type === 'cable') {
+          const startDevice = findAttachableDeviceAt({ x: el.x, y: el.y }, activeSetup.elements);
+          updateElement(el.id, {
+            ...(startDevice
+              ? { fromElementId: startDevice.id, fromLabel: deviceLabelOf(startDevice) }
+              : { fromElementId: undefined }),
+          } as any, false);
+        }
         if (length < 5) {
           // Just a click, not a drag: give the first segment a sensible default
           // length, then keep the tool active for chaining.
@@ -1783,6 +2015,29 @@ export const FloorPlanCanvas: React.FC = () => {
       }
     }
 
+    if (dragState?.type === 'endpoint_start' || dragState?.type === 'endpoint_end') {
+      // Dropping a cable end on a device attaches it; dropping it on empty
+      // space detaches. Runs before the single history commit below so the
+      // whole gesture stays one undo step.
+      const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
+      if (el && el.type === 'cable') {
+        const isStart = dragState.type === 'endpoint_start';
+        const px = isStart ? el.x : (el as CableElement).x2;
+        const py = isStart ? el.y : (el as CableElement).y2;
+        const otherEndId = isStart ? (el as CableElement).toElementId : (el as CableElement).fromElementId;
+        const device = findAttachableDeviceAt({ x: px, y: py }, activeSetup.elements);
+        if (device && device.id !== otherEndId) {
+          updateElement(el.id, isStart
+            ? { fromElementId: device.id, fromLabel: deviceLabelOf(device) }
+            : { toElementId: device.id, toLabel: deviceLabelOf(device) } as any, false);
+        } else {
+          updateElement(el.id, isStart
+            ? { fromElementId: undefined }
+            : { toElementId: undefined } as any, false);
+        }
+      }
+    }
+
     // Drags that modified EXISTING elements get pushed into history exactly
     // once here, so one gesture = one undo step. (draw_wall / draw_measure are
     // excluded: they already pushed a creation entry, and undo reverts them by
@@ -1790,11 +2045,12 @@ export const FloorPlanCanvas: React.FC = () => {
     if (
       dragChangedRef.current &&
       dragState &&
-      ['move', 'rotate', 'endpoint_start', 'endpoint_end', 'waypoint', 'waypoint_rotate', 'curve'].includes(dragState.type)
+      ['move', 'rotate', 'group_rotate', 'endpoint_start', 'endpoint_end', 'waypoint', 'waypoint_rotate', 'curve'].includes(dragState.type)
     ) {
       commitCurrentState();
     }
     dragChangedRef.current = false;
+    movedCableSnapshotsRef.current.clear();
     setDragState(null);
     setBoxSelection(null);
   };
@@ -2358,6 +2614,44 @@ export const FloorPlanCanvas: React.FC = () => {
               displaySettings={displaySettings}
             />
           ))}
+
+          {/* 9c. Whole-group rotate handle: shown when the selection exactly
+              matches one plan group; rotates every member around the pivot. */}
+          {activeGroup && !dragState && (() => {
+            const members = activeGroup.childIds
+              .map((id) => renderedElements.find((el) => el.id === id))
+              .filter((el): el is FloorPlanElement => !!el);
+            const pivot = groupPivotOf(members);
+            if (!pivot) return null;
+            return (
+              <g transform={`translate(${pivot.x}, ${pivot.y})`}>
+                <title>Rotate whole group</title>
+                <line x1={0} y1={0} x2={26} y2={-26} stroke="#38bdf8" strokeWidth={1.5} strokeDasharray="3 3" className="pointer-events-none" />
+                <circle r={18} fill="transparent" onPointerDown={handleGroupRotateStart} className="cursor-grab" />
+                <circle cx={30} cy={-30} r={7} fill="#38bdf8" stroke="#0f172a" strokeWidth={2} onPointerDown={handleGroupRotateStart} className="cursor-grab drop-shadow-md" />
+              </g>
+            );
+          })()}
+
+          {/* Gear-list locate flash: animated ring for every element kind
+              that has no built-in highlight (actors/cameras render their own). */}
+          {(() => {
+            if (!highlightedElementId) return null;
+            if (actors.some((a) => a.id === highlightedElementId)) return null;
+            if (cameras.some((c) => c.id === highlightedElementId)) return null;
+            const el = activeSetup.elements.find((e) => e.id === highlightedElementId);
+            if (!el || el.visible === false) return null;
+            const bounds = planElementBounds(el);
+            const cx = (bounds.minX + bounds.maxX) / 2;
+            const cy = (bounds.minY + bounds.maxY) / 2;
+            const r = Math.max(18, Math.min(90, Math.hypot(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2 + 8));
+            return (
+              <g transform={`translate(${cx}, ${cy})`} className="pointer-events-none">
+                <circle r={r} fill="none" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" />
+                <circle r={r} fill="none" stroke="#f59e0b" strokeWidth={2} className="animate-ping" />
+              </g>
+            );
+          })()}
 
           {/* 9b. Storyboard Thumbnails (attached to their camera, draggable) */}
           {displaySettings.showStoryboardThumbs && (

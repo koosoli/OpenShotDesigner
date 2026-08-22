@@ -359,6 +359,28 @@ export function getSmoothSplinePath(points: Vector2D[]): string {
 }
 
 /**
+ * Smoothstep easing of a linear progress value (clamped to [0, 1]).
+ * Extracted from {@link getInterpolatedPositionAndRotation} so camera paths
+ * and group animation share the exact same feel.
+ */
+export function smoothstepProgress(progress: number): number {
+  const t = Math.max(0, Math.min(1, progress));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Shortest-arc angular interpolation in degrees between two angles.
+ * Always returns a value in [0, 360). Matches the easing used by
+ * {@link getInterpolatedPositionAndRotation}.
+ */
+export function lerpAngleDeg(fromDeg: number, toDeg: number, t: number): number {
+  let angleDiff = (toDeg - fromDeg) % 360;
+  if (angleDiff > 180) angleDiff -= 360;
+  if (angleDiff < -180) angleDiff += 360;
+  return (fromDeg + angleDiff * t + 360) % 360;
+}
+
+/**
  * Calculates actor or camera position and orientation at a given beat/progress
  * Handles smooth interpolation across waypoints
  */

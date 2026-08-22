@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildCharacterCatalog,
+  collectCharacterDialogue,
   deriveScriptBreakdown,
   mergeCharacterCatalogs,
   mergeCharacters,
@@ -12,6 +13,7 @@ import {
   suggestLocations,
 } from '../script/logic';
 import type { Character } from '../script/types';
+import type { ScriptBreakdownLine } from '../script/logic';
 
 describe('normalizeCharacterName', () => {
   it('uppercases and trims a plain name', () => {
@@ -349,5 +351,82 @@ describe('live script breakdown', () => {
 
   it('keeps the screenplay optional', () => {
     expect(deriveScriptBreakdown([], [], [])).toEqual({ characters: [], scenes: [], locations: [] });
+  });
+});
+
+describe('collectCharacterDialogue', () => {
+  const lines = (rows: Array<[string, string | undefined]>): ScriptBreakdownLine[] =>
+    rows.map(([text, type], index) => ({
+      id: `line-${index + 1}`,
+      text,
+      ...(type !== undefined ? { type } : {}),
+    }));
+
+  it('collects dialogue lines for one character in script order', () => {
+    const script = lines([
+      ['INT. ROOM - NIGHT', 'scene'],
+      ['DETECTIVE', 'character'],
+      ['Where were you last night?', 'dialogue'],
+      ['(leaning in)', 'parenthetical'],
+      ['Answer carefully.', 'dialogue'],
+      ['SUSPECT', 'character'],
+      ['I was home.', 'dialogue'],
+      ['DETECTIVE', 'character'],
+      ['That is not what the logs say.', 'dialogue'],
+    ]);
+    const result = collectCharacterDialogue(script, 'DETECTIVE');
+    expect(result.map((entry) => entry.text)).toEqual([
+      'Where were you last night?',
+      'Answer carefully.',
+      'That is not what the logs say.',
+    ]);
+    expect(result[0].lineId).toBe('line-3');
+    expect(result[0].sceneNumber).toBeUndefined();
+  });
+
+  it('matches aliases and reports the enclosing scene number', () => {
+    const script: ScriptBreakdownLine[] = [
+      { id: 's1', text: 'INT. A - NIGHT', type: 'scene', sceneNumber: '3' },
+      { id: 'c1', text: 'HALLORAN (V.O.)', type: 'character' },
+      { id: 'd1', text: 'Freeze.', type: 'dialogue' },
+      { id: 'c2', text: 'JOHN', type: 'character' },
+      { id: 'd2', text: 'Never.', type: 'dialogue' },
+      { id: 's2', text: 'INT. B - DAY', type: 'scene', sceneNumber: '4', omitted: true },
+      { id: 'c3', text: 'HALLORAN', type: 'character' },
+      { id: 'd3', text: 'Cut.', type: 'dialogue' },
+    ];
+    const result = collectCharacterDialogue(script, 'DETECTIVE', ['Halloran']);
+    expect(result.map((entry) => entry.text)).toEqual(['Freeze.']);
+    expect(result[0].sceneNumber).toBe('3');
+  });
+
+  it('stops at action lines and ignores other characters entirely', () => {
+    const script = lines([
+      ['SARAH', 'character'],
+      ['Hello?', 'dialogue'],
+      ['She crosses to the window.', 'action'],
+      ['Still nothing.', 'dialogue'],
+      ['JOHN', 'character'],
+      ['Hey.', 'dialogue'],
+    ]);
+    expect(collectCharacterDialogue(script, 'SARAH').map((entry) => entry.text)).toEqual([
+      'Hello?',
+    ]);
+    expect(collectCharacterDialogue(script, 'NOBODY')).toEqual([]);
+    expect(collectCharacterDialogue(script, '')).toEqual([]);
+  });
+
+  it('skips blank and untyped filler lines without ending the speech run', () => {
+    const script = lines([
+      ['SARAH', 'character'],
+      ['Line one.', 'dialogue'],
+      ['', undefined],
+      ['   ', undefined],
+      ['Line two.', 'dialogue'],
+    ]);
+    expect(collectCharacterDialogue(script, 'SARAH').map((entry) => entry.text)).toEqual([
+      'Line one.',
+      'Line two.',
+    ]);
   });
 });

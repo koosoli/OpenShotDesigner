@@ -23,6 +23,8 @@ import { migrateV9ToV10 } from './v9-to-v10';
 import { migrateV10ToV11 } from './v10-to-v11';
 import { migrateV11ToV12 } from './v11-to-v12';
 import { migrateV12ToV13 } from './v12-to-v13';
+import { migrateV13ToV14 } from './v13-to-v14';
+import { migrateV14ToV15 } from './v14-to-v15';
 
 export { CURRENT_PROJECT_SCHEMA_VERSION, MigrationError } from './types';
 export type { MigrationResult } from './types';
@@ -112,6 +114,12 @@ export const migrateProject = (raw: unknown): MigrationResult => {
         break;
       case 12:
         current = migrateV12ToV13(current) as unknown as UnknownRecord;
+        break;
+      case 13:
+        current = migrateV13ToV14(current) as unknown as UnknownRecord;
+        break;
+      case 14:
+        current = migrateV14ToV15(current) as unknown as UnknownRecord;
         break;
       default:
         throw new MigrationError(`No migration path from schema version ${v}.`, [

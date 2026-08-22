@@ -51,6 +51,12 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
   const hasPath = waypoints.length > 0;
 
   const showActorLabel = displaySettings.showLabels && displaySettings.showActorLabels;
+  const characterName = (actor.characterName || '').trim();
+  const showCharacterNameTag = characterName.length > 0 && displaySettings.showCharacterNames !== false;
+  // The plate shows the assigned character name instead of the generic
+  // element name; without a character name it keeps the settings-gated behavior.
+  const labelText = characterName.length > 0 ? characterName : actor.name;
+  const showLabelPlate = showCharacterNameTag || showActorLabel;
   const labelScale = (displaySettings.labelScale ?? 1) * (displaySettings.labelCategoryScale?.actors ?? 1);
   const labelOpacity = (displaySettings.labelOpacity ?? 1) * (displaySettings.labelCategoryOpacity?.actors ?? 1);
   const labelColor = displaySettings.actorLabelColor;
@@ -202,16 +208,16 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
           </g>
         )}
 
-        {showActorLabel && (
+        {showLabelPlate && (
           <g
             transform={`rotate(${-rotation}) translate(0, 26) scale(${labelScale})`}
             opacity={labelOpacity}
             className="pointer-events-none"
           >
             <rect
-              x={-(actor.name.length * 4.2) - 10}
+              x={-(labelText.length * 4.2) - 10}
               y={-10}
-              width={actor.name.length * 8.4 + 20}
+              width={labelText.length * 8.4 + 20}
               height={20}
               fill="rgba(15, 23, 42, 0.94)"
               stroke={isSelected ? '#38bdf8' : 'rgba(255, 255, 255, 0.2)'}
@@ -228,7 +234,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
               textAnchor="middle"
               className="select-none font-sans"
             >
-              {actor.name}
+              {labelText}
             </text>
           </g>
         )}

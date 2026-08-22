@@ -3,8 +3,8 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { ActorElement, CameraElement, PropElement } from '../../types';
 import { isPointInCameraFov } from '../../utils/geometry';
 import { loadStoryboardImageFile } from '../../utils/image';
-import { setFramePatch, slotsOf, START_SLOT } from '../../utils/storyboardFrames';
-import { renderSimulatedFrame } from '../../utils/simulatedFrame';
+import { setFramePatch, isSlotOmitted, slotsOf, START_SLOT } from '../../utils/storyboardFrames';
+import { renderSimulatedFrame, SimulatedSubject } from '../../utils/simulatedFrame';
 import {
   APERTURES,
   ASPECT_RATIOS,
@@ -273,8 +273,26 @@ export const ViewfinderModal: React.FC = () => {
   // which used to file captures under an orphan key nothing displayed.
   const frameSlots = targetShot ? slotsOf(targetShot, selectedCamera) : [];
   const activeSlot = frameSlots.find((slot) => slot.key === captureSlot) || frameSlots[0];
-  const currentSlotKey = activeSlot?.key || START_SLOT;
-  const shownStoryboard = activeSlot?.frame?.image || targetShot?.storyboardImage;
+  // Captures must land on a slot the board actually shows: if the picked slot
+  // was omitted from the storyboard, walk outward to the nearest kept slot.
+  // START_SLOT is never omitted, so it stays the final fallback.
+  const resolveWriteSlotKey = (preferred: string): string => {
+    if (!targetShot) return preferred;
+    const startIndex = frameSlots.findIndex((slot) => slot.key === preferred);
+    if (startIndex < 0) return START_SLOT;
+    for (let offset = 0; offset < frameSlots.length; offset += 1) {
+      if (offset > 0) {
+        const behind = frameSlots[startIndex - offset];
+        if (behind && !isSlotOmitted(targetShot, behind.key)) return behind.key;
+      }
+      const ahead = frameSlots[startIndex + offset];
+      if (ahead && !isSlotOmitted(targetShot, ahead.key)) return ahead.key;
+    }
+    return START_SLOT;
+  };
+  const currentSlotKey = activeSlot ? resolveWriteSlotKey(activeSlot.key) : START_SLOT;
+  const resolvedSlot = frameSlots.find((slot) => slot.key === currentSlotKey) || activeSlot;
+  const shownStoryboard = resolvedSlot?.frame?.image || targetShot?.storyboardImage;
   const showsRealImage = !!liveStream || !!frozenFrame || (showStoryboard && !!shownStoryboard);
 
   const framingNotes = () => {
@@ -283,6 +301,36 @@ export const ViewfinderModal: React.FC = () => {
       subjectNames || 'Empty frame'
     }.`;
   };
+
+  /** Subjects inside this camera's FOV, shaped for renderSimulatedFrame. */
+  const buildSimulatedSubjects = (): SimulatedSubject[] => [
+    ...visibleProps.map(({ prop, normalizedX, distance }) => ({
+      kind: 'prop' as const,
+      label: prop.name || prop.propType,
+      normalizedX,
+      distance,
+    })),
+    ...visibleActors.map(({ actor, normalizedX, distance }) => ({
+      kind: 'actor' as const,
+      label: `${actor.name || actor.characterLetter} · ${(distance / 50).toFixed(1)}m`,
+      normalizedX,
+      distance,
+      color: actor.color || '#3b82f6',
+      badge: actor.characterLetter,
+    })),
+  ];
+
+  /** Rasterise the simulated finder (guides + subjects) exactly as on screen. */
+  const renderFinderBoardImage = (): string | null =>
+    renderSimulatedFrame({
+      aspectRatio:
+        ASPECT_RATIOS.find((entry) => entry.value === (selectedCamera.aspectRatio || '16:9'))?.ratio || 16 / 9,
+      showRuleOfThirds,
+      showSafeAreas,
+      showCrosshair,
+      caption: `CAM ${selectedCamera.cameraLabel} · ${focal}mm · ${selectedCamera.aspectRatio || '16:9'} · ${selectedCamera.cameraHeight || 'Eye Level'}`,
+      subjects: buildSimulatedSubjects(),
+    });
 
   /**
    * "Save Framing to Shot" — and, while the live camera is running, it is also
@@ -331,13 +379,30 @@ export const ViewfinderModal: React.FC = () => {
       }
       setFrozenFrame(frame);
       videoRef.current?.pause();
-      updateShot(targetShot.id, { ...framing, storyboardImage: frame, storyboardFit: 'cover' });
+      // Same slot-aware path as the shutter: the still lands in the resolved
+      // Frame slot (legacy mirrors included) in this same single commit.
+      updateShot(targetShot.id, {
+        ...framing,
+        ...setFramePatch(targetShot, currentSlotKey, { image: frame, fit: 'cover' }),
+      });
       setShowStoryboard(true);
       setPhotoFeedback(true);
       setSaveNote(`Storyboard and framing saved to shot ${targetShot.shotNumber}.`);
       setTimeout(() => setPhotoFeedback(false), 2200);
     } else {
-      updateShot(targetShot.id, framing);
+      // No webcam: still board the simulated blocking so saving the framing
+      // leaves the shot with a picture. Canvas failure falls back to metadata.
+      const boardImage = renderFinderBoardImage();
+      if (boardImage) {
+        updateShot(targetShot.id, {
+          ...framing,
+          ...setFramePatch(targetShot, currentSlotKey, { image: boardImage, fit: 'cover' }),
+        });
+        setShowStoryboard(true);
+        setSaveNote(`Framing and board saved to shot ${targetShot.shotNumber}.`);
+      } else {
+        updateShot(targetShot.id, framing);
+      }
     }
     setSavedFeedback(true);
     setTimeout(() => setSavedFeedback(false), 2200);
@@ -388,7 +453,7 @@ export const ViewfinderModal: React.FC = () => {
    * dead end.
    */
   const saveStoryboardImage = (image: string) => {
-    const slotName = activeSlot?.label ? `${activeSlot.label.toLowerCase()} frame` : 'storyboard';
+    const slotName = resolvedSlot?.label ? `${resolvedSlot.label.toLowerCase()} frame` : 'storyboard';
 
     if (targetShot) {
       updateShot(targetShot.id, setFramePatch(targetShot, currentSlotKey, { image, fit: 'cover' }));
@@ -441,30 +506,7 @@ export const ViewfinderModal: React.FC = () => {
    */
   const captureSimulatedFrame = () => {
     setLiveError(null);
-    const ratio = ASPECT_RATIOS.find((entry) => entry.value === (selectedCamera.aspectRatio || '16:9'))?.ratio || 16 / 9;
-    const image = renderSimulatedFrame({
-      aspectRatio: ratio,
-      showRuleOfThirds,
-      showSafeAreas,
-      showCrosshair,
-      caption: `CAM ${selectedCamera.cameraLabel} · ${focal}mm · ${selectedCamera.aspectRatio || '16:9'} · ${selectedCamera.cameraHeight || 'Eye Level'}`,
-      subjects: [
-        ...visibleProps.map(({ prop, normalizedX, distance }) => ({
-          kind: 'prop' as const,
-          label: prop.name || prop.propType,
-          normalizedX,
-          distance,
-        })),
-        ...visibleActors.map(({ actor, normalizedX, distance }) => ({
-          kind: 'actor' as const,
-          label: `${actor.name || actor.characterLetter} · ${(distance / 50).toFixed(1)}m`,
-          normalizedX,
-          distance,
-          color: actor.color || '#3b82f6',
-          badge: actor.characterLetter,
-        })),
-      ],
-    });
+    const image = renderFinderBoardImage();
     if (!image) {
       setLiveError('This browser blocked reading the canvas, so the simulated frame could not be saved.');
       return;
@@ -595,7 +637,7 @@ export const ViewfinderModal: React.FC = () => {
                 src={shownStoryboard}
                 alt={`Storyboard for shot ${targetShot?.shotNumber}`}
                 className="absolute inset-0 w-full h-full z-[5]"
-                style={{ objectFit: activeSlot?.frame?.fit || 'cover' }}
+                style={{ objectFit: resolvedSlot?.frame?.fit || 'cover' }}
               />
             )}
 
@@ -760,11 +802,11 @@ export const ViewfinderModal: React.FC = () => {
                   }`}
                 >
                   {frozenFrame
-                    ? `CAPTURED ${activeSlot?.short || 'FRAME'}`
+                    ? `CAPTURED ${resolvedSlot?.short || 'FRAME'}`
                     : liveStream
                       ? 'LIVE CAMERA'
                       : `STORYBOARD ${targetShot?.shotNumber || ''}${
-                          activeSlot?.short ? ` · ${activeSlot.short}` : ''
+                          resolvedSlot?.short ? ` · ${resolvedSlot.short}` : ''
                         }`}
                 </span>
               </div>
@@ -1168,6 +1210,11 @@ export const ViewfinderModal: React.FC = () => {
             {/* Save Framing to Selected Shot */}
             <button
               onClick={handleSaveFramingToShot}
+              title={
+                targetShot
+                  ? 'Save the framing and board the current view into the selected Frame slot of this shot'
+                  : 'Create a shot for this camera with this framing (and its picture, when one is available)'
+              }
               className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
                 savedFeedback
                   ? 'bg-emerald-600 text-white'
@@ -1176,7 +1223,11 @@ export const ViewfinderModal: React.FC = () => {
             >
               <Save className="w-3.5 h-3.5" />
               <span>
-                {savedFeedback ? 'Saved to shot!' : liveStream ? 'Capture & save to shot' : 'Save Framing to Shot'}
+                {savedFeedback
+                  ? 'Saved to shot!'
+                  : liveStream
+                    ? 'Capture & save to shot'
+                    : 'Save Framing & Board to Shot'}
               </span>
             </button>
           </div>

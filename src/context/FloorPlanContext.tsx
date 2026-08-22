@@ -37,6 +37,8 @@ import {
   CABLE_TYPES,
   LIGHT_FIXTURES,
   PROP_CATALOG,
+  SAMPLE_DIALOGUE_SCREENPLAY,
+  SAMPLE_NOIR_SCREENPLAY,
   SAMPLE_SCENES,
   SAMPLE_SCREENPLAY,
 } from '../constants/presets';
@@ -355,6 +357,8 @@ export interface DisplaySettings {
   labelOpacity: number; // 0 - 1
   // Per-category label visibility
   showActorLabels: boolean;
+  /** Assigned character names render on actor markers by default (independent of the label switches). */
+  showCharacterNames: boolean;
   showCameraLabels: boolean;
   showPropLabels: boolean;
   showTrackLabels: boolean;
@@ -415,6 +419,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   labelScale: 1,
   labelOpacity: 1,
   showActorLabels: true,
+  showCharacterNames: true,
   showCameraLabels: true,
   showPropLabels: true,
   showTrackLabels: true,
@@ -3608,18 +3613,23 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // Decided outside the updater: React may run a state updater twice, and a
     // second parse would hand the linings line ids that aren't in the script.
+    // Each template brings its own screenplay, not the combined sample text.
     const existingLines = project.scriptLines || [];
     const hasScript = existingLines.length > 0;
     // Only bring the sample screenplay in when there is nothing to overwrite
-    const lines = hasScript ? existingLines : parseSampleScreenplay();
+    const lines = hasScript ? existingLines : parseSampleScreenplay(templateIndex === 1 ? 'noir' : 'dialogue');
     clone.scriptMarks = sampleMarksFor(template.id, lines, clone.sceneNumber, (shotId) =>
       shotIdMap.get(shotId)
     );
 
     setRecordedProject((prev) => ({
       ...prev,
-      scriptTitle: hasScript ? prev.scriptTitle : 'Sample scene',
-      scriptText: hasScript ? prev.scriptText : SAMPLE_SCREENPLAY,
+      scriptTitle: hasScript
+        ? prev.scriptTitle
+        : templateIndex === 1
+          ? 'Noir interrogation sample'
+          : 'Dialogue sample',
+      scriptText: hasScript ? prev.scriptText : templateIndex === 1 ? SAMPLE_NOIR_SCREENPLAY : SAMPLE_DIALOGUE_SCREENPLAY,
       scriptLines: lines,
       setups: [...prev.setups, clone],
       activeSetupId: newSetupId,

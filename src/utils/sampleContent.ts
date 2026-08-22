@@ -1,5 +1,9 @@
 import { ScriptLine, ScriptMark } from '../types';
-import { SAMPLE_SCREENPLAY } from '../constants/presets';
+import {
+  SAMPLE_DIALOGUE_SCREENPLAY,
+  SAMPLE_NOIR_SCREENPLAY,
+  SAMPLE_SCREENPLAY,
+} from '../constants/presets';
 import { parseScreenplay } from '../components/script/screenplayParser';
 import { createId } from '../domain/ids';
 import type { Person } from '../domain/people';
@@ -21,8 +25,21 @@ import type {
  * so editing the sample screenplay can never silently mis-line it.
  */
 
-export const parseSampleScreenplay = (): ScriptLine[] =>
-  parseScreenplay(SAMPLE_SCREENPLAY, 'Sample scene.fountain');
+/**
+ * Which bundled screenplay to parse: one template's own script or both
+ * scenes concatenated (the combined default keeps existing consumers working).
+ */
+export type SampleScreenplayVariant = 'dialogue' | 'noir' | 'full';
+
+const SAMPLE_SCREENPLAY_BY_VARIANT: Record<SampleScreenplayVariant, string> = {
+  dialogue: SAMPLE_DIALOGUE_SCREENPLAY,
+  noir: SAMPLE_NOIR_SCREENPLAY,
+  full: SAMPLE_SCREENPLAY,
+};
+
+export const parseSampleScreenplay = (
+  which: SampleScreenplayVariant = 'full'
+): ScriptLine[] => parseScreenplay(SAMPLE_SCREENPLAY_BY_VARIANT[which], 'Sample scene.fountain');
 
 interface SampleLining {
   /** Template setup this lining belongs to. */
@@ -67,17 +84,17 @@ const SAMPLE_LININGS: SampleLining[] = [
   {
     templateId: 'setup-noir-interrogation',
     shotId: 'shot-2a',
-    from: 'I was having a smoke',
-    to: 'Marcus says nothing',
+    from: 'A woman died in that stairwell',
+    to: 'You had nothing an hour ago',
     label: '2/1',
-    description: 'CU Marcus',
+    description: 'CU Suspect',
     color: '#0284c7',
   },
   {
     templateId: 'setup-noir-interrogation',
     shotId: 'shot-2b',
-    from: 'Miller stands',
-    to: 'holding the door',
+    from: 'Twelve minutes',
+    to: 'So I broke a rule',
     label: '2/2',
     description: 'Two-shot',
     color: '#dc2626',
@@ -117,7 +134,7 @@ export const sampleMarksFor = (
     .filter((mark): mark is ScriptMark => !!mark);
 };
 
-export { SAMPLE_SCREENPLAY };
+export { SAMPLE_DIALOGUE_SCREENPLAY, SAMPLE_NOIR_SCREENPLAY, SAMPLE_SCREENPLAY };
 
 /**
  * Example scheduling data for template projects: shoot days with strips on the
@@ -158,7 +175,7 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
     { id: createId('person'), displayName: 'Tom Reilly', kind: 'crew', department: 'Lighting', role: 'Gaffer', phone: '+49 170 555 0104' },
     { id: createId('person'), displayName: 'Alex Kim', kind: 'crew', department: 'Sound', role: 'Sound Mixer', phone: '+49 170 555 0105' },
     { id: createId('person'), displayName: 'Alex Hunter', kind: 'cast', role: 'Lead — "Sarah"', phone: '+49 171 555 0201', email: 'alex.hunter@casting.example' },
-    { id: createId('person'), displayName: 'Noah Brecht', kind: 'cast', role: 'Lead — "Marcus"', phone: '+49 171 555 0202' },
+    { id: createId('person'), displayName: 'Noah Brecht', kind: 'cast', role: 'Lead — "Suspect"', phone: '+49 171 555 0202' },
   ];
 
   const bRehearsal: ScheduleBlock = { id: createId('block'), kind: 'manual', label: 'Blocking rehearsal', manualType: 'rehearsal', estimatedMinutes: 30 };
@@ -228,8 +245,8 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
     },
     cells: {
       [rowMaster]: { [camA]: 'Wide master', [camB]: 'L-R over-shoulder' },
-      [rowCoverage]: { [camA]: 'OTS Marcus', [camB]: 'OTS Sarah', [camC]: 'Insert: tape recorder' },
-      [rowCloseups]: { [camB]: 'MCU Marcus', [camC]: 'MCU Sarah' },
+      [rowCoverage]: { [camA]: 'OTS Suspect', [camB]: 'OTS Sarah', [camC]: 'Insert: tape recorder' },
+      [rowCloseups]: { [camB]: 'MCU Suspect', [camC]: 'MCU Sarah' },
     },
   };
 
