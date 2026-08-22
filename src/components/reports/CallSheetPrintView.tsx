@@ -16,6 +16,16 @@ const KIND_LABELS: Record<CallSheetEntry['kind'], string> = {
   cue: 'Cue',
 };
 
+/** Badge tones mirroring the schedule board strip colors (see SchedulePanel). */
+const KIND_TONES: Record<CallSheetEntry['kind'], string> = {
+  scene: '#b45309',
+  setup: '#0e7490',
+  segment: '#4f46e5',
+  manual: '#059669',
+  shots: '#7c3aed',
+  cue: '#db2777',
+};
+
 const DEPARTMENT_LABELS: Record<string, string> = {
   camera: 'Camera',
   lighting: 'Lighting / Electric',
@@ -108,7 +118,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         .cs-omitted td { color: #64748b; }
         .cs-omitted .cs-item-label { text-decoration: line-through; }
         .cs-badge { display: inline-block; margin-left: 4px; padding: 0 3px; border: 1px solid #94a3b8; font-size: 7.5px; letter-spacing: 0.5px; text-transform: uppercase; border-radius: 2px; }
-        .cs-kind { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e2e8f0; font-size: 7.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; }
+        .cs-kind { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e2e8f0; background: color-mix(in srgb, var(--tone, #94a3b8) 16%, #ffffff); color: var(--tone, #334155); font-size: 7.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; }
         .cs-safety { border: 2px solid #f59e0b; background: #fffbeb; padding: 6px 9px; margin-top: 8px; page-break-inside: avoid; }
         .cs-safety b { display: block; font-size: 8px; letter-spacing: 1.2px; text-transform: uppercase; color: #92400e; }
         .cs-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -198,7 +208,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                     <span className="cs-item-label">{entry.label}</span>
                     {entry.omitted && <span className="cs-badge">Omitted</span>}
                   </td>
-                  <td><span className="cs-kind">{KIND_LABELS[entry.kind]}</span></td>
+                  <td><span className="cs-kind" style={{ '--tone': KIND_TONES[entry.kind] } as React.CSSProperties}>{KIND_LABELS[entry.kind]}</span></td>
                   <td className="num">{formatMinutes(entry.estimatedMinutes)}</td>
                 </tr>
               ))}

@@ -7,6 +7,8 @@ interface ScriptSidesPrintViewProps {
   /** e.g. "Day 3 · 2026-09-14" — printed in the header of every scene block. */
   subtitle?: string;
   characterFilter?: string;
+  /** Production logo (data URL) shown once, top-right above the first scene block. */
+  logo?: string;
 }
 
 /** Courier character-column layout (12pt Courier = 10 characters per inch, 60-column body). */
@@ -27,7 +29,7 @@ const LAYOUT: Record<string, { left: number; width: number; className: string }>
  * formatted, one scene per block with its scene number in the margin.
  * Derived from canonical script lines (plan rule 37).
  */
-export const ScriptSidesPrintView: React.FC<ScriptSidesPrintViewProps> = ({ sides, title, subtitle, characterFilter }) => {
+export const ScriptSidesPrintView: React.FC<ScriptSidesPrintViewProps> = ({ sides, title, subtitle, characterFilter, logo }) => {
   if (sides.scenes.length === 0) {
     return (
       <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
@@ -37,6 +39,11 @@ export const ScriptSidesPrintView: React.FC<ScriptSidesPrintViewProps> = ({ side
   }
   return (
     <div className="font-mono text-[11.5px] leading-[1.35] text-slate-900" style={{ fontFamily: '"Courier Prime", "Courier New", Courier, monospace' }}>
+      {logo && (
+        <div className="flex justify-end mb-4">
+          <img src={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
+        </div>
+      )}
       {sides.scenes.map((scene, index) => (
         <section key={scene.sceneId} className="print-section break-inside-avoid mb-6" style={{ pageBreakBefore: index > 0 && index % 3 === 0 ? 'always' : undefined }}>
           <header className="flex items-center justify-between text-[9px] uppercase tracking-wider text-slate-500 border-b border-slate-300 pb-0.5 mb-2 font-sans">

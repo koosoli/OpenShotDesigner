@@ -146,6 +146,7 @@ export const PrintableShotPlan: React.FC = () => {
     () => buildScriptSides(scriptLines, { sceneIds: sidesSceneIds ?? undefined, character: sidesCharacter || undefined }),
     [scriptLines, sidesSceneIds, sidesCharacter],
   );
+  const packageSides = React.useMemo(() => buildScriptSides(scriptLines), [scriptLines]);
   const sidesDay = (project.productionDays ?? []).find((day) => day.id === sidesDayId);
   const applySidesDay = (dayId: string) => {
     setSidesDayId(dayId);
@@ -523,6 +524,7 @@ export const PrintableShotPlan: React.FC = () => {
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-[98vw] xl:max-w-[1600px] bg-white text-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] cursor-default"
       >
+        <style>{`@media print { html body #app-root { display: block !important; } }`}</style>
         {/* Top Control Bar (Hidden when printing) */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-slate-900 text-white border-b border-slate-800 print:hidden">
           {/* Brand & Studio Title */}
@@ -1095,7 +1097,7 @@ export const PrintableShotPlan: React.FC = () => {
                       ? '• SCRIPT BREAKDOWN REPORTS'
                       : exportSection === 'dmx'
                       ? '• DMX PATCH SHEET'
-                      : '• COMPLETE PRODUCTION CALL SHEET'}
+                      : '• COMPLETE PRODUCTION PACKAGE'}
                   </span>
                 </div>
                 <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase mt-1">
@@ -1142,6 +1144,7 @@ export const PrintableShotPlan: React.FC = () => {
                 title={project.title}
                 subtitle={sidesDay ? `${sidesDay.name}${sidesDay.date ? ` · ${sidesDay.date}` : ''}` : project.date}
                 characterFilter={sidesCharacter || undefined}
+                logo={project.logo}
               />
             )
           )}
@@ -1161,6 +1164,7 @@ export const PrintableShotPlan: React.FC = () => {
                 locations={reportBreakdown.locations}
                 dood={reportDood}
                 sections={reportSections}
+                logo={project.logo}
               />
             )
           )}
@@ -1193,6 +1197,7 @@ export const PrintableShotPlan: React.FC = () => {
                 characters={crewCharacters}
                 castAssignments={project.castAssignments ?? []}
                 showRates={crewShowRates}
+                logo={project.logo}
               />
             )
           )}
@@ -1709,6 +1714,26 @@ export const PrintableShotPlan: React.FC = () => {
             </div>
           )}
 
+          {exportSection === 'combined' && dmxRows.length > 0 && (
+            <div className="mb-8 print-section break-before-page">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <Sun className="w-4 h-4 text-sky-600" />
+                  <span>DMX Patch Sheet</span>
+                </h3>
+                <span className="font-mono text-xs font-bold text-slate-700">
+                  {dmxRows.length} PATCHED FIXTURE{dmxRows.length === 1 ? '' : 'S'}
+                </span>
+              </div>
+              <DmxPatchPrintView
+                rows={dmxRows}
+                productionTitle={project.title}
+                sceneName={`Scene ${activeSetup.sceneNumber || ''}: ${activeSetup.name}`}
+                embedded
+              />
+            </div>
+          )}
+
           {/* ========================================================================= */}
           {/* SECTION S: STORYBOARD CONTACT SHEET                                        */}
           {/* ========================================================================= */}
@@ -1927,6 +1952,69 @@ export const PrintableShotPlan: React.FC = () => {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {exportSection === 'combined' && reportBreakdown.scenes.length > 0 && (
+            <div className="mb-8 print-section break-before-page">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-violet-600" />
+                  <span>Script Breakdown Reports</span>
+                </h3>
+                <span className="font-mono text-xs font-bold text-slate-700">
+                  {reportBreakdown.scenes.length} SCENES · {reportCharacterEntries.length} CHARACTERS · {reportDood.columns.length} SHOOTING DAYS
+                </span>
+              </div>
+              <ScriptReportsPrintView
+                productionTitle={project.title}
+                scenes={reportBreakdown.scenes}
+                characters={reportBreakdown.characters}
+                characterReports={reportCharacterEntries}
+                locations={reportBreakdown.locations}
+                dood={reportDood}
+                sections={{ scenes: true, characters: true, locations: true, dood: true }}
+                logo={project.logo}
+              />
+            </div>
+          )}
+
+          {exportSection === 'combined' && packageSides.scenes.length > 0 && (
+            <div className="mb-8 print-section break-before-page">
+              <ScriptSidesPrintView
+                sides={packageSides}
+                title={project.title}
+                subtitle={project.date}
+                logo={project.logo}
+              />
+            </div>
+          )}
+
+          {exportSection === 'combined' && (project.people ?? []).length > 0 && (
+            <div className="mb-8 print-section break-before-page">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-emerald-600" />
+                  <span>Production Contact List</span>
+                </h3>
+                <span className="font-mono text-xs font-bold text-slate-700">
+                  {(project.people ?? []).length} CONTACT{(project.people ?? []).length === 1 ? '' : 'S'}
+                </span>
+              </div>
+              <ContactListPrintView
+                people={project.people ?? []}
+                characters={crewCharacters}
+                castAssignments={project.castAssignments ?? []}
+                logo={project.logo}
+              />
+            </div>
+          )}
+
+          {exportSection === 'combined' && exportBoard && (
+            exportCards.length > 0 || (exportBoard.palette ?? []).length > 0
+          ) && (
+            <div className="mb-8 print-section break-before-page">
+              <MoodboardPrintView board={exportBoard} srcs={exportImageSrcs} />
             </div>
           )}
 

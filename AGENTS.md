@@ -94,7 +94,8 @@ Research and propose, but never bake these into architecture without an explicit
 npm run dev          # Vite dev server on port 3000
 npm run typecheck    # tsc --noEmit
 npm run test         # vitest run
-npm run lint         # tsc --noEmit (alias of typecheck today)
+npm run lint         # tsc --noEmit + scripts/check-encoding.mjs (fails on mojibake / BOMs)
+npm run check:encoding        # encoding check alone; --fix-bom strips byte-order marks
 npm run build        # production build (base '/')
 GH_PAGES=true npm run build   # subpath base '/OpenShotDesigner/' — CI verifies this
 ```

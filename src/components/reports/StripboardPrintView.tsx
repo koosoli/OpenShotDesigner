@@ -4,6 +4,8 @@ export interface PrintableStripboardItem {
   label: string;
   kindLabel: string;
   minutes?: number;
+  /** Hex accent mirroring the on-screen strip color (see SchedulePanel); undefined = neutral. */
+  tone?: string;
 }
 
 export interface PrintableStripboardDay {
@@ -19,6 +21,8 @@ export interface PrintableStripboardDay {
 interface StripboardPrintViewProps {
   productionTitle: string;
   company?: string;
+  /** Production logo (data URL) shown top-right of the masthead. */
+  logo?: string;
   days: PrintableStripboardDay[];
 }
 
@@ -39,6 +43,7 @@ const formatMinutes = (total: number | undefined): string => {
 export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
   productionTitle,
   company,
+  logo,
   days,
 }) => {
   const generatedAt = new Date().toISOString().split('T')[0];
@@ -68,6 +73,7 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
         .sb-sub { font-size: 10px; font-weight: 700; margin: 4px 0 0; color: #334155; }
         .sb-company { font-size: 9px; color: #475569; margin: 4px 0 0; }
         .sb-meta { text-align: right; font-size: 9px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        .sb-logo { max-width: 42mm; max-height: 16mm; object-fit: contain; margin-bottom: 4px; }
         .sb-day-head { display: flex; justify-content: space-between; gap: 10px; background: #0f172a; color: #fff; padding: 5px 8px; margin: 14px 0 0; page-break-after: avoid; break-after: avoid; page-break-inside: avoid; }
         .sb-day-name { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.8px; }
         .sb-day-facts { font-size: 9px; font-family: 'Courier New', monospace; font-weight: 700; }
@@ -75,7 +81,8 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
         .sb-table th, .sb-table td { border: 1px solid #cbd5e1; padding: 3.5px 6px; text-align: left; vertical-align: top; }
         .sb-table th { background: #f1f5f9; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; color: #475569; }
         .sb-table td.num, .sb-table th.num { text-align: right; white-space: nowrap; font-family: 'Courier New', monospace; }
-        .sb-kind { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e2e8f0; font-size: 7.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; }
+        .sb-item > td:first-child { border-left: 3px solid var(--tone, #cbd5e1); }
+        .sb-kind { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e2e8f0; background: color-mix(in srgb, var(--tone, #94a3b8) 16%, #ffffff); font-size: 7.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; }
         .sb-total-row td { font-weight: 700; background: #f8fafc; }
         .sb-footer { margin-top: 14px; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 8.5px; color: #475569; display: flex; justify-content: space-between; gap: 10px; }
         .sb-footer p { margin: 0; }
@@ -88,6 +95,7 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
             <p className="sb-company">{days.length} shooting day{days.length === 1 ? '' : 's'} · generated {generatedAt}</p>
           </div>
           <div className="sb-meta">
+            {logo && <img src={logo} alt="Production logo" className="sb-logo" />}
             <div>Total estimated</div>
             <div style={{ fontSize: 20, color: '#0f172a', fontFamily: "'Courier New', monospace" }}>{formatMinutes(grandTotal)}</div>
           </div>
@@ -114,7 +122,7 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
               </thead>
               <tbody>
                 {day.items.map((item, i) => (
-                  <tr key={`item-${i}`}>
+                  <tr key={`item-${i}`} className="sb-item" style={{ '--tone': item.tone } as React.CSSProperties}>
                     <td className="num">{i + 1}</td>
                     <td>{item.label}</td>
                     <td><span className="sb-kind">{item.kindLabel}</span></td>

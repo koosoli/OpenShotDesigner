@@ -4,6 +4,8 @@ import { CREW_DEPARTMENTS, CREW_SHEET_NOTE } from '../../domain/reports/crewShee
 
 interface CrewSheetPrintViewProps {
   sheet: CrewSheetData;
+  /** Production logo (data URL) shown top-right of the header. */
+  logo?: string;
 }
 
 const DEPARTMENT_LABELS: Record<string, string> = {
@@ -24,7 +26,7 @@ const joinDefined = (parts: (string | undefined)[]): string =>
  * Render inside a `.crew-sheet-print-host` container (see the embedded style
  * block): on screen it sits off-screen; in print media only this document shows.
  */
-export const CrewSheetPrintView: React.FC<CrewSheetPrintViewProps> = ({ sheet }) => {
+export const CrewSheetPrintView: React.FC<CrewSheetPrintViewProps> = ({ sheet, logo }) => {
   const generatedAt = new Date().toISOString().split('T')[0];
 
   return (
@@ -51,6 +53,8 @@ export const CrewSheetPrintView: React.FC<CrewSheetPrintViewProps> = ({ sheet })
         .cws-doc { padding: 6mm 4mm; color: #000; background: #fff; }
         .cws-doc * { box-sizing: border-box; }
         .cws-header { border-bottom: 3px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
+        .cws-headrow { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .cws-logo { max-width: 42mm; max-height: 16mm; object-fit: contain; flex-shrink: 0; margin-left: auto; }
         .cws-kicker { font-family: Arial, Helvetica, sans-serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 2px; }
         .cws-title { font-size: 24px; font-weight: bold; text-transform: uppercase; margin: 0 0 6px; line-height: 1.15; }
         .cws-meta { display: flex; flex-wrap: wrap; gap: 4px 18px; font-family: Arial, Helvetica, sans-serif; font-size: 11px; margin: 0; }
@@ -64,19 +68,24 @@ export const CrewSheetPrintView: React.FC<CrewSheetPrintViewProps> = ({ sheet })
       `}</style>
       <div className="cws-doc">
         <header className="cws-header">
-          <p className="cws-kicker">Crew Sheet</p>
-          <h1 className="cws-title">{sheet.productionTitle}</h1>
-          <p className="cws-meta">
-            <span>
-              <strong>DAY:</strong> {sheet.dayName}
-            </span>
-            <span>
-              <strong>DATE:</strong> {sheet.date ?? '—'}
-            </span>
-            <span>
-              <strong>VENUE:</strong> {sheet.venue ?? '—'}
-            </span>
-          </p>
+          <div className="cws-headrow">
+            <div>
+              <p className="cws-kicker">Crew Sheet</p>
+              <h1 className="cws-title">{sheet.productionTitle}</h1>
+              <p className="cws-meta">
+                <span>
+                  <strong>DAY:</strong> {sheet.dayName}
+                </span>
+                <span>
+                  <strong>DATE:</strong> {sheet.date ?? '—'}
+                </span>
+                <span>
+                  <strong>VENUE:</strong> {sheet.venue ?? '—'}
+                </span>
+              </p>
+            </div>
+            {logo && <img src={logo} alt="Production logo" className="cws-logo" />}
+          </div>
         </header>
 
         <section>

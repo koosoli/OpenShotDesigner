@@ -11,6 +11,8 @@ interface ScriptReportsPrintViewProps {
   locations: ScriptLocationBreakdown[];
   dood: { columns: DoodColumn[]; rows: DoodRow[] };
   sections: { scenes: boolean; characters: boolean; locations: boolean; dood: boolean };
+  /** Production logo (data URL) shown top-right above the report sections. */
+  logo?: string;
 }
 
 const DOOD_LABEL: Record<DoodWorkStatus, string> = { start: 'SW', work: 'W', finish: 'WF', hold: 'H', off: '' };
@@ -30,6 +32,7 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
   locations,
   dood,
   sections,
+  logo,
 }) => {
   const cell = 'border border-slate-300 px-2 py-1 align-top text-[10.5px]';
   const head = `${cell} bg-slate-100 font-bold uppercase tracking-wider text-[9px] text-slate-700`;
@@ -37,6 +40,11 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {logo && (
+        <div className="flex justify-end">
+          <img src={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
+        </div>
+      )}
       {sections.scenes && (
         <section className="print-section">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-1 mb-2">

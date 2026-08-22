@@ -267,9 +267,13 @@ export const ViewfinderModal: React.FC = () => {
 
   // True when the frame carries real imagery (live feed or attached art), in
   // which case the simulated silhouettes would only get in the way.
-  // Keyframes this shot can be boarded on, and the one being worked on now
+  // Keyframes this shot can be boarded on, and the one being worked on now.
+  // currentSlotKey resolves to the slot actually highlighted — captureSlot can
+  // go stale when the camera switches and its waypoint keys no longer exist,
+  // which used to file captures under an orphan key nothing displayed.
   const frameSlots = targetShot ? slotsOf(targetShot, selectedCamera) : [];
   const activeSlot = frameSlots.find((slot) => slot.key === captureSlot) || frameSlots[0];
+  const currentSlotKey = activeSlot?.key || START_SLOT;
   const shownStoryboard = activeSlot?.frame?.image || targetShot?.storyboardImage;
   const showsRealImage = !!liveStream || !!frozenFrame || (showStoryboard && !!shownStoryboard);
 
@@ -387,8 +391,12 @@ export const ViewfinderModal: React.FC = () => {
     const slotName = activeSlot?.label ? `${activeSlot.label.toLowerCase()} frame` : 'storyboard';
 
     if (targetShot) {
-      updateShot(targetShot.id, setFramePatch(targetShot, captureSlot, { image, fit: 'cover' }));
-      setSaveNote(`Saved as the ${slotName} of shot ${targetShot.shotNumber}.`);
+      updateShot(targetShot.id, setFramePatch(targetShot, currentSlotKey, { image, fit: 'cover' }));
+      setSaveNote(
+        currentSlotKey === START_SLOT
+          ? `Saved as the storyboard of shot ${targetShot.shotNumber}.`
+          : `Saved as the ${slotName} of shot ${targetShot.shotNumber}.`
+      );
     } else {
       addShot({
         cameraId: selectedCamera.id,
@@ -1001,7 +1009,7 @@ export const ViewfinderModal: React.FC = () => {
                         slot.frame?.image ? ' (already boarded)' : ''
                       }`}
                       className={`px-2 py-1 text-[11px] font-semibold flex items-center gap-1 ${
-                        captureSlot === slot.key
+                        currentSlotKey === slot.key
                           ? slot.short === 'END'
                             ? 'bg-amber-500 text-black'
                             : 'bg-violet-600 text-white'

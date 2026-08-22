@@ -9,6 +9,8 @@ interface ContactListPrintViewProps {
   castAssignments?: CastAssignment[];
   /** Hide rates on copies handed to the whole crew. */
   showRates?: boolean;
+  /** Production logo (data URL) shown top-right above the tables. */
+  logo?: string;
 }
 
 /**
@@ -16,7 +18,7 @@ interface ContactListPrintViewProps {
  * cast list with character ↔ performer links. Derived on demand from
  * canonical project data (plan rule 37) — nothing is stored.
  */
-export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ people, characters = [], castAssignments = [], showRates = false }) => {
+export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ people, characters = [], castAssignments = [], showRates = false, logo }) => {
   const groups = groupPeopleByDepartment(people);
   const castRows = characters
     .map((character) => {
@@ -31,6 +33,11 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
 
   return (
     <div className="space-y-6">
+      {logo && (
+        <div className="flex justify-end">
+          <img src={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
+        </div>
+      )}
       <section className="print-section">
         <table className="w-full border-collapse">
           <thead>

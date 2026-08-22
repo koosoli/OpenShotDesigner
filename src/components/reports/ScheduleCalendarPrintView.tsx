@@ -6,6 +6,8 @@ export interface PrintableCalendarEvent {
   endDate: string;
   category: string;
   status?: string;
+  /** User-picked line color (ProductionCalendarEvent.color); undefined = default violet. */
+  color?: string;
 }
 
 export interface PrintableCalendarDay {
@@ -19,6 +21,8 @@ export interface PrintableCalendarDay {
 interface ScheduleCalendarPrintViewProps {
   productionTitle: string;
   company?: string;
+  /** Production logo (data URL) shown top-right of the masthead. */
+  logo?: string;
   events: PrintableCalendarEvent[];
   days: PrintableCalendarDay[];
 }
@@ -39,6 +43,9 @@ const STATUS_LABELS: Record<string, string> = {
   done: 'Done',
 };
 
+/** Fallback for lines without an explicit color (matches the timeline default). */
+const DEFAULT_EVENT_COLOR = '#7c3aed';
+
 /** "3h 15m" / "45m" / "—" for missing estimates (never silently 0). */
 const formatMinutes = (total: number | undefined): string => {
   if (total === undefined) return '—';
@@ -55,6 +62,7 @@ const formatMinutes = (total: number | undefined): string => {
 export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps> = ({
   productionTitle,
   company,
+  logo,
   events,
   days,
 }) => {
@@ -82,6 +90,8 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
         .sc-kicker { font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: #0e7490; font-weight: 700; margin: 0 0 3px; }
         .sc-title { font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; line-height: 1.05; letter-spacing: -0.3px; }
         .sc-company { font-size: 9px; color: #475569; margin: 4px 0 0; }
+        .sc-headrow { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .sc-logo { max-width: 42mm; max-height: 16mm; object-fit: contain; flex-shrink: 0; margin-left: auto; }
         .sc-section-title { font-size: 9px; letter-spacing: 1.8px; text-transform: uppercase; font-weight: 900; color: #fff; background: #0e7490; padding: 3px 7px; margin: 12px 0 0; page-break-after: avoid; break-after: avoid; }
         .sc-section-title.dark { background: #0f172a; }
         .sc-table { width: 100%; border-collapse: collapse; font-size: 10px; }
@@ -90,14 +100,22 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
         .sc-table td.num, .sc-table th.num { text-align: right; white-space: nowrap; font-family: 'Courier New', monospace; }
         .sc-table td.time { font-family: 'Courier New', monospace; font-weight: 700; white-space: nowrap; }
         .sc-badge { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e2e8f0; font-size: 7.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; }
+        .sc-event > td:first-child { border-left: 3px solid var(--tone, #7c3aed); }
+        .sc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: var(--tone, #7c3aed); }
+        .sc-cat { background: #e2e8f0; background: color-mix(in srgb, var(--tone, #7c3aed) 14%, #ffffff); color: var(--tone, #334155); }
         .sc-footer { margin-top: 14px; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 8.5px; color: #475569; display: flex; justify-content: space-between; gap: 10px; }
         .sc-footer p { margin: 0; }
       `}</style>
       <div className="sc-doc">
         <header className="sc-masthead">
-          <p className="sc-kicker">{company ? `${company} · ` : ''}Production schedule · Calendar</p>
-          <h1 className="sc-title">{productionTitle}</h1>
-          <p className="sc-company">Generated {generatedAt}</p>
+          <div className="sc-headrow">
+            <div>
+              <p className="sc-kicker">{company ? `${company} · ` : ''}Production schedule · Calendar</p>
+              <h1 className="sc-title">{productionTitle}</h1>
+              <p className="sc-company">Generated {generatedAt}</p>
+            </div>
+            {logo && <img src={logo} alt="Production logo" className="sc-logo" />}
+          </div>
         </header>
 
         <section>
@@ -115,11 +133,11 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
               </thead>
               <tbody>
                 {events.map((event, i) => (
-                  <tr key={`event-${i}`}>
-                    <td><strong>{event.title}</strong></td>
+                  <tr key={`event-${i}`} className="sc-event" style={{ '--tone': event.color ?? DEFAULT_EVENT_COLOR } as React.CSSProperties}>
+                    <td><span className="sc-dot" /><strong>{event.title}</strong></td>
                     <td className="time">{event.startDate}</td>
                     <td className="time">{event.endDate}</td>
-                    <td>{CATEGORY_LABELS[event.category] ?? event.category}</td>
+                    <td><span className="sc-badge sc-cat">{CATEGORY_LABELS[event.category] ?? event.category}</span></td>
                     <td>{event.status ? STATUS_LABELS[event.status] ?? event.status : '—'}</td>
                   </tr>
                 ))}

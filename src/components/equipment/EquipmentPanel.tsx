@@ -68,6 +68,7 @@ export const EquipmentPanel: React.FC = () => {
     updateElement,
     selectElement,
     selectedElementIds,
+    setHighlightedElement,
   } = useFloorPlan();
 
   const isLight = theme === 'light';
@@ -180,10 +181,14 @@ export const EquipmentPanel: React.FC = () => {
     return null;
   };
 
-  /** Selecting a gear row also selects its fixture on the floor plan. */
+  /** Selecting a gear row also selects its fixture on the floor plan — with
+   *  the same amber flash a shot-list camera selection produces. */
   const locateGearOnPlan = (item: EquipmentItem) => {
     const elementId = resolveItemElementId(item);
-    if (elementId) selectElement(elementId);
+    if (!elementId) return;
+    selectElement(elementId);
+    setHighlightedElement(elementId);
+    window.setTimeout(() => setHighlightedElement(null), 1500);
   };
 
   /** Clicking a gear row selects its element on the floor plan (the reverse of

@@ -1,7 +1,7 @@
 import type { ActorElement, CameraElement, Project, SceneSetup, Shot } from '../types';
 import { SAMPLE_SCENES, SAMPLE_SCREENPLAY } from '../constants/presets';
 import { calculateFovAngle } from './geometry';
-import { parseSampleScreenplay, sampleMarksFor, sampleScheduleMeta } from './sampleContent';
+import { parseSampleScreenplay, sampleMarksFor, samplePlanningMeta, sampleScheduleMeta } from './sampleContent';
 import { createId } from '../domain/ids';
 import { cloneProjectWithNewIds } from '../domain/clone';
 import {
@@ -381,8 +381,12 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
 
   // The examples come pre-lined, so the script tab isn't empty on first run.
   // The schedule tabs (board, timeline, call sheets, coverage) ship with the
-  // same example production so every page demonstrates how it works.
+  // same example production, and the other module pages (locations, run of
+  // show, tasks, mood board, logistics) ship matching examples — every page
+  // demonstrates how it works.
   const scheduleMeta = withSamples ? sampleScheduleMeta() : null;
+  const planningMeta =
+    withSamples && scheduleMeta ? samplePlanningMeta(scheduleMeta.people) : null;
   let scriptLines;
   if (withSamples) {
     scriptLines = parseSampleScreenplay();
@@ -422,6 +426,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
           scriptText: SAMPLE_SCREENPLAY,
           scriptLines,
           ...scheduleMeta,
+          ...planningMeta,
         }
       : {}),
   };

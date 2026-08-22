@@ -117,9 +117,23 @@ export const ShotListPanel: React.FC = () => {
   const [insertMenu, setInsertMenu] = useState<{ shotId: string; x: number; y: number } | null>(null);
   // Storyboard thumbnails in the shot list (like the print export). Defaults ON
   // when any shot in the current scope already carries a frame.
-  const [showStoryboards, setShowStoryboards] = useState<boolean>(() =>
-    (project.setups.find((s) => s.id === activeSetup.id)?.shots || []).some((s) => !!s.storyboardImage)
-  );
+  const sceneShots = project.setups.find((s) => s.id === activeSetup.id)?.shots || [];
+  const hasStoryboards = sceneShots.some((s) => !!s.storyboardImage);
+  const [showStoryboards, setShowStoryboards] = useState<boolean>(hasStoryboards);
+  // Boards saved after mount (e.g. a frame captured in the viewfinder) must
+  // become visible without a reload: flip the column on the first time this
+  // scene goes from no boards to some. A manual toggle-off afterwards stays off.
+  const storyboardsSeenRef = useRef(hasStoryboards);
+  useEffect(() => {
+    if (!hasStoryboards) {
+      storyboardsSeenRef.current = false;
+      return;
+    }
+    if (!storyboardsSeenRef.current) {
+      storyboardsSeenRef.current = true;
+      setShowStoryboards(true);
+    }
+  }, [hasStoryboards]);
   const shotListContainerRef = useRef<HTMLDivElement>(null);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
 

@@ -520,6 +520,31 @@ export const SchedulePanel: React.FC = () => {
 
   // --- Whole-view printouts (Board / Timeline / Coverage) ---
 
+  /**
+   * Print tones mirroring the on-screen strip colors: manual banners key off
+   * their type (meal emerald, move violet, rehearsal amber, load-in cyan,
+   * strike/other slate), content strips off their block kind (scene amber,
+   * setup cyan, shots violet, cue pink, segment indigo). Presentation-only.
+   */
+  const PRINT_TONES: Record<ScheduleBlock['kind'] | ManualType, string> = {
+    scene: '#b45309',
+    setup: '#0e7490',
+    shots: '#7c3aed',
+    cue: '#db2777',
+    segment: '#4f46e5',
+    manual: '#475569',
+    meal: '#059669',
+    move: '#7c3aed',
+    rehearsal: '#d97706',
+    load_in: '#0e7490',
+    strike: '#64748b',
+    other: '#475569',
+  };
+
+  /** Tone for one strip: banners by manualType, everything else by kind. */
+  const blockPrintTone = (block: ScheduleBlock): string =>
+    block.kind === 'manual' ? PRINT_TONES[block.manualType ?? 'other'] : PRINT_TONES[block.kind];
+
   const printableBoardDays = useMemo<PrintableStripboardDay[]>(() => {
     return days.map((day) => {
       const items = day.scheduleBlockIds
@@ -529,6 +554,7 @@ export const SchedulePanel: React.FC = () => {
           label: blockLabel(block, labelCtx),
           kindLabel: BLOCK_KIND_LABELS[block.kind],
           minutes: 'estimatedMinutes' in block ? block.estimatedMinutes : undefined,
+          tone: blockPrintTone(block),
         }));
       return {
         id: day.id,
@@ -551,6 +577,7 @@ export const SchedulePanel: React.FC = () => {
         endDate: event.endDate,
         category: event.category,
         status: event.status,
+        color: event.color,
       })),
     [calendarEvents]
   );
@@ -952,13 +979,13 @@ export const SchedulePanel: React.FC = () => {
       {printSheet && createPortal(<div className="call-sheet-print-host"><CallSheetPrintView sheet={printSheet} /></div>, document.body)}
       {printView === 'stripboard' && createPortal(
         <div className="schedule-print-host">
-          <StripboardPrintView productionTitle={project.title} company={project.productionCompany} days={printableBoardDays} />
+          <StripboardPrintView productionTitle={project.title} company={project.productionCompany} logo={project.logo} days={printableBoardDays} />
         </div>,
         document.body
       )}
       {printView === 'calendar' && createPortal(
         <div className="schedule-print-host">
-          <ScheduleCalendarPrintView productionTitle={project.title} company={project.productionCompany} events={printableCalendarEvents} days={printableCalendarDays} />
+          <ScheduleCalendarPrintView productionTitle={project.title} company={project.productionCompany} logo={project.logo} events={printableCalendarEvents} days={printableCalendarDays} />
         </div>,
         document.body
       )}
@@ -967,6 +994,7 @@ export const SchedulePanel: React.FC = () => {
           <CoverageMatrixPrintView
             productionTitle={project.title}
             company={project.productionCompany}
+            logo={project.logo}
             cameras={project.coverageMatrix?.cameraIds ?? []}
             rows={printableCoverageRows}
           />

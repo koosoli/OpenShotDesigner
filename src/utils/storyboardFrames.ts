@@ -30,11 +30,19 @@ export const framesOf = (shot: Shot): Record<string, StoryboardFrame> => {
   const frames: Record<string, StoryboardFrame> = { ...(shot.storyboardFrames || {}) };
 
   if (!frames[START_SLOT] && shot.storyboardImage) {
-    frames[START_SLOT] = {
-      image: shot.storyboardImage,
-      fit: shot.storyboardFit,
-      canvasPosition: shot.storyboardCanvasPosition,
-    };
+    // The legacy field also mirrors non-start frames (see setFramePatch), so
+    // only fold it into 'start' when the art does not already live in a slot —
+    // otherwise every read would duplicate the mirrored frame.
+    const mirroredElsewhere = Object.keys(frames).some(
+      (key) => frames[key]?.image === shot.storyboardImage
+    );
+    if (!mirroredElsewhere) {
+      frames[START_SLOT] = {
+        image: shot.storyboardImage,
+        fit: shot.storyboardFit,
+        canvasPosition: shot.storyboardCanvasPosition,
+      };
+    }
   }
   if (shot.storyboardImageEnd && !Object.keys(frames).some((key) => key !== START_SLOT)) {
     frames[END_SLOT] = {
@@ -92,9 +100,11 @@ export const slotsOf = (shot: Shot, camera?: CameraElement | null): FrameSlot[] 
 };
 
 /**
- * Build the `updateShot` payload that writes one frame. The first frame is
+ * Build the `updateShot` payload that writes one frame. The shot's key frame is
  * mirrored onto the legacy `storyboardImage` field so anything still reading it
- * (exports, thumbnails, the inspector) keeps showing the shot's key frame.
+ * (exports, thumbnails, the inspector) keeps showing a board: the start frame
+ * when it carries art, otherwise the first other boarded frame — capturing any
+ * slot must leave the shot with a visible storyboard.
  */
 export const setFramePatch = (
   shot: Shot,
@@ -107,12 +117,13 @@ export const setFramePatch = (
   else frames[slotKey] = { ...(frames[slotKey] || { image: '' }), ...updates } as StoryboardFrame;
 
   const start = frames[START_SLOT];
+  const keyFrame = (start?.image ? start : undefined) || Object.values(frames).find((frame) => frame?.image);
   return {
     storyboardFrames: frames,
     // Legacy mirrors
-    storyboardImage: start?.image,
-    storyboardFit: start?.fit,
-    storyboardCanvasPosition: start?.canvasPosition,
+    storyboardImage: keyFrame?.image,
+    storyboardFit: keyFrame?.fit,
+    storyboardCanvasPosition: keyFrame?.canvasPosition,
     storyboardImageEnd: undefined,
     storyboardFitEnd: undefined,
     storyboardCanvasPositionEnd: undefined,
