@@ -52,7 +52,11 @@ export const PowerPanel: React.FC = () => {
   const plan = getPowerPlan(project);
   const sources = plan.sources;
   const circuits = plan.circuits;
-  const consumers: ScenePowerConsumer[] = (plan.consumers ?? []) as ScenePowerConsumer[];
+  // Memoised: a fresh `?? []` each render defeated the load report's memo.
+  const consumers: ScenePowerConsumer[] = useMemo(
+    () => (plan.consumers ?? []) as ScenePowerConsumer[],
+    [plan.consumers],
+  );
 
   // Inline add-form state
   const [newCircuitName, setNewCircuitName] = useState('');

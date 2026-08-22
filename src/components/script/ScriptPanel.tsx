@@ -255,6 +255,10 @@ export const ScriptPanel: React.FC = () => {
     if (activeTab !== 'reports' && scriptFormatMode && scriptFormatMode !== activeTab) {
       setActiveTab(scriptFormatMode);
     }
+    // Deliberately keyed on scriptFormatMode alone. This is a one-way sync:
+    // changing the stored format switches the tab. Depending on activeTab too
+    // would re-run whenever the user picked a different tab and yank them back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scriptFormatMode]);
 
   const handleTabSwitch = (mode: ScriptFormatMode) => {
@@ -266,6 +270,10 @@ export const ScriptPanel: React.FC = () => {
     if (lines.length > 0 && fountainViewMode === 'raw') {
       setRawFountainText(serializeToFountain(lines, scriptTitle));
     }
+    // Snapshot the script as Fountain at the MOMENT the raw view opens.
+    // Depending on `lines` would re-serialise on every edit and discard
+    // whatever the user has typed into the raw textarea.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fountainViewMode]);
 
   const importRaw = (raw: string, name: string) => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { getSymbolById, searchSymbols } from '../../domain/assets';
 import type { PlanSymbolDefinition } from '../../domain/assets';
@@ -487,7 +487,7 @@ export const QuickAssetSearch: React.FC = () => {
     }
   }, [quickSearchOpen]);
 
-  const place = (item: ResultItem) => {
+  const place = useCallback((item: ResultItem) => {
     if (item.kind === 'asset') {
       quickAddElement(item.asset.buildPartial());
     } else {
@@ -508,7 +508,7 @@ export const QuickAssetSearch: React.FC = () => {
     }
     setQuickSearchOpen(false);
     setQuery('');
-  };
+  }, [quickAddElement, setQuickSearchOpen]);
 
   // Global hotkeys: Shift+Space opens the palette from anywhere
   useEffect(() => {
@@ -557,7 +557,10 @@ export const QuickAssetSearch: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [quickSearchOpen, filtered, selectedIndex]);
+    // `place` and `setQuickSearchOpen` are listed because the handler calls
+    // them: without them the listener keeps whichever copy existed when the
+    // effect last ran, so Enter could place into a stale setup.
+  }, [quickSearchOpen, filtered, selectedIndex, place, setQuickSearchOpen]);
 
   // Keep the highlighted row scrolled into view.
   useEffect(() => {

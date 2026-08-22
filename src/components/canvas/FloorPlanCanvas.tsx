@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
@@ -181,16 +181,22 @@ export const FloorPlanCanvas: React.FC = () => {
   // Plan layers (§6.1): elements whose layerId maps to a hidden layer of the
   // active setup are not rendered; locked layers render but are
   // non-interactable. Elements without a layerId are unlayered → always shown.
-  const getLayerFor = (el: FloorPlanElement): PlanLayer | null =>
-    el.layerId ? activeSetup.layers?.find((l) => l.id === el.layerId) ?? null : null;
+  const getLayerFor = useCallback(
+    (el: FloorPlanElement): PlanLayer | null =>
+      el.layerId ? activeSetup.layers?.find((l) => l.id === el.layerId) ?? null : null,
+    [activeSetup.layers],
+  );
   const isElementHidden = (el: FloorPlanElement): boolean => {
     const layer = getLayerFor(el);
     return !!layer && !layer.visible;
   };
-  const isEffectivelyLocked = (el: FloorPlanElement): boolean => {
-    const layer = getLayerFor(el);
-    return !!el.locked || (!!layer && layer.locked);
-  };
+  const isEffectivelyLocked = useCallback(
+    (el: FloorPlanElement): boolean => {
+      const layer = getLayerFor(el);
+      return !!el.locked || (!!layer && layer.locked);
+    },
+    [getLayerFor],
+  );
 
   // Lightweight hit-test for the context menu: topmost element whose
   // approximate bounds contain the canvas point (hidden layers skipped).
@@ -256,7 +262,10 @@ export const FloorPlanCanvas: React.FC = () => {
   const altDownRef = useRef(false);
 
   const canvasScale = activeSetup?.canvasScale ?? 1;
-  const canvasOffset = activeSetup?.canvasOffset ?? { x: 50, y: 50 };
+  const canvasOffset = useMemo(
+    () => activeSetup?.canvasOffset ?? { x: 50, y: 50 },
+    [activeSetup?.canvasOffset],
+  );
   const gridSettings = activeSetup?.gridSettings || { size: 30, snap: true, showGrid: false, unit: 'm' as const, pixelsPerUnit: 30 };
   useEffect(() => {
     setCalibrationPoints([]);
@@ -659,13 +668,20 @@ export const FloorPlanCanvas: React.FC = () => {
   };
 
   // Finish connected wall mode
-  const finishConnectedWalls = () => {
+  const finishConnectedWalls = useCallback(() => {
     setConnectedWallStart(null);
     setWallChainFirstPoint(null);
     setTool('select');
-  };
+  }, [setTool]);
 
   // Finish continuous cable routing (keeps the cable tool selected so a new run can start)
+  //
+  // Not wrapped in useCallback: it closes over a dozen pieces of canvas state
+  // that are themselves recreated per render, so a useCallback here would need
+  // that whole chain stabilised first and would still change identity. The
+  // effect using it lists it correctly, so this costs one listener swap per
+  // render and nothing in correctness.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const finishConnectedCable = () => {
     // Attach the run's final vertex to a nearby device, so dragging that
     // device afterwards drags the cable end with it.
@@ -2050,6 +2066,12 @@ export const FloorPlanCanvas: React.FC = () => {
   };
 
   // Pointer Up
+  //
+  // Deliberately not a useCallback: this is the drag-release path and it reads
+  // most of the canvas's state and callbacks. Stabilising it would mean
+  // stabilising all of them, for the sake of avoiding one listener swap per
+  // render. Its effect's dependency list is complete, which is what matters.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handlePointerUp = () => {
     if (dragState?.type === 'draw_measure') {
       // Finish measuring: if the tape is a zero-length click, give it a sensible default length
@@ -2374,7 +2396,11 @@ export const FloorPlanCanvas: React.FC = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [selectedElementIds, deleteSelectedElements, clearSelection, undo, redo, activeSetup.elements, updateMultipleElements, setTool, selectedBackgroundId, removeBackgroundImage, setSelectedBackgroundId, duplicateSelected, copySelectedElements, pasteElements, cancelBackgroundCalibration]);
+    // Everything the handlers touch is listed. An omitted dependency here means
+    // a keyboard shortcut acting on a stale copy of the scene — nudging a
+    // background image that has since moved, or finishing a wall/cable run with
+    // an out-of-date callback.
+  }, [selectedElementIds, deleteSelectedElements, clearSelection, undo, redo, activeSetup.elements, activeSetup.backgroundImages, updateMultipleElements, updateBackgroundImage, setTool, selectedBackgroundId, removeBackgroundImage, setSelectedBackgroundId, duplicateSelected, copySelectedElements, pasteElements, cancelBackgroundCalibration, finishConnectedWalls, finishConnectedCable, isEffectivelyLocked]);
 
   const selectedElementRaw =
     selectedElementIds.length === 1

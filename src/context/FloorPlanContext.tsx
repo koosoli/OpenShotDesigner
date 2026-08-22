@@ -894,7 +894,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     autosaveProjectRef.current = project;
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = window.setTimeout(() => persistProjectNow(project), 300);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [project]);
   useEffect(() => {
     const flush = () => {
@@ -923,7 +923,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       document.removeEventListener('visibilitychange', onVisibility);
       unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const dismissStorageWarning = () => setStorageWarning(null);
@@ -1864,7 +1864,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     let camId = shotData?.cameraId || '';
     let camLabel = shotData?.cameraLabel || nextCamLetter;
     let lens = shotData?.lensMm || 35;
-    let newElements = [...activeSetup.elements];
+    const newElements = [...activeSetup.elements];
 
     // If no camera was explicitly specified in shotData, reuse the default camera
     // (Camera A) in single-camera mode so we don't spawn a new camera element for

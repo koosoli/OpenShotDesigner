@@ -26,7 +26,7 @@ export const CoverageMatrixEditor: React.FC = () => {
   const [newRowLabel, setNewRowLabel] = useState('');
 
   const matrix: CoverageMatrix = project.coverageMatrix ?? emptyCoverageMatrix();
-  const cues = project.runOfShowCues ?? [];
+  const cues = useMemo(() => project.runOfShowCues ?? [], [project.runOfShowCues]);
 
   /** Camera columns: registered columns plus labels found on the active scene. */
   const cameraLabels = useMemo(

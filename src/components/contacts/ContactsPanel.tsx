@@ -263,17 +263,22 @@ export const ContactsPanel: React.FC = () => {
   };
 
   /** Heads named only as free text in the project details, with nobody linked. */
-  const legacyOnlyHeads = useMemo(
-    () =>
-      KEY_CREW_ROLES.filter((role) => role.projectField)
-        .filter((role) => !keyCrewMember(people, role.key))
-        .map((role) => {
-          const name = (project[role.projectField!] ?? '').trim();
-          return name ? `${role.label}: ${name}` : '';
-        })
-        .filter(Boolean),
-    [people, project.director, project.cinematographer],
-  );
+  const { director: legacyDirector, cinematographer: legacyCinematographer } = project;
+  const legacyOnlyHeads = useMemo(() => {
+    // Read through a narrow map of just the two mirrored fields, so this memo
+    // depends on those and not on the whole project object.
+    const legacy: Record<string, string | undefined> = {
+      director: legacyDirector,
+      cinematographer: legacyCinematographer,
+    };
+    return KEY_CREW_ROLES.filter((role) => role.projectField)
+      .filter((role) => !keyCrewMember(people, role.key))
+      .map((role) => {
+        const name = (legacy[role.projectField as string] ?? '').trim();
+        return name ? `${role.label}: ${name}` : '';
+      })
+      .filter(Boolean);
+  }, [people, legacyDirector, legacyCinematographer]);
 
   const exportCsv = () => {
     const blob = new Blob([peopleToCsv(people)], { type: 'text/csv;charset=utf-8' });

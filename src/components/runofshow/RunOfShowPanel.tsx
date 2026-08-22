@@ -70,8 +70,9 @@ export const RunOfShowPanel: React.FC = () => {
   const { project, theme, updateProjectMeta } = useFloorPlan();
   const isLight = theme === 'light';
 
-  const cues = project.runOfShowCues ?? [];
-  const segments = project.productionSegments ?? [];
+  // Memoised so the cue-timing memos below actually memoise.
+  const cues = useMemo(() => project.runOfShowCues ?? [], [project.runOfShowCues]);
+  const segments = useMemo(() => project.productionSegments ?? [], [project.productionSegments]);
 
   const [showStartText, setShowStartText] = useState('20:00');
   const [expandedCueIds, setExpandedCueIds] = useState<Set<string>>(new Set());

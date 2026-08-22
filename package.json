@@ -14,7 +14,8 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit && node scripts/check-encoding.mjs",
+    "lint": "tsc --noEmit && eslint . --max-warnings=400 && node scripts/check-encoding.mjs",
+    "lint:fix": "eslint . --fix",
     "check:encoding": "node scripts/check-encoding.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -29,14 +30,20 @@
     "react-dom": "^19.0.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "fake-indexeddb": "^6.2.5",
+    "globals": "^15.15.0",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
+    "typescript-eslint": "^8.67.0",
     "vite": "^6.2.3",
     "vitest": "^4.1.11"
   }

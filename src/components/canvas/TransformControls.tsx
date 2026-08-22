@@ -41,10 +41,10 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
 
   if (selectedElement.locked) {
     if (isLinear) {
-      let x1 = el.x;
-      let y1 = el.y;
-      let x2 = (el as any).x2 ?? el.x + 200;
-      let y2 = (el as any).y2 ?? el.y;
+      const x1 = el.x;
+      const y1 = el.y;
+      const x2 = (el as any).x2 ?? el.x + 200;
+      const y2 = (el as any).y2 ?? el.y;
       const midX = (x1 + x2) / 2;
       const midY = (y1 + y2) / 2;
 

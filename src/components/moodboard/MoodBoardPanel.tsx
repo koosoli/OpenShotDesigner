@@ -554,7 +554,12 @@ export const MoodBoardPanel: React.FC = () => {
   const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';
 
   return (
+    // The panel is focusable so a paste anywhere in it lands on the board.
+    // `role="group"` makes that a legitimate focus target rather than a
+    // focusable plain container.
     <div
+      role="group"
+      aria-label="Mood board"
       tabIndex={0}
       onPaste={handleContainerPaste}
       className={`h-full overflow-y-auto p-3 space-y-3 outline-none ${isLight ? 'bg-white' : 'bg-slate-900'}`}

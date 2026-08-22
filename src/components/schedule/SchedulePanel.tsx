@@ -76,9 +76,14 @@ export const SchedulePanel: React.FC = () => {
   const { project, theme, updateProjectMeta } = useFloorPlan();
   const isLight = theme === 'light';
 
-  const days = project.productionDays ?? [];
-  const blocks = project.scheduleBlocks ?? [];
-  const calendarEvents = project.productionCalendarEvents ?? [];
+  // Memoised: `?? []` mints a fresh array every render, which made every memo
+  // downstream of these recompute on every render instead of memoising.
+  const days = useMemo(() => project.productionDays ?? [], [project.productionDays]);
+  const blocks = useMemo(() => project.scheduleBlocks ?? [], [project.scheduleBlocks]);
+  const calendarEvents = useMemo(
+    () => project.productionCalendarEvents ?? [],
+    [project.productionCalendarEvents],
+  );
 
   // Inline add-block form state
   const [newBlockLabel, setNewBlockLabel] = useState('');
