@@ -131,6 +131,7 @@ export function planElementBounds(el: FloorPlanElement): ElementBounds {
     }
     case 'wall':
     case 'track':
+    case 'road':
     case 'measurement':
     case 'arrow':
     case 'cable': {
@@ -295,6 +296,7 @@ function geometryKindOf(el: FloorPlanElement): GeometryKind {
   switch (el.type) {
     case 'wall':
     case 'track':
+    case 'road':
     case 'measurement':
     case 'arrow':
     case 'cable':
@@ -306,7 +308,7 @@ function geometryKindOf(el: FloorPlanElement): GeometryKind {
   }
 }
 
-const ENDPOINT_ELEMENT_TYPES: readonly string[] = ['wall', 'track', 'measurement', 'arrow', 'cable'];
+const ENDPOINT_ELEMENT_TYPES: readonly string[] = ['wall', 'track', 'road', 'measurement', 'arrow', 'cable'];
 
 /**
  * Endpoint kinds (wall/track/measurement/arrow/cable): orientation lives in

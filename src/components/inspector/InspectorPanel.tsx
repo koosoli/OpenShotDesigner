@@ -9,6 +9,7 @@ import {
   FloorPlanElement,
   LightElement,
   PropElement,
+  RoadElement,
   SceneSetup,
   ShapeElement,
   Shot,
@@ -2539,7 +2540,7 @@ export const InspectorPanel: React.FC = () => {
           </div>
 
           {/* Rotation & Orientation Section */}
-          {el.type !== 'wall' && el.type !== 'track' && el.type !== 'measurement' && el.type !== 'arrow' && (
+          {el.type !== 'wall' && el.type !== 'track' && el.type !== 'road' && el.type !== 'measurement' && el.type !== 'arrow' && (
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-xs flex items-center gap-1.5 opacity-80">
@@ -4975,6 +4976,174 @@ export const InspectorPanel: React.FC = () => {
                   Tip: select the track and drag the amber curve handle on the canvas to bend it live.
                   Hold <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-200 font-mono text-[9px]">Shift</kbd> to snap the curve in 10px steps.
                 </p>
+              </RubricSection>
+            </div>
+          );
+        })()}
+
+        {/* 7b. STREET / ROAD INSPECTOR */}
+        {el.type === 'road' && (() => {
+          const road = el as RoadElement;
+          const length = Math.round(
+            Math.hypot((road.x2 ?? road.x + 320) - road.x, (road.y2 ?? road.y) - road.y),
+          );
+          const curveOffset = road.curveOffset ?? 60;
+          const btn = (active: boolean) =>
+            `py-1.5 px-2 rounded-lg border text-[10px] font-semibold transition-colors ${
+              active
+                ? 'bg-sky-600 text-white border-sky-500'
+                : isLight
+                ? 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+            }`;
+          return (
+            <div className="space-y-3 pt-1">
+              <RubricSection
+                title="Street Surface & Markings"
+                icon={<Square className="w-3.5 h-3.5 text-zinc-400" />}
+                badge={
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/10 font-bold">
+                    {(length / 50).toFixed(2)}m
+                  </span>
+                }
+                defaultOpen={true}
+                isLight={isLight}
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="opacity-60">Run length:</span>
+                  <span className="font-mono text-sky-500 font-bold">{(length / 50).toFixed(2)}m ({length}px)</span>
+                </div>
+
+                <div>
+                  <label className="opacity-60 block mb-1">
+                    Carriageway width &mdash; {((road.width || 120) / 50).toFixed(2)}m
+                  </label>
+                  <input
+                    type="range"
+                    min={20}
+                    max={400}
+                    step={5}
+                    value={road.width || 120}
+                    onChange={(e) => updateElement(road.id, { width: Number(e.target.value) })}
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="opacity-60 block mb-1">Surface</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {([
+                      ['asphalt', 'Asphalt'],
+                      ['concrete', 'Concrete'],
+                      ['cobble', 'Cobble'],
+                      ['gravel', 'Gravel'],
+                      ['dirt', 'Dirt track'],
+                      ['rail', 'Rail / tram'],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        onClick={() => updateElement(road.id, { surface: value })}
+                        className={btn((road.surface ?? 'asphalt') === value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="opacity-60 block mb-1">Centre marking</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {([
+                      ['none', 'None'],
+                      ['dashed', 'Dashed'],
+                      ['solid', 'Solid'],
+                      ['double', 'Double'],
+                      ['crosswalk', 'Crossing'],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        onClick={() => updateElement(road.id, { marking: value })}
+                        className={btn((road.marking ?? 'dashed') === value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="opacity-60 block mb-1">Lanes</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={8}
+                      value={road.lanes ?? 2}
+                      onChange={(e) =>
+                        updateElement(road.id, { lanes: Math.max(1, Math.min(8, Number(e.target.value) || 1)) })
+                      }
+                      className={`w-full border rounded p-1.5 font-mono text-xs ${
+                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="opacity-60 block mb-1">Pavements</label>
+                    <button
+                      onClick={() => updateElement(road.id, { sidewalks: !road.sidewalks })}
+                      className={`w-full ${btn(!!road.sidewalks)}`}
+                    >
+                      {road.sidewalks ? 'On' : 'Off'}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="opacity-60 block mb-1">Street name</label>
+                  <input
+                    type="text"
+                    value={road.label ?? ''}
+                    onChange={(e) => updateElement(road.id, { label: e.target.value || undefined })}
+                    placeholder="e.g. Riverside Promenade"
+                    className={`w-full border rounded p-1.5 text-xs ${
+                      isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    }`}
+                  />
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/50 space-y-2">
+                  <button
+                    onClick={() =>
+                      updateElement(road.id, {
+                        isCurved: !road.isCurved,
+                        curveOffset: road.isCurved ? 0 : 60,
+                      })
+                    }
+                    className={`w-full ${btn(!!road.isCurved)}`}
+                  >
+                    {road.isCurved ? 'Curved run' : 'Straight run'}
+                  </button>
+                  {road.isCurved && (
+                    <div>
+                      <label className="opacity-60 block mb-1">Bend &mdash; {curveOffset}px</label>
+                      <input
+                        type="range"
+                        min={-500}
+                        max={500}
+                        step={5}
+                        value={curveOffset}
+                        onChange={(e) => updateElement(road.id, { curveOffset: Number(e.target.value) })}
+                        className="w-full accent-amber-500 cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  <p className="text-[10px] opacity-50 leading-relaxed">
+                    Drag either endpoint to lay the run, and the amber handle to bend it &mdash; the same
+                    controls as a dolly track. Widths convert at the plan scale, so a 6&nbsp;m street is
+                    300px at the default 50px/m.
+                  </p>
+                </div>
               </RubricSection>
             </div>
           );

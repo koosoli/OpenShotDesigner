@@ -12,6 +12,7 @@ import {
   TrackElement,
 } from '../types';
 import { CABLE_TYPES } from '../constants/presets';
+import { cableRunLength, pxToMetres } from '../domain/cable';
 
 export interface CategoryMeta {
   key: EquipmentCategory;
@@ -1533,9 +1534,17 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
       const cable = elem as CableElement;
       const cableInfo = CABLE_TYPES.find((c) => c.type === cable.cableType);
       if (cableInfo) {
-        const dx = cable.x2 - cable.x;
-        const dy = cable.y2 - cable.y;
-        const lengthM = Math.round(Math.hypot(dx, dy));
+        // The run has to follow its routing points AND reach any attached
+        // device at the far end of that device's movement — a camera that
+        // tracks 6 m needs the cable for its furthest position, not its mark.
+        const run = cableRunLength(cable, elements);
+        const scale = setup.gridSettings?.pixelsPerUnit || 30;
+        const staticM = Math.round(pxToMetres(run.staticPx, scale) * 10) / 10;
+        const maxM = Math.round(pxToMetres(run.maxPx, scale) * 10) / 10;
+        const movementNote =
+          run.movingElementIds.length > 0 && maxM > staticM
+            ? ` · ${maxM}m at full extension (beat ${run.maxAtBeat})`
+            : '';
         autoItems.push({
           id: `auto-cable-${cable.id}`,
           elementId: cable.id,
@@ -1545,7 +1554,7 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
           model: cableInfo.shortLabel,
           quantity: 1,
           roleOrFunction: cableInfo.isPower ? `Power Run: ${cable.fromLabel} → ${cable.toLabel}` : `Signal Patch: ${cable.fromLabel} → ${cable.toLabel}`,
-          specs: `${cableInfo.connector} · ~${lengthM}m run${cableInfo.rating ? ` · ${cableInfo.rating}` : ''}`,
+          specs: `${cableInfo.connector} · ~${staticM}m run${movementNote}${cableInfo.rating ? ` · ${cableInfo.rating}` : ''}`,
           isCustom: false,
         });
       }

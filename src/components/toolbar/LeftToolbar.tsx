@@ -13,6 +13,7 @@ import {
   ImagePlus,
   MousePointer,
   MoveHorizontal,
+  Route,
   MoveUpRight,
   Circle,
   Pencil,
@@ -207,6 +208,12 @@ export const LeftToolbar: React.FC = () => {
       label: 'Dolly Track',
       shortcut: 'T',
       icon: <MoveHorizontal className="w-4 h-4 text-blue-500" />,
+    },
+    {
+      id: 'road',
+      label: 'Street / Road',
+      shortcut: 'R',
+      icon: <Route className="w-4 h-4 text-zinc-400" />,
     },
     {
       id: 'measure',

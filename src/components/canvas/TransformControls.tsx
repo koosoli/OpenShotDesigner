@@ -33,6 +33,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
   const isLinear =
     el.type === 'wall' ||
     el.type === 'track' ||
+    el.type === 'road' ||
     el.type === 'measurement' ||
     el.type === 'arrow' ||
     el.type === 'cable' ||
@@ -221,7 +222,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
         </g>
 
         {/* Curve control handle for dolly tracks */}
-        {el.type === 'track' && onCurveDragStart && (
+        {(el.type === 'track' || el.type === 'road') && onCurveDragStart && (
           (() => {
             const dist = Math.max(20, Math.hypot(x2 - x1, y2 - y1));
             const normalX = -(y2 - y1) / dist;

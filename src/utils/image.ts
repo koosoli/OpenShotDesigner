@@ -109,3 +109,43 @@ export function loadStoryboardImageFile(file: File, maxSize = 1280, quality = 0.
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * Resolve once every `<img>` inside `root` has finished loading (or failed).
+ *
+ * Print paths mount a hidden document and call `window.print()` on a short
+ * timer. That races image decoding: a production logo supplied as a data URL is
+ * usually fast, but "usually" is not "always", and when it loses the race the
+ * printed page comes out with the logo missing and no error anywhere. Waiting
+ * for the images first makes the printout deterministic.
+ *
+ * Never rejects, and never waits longer than `timeoutMs` — a broken or slow
+ * image must not be able to stop someone printing a call sheet.
+ */
+export function waitForImages(root: ParentNode | null, timeoutMs = 3000): Promise<void> {
+  if (!root) return Promise.resolve();
+  const images = Array.from(root.querySelectorAll('img'));
+  const pending = images.filter((img) => !img.complete || img.naturalWidth === 0);
+  if (pending.length === 0) return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, timeoutMs);
+
+    let remaining = pending.length;
+    const one = () => {
+      remaining -= 1;
+      if (remaining <= 0) finish();
+    };
+    for (const img of pending) {
+      img.addEventListener('load', one, { once: true });
+      img.addEventListener('error', one, { once: true });
+    }
+  });
+}

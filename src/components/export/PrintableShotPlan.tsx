@@ -15,6 +15,7 @@ import {
   ShapeElement,
   StrokeElement,
   TextElement,
+  RoadElement,
   TrackElement,
   WallElement,
   WindowElement,
@@ -23,6 +24,7 @@ import { getCameraFovPolygon, getLightBeamPolygon, getSmoothSplinePath, kelvinTo
 import { ASPECT_RATIOS, LIGHT_FIXTURES, LIGHT_ROLES } from '../../constants/presets';
 import { exportProjectToCsv, exportShotListToCsv } from '../../utils/exportShotList';
 import { exportSvgAsPng } from '../../utils/exportFloorPlanPng';
+import { waitForImages } from '../../utils/image';
 import { FlagFixtureIcon, flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
 import { FixtureGlyph } from '../canvas/FixtureGlyph';
 import { ArrowGlyph } from '../canvas/ArrowGlyph';
@@ -33,6 +35,7 @@ import { CameraElementView } from '../canvas/CameraElementView';
 import { LightingLayer } from '../canvas/LightingLayer';
 import { PropsLayer } from '../canvas/PropsLayer';
 import { CableLayer } from '../canvas/CableLayer';
+import { RoadLayer } from '../canvas/RoadLayer';
 import { WallLayer } from '../canvas/WallLayer';
 import { StoryboardThumbLayer } from '../canvas/StoryboardThumbLayer';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
@@ -399,6 +402,7 @@ export const PrintableShotPlan: React.FC = () => {
   const windows = printableElements.filter((e) => e.type === 'window') as WindowElement[];
   const props = printableElements.filter((e) => e.type === 'prop') as PropElement[];
   const tracks = printableElements.filter((e) => e.type === 'track') as TrackElement[];
+  const roads = printableElements.filter((e) => e.type === 'road') as RoadElement[];
   const measurements = printableElements.filter((e) => e.type === 'measurement') as MeasurementElement[];
   const texts = printableElements.filter((e) => e.type === 'text') as TextElement[];
   const arrows = printableElements.filter((e) => e.type === 'arrow') as ArrowElement[];
@@ -447,7 +451,9 @@ export const PrintableShotPlan: React.FC = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    // Images (production logo, storyboard frames, reference plans) must be
+    // decoded before the browser snapshots the page, or they print blank.
+    void waitForImages(document.body).then(() => window.print());
   };
 
   // Calculate bounding box of all elements to auto-fit printable blueprint
@@ -1383,6 +1389,13 @@ export const PrintableShotPlan: React.FC = () => {
                   />
 
                   {/* 3. Dolly Tracks, Props, Measurements, Arrows, Texts */}
+                  <RoadLayer
+                    roads={roads}
+                    selectedIds={[]}
+                    onSelect={() => {}}
+                    displaySettings={effectiveDisplaySettings}
+                  />
+
                   <PropsLayer
                     propsList={props}
                     tracks={tracks}

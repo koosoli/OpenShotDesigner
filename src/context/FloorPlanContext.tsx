@@ -1374,6 +1374,20 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         y2: baseDefaults.y,
         ...partial,
       };
+    } else if (partial.type === 'road') {
+      newElement = {
+        ...baseDefaults,
+        type: 'road',
+        name: partial.name || 'Street',
+        x2: baseDefaults.x + 320,
+        y2: baseDefaults.y,
+        width: 120,
+        surface: 'asphalt',
+        marking: 'dashed',
+        lanes: 2,
+        sidewalks: true,
+        ...partial,
+      };
     } else if (partial.type === 'measurement') {
       newElement = {
         ...baseDefaults,
@@ -1460,7 +1474,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     // Linear elements need a sensible default length when placed via search.
-    if ((partial.type === 'wall' || partial.type === 'track' || partial.type === 'measurement' || partial.type === 'arrow' || partial.type === 'cable') && (full as any).x2 === undefined) {
+    if ((partial.type === 'wall' || partial.type === 'track' || partial.type === 'road' || partial.type === 'measurement' || partial.type === 'arrow' || partial.type === 'cable') && (full as any).x2 === undefined) {
       (full as any).x2 = pos.x + 240;
       (full as any).y2 = pos.y;
     }

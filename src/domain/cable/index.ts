@@ -26,3 +26,10 @@ export type {
 
 export { deriveSignalFlow, detectFlowCycles } from './signalFlow';
 export type { FlowNode, FlowEdge, FlowLayerEntry } from './signalFlow';
+export {
+  cableRoutePoints,
+  cableRunLength,
+  polylineLengthPx,
+  pxToMetres,
+} from './runLength';
+export type { CableRunLength } from './runLength';

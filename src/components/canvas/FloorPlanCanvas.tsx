@@ -7,6 +7,7 @@ import {
   DoorElement,
   FloorPlanElement,
   LightElement,
+  RoadElement,
   PlanLayer,
   PropElement,
   ShapeElement,
@@ -46,6 +47,7 @@ import type { ElementPose, FreehandToolSettings } from '../../domain/plan';
 import { calibrateBackgroundImage } from '../../domain/plan';
 import { createId } from '../../domain/ids';
 import { CableLayer } from './CableLayer';
+import { RoadLayer } from './RoadLayer';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
@@ -565,6 +567,7 @@ export const FloorPlanCanvas: React.FC = () => {
   const lights = renderedElements.filter((e) => e.type === 'light') as LightElement[];
   const propsList = renderedElements.filter((e) => e.type === 'prop') as PropElement[];
   const tracks = renderedElements.filter((e) => e.type === 'track') as TrackElement[];
+  const roads = renderedElements.filter((e) => e.type === 'road') as RoadElement[];
   const actors = renderedElements.filter((e) => e.type === 'actor') as ActorElement[];
   const cameras = renderedElements.filter((e) => e.type === 'camera') as CameraElement[];
 
@@ -2502,6 +2505,16 @@ export const FloorPlanCanvas: React.FC = () => {
             showHiddenGhosts
           />
 
+          {/* Streets sit under everything else on the plan: on an exterior the
+              road is the ground, not an annotation on top of it. */}
+          <RoadLayer
+            roads={roads}
+            selectedIds={selectedElementIds}
+            onSelect={handleElementSelect}
+            onDoubleClick={handleElementDoubleClick}
+            displaySettings={displaySettings}
+          />
+
           <PropsLayer
             propsList={propsList}
             tracks={tracks}
@@ -2522,6 +2535,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
           <CableLayer
             cables={cables}
+            allElements={activeSetup.elements}
             selectedIds={selectedElementIds}
             onSelect={handleElementSelect}
             onDoubleClick={handleElementDoubleClick}

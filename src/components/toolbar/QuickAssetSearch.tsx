@@ -343,6 +343,15 @@ function buildAssetList(): QuickAsset[] {
       buildPartial: () => ({ type: 'track' }),
     },
     {
+      id: 'road',
+      label: 'Street / Road / Path',
+      categoryTag: 'elements',
+      keywords: 'street road highway lane avenue boulevard driveway path pavement sidewalk kerb curb asphalt cobblestone gravel dirt track rail tram crossing crosswalk zebra exterior location carriageway road street',
+      group: 'Core Scene Elements',
+      icon: <MoveHorizontal className="w-4 h-4 text-zinc-400" />,
+      buildPartial: () => ({ type: 'road' }),
+    },
+    {
       id: 'measure',
       label: 'Tape Measure / Dimension',
       categoryTag: 'elements',

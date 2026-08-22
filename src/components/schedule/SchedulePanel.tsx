@@ -23,6 +23,7 @@ import { CoverageMatrixEditor } from './CoverageMatrixEditor';
 import { TimelineCalendar } from './TimelineCalendar';
 import { CalendarEventEditor, MonthCalendar } from './MonthCalendar';
 import { createId } from '../../domain/ids';
+import { waitForImages } from '../../utils/image';
 import {
   BLOCK_KIND_LABELS,
   MANUAL_TYPE_LABELS,
@@ -122,9 +123,18 @@ export const SchedulePanel: React.FC = () => {
       setPrintView(null);
     };
     window.addEventListener('afterprint', unmount);
-    const printTimer = window.setTimeout(() => window.print(), 50);
-    const fallbackTimer = window.setTimeout(unmount, 10000);
+    // Wait for the logo (and any other image) to decode before printing.
+    // Printing on a bare timer raced image loading, which is why an attached
+    // production logo could be missing from the printed call sheet.
+    let cancelled = false;
+    const printTimer = window.setTimeout(() => {
+      void waitForImages(document.querySelector('.call-sheet-print-host') ?? document.body).then(() => {
+        if (!cancelled) window.print();
+      });
+    }, 50);
+    const fallbackTimer = window.setTimeout(unmount, 15000);
     return () => {
+      cancelled = true;
       window.removeEventListener('afterprint', unmount);
       window.clearTimeout(printTimer);
       window.clearTimeout(fallbackTimer);

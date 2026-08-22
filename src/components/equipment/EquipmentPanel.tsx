@@ -32,6 +32,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { waitForImages } from '../../utils/image';
 import { CameraElement, EquipmentCategory, EquipmentItem, EquipmentPackageItem, LightElement, MasterEquipmentItem } from '../../types';
 import {
   CAMERA_PACKAGE_PRESETS,
@@ -209,9 +210,15 @@ export const EquipmentPanel: React.FC = () => {
     if (!dmxPrintOpen) return;
     const unmount = () => setDmxPrintOpen(false);
     window.addEventListener('afterprint', unmount);
-    const printTimer = window.setTimeout(() => window.print(), 50);
-    const fallbackTimer = window.setTimeout(unmount, 10000);
+    let cancelled = false;
+    const printTimer = window.setTimeout(() => {
+      void waitForImages(document.body).then(() => {
+        if (!cancelled) window.print();
+      });
+    }, 50);
+    const fallbackTimer = window.setTimeout(unmount, 15000);
     return () => {
+      cancelled = true;
       window.removeEventListener('afterprint', unmount);
       window.clearTimeout(printTimer);
       window.clearTimeout(fallbackTimer);

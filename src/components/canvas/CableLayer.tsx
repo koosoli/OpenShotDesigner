@@ -1,11 +1,17 @@
 import React from 'react';
-import { CableElement } from '../../types';
+import { CableElement, FloorPlanElement } from '../../types';
 import { getDistance } from '../../utils/geometry';
 import { CABLE_TYPES } from '../../constants/presets';
+import { cableRunLength } from '../../domain/cable';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 
 interface CableLayerProps {
   cables: CableElement[];
+  /**
+   * All plan elements, so a run attached to a moving device can report the
+   * length it needs at full extension rather than at its mark.
+   */
+  allElements?: FloorPlanElement[];
   selectedIds: string[];
   onSelect: (id: string, e: React.PointerEvent) => void;
   onDoubleClick?: (id: string, e: React.MouseEvent) => void;
@@ -54,6 +60,7 @@ const buildSegments = (cable: CableElement) => {
 
 export const CableLayer: React.FC<CableLayerProps> = ({
   cables,
+  allElements = [],
   selectedIds,
   onSelect,
   onDoubleClick,
@@ -79,6 +86,11 @@ export const CableLayer: React.FC<CableLayerProps> = ({
         const { pts, segs, totalLen } = buildSegments(cable);
         const hasPath = (cable.path || []).length > 0;
         const lengthM = Math.round((totalLen / pixelsPerUnit) * 10) / 10;
+        // A cable feeding a camera that tracks has to reach the camera's
+        // furthest position, so the label shows that reach when it differs.
+        const run = cableRunLength(cable, allElements);
+        const reachM = Math.round((run.maxPx / pixelsPerUnit) * 10) / 10;
+        const showsReach = run.movingElementIds.length > 0 && reachM > lengthM;
         const polylinePts = pts.map((p) => `${p.x},${p.y}`).join(' ');
         const firstAngle = segs[0]?.angle ?? 0;
         const lastAngle = segs[segs.length - 1]?.angle ?? 0;
@@ -226,7 +238,7 @@ export const CableLayer: React.FC<CableLayerProps> = ({
                   fontWeight="bold"
                   className="select-none font-mono"
                 >
-                  {cableInfo?.shortLabel || 'CABLE'} · {lengthM}m
+                  {cableInfo?.shortLabel || 'CABLE'} · {lengthM}m{showsReach ? ` (${reachM}m moving)` : ''}
                 </text>
                 <text x={0} y={10} fill="#cbd5e1" fontSize="8.5" textAnchor="middle" className="select-none">
                   {cable.fromLabel && cable.toLabel ? `${cable.fromLabel} → ${cable.toLabel}` : ''}

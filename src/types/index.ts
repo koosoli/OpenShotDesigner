@@ -7,6 +7,7 @@ export type ElementType =
   | 'window'
   | 'prop'
   | 'track'
+  | 'road'
   | 'text'
   | 'measurement'
   | 'arrow'
@@ -325,6 +326,38 @@ export interface TrackElement extends BaseElement {
   curveOffset?: number;
 }
 
+/** Road / street surface: an exterior counterpart to the dolly track. */
+export type RoadSurface = 'asphalt' | 'concrete' | 'gravel' | 'cobble' | 'dirt' | 'rail';
+
+/** Centre-line marking painted down the carriageway. */
+export type RoadMarking = 'none' | 'dashed' | 'solid' | 'double' | 'crosswalk';
+
+/**
+ * A street, road, path or driveway drawn as a two-endpoint run with optional
+ * curve — the same geometry as a dolly track, so endpoint dragging, curving,
+ * group transforms and snapping all work identically. Exterior plans need a
+ * carriageway with real width and markings, not a line.
+ */
+export interface RoadElement extends BaseElement {
+  type: 'road';
+  x2: number;
+  y2: number;
+  isCurved?: boolean;
+  curveOffset?: number;
+  /** Carriageway width in plan px (kerb to kerb, excluding pavements). */
+  width: number;
+  surface?: RoadSurface;
+  marking?: RoadMarking;
+  /** Number of lanes; 1 draws no lane divider. Absent = 2. */
+  lanes?: number;
+  /** Draw a pavement / sidewalk strip along both kerbs. */
+  sidewalks?: boolean;
+  /** Pavement width in plan px; absent = a proportion of the carriageway. */
+  sidewalkWidth?: number;
+  color?: string;
+  label?: string;
+}
+
 export interface TextElement extends BaseElement {
   type: 'text';
   text: string;
@@ -460,6 +493,7 @@ export type FloorPlanElement =
   | WindowElement
   | PropElement
   | TrackElement
+  | RoadElement
   | TextElement
   | MeasurementElement
   | ArrowElement
@@ -916,6 +950,7 @@ export type ActiveTool =
   | 'window'
   | 'prop'
   | 'track'
+  | 'road'
   | 'measure'
   | 'arrow'
   | 'text'
