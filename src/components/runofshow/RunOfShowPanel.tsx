@@ -19,6 +19,7 @@ import {
   validateCueList,
 } from '../../domain/scheduling';
 import type { RunOfShowCue } from '../../domain/scheduling';
+import { removeRunOfShowCue } from '../../domain';
 
 const NOTE_FIELDS = [
   { key: 'cameraNotes', label: 'Camera' },
@@ -137,7 +138,17 @@ export const RunOfShowPanel: React.FC = () => {
   };
 
   const deleteCue = (cueId: string) => {
-    setCues(renumber(cues.filter((c) => c.id !== cueId)));
+    // The coverage row keyed by this cue goes too. It used to be filtered out
+    // of the editor's display but left in the project forever, and the print
+    // builder still emitted it under a "Row abcdef" stub.
+    const next = removeRunOfShowCue(
+      { runOfShowCues: cues, coverageMatrix: project.coverageMatrix },
+      cueId,
+    );
+    updateProjectMeta({
+      runOfShowCues: renumber(next.runOfShowCues as RunOfShowCue[]),
+      ...(next.coverageMatrix ? { coverageMatrix: next.coverageMatrix } : {}),
+    });
     setExpandedCueIds((prev) => {
       if (!prev.has(cueId)) return prev;
       const next = new Set(prev);

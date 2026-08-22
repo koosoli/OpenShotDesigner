@@ -12,6 +12,7 @@ import {
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { createId } from '../../domain/ids';
+import { removePowerCircuit, removePowerSource } from '../../domain';
 import type { LightElement } from '../../types';
 import {
   POWER_DISCLAIMER,
@@ -165,19 +166,7 @@ export const PowerPanel: React.FC = () => {
   };
 
   const removeSource = (sourceId: string) => {
-    const deadCircuitIds = new Set(
-      circuits.filter((c) => c.sourceId === sourceId).map((c) => c.id)
-    );
-    commit({
-      ...plan,
-      sources: sources.filter((s) => s.id !== sourceId),
-      circuits: circuits.filter((c) => !deadCircuitIds.has(c.id)),
-      consumers: consumers.map((c) =>
-        c.circuitId !== undefined && deadCircuitIds.has(c.circuitId)
-          ? { ...c, circuitId: undefined }
-          : c
-      ),
-    });
+    commit(removePowerSource({ powerPlan: plan }, sourceId).powerPlan as PowerPanelPlan);
   };
 
   // --- Circuit mutations ---
@@ -205,13 +194,7 @@ export const PowerPanel: React.FC = () => {
   };
 
   const removeCircuit = (circuitId: string) => {
-    commit({
-      ...plan,
-      circuits: circuits.filter((c) => c.id !== circuitId),
-      consumers: consumers.map((c) =>
-        c.circuitId === circuitId ? { ...c, circuitId: undefined } : c
-      ),
-    });
+    commit(removePowerCircuit({ powerPlan: plan }, circuitId).powerPlan as PowerPanelPlan);
   };
 
   // --- Consumer mutations ---

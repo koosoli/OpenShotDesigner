@@ -14,3 +14,10 @@ export {
 export type { MigrationResult } from './migrations';
 export { validateProject, validateSetup, issue } from './validation';
 export type { ValidationIssue, ValidationSeverity } from './validation';
+export {
+  removePowerCircuit,
+  removePowerSource,
+  removeRunOfShowCue,
+  removeTrussElement,
+} from './integrity';
+export type { CircuitReferences, CueReferences, TrussReferences } from './integrity';

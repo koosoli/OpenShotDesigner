@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
+import { removeTrussElement } from '../../domain';
 import {
   SAFETY_DISCLAIMER,
   calculateTrussLoad,
@@ -183,10 +184,24 @@ export const RiggingPanel: React.FC = () => {
   };
 
   const removeElement = (elementId: string) => {
-    // Referential integrity: cascade-delete the element's loads and items.
-    mutateElements((prev) => prev.filter((e) => e.id !== elementId));
-    mutateLoads((prev) => prev.filter((l) => l.trussElementId !== elementId));
-    mutateItems((prev) => prev.filter((i) => i.trussElementId !== elementId));
+    // Referential integrity in one shot (domain/integrity.ts): the run, its
+    // loads, its rigging hardware, and the truss reference on any power
+    // consumer that was hanging on it.
+    const next = removeTrussElement(
+      {
+        trussElements: project.trussElements ?? [],
+        suspendedLoads: project.suspendedLoads ?? [],
+        riggingItems: project.riggingItems ?? [],
+        powerPlan: project.powerPlan,
+      },
+      elementId,
+    );
+    updateProjectMeta({
+      trussElements: next.trussElements,
+      suspendedLoads: next.suspendedLoads,
+      riggingItems: next.riggingItems,
+      ...(next.powerPlan ? { powerPlan: next.powerPlan } : {}),
+    });
   };
 
   const addLoad = (trussElementId: string) => {
