@@ -3,6 +3,8 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { initProjectLibrary } from './utils/projectLibrary';
+import { loadStoredOflSnapshot, refreshOflSnapshotOnline } from './domain/fixtures';
+import { hydrateCustomFixtureProfiles } from './domain/fixtures/customProfiles';
 
 // Hydrate the project library (IndexedDB, with a localStorage fallback and a
 // one-time import of pre-IndexedDB data) before the first render so every
@@ -12,6 +14,11 @@ void initProjectLibrary()
     // The library falls back to localStorage internally; never block startup.
   })
   .finally(() => {
+    // Fixture catalog: user profiles first, then the last online OFL snapshot,
+    // then (when online and stale) a fresh download — all without blocking render.
+    hydrateCustomFixtureProfiles();
+    void loadStoredOflSnapshot().then(() => refreshOflSnapshotOnline());
+
     createRoot(document.getElementById('root')!).render(
       <StrictMode>
         <App />
@@ -22,9 +29,16 @@ void initProjectLibrary()
     // worker so an installed/opened build keeps working without network.
     if (import.meta.env.PROD && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
-          // Offline support is progressive; registration failure is non-fatal.
-        });
+        navigator.serviceWorker
+          .register(`${import.meta.env.BASE_URL}sw.js`)
+          .then((registration) => {
+            // Check for a newer deploy on every load; the new worker takes
+            // over silently and the next navigation serves the new bundle.
+            registration.update().catch(() => undefined);
+          })
+          .catch(() => {
+            // Offline support is progressive; registration failure is non-fatal.
+          });
       });
     }
   });

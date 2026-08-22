@@ -13,12 +13,27 @@ export const STORE_META = 'meta';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+/** An open that neither succeeds nor fails (blocked by another tab, stalled
+ * private-mode storage) must not hang the app forever; callers fall back. */
+const OPEN_TIMEOUT_MS = 5000;
+
 export const isIndexedDbAvailable = (): boolean =>
   typeof indexedDB !== 'undefined';
 
 export const openWorkspaceDb = (): Promise<IDBDatabase> => {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        fn();
+      };
+      const timer = window.setTimeout(
+        () => finish(() => reject(new Error('Timed out opening IndexedDB'))),
+        OPEN_TIMEOUT_MS,
+      );
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = () => {
         const db = request.result;
@@ -27,8 +42,21 @@ export const openWorkspaceDb = (): Promise<IDBDatabase> => {
         if (!db.objectStoreNames.contains(STORE_ASSET_META)) db.createObjectStore(STORE_ASSET_META);
         if (!db.objectStoreNames.contains(STORE_META)) db.createObjectStore(STORE_META);
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error('Failed to open IndexedDB'));
+      request.onblocked = () => finish(() => reject(new Error('IndexedDB is blocked by another open tab')));
+      request.onsuccess = () => {
+        const db = request.result;
+        // Another tab upgrading the schema: close so it can proceed; the next
+        // access re-opens at the new version.
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = null;
+        };
+        finish(() => resolve(db));
+      };
+      request.onerror = () => finish(() => reject(request.error ?? new Error('Failed to open IndexedDB')));
+    });
+    dbPromise.catch(() => {
+      dbPromise = null;
     });
   }
   return dbPromise;

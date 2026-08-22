@@ -120,6 +120,35 @@ describe('deriveCallSheet', () => {
   });
 });
 
+describe('look-ahead', () => {
+  it('summarises the following day with labels, locations and its own cast filter', () => {
+    const nextDay: ProductionDay = { id: 'day-2', name: 'Day 2', date: '2026-09-02', crewCall: '07:30', scheduleBlockIds: ['b-scene', 'b-omit', 'b-meal'] };
+    const sheet = deriveCallSheet({
+      day,
+      blocks: [...blocks, { id: 'b-omit', kind: 'scene', scriptSceneId: 'gone', omittedLabel: '4 · EXT. ROAD' }],
+      productionTitle: 'My Film',
+      people: [...people, { id: 'p3', displayName: 'Sam Day2', kind: 'cast' }],
+      castPersonIds: ['p1'],
+      resolveSceneLabel: (id) => (id === 'scene-17' ? 'Scene 17 — Kitchen' : undefined),
+      nextDay: { day: nextDay, locations: [{ name: 'Warehouse' }], castPersonIds: ['p3'] },
+    });
+    expect(sheet.lookAhead).toBeDefined();
+    expect(sheet.lookAhead?.dayName).toBe('Day 2');
+    expect(sheet.lookAhead?.crewCall).toBe('07:30');
+    expect(sheet.lookAhead?.items.map((item) => item.label)).toEqual(['Scene 17 — Kitchen', 'Omitted — 4 · EXT. ROAD', 'Lunch']);
+    expect(sheet.lookAhead?.items[1].omitted).toBe(true);
+    expect(sheet.lookAhead?.locations).toEqual([{ name: 'Warehouse' }]);
+    expect(sheet.lookAhead?.cast.map((p) => p.displayName)).toEqual(['Sam Day2']);
+    // The main sheet's cast filter is untouched.
+    expect(sheet.cast.map((p) => p.displayName)).toEqual(['Jane Doe']);
+  });
+
+  it('is absent on the last shooting day', () => {
+    const sheet = deriveCallSheet({ day, blocks, productionTitle: 'My Film' });
+    expect(sheet.lookAhead).toBeUndefined();
+  });
+});
+
 describe('overrides & publishing', () => {
   const base: CallSheetData = deriveCallSheet({
     day,

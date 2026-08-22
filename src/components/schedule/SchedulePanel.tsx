@@ -20,12 +20,15 @@ import {
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { CoverageMatrixEditor } from './CoverageMatrixEditor';
 import { TimelineCalendar } from './TimelineCalendar';
+import { CalendarEventEditor, MonthCalendar } from './MonthCalendar';
 import { createId } from '../../domain/ids';
 import {
+  defaultCalendarMonth,
   defaultNewEventPeriod,
   deriveDaySummary,
   findScheduleConflicts,
   followingDayAfterLast,
+  todayIso,
 } from '../../domain/scheduling';
 import type {
   CallSheetLocation,
@@ -115,6 +118,11 @@ export const SchedulePanel: React.FC = () => {
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventStart, setNewEventStart] = useState('');
   const [newEventEnd, setNewEventEnd] = useState('');
+  // Calendar presentation (session-only, rule 38): timeline strip or month grid.
+  const [calendarMode, setCalendarMode] = useState<'timeline' | 'month'>('timeline');
+  const [calendarMonth, setCalendarMonth] = useState(() => defaultCalendarMonth(calendarEvents, days, todayIso()));
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const selectedEvent = calendarEvents.find((event) => event.id === selectedEventId) ?? null;
 
   // HTML5 drag state (buttons provide the accessible alternative)
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
@@ -195,7 +203,7 @@ export const SchedulePanel: React.FC = () => {
     );
     const query = sourceQuery.trim().toLocaleLowerCase();
     return (project.scriptScenes ?? []).filter((scene) => {
-      if (represented.has(scene.id)) return false;
+      if (represented.has(scene.id) || scene.omitted) return false;
       if (!query) return true;
       return `${scene.sceneNumber} ${scene.heading} ${scene.synopsis ?? ''}`.toLocaleLowerCase().includes(query);
     });
@@ -313,9 +321,8 @@ export const SchedulePanel: React.FC = () => {
     return out;
   };
 
-  /** Derive the call sheet for one day, reusing the panel's label resolution. */
-  const buildCallSheet = (day: ProductionDay): CallSheetData => {
-    const locations = resolveDayLocations(day);
+  /** Performers assigned to characters that appear in a day's scheduled scenes. */
+  const castPersonIdsForDay = (day: ProductionDay): string[] => {
     const scheduledCharacterIds = new Set<string>();
     for (const id of day.scheduleBlockIds) {
       const block = blocks.find((b) => b.id === id);
@@ -325,10 +332,23 @@ export const SchedulePanel: React.FC = () => {
         for (const characterId of scene?.characterIds ?? []) scheduledCharacterIds.add(characterId);
       }
     }
-    const castPersonIds = (project.castAssignments ?? [])
+    return (project.castAssignments ?? [])
       .filter((assignment) => scheduledCharacterIds.has(assignment.characterId))
       .map((assignment) => assignment.personId);
+  };
+
+  /** Derive the call sheet for one day, reusing the panel's label resolution. */
+  const buildCallSheet = (day: ProductionDay): CallSheetData => {
+    const locations = resolveDayLocations(day);
+    const castPersonIds = castPersonIdsForDay(day);
+    // Look-ahead: the next day in board order (by date when both are dated).
+    const dayIndex = days.findIndex((candidate) => candidate.id === day.id);
+    const following = days[dayIndex + 1];
+    const nextDay = following
+      ? { day: following, locations: resolveDayLocations(following), castPersonIds: castPersonIdsForDay(following) }
+      : undefined;
     return deriveCallSheet({
+      nextDay,
       day,
       blocks,
       productionTitle: project.title,
@@ -434,6 +454,20 @@ export const SchedulePanel: React.FC = () => {
     setNewEventTitle('');
     setNewEventStart('');
     setNewEventEnd('');
+  };
+
+  /** Month grid: clicking an empty day drops a one-day event there, ready to rename. */
+  const addCalendarEventOn = (iso: string) => {
+    const event: ProductionCalendarEvent = {
+      id: createId('event'),
+      title: 'New event',
+      startDate: iso,
+      endDate: iso,
+      category: 'preproduction',
+      status: 'planned',
+    };
+    updateProjectMeta({ productionCalendarEvents: [...calendarEvents, event] });
+    setSelectedEventId(event.id);
   };
 
   const updateCalendarEvent = (eventId: string, updates: Partial<ProductionCalendarEvent>) => {
@@ -735,6 +769,43 @@ export const SchedulePanel: React.FC = () => {
       </div>}
 
       {workspaceView === 'calendar' && <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className={`flex p-0.5 rounded-md border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-950/60'}`}>
+            {(['timeline', 'month'] as const).map((mode) => (
+              <button key={mode} onClick={() => setCalendarMode(mode)} className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${calendarMode === mode ? 'bg-sky-600 text-white' : mutedText}`}>
+                {mode === 'timeline' ? 'Timeline' : 'Month'}
+              </button>
+            ))}
+          </div>
+          <span className={`text-[9px] ${mutedText}`}>{calendarEvents.length} event{calendarEvents.length === 1 ? '' : 's'} · {days.filter((day) => day.date).length} dated shooting day{days.filter((day) => day.date).length === 1 ? '' : 's'}</span>
+        </div>
+        {selectedEvent && (
+          <CalendarEventEditor
+            event={selectedEvent}
+            people={project.people ?? []}
+            isLight={isLight}
+            onUpdate={(updates) => updateCalendarEvent(selectedEvent.id, updates)}
+            onDelete={() => {
+              deleteCalendarEvent(selectedEvent.id);
+              setSelectedEventId(null);
+            }}
+            onClose={() => setSelectedEventId(null)}
+          />
+        )}
+        {calendarMode === 'month' && (
+          <MonthCalendar
+            yearMonth={calendarMonth}
+            onChangeMonth={setCalendarMonth}
+            events={calendarEvents}
+            days={days}
+            tasks={project.tasks ?? []}
+            selectedEventId={selectedEventId}
+            onSelectEvent={setSelectedEventId}
+            onCreateEvent={addCalendarEventOn}
+            isLight={isLight}
+          />
+        )}
+        {calendarMode === 'timeline' && <>
         <div className={`rounded-lg border p-2.5 grid grid-cols-[1fr_130px_130px_auto] gap-2 items-end ${cardClass}`}>
           <label className="text-[8px] font-black uppercase tracking-wider text-slate-500">Event or milestone
             <input value={newEventTitle} onChange={(event) => setNewEventTitle(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addCalendarEvent()} placeholder="Tech scout, principal photography, picture lock…" className={`${inputClass} mt-1 !min-h-8`} />
@@ -755,7 +826,8 @@ export const SchedulePanel: React.FC = () => {
           onDeleteEvent={deleteCalendarEvent}
           onUpdateDay={updateDay}
         />
-        <p className={`text-[9px] ${mutedText}`}>Drag a clip to move it between days · drag its edges to resize the period · shooting-day clips re-date their day. New lines start on the first production day.</p>
+        <p className={`text-[9px] ${mutedText}`}>Drag a clip to move it between days · drag its edges to resize the period · shooting-day clips re-date their day. New lines start on the first production day. Switch to Month to edit category, status, assignees and notes.</p>
+        </>}
       </div>}
 
       {workspaceView === 'callsheets' && <div className="flex-1 min-h-0"><CallSheetWorkspace days={days} selectedDayId={selectedCallSheetDay?.id ?? null} onSelectDay={setSelectedCallSheetDayId} sheet={selectedCallSheet} updateDay={updateDay} onPrint={requestCallSheetPrint} isLight={isLight} /></div>}

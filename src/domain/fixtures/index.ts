@@ -19,4 +19,30 @@ export {
 } from './oflAdapter';
 export type { FixtureDbManifest, OflProvenance } from './oflAdapter';
 export { fixtureBoundingVolumeLitres, fixtureModeById, searchFixtureProfiles } from './catalog';
-export { OFFLINE_FIXTURE_DB_MANIFEST, OFFLINE_FIXTURE_PROFILES, fixtureProfileById } from './offlineCatalog';
+export { OFFLINE_FIXTURE_DB_MANIFEST, OFFLINE_FIXTURE_PROFILES } from './offlineCatalog';
+export {
+  findProfileForModel,
+  fixtureProfileLinkUpdates,
+  fixtureProfileSummary,
+  listBrandOptions,
+  normalizeModelKey,
+  profilesForBrand,
+} from './brandCatalog';
+export type { BrandOption, BrandPreset, FixtureProfileLinkUpdates } from './brandCatalog';
+export { fixtureIdentityKey, mergeFixtureProfiles } from './catalogMerge';
+export { CURATED_FILM_FIXTURES } from './curatedFilmFixtures';
+export type { MergeReport } from './catalogMerge';
+export {
+  findFixtureProfile,
+  getFixtureCatalog,
+  setCustomFixtureProfiles,
+  setOflSnapshot,
+  subscribeFixtureCatalog,
+} from './catalogStore';
+export type { FixtureCatalogState } from './catalogStore';
+export { OFL_EXPORT_URL, readOflExport } from './oflZip';
+export { adaptOflDump, loadStoredOflSnapshot, refreshOflSnapshotOnline } from './onlineRefresh';
+export type { RefreshResult } from './onlineRefresh';
+
+/** Backwards-compatible name: looks up the ACTIVE catalog (bundled/online OFL + curated + custom). */
+export { findFixtureProfile as fixtureProfileById } from './catalogStore';

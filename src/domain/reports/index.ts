@@ -7,6 +7,7 @@ export type {
   CallSheetData,
   CallSheetEntry,
   CallSheetLocation,
+  CallSheetLookAhead,
   CallSheetPerson,
   DeriveCallSheetInput,
   DocumentLifecycle,

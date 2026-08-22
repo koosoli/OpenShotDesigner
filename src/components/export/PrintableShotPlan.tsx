@@ -79,7 +79,15 @@ import {
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 import { selectPrintablePlanElements } from '../../domain/plan';
 import { MoodboardPrintView } from '../reports/MoodboardPrintView';
+import { ContactListPrintView } from '../reports/ContactListPrintView';
+import { ScriptReportsPrintView } from '../reports/ScriptReportsPrintView';
+import { DmxPatchPrintView } from '../reports/DmxPatchPrintView';
+import { collectFixturePatches, findConflicts, sortedPatchRows } from '../../utils/dmxPatch';
+import { deriveCharacterReport, deriveDood } from '../../domain/reports';
+import { ScriptSidesPrintView } from '../reports/ScriptSidesPrintView';
 import { useMoodboardImageSrcs } from '../moodboard/moodboardAssets';
+import { buildScriptSides, sidesCharacterOptions, splitScenes } from '../../domain/script';
+import { deriveScriptBreakdown } from '../../domain/script/logic';
 
 export const PrintableShotPlan: React.FC = () => {
   const {
@@ -124,6 +132,76 @@ export const PrintableShotPlan: React.FC = () => {
     [exportBoard]
   );
   const exportImageSrcs = useMoodboardImageSrcs(exportCards);
+
+  // Script sides: which scenes, in which order, optionally for one character.
+  const sceneChunks = React.useMemo(
+    () => splitScenes(scriptLines).filter((chunk) => chunk.lines[0]?.type === 'scene'),
+    [scriptLines],
+  );
+  const [sidesSceneIds, setSidesSceneIds] = useState<string[] | null>(null);
+  const [sidesCharacter, setSidesCharacter] = useState('');
+  const [sidesDayId, setSidesDayId] = useState('');
+  const sidesCharacters = React.useMemo(() => sidesCharacterOptions(scriptLines), [scriptLines]);
+  const sides = React.useMemo(
+    () => buildScriptSides(scriptLines, { sceneIds: sidesSceneIds ?? undefined, character: sidesCharacter || undefined }),
+    [scriptLines, sidesSceneIds, sidesCharacter],
+  );
+  const sidesDay = (project.productionDays ?? []).find((day) => day.id === sidesDayId);
+  const applySidesDay = (dayId: string) => {
+    setSidesDayId(dayId);
+    const day = (project.productionDays ?? []).find((candidate) => candidate.id === dayId);
+    if (!day) {
+      setSidesSceneIds(null);
+      return;
+    }
+    const blocks = project.scheduleBlocks ?? [];
+    const sceneIds = day.scheduleBlockIds
+      .map((blockId) => blocks.find((block) => block.id === blockId))
+      .flatMap((block) => (block?.kind === 'scene' ? [block.scriptSceneId] : []));
+    setSidesSceneIds(sceneIds);
+  };
+  const crewCharacters = React.useMemo(
+    () => deriveScriptBreakdown(scriptLines, project.characters ?? [], project.locations ?? []).characters,
+    [scriptLines, project.characters, project.locations],
+  );
+  const [crewShowRates, setCrewShowRates] = useState(false);
+
+  // Script reports (scene list / characters / locations / DOOD) and the DMX
+  // patch sheet are derived here so the print document stays a pure view.
+  const [reportSections, setReportSections] = useState({ scenes: true, characters: true, locations: true, dood: true });
+  const reportBreakdown = React.useMemo(
+    () => deriveScriptBreakdown(scriptLines, project.characters ?? [], project.locations ?? []),
+    [scriptLines, project.characters, project.locations],
+  );
+  const reportCharacterEntries = React.useMemo(
+    () => reportBreakdown.characters
+      .map((character) => deriveCharacterReport(character.id, {
+        scriptScenes: reportBreakdown.scenes,
+        characters: reportBreakdown.characters,
+        people: project.people,
+        castAssignments: project.castAssignments,
+      }))
+      .filter((entry) => entry.scenes.length > 0)
+      .sort((a, b) => b.scenes.length - a.scenes.length),
+    [reportBreakdown, project.people, project.castAssignments],
+  );
+  const reportDood = React.useMemo(() => {
+    const sceneCharacters = new Map(reportBreakdown.scenes.map((scene) => [scene.id, scene.characterIds] as const));
+    return deriveDood({
+      days: project.productionDays ?? [],
+      blocks: project.scheduleBlocks ?? [],
+      characters: reportBreakdown.characters,
+      castAssignments: project.castAssignments,
+      people: project.people,
+      getSceneCharacterIds: (sceneId) => sceneCharacters.get(sceneId),
+    });
+  }, [reportBreakdown, project.productionDays, project.scheduleBlocks, project.castAssignments, project.people]);
+  const dmxRows = React.useMemo(
+    () => sortedPatchRows(findConflicts(collectFixturePatches(
+      activeSetup.elements.filter((element): element is LightElement => element.type === 'light'),
+    ))),
+    [activeSetup.elements],
+  );
 
   // When the export opens, default the storyboard toggle ON if any shot has a
   // storyboard attached (still fully toggleable off/on by the user).
@@ -510,6 +588,46 @@ export const PrintableShotPlan: React.FC = () => {
               Lined Script
             </button>
             <button
+              onClick={() => setExportSection('sides')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'sides'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Script Sides
+            </button>
+            <button
+              onClick={() => setExportSection('scriptreports')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'scriptreports'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Script Reports
+            </button>
+            <button
+              onClick={() => setExportSection('dmx')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'dmx'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              DMX Patch
+            </button>
+            <button
+              onClick={() => setExportSection('crew')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'crew'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Contact List
+            </button>
+            <button
               onClick={() => setExportSection('equipment')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'equipment'
@@ -841,6 +959,100 @@ export const PrintableShotPlan: React.FC = () => {
           </div>
         )}
 
+        {/* Script-sides options */}
+        {exportSection === 'sides' && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] uppercase font-bold text-slate-500">Scenes:</span>
+              <button onClick={() => { setSidesSceneIds(null); setSidesDayId(''); }} className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700">All</button>
+              <button onClick={() => { setSidesSceneIds([]); setSidesDayId(''); }} className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700">None</button>
+              <select
+                value={sidesDayId}
+                onChange={(e) => applySidesDay(e.target.value)}
+                className="px-2 py-1.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
+                title="Take the scenes scheduled on a shooting day, in shooting order"
+              >
+                <option value="">From shooting day…</option>
+                {(project.productionDays ?? []).map((day) => (
+                  <option key={day.id} value={day.id}>{day.name}{day.date ? ` · ${day.date}` : ''}</option>
+                ))}
+              </select>
+              <span className="text-[10px] uppercase font-bold text-slate-500 ml-2">Character:</span>
+              <select
+                value={sidesCharacter}
+                onChange={(e) => setSidesCharacter(e.target.value)}
+                className="px-2 py-1.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
+              >
+                <option value="">Everyone</option>
+                {sidesCharacters.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+              <span className="text-[10px] text-slate-500">{sides.scenes.length} scene{sides.scenes.length === 1 ? '' : 's'} in these sides</span>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap max-h-20 overflow-y-auto custom-scrollbar">
+              {sceneChunks.map((chunk, index) => {
+                const heading = chunk.lines[0];
+                const number = heading.sceneNumber || String(index + 1);
+                const on = sidesSceneIds === null || sidesSceneIds.includes(chunk.id);
+                return (
+                  <button
+                    key={chunk.id}
+                    onClick={() => {
+                      const current = sidesSceneIds ?? sceneChunks.map((c) => c.id);
+                      setSidesSceneIds(on ? current.filter((id) => id !== chunk.id) : [...current, chunk.id]);
+                      setSidesDayId('');
+                    }}
+                    title={heading.text}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                      on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-500'
+                    } ${heading.omitted ? 'line-through' : ''}`}
+                  >
+                    {number}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Script-report options */}
+        {exportSection === 'scriptreports' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Include:</span>
+            {([['scenes', 'Scene list'], ['characters', 'Characters'], ['locations', 'Locations'], ['dood', 'Day out of days']] as const).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={reportSections[key]}
+                  onChange={(e) => setReportSections((current) => ({ ...current, [key]: e.target.checked }))}
+                  className="accent-sky-600"
+                />
+                {label}
+              </label>
+            ))}
+            <span className="text-[10px] text-slate-500">{reportBreakdown.scenes.length} scenes · {reportCharacterEntries.length} characters · {reportDood.columns.length} shooting days</span>
+          </div>
+        )}
+
+        {/* DMX patch options */}
+        {exportSection === 'dmx' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-slate-500">
+              {dmxRows.length} patched fixture{dmxRows.length === 1 ? '' : 's'} in this scene · addresses and channel footprints come from each fixture's linked profile.
+            </span>
+          </div>
+        )}
+
+        {/* Contact-list options */}
+        {exportSection === 'crew' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
+              <input type="checkbox" checked={crewShowRates} onChange={(e) => setCrewShowRates(e.target.checked)} className="accent-sky-600" />
+              Include rates (producer copy)
+            </label>
+            <span className="text-[10px] text-slate-500">{(project.people ?? []).length} contacts · edited in the Contacts module.</span>
+          </div>
+        )}
+
         {/* Printable Document Paper View (Strictly Pure White for Ink Saving) */}
         <div
           id="printable-content"
@@ -875,6 +1087,14 @@ export const PrintableShotPlan: React.FC = () => {
                       ? (equipmentScope === 'all' ? '• ALL SCENES MASTER TRUCK MANIFEST' : '• SCENE EQUIPMENT PACKAGE')
                       : exportSection === 'moodboard'
                       ? '• VISUAL MOOD BOARD COLLAGE'
+                      : exportSection === 'sides'
+                      ? '• SCRIPT SIDES'
+                      : exportSection === 'crew'
+                      ? '• PRODUCTION CONTACT LIST'
+                      : exportSection === 'scriptreports'
+                      ? '• SCRIPT BREAKDOWN REPORTS'
+                      : exportSection === 'dmx'
+                      ? '• DMX PATCH SHEET'
                       : '• COMPLETE PRODUCTION CALL SHEET'}
                   </span>
                 </div>
@@ -884,6 +1104,14 @@ export const PrintableShotPlan: React.FC = () => {
                 <h2 className="text-sm font-bold text-slate-700">
                   {exportSection === 'equipment' && equipmentScope === 'all'
                     ? `ALL ${project.setups?.length || 1} SCENES MASTER PRODUCTION MANIFEST`
+                    : exportSection === 'sides'
+                    ? (sidesDay ? `SIDES · ${sidesDay.name.toUpperCase()}${sidesDay.date ? ` · ${sidesDay.date}` : ''}` : `SIDES · ${sides.scenes.length} SCENE${sides.scenes.length === 1 ? '' : 'S'}`) + (sidesCharacter ? ` · ${sidesCharacter}` : '')
+                    : exportSection === 'crew'
+                    ? 'CREW, CAST & CONTACTS'
+                    : exportSection === 'scriptreports'
+                    ? 'SCENES · CHARACTERS · LOCATIONS · DAY OUT OF DAYS'
+                    : exportSection === 'dmx'
+                    ? `SCENE ${activeSetup.sceneNumber}: ${activeSetup.name} — DMX PATCH`
                     : `SCENE ${activeSetup.sceneNumber}: ${activeSetup.name}`}
                 </h2>
                 </div>
@@ -900,6 +1128,73 @@ export const PrintableShotPlan: React.FC = () => {
           {/* Mood-board collage document */}
           {exportSection === 'moodboard' && exportBoard && (
             <MoodboardPrintView board={exportBoard} srcs={exportImageSrcs} />
+          )}
+
+          {/* Script sides */}
+          {exportSection === 'sides' && (
+            scriptLines.length === 0 ? (
+              <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                No screenplay yet — import or write one in the Script panel to generate sides.
+              </p>
+            ) : (
+              <ScriptSidesPrintView
+                sides={sides}
+                title={project.title}
+                subtitle={sidesDay ? `${sidesDay.name}${sidesDay.date ? ` · ${sidesDay.date}` : ''}` : project.date}
+                characterFilter={sidesCharacter || undefined}
+              />
+            )
+          )}
+
+          {/* Script breakdown reports */}
+          {exportSection === 'scriptreports' && (
+            reportBreakdown.scenes.length === 0 ? (
+              <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                No scene headings in the screenplay yet — write or import one in the Script panel.
+              </p>
+            ) : (
+              <ScriptReportsPrintView
+                productionTitle={project.title}
+                scenes={reportBreakdown.scenes}
+                characters={reportBreakdown.characters}
+                characterReports={reportCharacterEntries}
+                locations={reportBreakdown.locations}
+                dood={reportDood}
+                sections={reportSections}
+              />
+            )
+          )}
+
+          {/* DMX patch sheet */}
+          {exportSection === 'dmx' && (
+            dmxRows.length === 0 ? (
+              <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                No DMX-controllable fixtures patched in this scene — link fixture profiles and addresses in the Inspector or the Gear panel.
+              </p>
+            ) : (
+              <DmxPatchPrintView
+                rows={dmxRows}
+                productionTitle={project.title}
+                sceneName={`Scene ${activeSetup.sceneNumber || ''}: ${activeSetup.name}`}
+                embedded
+              />
+            )
+          )}
+
+          {/* Production contact list */}
+          {exportSection === 'crew' && (
+            (project.people ?? []).length === 0 ? (
+              <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                No contacts yet — add crew and cast in the Contacts module.
+              </p>
+            ) : (
+              <ContactListPrintView
+                people={project.people ?? []}
+                characters={crewCharacters}
+                castAssignments={project.castAssignments ?? []}
+                showRates={crewShowRates}
+              />
+            )
           )}
 
           {/* ========================================================================= */}

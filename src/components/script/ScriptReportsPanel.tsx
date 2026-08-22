@@ -1,9 +1,18 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, Clapperboard, MapPin, Plus, UserRound, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, Clapperboard, MapPin, Plus, UserRound, Users } from 'lucide-react';
+
+const DOOD_CELL: Record<DoodWorkStatus, { label: string; className: string; title: string }> = {
+  start: { label: 'SW', className: 'bg-emerald-500 text-white', title: 'Start work' },
+  work: { label: 'W', className: 'bg-emerald-500/70 text-white', title: 'Work' },
+  finish: { label: 'WF', className: 'bg-emerald-600 text-white', title: 'Work finish' },
+  hold: { label: 'H', className: 'bg-amber-400/80 text-black', title: 'Hold' },
+  off: { label: '', className: '', title: 'Off' },
+};
 import type { ScriptLine, SceneSetup } from '../../types';
 import type { ScriptScene } from '../../domain/script';
 import { createId } from '../../domain/ids';
-import { deriveCharacterReport } from '../../domain/reports';
+import { deriveCharacterReport, deriveDood } from '../../domain/reports';
+import type { DoodWorkStatus } from '../../domain/reports';
 import { deriveScriptBreakdown, parseSceneHeading } from '../../domain/script/logic';
 import { emptySetup } from '../../utils/projectLibrary';
 import { useFloorPlan } from '../../context/FloorPlanContext';
@@ -26,12 +35,25 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
     setActiveSetupId,
     setActiveRightTab,
   } = useFloorPlan();
-  const [report, setReport] = useState<'characters' | 'locations'>('characters');
+  const [report, setReport] = useState<'characters' | 'locations' | 'dood'>('characters');
 
   const breakdown = useMemo(
     () => deriveScriptBreakdown(lines, project.characters || [], project.locations || []),
     [lines, project.characters, project.locations],
   );
+
+  // Day-out-of-days: which characters work on which scheduled day.
+  const dood = useMemo(() => {
+    const sceneCharacters = new Map(breakdown.scenes.map((scene) => [scene.id, scene.characterIds] as const));
+    return deriveDood({
+      days: project.productionDays ?? [],
+      blocks: project.scheduleBlocks ?? [],
+      characters: breakdown.characters,
+      castAssignments: project.castAssignments,
+      people: project.people,
+      getSceneCharacterIds: (sceneId) => sceneCharacters.get(sceneId),
+    });
+  }, [breakdown, project.productionDays, project.scheduleBlocks, project.castAssignments, project.people]);
 
   const characterReports = useMemo(
     () => breakdown.characters
@@ -132,10 +154,62 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
             <button onClick={() => setReport('locations')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'locations' ? 'bg-violet-600 text-white' : muted}`}>
               <MapPin className="w-3.5 h-3.5" /> Locations
             </button>
+            <button onClick={() => setReport('dood')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'dood' ? 'bg-violet-600 text-white' : muted}`} title="Day out of days: which cast works on which shooting day">
+              <CalendarDays className="w-3.5 h-3.5" /> DOOD
+            </button>
           </div>
         </div>
 
-        {report === 'characters' ? (
+        {report === 'dood' ? (
+          <div className={`rounded-2xl border p-4 ${card}`}>
+            <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+              <div>
+                <h3 className="text-sm font-bold">Day out of days</h3>
+                <p className={`text-[11px] ${muted}`}>Derived from scene strips on each shooting day. SW = start work, W = work, H = hold, WF = finish.</p>
+              </div>
+              <span className={`text-[10px] ${muted}`}>{dood.columns.length} day{dood.columns.length === 1 ? '' : 's'} · {dood.rows.length} character{dood.rows.length === 1 ? '' : 's'}</span>
+            </div>
+            {dood.columns.length === 0 ? (
+              <p className={`text-xs ${muted}`}>No shooting days yet — add days and scene strips in the Schedule module to populate the DOOD.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="text-[11px] border-collapse">
+                  <thead>
+                    <tr>
+                      <th className={`text-left px-2 py-1 sticky left-0 ${isLight ? 'bg-white' : 'bg-slate-900'}`}>Character / performer</th>
+                      {dood.columns.map((column) => (
+                        <th key={column.dayId} className="px-1.5 py-1 text-center font-mono font-bold whitespace-nowrap" title={column.date ?? 'undated'}>
+                          <div>{column.dayName}</div>
+                          <div className={`font-normal ${muted}`}>{column.date ? column.date.slice(5) : '—'}</div>
+                        </th>
+                      ))}
+                      <th className="px-2 py-1 text-right">Days</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dood.rows.map((row) => {
+                      const working = row.cells.filter((cell) => cell.status !== 'off' && cell.status !== 'hold').length;
+                      return (
+                        <tr key={row.characterId} className={`border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                          <td className={`px-2 py-1 font-semibold whitespace-nowrap sticky left-0 ${isLight ? 'bg-white' : 'bg-slate-900'}`}>{row.displayName}</td>
+                          {row.cells.map((cell) => {
+                            const meta = DOOD_CELL[cell.status];
+                            return (
+                              <td key={cell.dayId} className="px-1 py-1 text-center">
+                                {meta.label && <span title={meta.title} className={`inline-block min-w-[26px] px-1 rounded font-mono font-bold ${meta.className}`}>{meta.label}</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="px-2 py-1 text-right font-mono">{working}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : report === 'characters' ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {characterReports.map((entry) => (
               <article key={entry.character?.id} className={`rounded-2xl border p-4 ${card}`}>
@@ -151,7 +225,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {entry.scenes.map((scene) => (
-                    <span key={scene.id} title={scene.heading} className={`px-2 py-1 rounded-md border text-[10px] font-mono ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950'}`}>
+                    <span key={scene.id} title={scene.omitted ? `${scene.heading} (omitted)` : scene.heading} className={`px-2 py-1 rounded-md border text-[10px] font-mono ${scene.omitted ? 'line-through opacity-50' : ''} ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950'}`}>
                       SC {scene.sceneNumber}
                     </span>
                   ))}
@@ -205,7 +279,10 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
                         <div key={scene.id} className="py-2.5 flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <span className="text-[10px] font-bold text-violet-400 mr-2">SC {scene.sceneNumber}</span>
-                            <span className="text-xs font-medium truncate">{scene.heading}</span>
+                            <span className={`text-xs font-medium truncate ${scene.omitted ? 'line-through opacity-50' : ''}`}>{scene.heading}</span>
+                            {scene.omitted && (
+                              <span className="ml-2 text-[9px] font-bold uppercase tracking-wider text-rose-400">Omitted</span>
+                            )}
                           </div>
                           <button onClick={() => createOrOpenSetup(scene, location.locationId)} className={`shrink-0 px-2.5 py-1 rounded-lg border text-[10px] font-semibold flex items-center gap-1 ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
                             {existing ? 'Open scene' : 'Create scene'} <ArrowRight className="w-3 h-3" />

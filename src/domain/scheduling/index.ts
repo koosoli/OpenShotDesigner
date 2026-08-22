@@ -16,6 +16,16 @@ export {
 } from './coverageMatrix';
 export type { TimelineBounds } from './calendarDate';
 export {
+  buildMonthGrid,
+  defaultCalendarMonth,
+  eventsOnDay,
+  monthLabel,
+  productionDaysOn,
+  shiftYearMonth,
+  yearMonthOf,
+} from './monthGrid';
+export type { MonthGrid, MonthGridDay } from './monthGrid';
+export {
   isoDayNumber,
   dayNumberToIso,
   addIsoDays,

@@ -95,6 +95,9 @@ const trackWrite = (promise: Promise<void>) => {
 export const flushPendingWrites = (): Promise<void> =>
   Promise.allSettled([...pendingWrites]).then(() => undefined);
 
+/** Current library save state (see {@link subscribeSaveState}). */
+export const getSaveState = (): LibrarySaveState => saveState;
+
 const lsReadJson = <T,>(key: string): T | null => {
   try {
     const raw = localStorage.getItem(key);
@@ -134,7 +137,8 @@ export const summarize = (project: Project): ProjectSummary => ({
   title: project.title || 'Untitled project',
   director: project.director,
   date: project.date,
-  updatedAt: new Date().toISOString(),
+  // Projects saved before `updatedAt` existed sort last rather than "just now".
+  updatedAt: project.updatedAt ?? '',
   setupCount: project.setups.length,
   shotCount: project.setups.reduce((total, setup) => total + setup.shots.length, 0),
   hasScript: (project.scriptLines || []).length > 0,
@@ -167,7 +171,7 @@ export const readProject = (id: string): Project | null => {
 };
 
 /** Save a project and refresh its entry in the index. Throws when out of quota. */
-export const writeProject = (project: Project): ProjectSummary => {
+export const writeProject = (project: Project, options: { touch?: boolean } = {}): ProjectSummary => {
   let storable = project;
   if (detectSchemaVersion(project) !== CURRENT_PROJECT_SCHEMA_VERSION) {
     try {
@@ -176,6 +180,9 @@ export const writeProject = (project: Project): ProjectSummary => {
       // Keep the caller's data rather than failing the whole save.
       storable = { ...project, schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION };
     }
+  }
+  if (options.touch !== false) {
+    storable = { ...storable, updatedAt: new Date().toISOString() };
   }
 
   memory.set(storable.id, storable);

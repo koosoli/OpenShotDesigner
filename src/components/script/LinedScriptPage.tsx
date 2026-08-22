@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ScriptElementType, ScriptLine, ScriptMark, Shot } from '../../types';
+import { omittedSceneLabel } from '../../domain/script';
 
 /**
  * Standard Hollywood layout (in character columns, 12pt Courier = 10 chars per
@@ -367,8 +368,11 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                   {line.sceneNumber}
                 </span>
               )}
-              <span data-line-text className={`whitespace-pre-wrap break-words ${layout.className}`}>
-                {line.text}
+              <span
+                data-line-text
+                className={`whitespace-pre-wrap break-words ${layout.className} ${line.omitted ? 'opacity-60 tracking-widest' : ''}`}
+              >
+                {line.omitted ? omittedSceneLabel(line.sceneNumber) : line.text}
               </span>
 
               {/* Persistent selection highlight for partial text selection */}

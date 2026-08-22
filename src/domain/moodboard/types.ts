@@ -26,6 +26,20 @@ export interface MoodBoardCard {
   };
   sectionId: string;
   order: number;
+  /**
+   * Free-form collage placement in virtual canvas units (canvas is always
+   * 1000 wide; see `collageLayout.ts`). Absent = use the grid seed.
+   */
+  collageLayout?: MoodBoardCardLayout;
+}
+
+export interface MoodBoardCardLayout {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Stacking order; higher paints on top. */
+  z?: number;
 }
 
 export interface MoodBoardSection {
@@ -44,11 +58,15 @@ export interface MoodBoard {
    * collage document. Optional and absent-safe.
    */
   collage?: {
+    /** 'grid' (default) flows cards in columns; 'free' uses per-card `collageLayout`. */
+    mode?: 'grid' | 'free';
     columns?: number;
     gap?: number;
     background?: string;
     showCaptions?: boolean;
     title?: string;
+    /** Free-form canvas height in virtual units (width is fixed at 1000). */
+    canvasHeight?: number;
   };
   /** Dominant color palette extracted from the board's images (hex strings). */
   palette?: string[];

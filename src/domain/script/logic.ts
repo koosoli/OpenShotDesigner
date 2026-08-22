@@ -248,6 +248,7 @@ export interface ScriptBreakdownLine {
   text: string;
   type?: string;
   sceneNumber?: string;
+  omitted?: boolean;
 }
 
 export interface ScriptLocationBreakdown {
@@ -337,8 +338,9 @@ export const deriveScriptBreakdown = (
         characterIds: [],
         breakdownItemIds: [],
       };
+      if (line.omitted) currentScene.omitted = true;
       scenes.push(currentScene);
-      if (parsedLocation) locationNames.set(line.id, location?.name || parsedLocation);
+      if (parsedLocation && !line.omitted) locationNames.set(line.id, location?.name || parsedLocation);
       continue;
     }
     if (line.type !== 'character' || !currentScene) continue;

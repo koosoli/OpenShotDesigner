@@ -596,6 +596,9 @@ export interface AVScriptRow {
   audio: string; // Voiceover, dialogue, SFX, music
   durationSec?: number; // Estimated timing in seconds
   linkedShotId?: string; // Linked camera shot on floor plan
+  /** Board art for this row (data URL). Absent = fall back to the linked shot's storyboard. */
+  storyboardImage?: string;
+  storyboardFit?: 'cover' | 'contain';
 }
 
 export interface ScriptLine {
@@ -607,6 +610,13 @@ export interface ScriptLine {
   sceneNumber?: string;
   /** True when this line is itself a slugline carrying a scene number. */
   isSceneHeading?: boolean;
+  /**
+   * Scene heading whose scene was cut. The slugline stays in place (numbering
+   * never shifts) and renders as "SCENE n — OMITTED" until deleted again.
+   */
+  omitted?: boolean;
+  /** Body lines parked when the scene was omitted; restored verbatim by "Restore". */
+  omittedBody?: ScriptLine[];
   linkedShotId?: string;
 }
 
@@ -794,6 +804,8 @@ export interface Project {
    */
   schemaVersion?: number;
   title: string;
+  /** ISO timestamp of the last persisted save; stamped by the project library. */
+  updatedAt?: string;
   /**
    * The screenplay is a property of the production, not of one scene: it stays
    * open when you switch or add scenes. (Per-scene `SceneSetup.scriptLines` is
@@ -845,6 +857,9 @@ export interface Project {
   logisticsContainers?: import('../domain/logistics').LogisticsContainer[];
   packedItems?: import('../domain/logistics').PackedItem[];
   moodBoards?: import('../domain/moodboard').MoodBoard[];
+  /** Production task board (v13). Optional and absent-safe. */
+  taskBoards?: import('../domain/tasks').TaskBoard[];
+  tasks?: import('../domain/tasks').Task[];
   /**
    * vNext rigging collections (plan §11, §23). Optional and absent-safe —
    * legacy projects without them load unchanged, so no migration is required

@@ -15,6 +15,8 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     label: 'Shot Planning / Blocking',
     description: 'The classic fast workflow: plan, shots, storyboard, equipment. No screenplay required.',
     enabledModules: [
+      'contacts',
+      'tasks',
       ...CORE_MODULES,
       'annotations',
       'shots',
@@ -27,6 +29,8 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     label: 'Narrative Film',
     description: 'Script-first workflow with coverage, scheduling and call sheets.',
     enabledModules: [
+      'contacts',
+      'tasks',
       ...CORE_MODULES,
       'locations',
       'script',
@@ -44,6 +48,8 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     label: 'Documentary',
     description: 'Interviews, segments and shot planning without a screenplay.',
     enabledModules: [
+      'contacts',
+      'tasks',
       ...CORE_MODULES,
       'locations',
       'shots',
@@ -59,6 +65,8 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     label: 'Commercial / AV Script',
     description: 'Two-column AV script workflow with boards and gear planning.',
     enabledModules: [
+      'contacts',
+      'tasks',
       ...CORE_MODULES,
       'av_script',
       'shots',
@@ -72,13 +80,17 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     id: 'interview',
     label: 'Interview',
     description: 'Compact setup for interviews: plan, cameras, questions as segments.',
-    enabledModules: [...CORE_MODULES, 'locations', 'shots', 'run_of_show', 'equipment'],
+    enabledModules: [
+      'contacts',
+      'tasks',...CORE_MODULES, 'locations', 'shots', 'run_of_show', 'equipment'],
   },
   {
     id: 'concert',
     label: 'Concert / Live Event',
     description: 'Venue, stage, cameras, lighting, DMX, power, cables, run of show.',
     enabledModules: [
+      'contacts',
+      'tasks',
       ...CORE_MODULES,
       'locations',
       'shots',
@@ -97,6 +109,8 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     label: 'Broadcast / OB',
     description: 'Studio or compound camera plan, signal flow and show-day schedule.',
     enabledModules: [
+      'contacts',
+      'tasks',
       ...CORE_MODULES,
       'locations',
       'shots',
@@ -114,6 +128,8 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     label: 'Studio Production',
     description: 'Multi-cam studio floor with technical planning modules.',
     enabledModules: [
+      'contacts',
+      'tasks',
       ...CORE_MODULES,
       'locations',
       'shots',
@@ -128,7 +144,9 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     id: 'photo',
     label: 'Photo Shoot',
     description: 'Plan, mood boards and light setup — no motion-specific tooling.',
-    enabledModules: [...CORE_MODULES, 'locations', 'moodboard', 'equipment', 'power'],
+    enabledModules: [
+      'contacts',
+      'tasks',...CORE_MODULES, 'locations', 'moodboard', 'equipment', 'power'],
   },
   {
     id: 'custom',
@@ -189,6 +207,8 @@ export const ALL_MODULES_PROFILE: WorkspaceProfile = {
     'power',
     'rigging',
     'logistics',
+    'contacts',
+    'tasks',
     'comments',
   ],
 };

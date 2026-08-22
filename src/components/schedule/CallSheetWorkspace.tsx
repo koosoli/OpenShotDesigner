@@ -220,6 +220,17 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
 
               {(sheet.parking || sheet.nearestHospital || sheet.generalNotes) && <section className="mt-4 grid grid-cols-2 gap-3 text-[9px]"><div><b className="block uppercase text-[8px] text-slate-500">Parking / access</b>{sheet.parking ?? '—'}</div><div><b className="block uppercase text-[8px] text-slate-500">Nearest hospital</b>{sheet.nearestHospital ?? '—'}</div>{sheet.generalNotes && <div className="col-span-2"><b className="block uppercase text-[8px] text-slate-500">General notes</b>{sheet.generalNotes}</div>}</section>}
 
+              {sheet.lookAhead && (
+                <section className="mt-4">
+                  <h2 className="text-[9px] font-black uppercase tracking-[0.18em] text-white bg-violet-700 px-2 py-1">Look ahead · {sheet.lookAhead.dayName}</h2>
+                  <div className="border border-violet-300 border-t-0 bg-violet-50 p-2 text-[9px]">
+                    <div className="flex justify-between gap-2 font-bold"><span>{sheet.lookAhead.date ?? 'Date not set'} · crew call {sheet.lookAhead.crewCall ?? '—'}</span><span className="text-slate-500 font-normal">{sheet.lookAhead.locations.map((loc) => loc.name).join(', ') || 'No location linked yet'}</span></div>
+                    {sheet.lookAhead.items.length ? <ol className="list-decimal pl-4 mt-1 space-y-0.5">{sheet.lookAhead.items.map((item, index) => <li key={index} className={item.omitted ? 'line-through text-slate-400' : ''}>{item.label}</li>)}</ol> : <p className="text-slate-500 mt-1">Nothing scheduled yet.</p>}
+                    {sheet.lookAhead.cast.length > 0 && <p className="mt-1"><b>Cast:</b> {sheet.lookAhead.cast.map((person) => person.displayName).join(', ')}</p>}
+                  </div>
+                </section>
+              )}
+
               {sheet.warnings.length > 0 && <div className="mt-4 border border-amber-400 bg-amber-50 p-2 text-[8px] text-amber-900"><b className="uppercase">Draft readiness:</b> {sheet.warnings.join(' · ')}</div>}
             </article>
           </section>

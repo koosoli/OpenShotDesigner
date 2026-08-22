@@ -8,6 +8,7 @@ import {
   Download,
   Edit3,
   FileText,
+  ImagePlus,
   Layers,
   Minus,
   PenTool,
@@ -22,7 +23,8 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { ScriptElementType, ScriptFormatMode, ScriptLine, ScriptMark, ShotSize } from '../../types';
+import { AVScriptRow, ScriptElementType, ScriptFormatMode, ScriptLine, ScriptMark, Shot, ShotSize } from '../../types';
+import { loadStoryboardImageFile } from '../../utils/image';
 import {
   formatParenthetical,
   parseAVScriptText,
@@ -39,9 +41,84 @@ import {
   suggestCharacters,
   suggestLocations,
 } from '../../domain/script/logic';
+import { omittedSceneLabel, reconcileScriptLineIds, removeLineOrOmit, restoreScene } from '../../domain/script';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
 
 type ScriptWorkspaceView = ScriptFormatMode | 'reports';
+
+/**
+ * Board art for one AV row: its own uploaded frame when present, otherwise the
+ * linked floor-plan shot's storyboard (so syncing a camera and boarding it in
+ * the viewfinder shows up here automatically).
+ */
+const AVStoryboardCell: React.FC<{
+  row: AVScriptRow;
+  linkedShot?: Shot;
+  isLight: boolean;
+  onChange: (updates: Partial<AVScriptRow>) => void;
+}> = ({ row, linkedShot, isLight, onChange }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inherited = !row.storyboardImage ? linkedShot?.storyboardImage : undefined;
+  const image = row.storyboardImage ?? inherited;
+  const fit = row.storyboardFit ?? linkedShot?.storyboardFit ?? 'cover';
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (!file) return;
+          loadStoryboardImageFile(file)
+            .then((dataUrl) => onChange({ storyboardImage: dataUrl, storyboardFit: 'cover' }))
+            .catch(() => alert('That image could not be read.'));
+        }}
+      />
+      <button
+        onClick={() => inputRef.current?.click()}
+        title={image ? 'Replace this row’s board frame' : 'Attach a board frame to this AV row'}
+        className={`relative w-24 aspect-video rounded-md border overflow-hidden flex items-center justify-center transition-colors ${
+          isLight ? 'border-slate-300 bg-slate-100 hover:border-violet-400' : 'border-slate-700 bg-slate-950 hover:border-violet-500'
+        }`}
+      >
+        {image ? (
+          <>
+            <img src={image} alt={`Board for shot ${row.shotNumber}`} className="absolute inset-0 w-full h-full" style={{ objectFit: fit }} />
+            {inherited && (
+              <span className="absolute bottom-0 inset-x-0 bg-black/65 text-[7px] font-bold uppercase tracking-wider text-sky-300 py-px">
+                From shot
+              </span>
+            )}
+          </>
+        ) : (
+          <ImagePlus className="w-4 h-4 opacity-40" />
+        )}
+      </button>
+      {row.storyboardImage && (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onChange({ storyboardFit: fit === 'cover' ? 'contain' : 'cover' })}
+            className="text-[8px] px-1 rounded border border-slate-600 text-slate-400 hover:text-slate-200"
+            title="Toggle crop / fit"
+          >
+            {fit}
+          </button>
+          <button
+            onClick={() => onChange({ storyboardImage: undefined, storyboardFit: undefined })}
+            className="text-[8px] px-1 rounded border border-rose-500/40 text-rose-400"
+            title="Remove this row's board frame"
+          >
+            clear
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SHOT_SIZES: ShotSize[] = ['WS', 'FS', 'MWS', 'MS', 'MCU', 'CU', 'ECU', 'OTS', 'POV', 'Insert'];
 
@@ -192,7 +269,9 @@ export const ScriptPanel: React.FC = () => {
   }, [fountainViewMode]);
 
   const importRaw = (raw: string, name: string) => {
-    const parsed = parseScreenplay(raw, name);
+    // Re-importing a revised draft keeps linings and scheduled scenes attached
+    // to the lines that survived (ids are reconciled, not minted afresh).
+    const parsed = reconcileScriptLineIds(parseScreenplay(raw, name), lines);
     setScriptLines(parsed, { scriptTitle: name, scriptText: raw });
     clearSelection();
   };
@@ -539,7 +618,7 @@ export const ScriptPanel: React.FC = () => {
       if (lines.length <= 1) return;
       e.preventDefault();
       const prevLine = lines[index - 1];
-      const filtered = lines.filter((l) => l.id !== line.id);
+      const filtered = removeLineOrOmit(lines, line.id);
       setScriptLines(filtered);
       if (prevLine) setActiveEditingLineId(prevLine.id);
       return;
@@ -771,6 +850,16 @@ export const ScriptPanel: React.FC = () => {
               <ClipboardPaste className="w-3.5 h-3.5" /> Paste
             </button>
 
+            {activeTab === 'reports' && lines.length > 0 && (
+              <button
+                onClick={() => openExportModal('scriptreports')}
+                className={headerButton}
+                title="Print the scene list, character report, location report and day-out-of-days"
+              >
+                <Printer className="w-3.5 h-3.5" /> Print reports
+              </button>
+            )}
+
             {activeTab !== 'reports' && lines.length > 0 && (
               <button
                 onClick={() => openExportModal(activeTab === 'av_script' ? 'combined' : 'linedscript')}
@@ -778,6 +867,16 @@ export const ScriptPanel: React.FC = () => {
                 title="Export / print formatted script"
               >
                 <Printer className="w-3.5 h-3.5" /> Print PDF
+              </button>
+            )}
+
+            {activeTab === 'screenplay' && lines.length > 0 && (
+              <button
+                onClick={() => openExportModal('sides')}
+                className={headerButton}
+                title="Generate script sides: pick scenes (or a shooting day) and optionally one character"
+              >
+                <Scissors className="w-3.5 h-3.5" /> Sides
               </button>
             )}
 
@@ -900,7 +999,7 @@ export const ScriptPanel: React.FC = () => {
                 onChange={(e) => {
                   const val = e.target.value;
                   setRawFountainText(val);
-                  const parsed = parseScreenplay(val, scriptTitle || 'Screenplay');
+                  const parsed = reconcileScriptLineIds(parseScreenplay(val, scriptTitle || 'Screenplay'), lines);
                   setScriptLines(parsed, { scriptText: val });
                 }}
                 rows={24}
@@ -974,7 +1073,26 @@ export const ScriptPanel: React.FC = () => {
                         </div>
 
                         <div className={`flex-1 ${style.indentClass}`}>
-                          {                          line.type === 'scene' ? (
+                          {line.type === 'scene' && line.omitted ? (
+                            <div className="flex items-center justify-between gap-2 font-bold text-slate-500">
+                              <span className="uppercase tracking-widest line-through decoration-rose-500/70 decoration-2">
+                                {omittedSceneLabel(line.sceneNumber)}
+                              </span>
+                              <span className="text-[10px] font-normal normal-case tracking-normal text-slate-500 truncate" title={line.text}>
+                                was: {line.text}{line.omittedBody?.length ? ` · ${line.omittedBody.length} lines parked` : ''}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setScriptLines(restoreScene(lines, line.id));
+                                }}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/40 normal-case tracking-normal flex-shrink-0"
+                                title={`Restore this scene with its ${line.omittedBody?.length ?? 0} parked line(s)`}
+                              >
+                                Restore
+                              </button>
+                            </div>
+                          ) : line.type === 'scene' ? (
                             <div className="flex items-center justify-between font-bold text-amber-300">
                               <div className="relative flex-1">
                                 <input
@@ -1084,10 +1202,16 @@ export const ScriptPanel: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setScriptLines(lines.filter((l) => l.id !== line.id));
+                            setScriptLines(removeLineOrOmit(lines, line.id));
                           }}
                           className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-1 text-slate-500 hover:text-rose-400"
-                          title="Delete line"
+                          title={
+                            line.type === 'scene'
+                              ? line.omitted
+                                ? 'Delete the omitted scene permanently'
+                                : 'Omit scene (keeps the number as OMITTED; delete again to remove)'
+                              : 'Delete line'
+                          }
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -1133,6 +1257,7 @@ export const ScriptPanel: React.FC = () => {
                     isLight ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-950/80 text-slate-400 border-slate-800'
                   }`}>
                     <th className="py-2.5 px-3 w-14 text-center">#</th>
+                    <th className="py-2.5 px-2 w-28 text-center">Board</th>
                     <th className="py-2.5 px-3 w-48">Shot Name / Size</th>
                     <th className="py-2.5 px-3 w-1/2">VIDEO (Visuals, Camera & Lighting)</th>
                     <th className="py-2.5 px-3 w-1/2">AUDIO (VO, Dialogue & SFX)</th>
@@ -1156,6 +1281,15 @@ export const ScriptPanel: React.FC = () => {
                           value={row.shotNumber}
                           onChange={(e) => updateAVScriptRow(row.id, { shotNumber: e.target.value })}
                           className="w-10 text-center bg-transparent border border-transparent hover:border-slate-700 focus:border-violet-500 rounded outline-none"
+                        />
+                      </td>
+
+                      <td className="py-2 px-2">
+                        <AVStoryboardCell
+                          row={row}
+                          linkedShot={row.linkedShotId ? allShots.find((shot) => shot.id === row.linkedShotId) : undefined}
+                          isLight={isLight}
+                          onChange={(updates) => updateAVScriptRow(row.id, updates)}
                         />
                       </td>
 

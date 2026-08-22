@@ -46,6 +46,19 @@ export interface CallSheetPerson {
   phone?: string;
 }
 
+/** Sneak peek of the following shooting day printed at the foot of a sheet. */
+export interface CallSheetLookAhead {
+  dayName: string;
+  date?: string;
+  crewCall?: string;
+  plannedWrap?: string;
+  locations: CallSheetLocation[];
+  /** Labels of the scheduled items in order (manual banners included). */
+  items: Array<{ label: string; kind: ScheduleBlock['kind']; omitted?: boolean }>;
+  /** Cast / talent called for that day (after cast filtering). */
+  cast: CallSheetPerson[];
+}
+
 export interface CallSheetData {
   productionTitle: string;
   productionCompany?: string;
@@ -67,6 +80,8 @@ export interface CallSheetData {
   crew: CallSheetPerson[];
   totalEstimatedMinutes: number | null;
   warnings: string[];
+  /** Present when a following shooting day exists. */
+  lookAhead?: CallSheetLookAhead;
 }
 
 /** Explicit, user-entered exception on top of derived defaults (rule 37). */
@@ -100,7 +115,31 @@ export interface DeriveCallSheetInput {
   resolveSegmentLabel?: (segmentId: string) => string | undefined;
   resolveCueLabel?: (cueId: string) => string | undefined;
   resolveShotLabel?: (shotIds: string[]) => string | undefined;
+  /** The following shooting day, for the look-ahead block. */
+  nextDay?: {
+    day: ProductionDay;
+    locations?: CallSheetLocation[];
+    castPersonIds?: string[];
+  };
 }
+
+const labelForBlock = (block: ScheduleBlock, input: DeriveCallSheetInput): { label: string; omitted?: boolean } => {
+  switch (block.kind) {
+    case 'scene':
+      if (block.omittedLabel !== undefined) return { label: `Omitted — ${block.omittedLabel}`, omitted: true };
+      return { label: input.resolveSceneLabel?.(block.scriptSceneId) ?? `Unresolved scene ${block.scriptSceneId}` };
+    case 'setup':
+      return { label: input.resolveSetupLabel?.(block.setupId) ?? `Unresolved setup ${block.setupId}` };
+    case 'segment':
+      return { label: input.resolveSegmentLabel?.(block.segmentId) ?? `Unresolved segment ${block.segmentId}` };
+    case 'cue':
+      return { label: input.resolveCueLabel?.(block.cueId) ?? `Unresolved cue ${block.cueId}` };
+    case 'shots':
+      return { label: input.resolveShotLabel?.(block.shotIds) ?? `${block.shotIds.length} shot(s)` };
+    case 'manual':
+      return { label: block.label };
+  }
+};
 
 const minutesOf = (block: ScheduleBlock): number | undefined =>
   'estimatedMinutes' in block ? block.estimatedMinutes : undefined;
@@ -212,6 +251,26 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   if (resolvedLocations.length === 0) warnings.push('No shooting location is linked to this day.');
   if (!day.callSheet?.nearestHospital) warnings.push('Nearest hospital / emergency facility is not set.');
 
+  let lookAhead: CallSheetLookAhead | undefined;
+  if (input.nextDay) {
+    const next = input.nextDay.day;
+    const nextCastFilter = input.nextDay.castPersonIds ? new Set(input.nextDay.castPersonIds) : null;
+    lookAhead = {
+      dayName: next.name,
+      date: next.date,
+      crewCall: next.crewCall,
+      plannedWrap: next.plannedWrap,
+      locations: input.nextDay.locations ?? [],
+      items: next.scheduleBlockIds
+        .map((id) => blocks.find((b) => b.id === id))
+        .filter((b): b is ScheduleBlock => !!b)
+        .map((block) => ({ kind: block.kind, ...labelForBlock(block, input) })),
+      cast: people
+        .filter((p) => (p.kind === 'cast' || p.kind === 'talent') && (!nextCastFilter || nextCastFilter.has(p.id)))
+        .map((p) => ({ displayName: p.displayName, role: p.role, email: p.email, phone: p.phone })),
+    };
+  }
+
   return {
     productionTitle,
     productionCompany,
@@ -233,6 +292,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     crew,
     totalEstimatedMinutes,
     warnings,
+    ...(lookAhead ? { lookAhead } : {}),
   };
 };
 

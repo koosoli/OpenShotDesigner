@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   geocodeLocation,
   locationMapLinkUrl,
@@ -6,6 +6,7 @@ import {
   locationPoint,
   locationQuery,
   osmEmbedUrl,
+  reverseGeocode,
 } from '../locations/map';
 
 describe('location map adapters', () => {
@@ -38,9 +39,54 @@ describe('location map adapters', () => {
     expect(locationOsmLinkUrl(unpinned)).toContain('search?query=Brandenburg%20Gate');
   });
 
-  it('resolves geocode failures softly without throwing', async () => {
-    await expect(geocodeLocation('')).resolves.toEqual({ status: 'not_found' });
-    const result = await geocodeLocation('definitely not a place xyzzy', );
-    expect(['not_found', 'unavailable']).toContain(result.status);
+  describe('geocodeLocation (network stubbed — tests never touch Nominatim)', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('short-circuits empty queries', async () => {
+      await expect(geocodeLocation('')).resolves.toEqual({ status: 'not_found' });
+    });
+
+    it('maps a successful lookup to a pin', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([{ lat: '52.5', lon: '13.4', display_name: 'Berlin' }]), { status: 200 })));
+      await expect(geocodeLocation('Berlin')).resolves.toEqual({ status: 'ok', point: { lat: 52.5, lng: 13.4 }, label: 'Berlin' });
+    });
+
+    it('reports not_found for empty results and unavailable for HTTP errors', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('[]', { status: 200 })));
+      await expect(geocodeLocation('xyzzy')).resolves.toEqual({ status: 'not_found' });
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })));
+      const failed = await geocodeLocation('xyzzy');
+      expect(failed.status).toBe('unavailable');
+    });
+
+    it('resolves softly (never throws) on network errors and timeouts', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+      const offline = await geocodeLocation('xyzzy');
+      expect(offline.status).toBe('unavailable');
+      const timeout = new DOMException('Timed out', 'TimeoutError');
+      vi.stubGlobal('fetch', vi.fn(async () => { throw timeout; }));
+      const timedOut = await geocodeLocation('xyzzy');
+      expect(timedOut).toEqual({ status: 'unavailable', message: 'Lookup timed out — check your connection.' });
+    });
+
+    it('reverse-geocodes a pin into an address and fails softly', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ display_name: 'Pariser Platz, Berlin' }), { status: 200 })));
+      await expect(reverseGeocode({ lat: 52.516, lng: 13.378 })).resolves.toEqual({ status: 'ok', address: 'Pariser Platz, Berlin' });
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+      await expect(reverseGeocode({ lat: 0, lng: 0 })).resolves.toEqual({ status: 'not_found' });
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+      expect((await reverseGeocode({ lat: 1, lng: 1 })).status).toBe('unavailable');
+      await expect(reverseGeocode({ lat: Number.NaN, lng: 1 })).resolves.toEqual({ status: 'not_found' });
+    });
+
+    it('passes a bounded abort signal to fetch', async () => {
+      const fetchMock = vi.fn(async () => new Response('[]', { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+      await geocodeLocation('xyzzy');
+      const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    });
   });
 });

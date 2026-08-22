@@ -133,6 +133,23 @@ describe('migrateProject', () => {
     expect(project.setups[0].scriptLines).toBeUndefined();
   });
 
+  it('migrates a v12 project to v13 without touching any content', () => {
+    const raw = {
+      ...buildLegacyRaw(),
+      schemaVersion: 12,
+      scriptLines: [{ id: 'sl-1', lineNumber: 1, text: 'INT. ROOM - DAY', type: 'scene', sceneNumber: '1', isSceneHeading: true }],
+      moodBoards: [{ id: 'mb-1', title: 'Look', sections: [{ id: 's', title: 'Default', order: 0 }], cards: [{ id: 'c', tags: [], sectionId: 's', order: 0 }] }],
+    };
+    const { project, migratedFrom } = migrateProject(structuredClone(raw));
+    expect(migratedFrom).toBe(12);
+    expect(project.schemaVersion).toBe(13);
+    const { schemaVersion: _v, ...rest } = project as unknown as Record<string, unknown>;
+    const { schemaVersion: _r, ...rawRest } = raw as unknown as Record<string, unknown>;
+    expect(rest).toEqual(rawRest);
+    expect(project.scriptLines?.[0].omitted).toBeUndefined();
+    expect(project.moodBoards?.[0].cards[0].collageLayout).toBeUndefined();
+  });
+
   it('passes projects already at the current version through unchanged', () => {
     const raw = buildCurrentRaw();
     const { project, migratedFrom } = migrateProject(raw);

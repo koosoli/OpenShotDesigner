@@ -68,6 +68,9 @@ describe('projectLibrary', () => {
     const normalized = JSON.parse(JSON.stringify(read)) as Record<string, unknown>;
     expect(normalized.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     delete normalized.schemaVersion;
+    // Saving stamps the last-saved time; the caller's data never carries it.
+    expect(typeof normalized.updatedAt).toBe('string');
+    delete normalized.updatedAt;
     // Migration backfills these documented defaults; strip them so the
     // comparison focuses on the data the caller wrote.
     const backfilled = [

@@ -133,14 +133,18 @@ const cloneEquipmentItem = (item: EquipmentItem, elementIdMap: Map<string, strin
  * internal reference. Cross-setup references (none exist today) are preserved
  * as-is by the `remap` fallback.
  */
-export const cloneSetupWithNewIds = (setup: SceneSetup): SceneSetup => {
+export const cloneSetupWithNewIds = (
+  setup: SceneSetup,
+  /** Project-level screenplay line ids → new ids, so linings in this setup follow the shared script. */
+  sharedLineIdMap?: Map<string, string>,
+): SceneSetup => {
   const elementIdMap = new Map<string, string>();
   setup.elements.forEach((el) => elementIdMap.set(el.id, createId(el.type)));
 
   const shotIdMap = new Map<string, string>();
   setup.shots.forEach((shot) => shotIdMap.set(shot.id, createId('shot')));
 
-  const lineIdMap = new Map<string, string>();
+  const lineIdMap = new Map<string, string>(sharedLineIdMap ?? []);
   (setup.scriptLines || []).forEach((line) => lineIdMap.set(line.id, createId('line')));
 
   const waypointIdMap = new Map<string, string>();
@@ -211,6 +215,8 @@ export const cloneSetupWithNewIds = (setup: SceneSetup): SceneSetup => {
  */
 const cloneProductionCollections = (
   project: Project,
+  /** Screenplay line ids → new ids. Scene ids ARE heading-line ids, so they follow this map. */
+  lineIdMap: Map<string, string>,
 ): Partial<Pick<Project, 'locations' | 'people' | 'castAssignments' | 'characters' | 'scriptScenes' | 'breakdownItems' | 'productionSegments' | 'productionDays' | 'scheduleBlocks' | 'productionCalendarEvents' | 'runOfShowCues' | 'logisticsContainers' | 'packedItems' | 'trussProfiles' | 'trussElements' | 'suspendedLoads' | 'riggingItems'>> => {
   const cueMap = new Map<string, string>();
   (project.runOfShowCues || []).forEach((c) => cueMap.set(c.id, createId('cue')));
@@ -227,8 +233,10 @@ const cloneProductionCollections = (
   (project.people || []).forEach((p) => personMap.set(p.id, createId('person')));
   const characterMap = new Map<string, string>();
   (project.characters || []).forEach((c) => characterMap.set(c.id, createId('char')));
+  // A scene keeps pointing at its (remapped) heading line; scenes whose
+  // heading no longer exists in the script get a fresh id.
   const sceneMap = new Map<string, string>();
-  (project.scriptScenes || []).forEach((s) => sceneMap.set(s.id, createId('scene')));
+  (project.scriptScenes || []).forEach((s) => sceneMap.set(s.id, lineIdMap.get(s.id) ?? createId('scene')));
   const itemMap = new Map<string, string>();
   (project.breakdownItems || []).forEach((i) => itemMap.set(i.id, createId('item')));
   const segmentMap = new Map<string, string>();
@@ -273,7 +281,7 @@ const cloneProductionCollections = (
     result.scriptScenes = project.scriptScenes.map((s) => ({
       ...s,
       id: remapRequired(sceneMap, s.id),
-      locationId: remap(sceneMap.has(s.locationId ?? '') ? sceneMap : locationMap, s.locationId),
+      locationId: remap(locationMap, s.locationId),
       characterIds: s.characterIds.map((id) => remapRequired(characterMap, id)),
       breakdownItemIds: s.breakdownItemIds.map((id) => remapRequired(itemMap, id)),
     }));
@@ -384,7 +392,12 @@ export const cloneProjectWithNewIds = (
   project: Project,
   overrides: Partial<Project> = {},
 ): Project => {
-  const setups = project.setups.map((setup) => cloneSetupWithNewIds(setup));
+  // The screenplay is project-level; its line map must exist BEFORE setups are
+  // cloned so linings / shot links inside each setup remap through it.
+  const lineIdMap = new Map<string, string>();
+  (project.scriptLines || []).forEach((line) => lineIdMap.set(line.id, createId('line')));
+
+  const setups = project.setups.map((setup) => cloneSetupWithNewIds(setup, lineIdMap));
 
   const setupIdMap = new Map<string, string>();
   project.setups.forEach((setup, i) => setupIdMap.set(setup.id, setups[i].id));
@@ -400,7 +413,7 @@ export const cloneProjectWithNewIds = (
     id: overrides.id ?? createId('proj'),
     setups,
     activeSetupId: remap(setupIdMap, project.activeSetupId) ?? setups[0]?.id ?? '',
-    ...cloneProductionCollections(project),
+    ...cloneProductionCollections(project, lineIdMap),
   };
 
   // Named revisions capture the ORIGINAL project's state — they must not leak
@@ -412,12 +425,47 @@ export const cloneProjectWithNewIds = (
   }
 
   if (project.scriptLines) {
-    const lineIdMap = new Map<string, string>();
-    project.scriptLines.forEach((line) => lineIdMap.set(line.id, createId('line')));
     next.scriptLines = project.scriptLines.map((line) => cloneScriptLine(line, lineIdMap, shotIdMap));
   }
   if (project.avScriptRows) {
     next.avScriptRows = project.avScriptRows.map((row) => cloneAvRow(row, shotIdMap));
+  }
+
+  // Task boards: board/column/task/checklist ids are all regenerated; assignees
+  // follow the people remap done in cloneProductionCollections (same ids).
+  if (project.taskBoards) {
+    const boardMap = new Map<string, string>();
+    const columnMap = new Map<string, string>();
+    next.taskBoards = project.taskBoards.map((board) => {
+      const boardId = createId('board');
+      boardMap.set(board.id, boardId);
+      return {
+        ...board,
+        id: boardId,
+        columns: board.columns.map((column) => {
+          const columnId = createId('column');
+          columnMap.set(column.id, columnId);
+          return { ...column, id: columnId };
+        }),
+      };
+    });
+    const personMap = new Map<string, string>();
+    (project.people || []).forEach((person, index) => {
+      const cloned = next.people?.[index];
+      if (cloned) personMap.set(person.id, cloned.id);
+    });
+    next.tasks = (project.tasks || [])
+      .filter((task) => boardMap.has(task.boardId))
+      .map((task) => ({
+        ...task,
+        id: createId('task'),
+        boardId: remapRequired(boardMap, task.boardId),
+        columnId: remapRequired(columnMap, task.columnId),
+        assigneeIds: task.assigneeIds.map((id) => remapRequired(personMap, id)),
+        labels: [...task.labels],
+        checklist: task.checklist.map((item) => ({ ...item, id: createId('check') })),
+        ...(task.link ? { link: { ...task.link } } : {}),
+      }));
   }
   return next;
 };

@@ -163,6 +163,30 @@ describe('cloneProjectWithNewIds', () => {
     expect(clone.date).toBe(project.date);
   });
 
+  it('keeps linings and scene schedule blocks attached when the script lives only at project level', () => {
+    const rich = buildRichSetup();
+    const project = makeProject([rich], { id: 'fx-project-orig', title: 'Original Title' });
+    // Modern shape: one project-level screenplay, no per-setup copy.
+    project.scriptLines = rich.scriptLines;
+    project.setups[0].scriptLines = undefined;
+    const headingId = project.scriptLines!.find((line) => line.type === 'scene')?.id ?? project.scriptLines![0].id;
+    project.scriptScenes = [{ id: headingId, sceneNumber: '1', heading: 'INT. TEST - DAY', characterIds: [], breakdownItemIds: [] }];
+    project.scheduleBlocks = [{ id: 'block-1', kind: 'scene', scriptSceneId: headingId }];
+
+    const clone = cloneProjectWithNewIds(project);
+    const lineIds = new Set((clone.scriptLines ?? []).map((line) => line.id));
+    expect(lineIds.has(headingId)).toBe(false);
+    for (const mark of clone.setups[0].scriptMarks ?? []) {
+      expect(lineIds.has(mark.startLineId)).toBe(true);
+      expect(lineIds.has(mark.endLineId)).toBe(true);
+    }
+    const clonedSceneId = clone.scriptScenes?.[0].id;
+    expect(clonedSceneId).toBeDefined();
+    expect(lineIds.has(clonedSceneId!)).toBe(true);
+    const block = clone.scheduleBlocks?.[0];
+    expect(block?.kind === 'scene' ? block.scriptSceneId : undefined).toBe(clonedSceneId);
+  });
+
   it('remaps production calendar event ids and dependencies', () => {
     const project = buildProject();
     project.productionCalendarEvents = [

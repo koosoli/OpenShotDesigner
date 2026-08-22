@@ -596,9 +596,38 @@ export const FloorPlanCanvas: React.FC = () => {
     if (activeTool !== 'cable') setConnectedCableStart(null);
   }, [activeTool]);
 
+  /**
+   * Touch long-press → context menu (§6.3): select mode, primary finger only,
+   * cancelled by drag (>10px), pinch or a second finger. Never fires while a
+   * pen stroke is in progress. `elementId` pre-resolves the pressed element
+   * (element views stop propagation, so the hit test cannot be redone later).
+   */
+  const armLongPress = (e: React.PointerEvent, elementId: string | null) => {
+    cancelLongPress();
+    if (e.pointerType !== 'touch' || !e.isPrimary) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const timer = window.setTimeout(() => {
+      longPressRef.current = null;
+      if (isPinchingRef.current || activeStrokeRef.current) return;
+      // A held press must not keep dragging under the open menu.
+      setDragState(null);
+      setBoxSelection(null);
+      const hit = elementId ?? findElementAtPoint(screenToCanvas(startX, startY))?.id ?? null;
+      setContextMenu({ x: startX, y: startY, elementId: hit });
+    }, 550);
+    longPressRef.current = { timer, startX, startY };
+  };
+
   // Pointer Down on canvas background or elements
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!containerRef.current || isPinchingRef.current) return;
+    // A second finger is the start of a pinch (touchstart fires after this
+    // pointerdown); it must never place elements or start a drag/marquee.
+    if (e.pointerType === 'touch' && !e.isPrimary) {
+      cancelLongPress();
+      return;
+    }
 
     // Middle click or Spacebar is Pan
     if (e.button === 1 || isSpacePressed || activeTool === 'pan') {
@@ -615,26 +644,9 @@ export const FloorPlanCanvas: React.FC = () => {
 
     if (e.button !== 0) return; // Only left click for actions
 
-    // Touch long-press opens the element context menu (§6.3): select mode only,
-    // primary finger only, cancelled by drag/pinch/second finger. Never fires
-    // while a pen stroke is in progress (stroke tool bypasses this entirely).
-    if (e.pointerType === 'touch' && !e.isPrimary) {
-      cancelLongPress();
-    } else if (e.pointerType === 'touch' && activeTool === 'select') {
-      cancelLongPress();
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const timer = window.setTimeout(() => {
-        longPressRef.current = null;
-        if (isPinchingRef.current || activeStrokeRef.current) return;
-        // A held press must not keep dragging under the open menu.
-        setDragState(null);
-        setBoxSelection(null);
-        const hit = findElementAtPoint(screenToCanvas(startX, startY));
-        setContextMenu({ x: startX, y: startY, elementId: hit?.id ?? null });
-      }, 550);
-      longPressRef.current = { timer, startX, startY };
-    }
+    // Touch long-press opens the context menu (§6.3) on empty canvas; element
+    // presses arm it from handleElementSelect (which stops propagation).
+    if (e.pointerType === 'touch' && activeTool === 'select') armLongPress(e, null);
 
     const canvasPos = screenToCanvas(e.clientX, e.clientY);
     const drawPos = getDrawingCursorPos(canvasPos);
@@ -969,6 +981,12 @@ export const FloorPlanCanvas: React.FC = () => {
   // Element Select & Drag
   const handleElementSelect = (id: string, e: React.PointerEvent) => {
     e.stopPropagation();
+    if (isPinchingRef.current) return;
+    if (e.pointerType === 'touch' && !e.isPrimary) {
+      cancelLongPress();
+      return;
+    }
+    if (e.pointerType === 'touch' && activeTool === 'select') armLongPress(e, id);
 
     // Double-clicking ANY element — locked or not — selects it and opens its
     // inspector immediately. This is the deliberate escape hatch for locked
@@ -1835,7 +1853,22 @@ export const FloorPlanCanvas: React.FC = () => {
   // Keyboard Shortcuts (Delete, Space, Undo, Redo, Esc, Enter)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
+      // Never hijack keys from anything that edits text or has its own
+      // keyboard semantics (form fields, contentEditable, a text selection
+      // the user is about to copy from the script / shot list).
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName ?? '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+        return;
+      }
+      const textSelection = window.getSelection();
+      if (
+        textSelection &&
+        !textSelection.isCollapsed &&
+        textSelection.toString().length > 0 &&
+        (e.metaKey || e.ctrlKey) &&
+        (e.key === 'c' || e.key === 'x')
+      ) {
         return;
       }
 

@@ -18,6 +18,12 @@ export interface Person {
   email?: string;
   phone?: string;
   notes?: string;
+  /** Optional contact-sheet fields (plan §4.5); absent = unknown, never blank-filled. */
+  company?: string;
+  address?: string;
+  /** Free text such as "€450/day" — never parsed into money math. */
+  rate?: string;
+  emergencyContact?: string;
 }
 
 /** Character = screenplay/story entity; Person = real human. Linked, never merged. */

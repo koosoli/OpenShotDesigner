@@ -4,16 +4,15 @@ import { getSymbolById, searchSymbols } from '../../domain/assets';
 import type { PlanSymbolDefinition } from '../../domain/assets';
 import { CameraRigType, CableType, FloorPlanElement, LightFixtureType, PropType, ShapeType } from '../../types';
 import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
+import { FresnelLightIcon, MovieCameraIcon } from '../icons/ProductionIcons';
 import {
   BrickWall,
   Cable,
-  Camera,
   Circle,
   Clapperboard,
   DoorClosed,
   Flag,
   Layers,
-  Lightbulb,
   MoveHorizontal,
   MoveUpRight,
   Ruler,
@@ -162,8 +161,8 @@ interface QuickAsset {
 }
 
 const ACTOR_ICON = <User className="w-4 h-4 text-emerald-500" />;
-const CAMERA_ICON = <Camera className="w-4 h-4 text-sky-500" />;
-const LIGHT_ICON = <Lightbulb className="w-4 h-4 text-amber-500" />;
+const CAMERA_ICON = <MovieCameraIcon className="w-4 h-4 text-sky-500" />;
+const LIGHT_ICON = <FresnelLightIcon className="w-4 h-4 text-amber-500" />;
 const FLAG_ICON = <Flag className="w-4 h-4 text-slate-400" />;
 
 const SHARED_SYMBOL_BY_PROP_TYPE: Partial<Record<PropType, string>> = {

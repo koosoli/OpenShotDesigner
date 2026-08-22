@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Anchor,
@@ -103,7 +103,7 @@ export const EquipmentPanel: React.FC = () => {
     model: 'Titon 150 V-Mount (156Wh)',
     quantity: 4,
     roleOrFunction: 'Camera Power',
-    specs: '14.4V High-Draw Â· Quad Fast Charger',
+    specs: '14.4V High-Draw · Quad Fast Charger',
   });
 
   // Form state for general add / edit modal
@@ -515,12 +515,12 @@ export const EquipmentPanel: React.FC = () => {
               <h2 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 text-slate-950 dark:text-slate-100">
                 <span>Equipment Manifest</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${isLight ? 'bg-sky-100 text-sky-900 border border-sky-300' : 'bg-sky-500/15 text-sky-400'}`}>
-                  {totalItemCount} total units Â· {totalUniqueCount} gear items
+                  {totalItemCount} total units · {totalUniqueCount} gear items
                 </span>
               </h2>
               <p className={`text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 {scope === 'current'
-                  ? `Scene ${activeSetup.sceneNumber || '1'} (${activeSetup.name}) â€” Camera packages are expandable kits`
+                  ? `Scene ${activeSetup.sceneNumber || '1'} (${activeSetup.name}) — Camera packages are expandable kits`
                   : `Master production truck package across all ${project.setups?.length || 1} scenes`}
               </p>
             </div>
@@ -709,7 +709,7 @@ export const EquipmentPanel: React.FC = () => {
           {scope === 'current' && (activeSetup.customEquipment || []).length > 0 && (
             <button
               onClick={() => {
-                if (window.confirm('Reset this sceneâ€™s equipment list to live floor plan elements?')) {
+                if (window.confirm('Reset this scene’s equipment list to live floor plan elements?')) {
                   resetSceneEquipment();
                 }
               }}
@@ -756,12 +756,12 @@ export const EquipmentPanel: React.FC = () => {
                         {preset.name}
                       </span>
                       <span className="font-mono text-[10px] font-black text-amber-800 dark:text-amber-400 flex-shrink-0">
-                        Ã—{preset.quantity}
+                        ×{preset.quantity}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-700 dark:text-slate-400">
                       <span>{meta.shortLabel}</span>
-                      {preset.brand && <span>Â· {preset.brand}</span>}
+                      {preset.brand && <span>· {preset.brand}</span>}
                     </div>
                   </button>
                 );
@@ -849,8 +849,8 @@ export const EquipmentPanel: React.FC = () => {
             <Info className="w-4 h-4 flex-shrink-0 text-sky-600 dark:text-sky-400" />
             <span>
               {scope === 'current'
-                ? 'ðŸ“¦ Click "Open Kit" or "+ Add Gear to Kit" on any camera package to attach batteries, memory cards, monitors, and accessories.'
-                : 'ðŸ”’ All Scenes master truck is a consolidated summary across the entire project.'}
+                ? '📦 Click "Open Kit" or "+ Add Gear to Kit" on any camera package to attach batteries, memory cards, monitors, and accessories.'
+                : '🔒 All Scenes master truck is a consolidated summary across the entire project.'}
             </span>
           </div>
           {scope === 'current' && (
@@ -875,12 +875,12 @@ export const EquipmentPanel: React.FC = () => {
               {powerSummary.totalWatts.toLocaleString()} W total
             </span>
             <span className="opacity-80">
-              ðŸ•¹ {powerSummary.lightingWatts.toLocaleString()} W lights Â· ðŸŽ¥ {powerSummary.cameraWatts.toLocaleString()} W cameras Â· ðŸŽ­ {powerSummary.propWatts.toLocaleString()} W set
+              🕹 {powerSummary.lightingWatts.toLocaleString()} W lights · 🎥 {powerSummary.cameraWatts.toLocaleString()} W cameras · 🎭 {powerSummary.propWatts.toLocaleString()} W set
             </span>
             <span className="flex items-center gap-1.5 ml-auto">
               <Cable className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
               <span className="font-mono font-bold">{powerSummary.poweredCablesCount} power run{powerSummary.poweredCablesCount === 1 ? '' : 's'}</span>
-              <span className="opacity-80">Â· ~{powerSummary.estimatedCircuits20A} Ã— 20A ckt Â· ~{powerSummary.recommendedSupplyKw} kW supply</span>
+              <span className="opacity-80">· ~{powerSummary.estimatedCircuits20A} × 20A ckt · ~{powerSummary.recommendedSupplyKw} kW supply</span>
             </span>
           </div>
         )}
@@ -908,9 +908,9 @@ export const EquipmentPanel: React.FC = () => {
               {dmxConflictCount > 0 ? (
                 <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{dmxConflictCount} conflict{dmxConflictCount === 1 ? '' : 's'}</span>
               ) : (
-                dmxPatchedCount > 0 && <span className="opacity-70">âœ“ no conflicts</span>
+                dmxPatchedCount > 0 && <span className="opacity-70">✓ no conflicts</span>
               )}
-                <span className="ml-auto opacity-80">{dmxPatchOpen ? 'â–¾' : 'â–¸'} Patch</span>
+                <span className="ml-auto opacity-80">{dmxPatchOpen ? '▾' : '▸'} Patch</span>
               </button>
               <button
                 onClick={() => setIsUniverseViewOpen(true)}
@@ -993,7 +993,7 @@ export const EquipmentPanel: React.FC = () => {
                         <span className="truncate font-semibold flex-1">{p.label}</span>
                         <span className="opacity-50 font-mono text-[10px]">{p.channels}ch</span>
                         <span className={`font-mono font-bold ${p.conflict ? 'text-rose-600 dark:text-rose-400' : ''}`}>
-                          {p.universe && p.address ? `U${p.universe}:${String(p.address).padStart(3, '0')}` : 'â€”'}
+                          {p.universe && p.address ? `U${p.universe}:${String(p.address).padStart(3, '0')}` : '—'}
                         </span>
                       </button>
                     )
@@ -1014,7 +1014,7 @@ export const EquipmentPanel: React.FC = () => {
             <p className="text-xs opacity-80 mt-1 max-w-sm mx-auto text-slate-700 dark:text-slate-300">
               {searchQuery
                 ? `No gear matching "${searchQuery}". Clear your search or add a custom item.`
-                : 'Add cameras, lights, or props on the floor plan, or click â€œAdd Gearâ€ / â€œFast Addâ€ to attach batteries, cables, and production supplies.'}
+                : 'Add cameras, lights, or props on the floor plan, or click “Add Gear” / “Fast Add” to attach batteries, cables, and production supplies.'}
             </p>
             {scope === 'current' && (
               <div className="flex items-center justify-center gap-2 mt-4">
@@ -1238,7 +1238,7 @@ export const EquipmentPanel: React.FC = () => {
                                 title="Select brand from department catalog"
                                 className={`${inputClass} cursor-pointer`}
                               >
-                                {!item.brand && <option value="" disabled>Select brandâ€¦</option>}
+                                {!item.brand && <option value="" disabled>Select brand…</option>}
                                 {brandSelectOptions.map((b) => (
                                   <option key={b} value={b} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
                                     {b}
@@ -1247,7 +1247,7 @@ export const EquipmentPanel: React.FC = () => {
                               </select>
                             ) : (
                               <span className="font-bold text-slate-950 dark:text-slate-200">
-                                {item.brand || <span className="opacity-40 font-normal">â€”</span>}
+                                {item.brand || <span className="opacity-40 font-normal">—</span>}
                               </span>
                             )}
                           </td>
@@ -1268,7 +1268,7 @@ export const EquipmentPanel: React.FC = () => {
                                 title="Select model for this brand"
                                 className={`${inputClass} font-mono text-[11px] cursor-pointer`}
                               >
-                                {!item.model && <option value="" disabled>Select modelâ€¦</option>}
+                                {!item.model && <option value="" disabled>Select model…</option>}
                                 {modelSelectOptions.map((m) => (
                                   <option key={m} value={m} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-mono font-bold">
                                     {m}
@@ -1277,7 +1277,7 @@ export const EquipmentPanel: React.FC = () => {
                               </select>
                             ) : (
                               <span className="font-mono text-[11px] font-bold text-slate-950 dark:text-slate-300">
-                                {item.model || <span className="opacity-40 font-normal">â€”</span>}
+                                {item.model || <span className="opacity-40 font-normal">—</span>}
                               </span>
                             )}
                           </td>
@@ -1345,7 +1345,7 @@ export const EquipmentPanel: React.FC = () => {
                               />
                             ) : (
                               <span className="text-slate-950 dark:text-slate-200 font-semibold">
-                                {item.roleOrFunction || <span className="opacity-40 font-normal">â€”</span>}
+                                {item.roleOrFunction || <span className="opacity-40 font-normal">—</span>}
                               </span>
                             )}
                           </td>
@@ -1364,7 +1364,7 @@ export const EquipmentPanel: React.FC = () => {
                               />
                             ) : (
                               <span className="text-[11px] text-slate-800 dark:text-slate-300 font-medium">
-                                {item.specs || item.notes || <span className="opacity-40 font-normal">â€”</span>}
+                                {item.specs || item.notes || <span className="opacity-40 font-normal">—</span>}
                               </span>
                             )}
                           </td>
@@ -1378,7 +1378,7 @@ export const EquipmentPanel: React.FC = () => {
                                     key={sIdx}
                                     className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/20'}`}
                                   >
-                                    {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (Ã—{s.quantity})
+                                    {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
                                   </span>
                                 ))}
                               </div>
@@ -1455,9 +1455,9 @@ export const EquipmentPanel: React.FC = () => {
                                     </div>
                                     <div>
                                       <span className="text-xs font-black uppercase tracking-wider text-sky-950 dark:text-sky-300 font-mono flex items-center gap-1.5">
-                                        <span>{item.name} â€” Kit Accessories Manifest</span>
+                                        <span>{item.name} — Kit Accessories Manifest</span>
                                         <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${isLight ? 'bg-sky-200 text-sky-950 border border-sky-300' : 'bg-sky-500/20 text-sky-300'}`}>
-                                          {packageItems.length} components Â· {packageItems.reduce((s, p) => s + p.quantity, 0)} units
+                                          {packageItems.length} components · {packageItems.reduce((s, p) => s + p.quantity, 0)} units
                                         </span>
                                       </span>
                                       <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-400">
@@ -1651,7 +1651,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     title="Select brand from department catalog"
                                                     className={`${inputClass} text-xs cursor-pointer`}
                                                   >
-                                                    {!subItem.brand && <option value="" disabled>Select brandâ€¦</option>}
+                                                    {!subItem.brand && <option value="" disabled>Select brand…</option>}
                                                     {subBrandOptions.map((b) => (
                                                       <option key={b} value={b} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
                                                         {b}
@@ -1659,7 +1659,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     ))}
                                                   </select>
                                                 ) : (
-                                                  <span className="text-xs font-bold text-slate-950 dark:text-slate-200">{subItem.brand || 'â€”'}</span>
+                                                  <span className="text-xs font-bold text-slate-950 dark:text-slate-200">{subItem.brand || '—'}</span>
                                                 )}
                                               </td>
 
@@ -1674,7 +1674,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     title="Select model for this brand"
                                                     className={`${inputClass} text-[11px] font-mono cursor-pointer`}
                                                   >
-                                                    {!subItem.model && <option value="" disabled>Select modelâ€¦</option>}
+                                                    {!subItem.model && <option value="" disabled>Select model…</option>}
                                                     {subModelOptions.map((m) => (
                                                       <option key={m} value={m} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-mono font-bold">
                                                         {m}
@@ -1682,7 +1682,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     ))}
                                                   </select>
                                                 ) : (
-                                                  <span className="text-[11px] font-mono font-bold text-slate-950 dark:text-slate-300">{subItem.model || 'â€”'}</span>
+                                                  <span className="text-[11px] font-mono font-bold text-slate-950 dark:text-slate-300">{subItem.model || '—'}</span>
                                                 )}
                                               </td>
 
@@ -1746,7 +1746,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     className={`${inputClass} text-xs font-semibold`}
                                                   />
                                                 ) : (
-                                                  <span className="text-xs font-semibold text-slate-950 dark:text-slate-200">{subItem.roleOrFunction || 'â€”'}</span>
+                                                  <span className="text-xs font-semibold text-slate-950 dark:text-slate-200">{subItem.roleOrFunction || '—'}</span>
                                                 )}
                                               </td>
 
@@ -1763,7 +1763,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     className={`${inputClass} text-[11px] font-medium`}
                                                   />
                                                 ) : (
-                                                  <span className="text-[11px] font-medium text-slate-800 dark:text-slate-300">{subItem.specs || 'â€”'}</span>
+                                                  <span className="text-[11px] font-medium text-slate-800 dark:text-slate-300">{subItem.specs || '—'}</span>
                                                 )}
                                               </td>
 
@@ -1819,7 +1819,7 @@ export const EquipmentPanel: React.FC = () => {
             >
               <div className="flex items-center gap-3">
                 <span>TOTAL ROWS: {filteredItems.length}</span>
-                <span>â€¢</span>
+                <span>•</span>
                 <span>TOTAL GEAR & ACCESSORIES: {totalItemCount} UNITS</span>
               </div>
               {scope === 'current' && (
@@ -1860,7 +1860,7 @@ export const EquipmentPanel: React.FC = () => {
                       </span>
                       <span className="text-xs font-black uppercase tracking-wider text-slate-950 dark:text-slate-100">{cat.label}</span>
                       <span className="text-[11px] font-mono font-bold opacity-80">
-                        ({items.length} items Â· {rubricTotalQty} units)
+                        ({items.length} items · {rubricTotalQty} units)
                       </span>
                     </div>
 
@@ -1945,7 +1945,7 @@ export const EquipmentPanel: React.FC = () => {
                               {(item.brand || item.model) && (
                                 <div className="text-xs font-mono text-slate-950 dark:text-slate-300 mt-1 flex items-center gap-1.5">
                                   {item.brand && <span className="font-black">{item.brand}</span>}
-                                  {item.brand && item.model && <span>Â·</span>}
+                                  {item.brand && item.model && <span>·</span>}
                                   {item.model && <span className="font-bold">{item.model}</span>}
                                 </div>
                               )}
@@ -1966,11 +1966,11 @@ export const EquipmentPanel: React.FC = () => {
                                       key={sIdx}
                                       className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/20'}`}
                                     >
-                                      {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (Ã—{s.quantity})
+                                      {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
                                     </span>
                                   ))}
                                   <span className="text-[10px] font-mono font-bold opacity-80 ml-1">
-                                    Â· Peak Concurrent: {masterItem.maxConcurrentQuantity}
+                                    · Peak Concurrent: {masterItem.maxConcurrentQuantity}
                                   </span>
                                 </div>
                               )}
@@ -2083,7 +2083,7 @@ export const EquipmentPanel: React.FC = () => {
                                     <div className="flex items-center gap-2">
                                       <span className="font-mono font-black text-sky-700 dark:text-sky-400">x{sub.quantity}</span>
                                       <span className="font-black text-slate-950 dark:text-slate-100">{sub.name}</span>
-                                      {sub.brand && <span className="font-semibold text-slate-700 dark:text-slate-300">Â· {sub.brand}</span>}
+                                      {sub.brand && <span className="font-semibold text-slate-700 dark:text-slate-300">· {sub.brand}</span>}
                                     </div>
                                     {scope === 'current' && (
                                       <button
@@ -2144,7 +2144,7 @@ export const EquipmentPanel: React.FC = () => {
               {!editingItem && availableCameraPackages.length > 0 && (
                 <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-sky-50 border-sky-300' : 'bg-sky-500/10 border-sky-500/30'}`}>
                   <label className="block text-[11px] font-black uppercase tracking-wider text-sky-950 dark:text-sky-400 mb-1">
-                    ðŸ“¦ Destination Package (Optional)
+                    📦 Destination Package (Optional)
                   </label>
                   <select
                     value={formData.targetPackageId || ''}
@@ -2353,7 +2353,7 @@ export const EquipmentPanel: React.FC = () => {
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="e.g. 5600K Â· 100% Â· Barn Doors, V-Lock mount, 12G 4K60p rated"
+                  placeholder="e.g. 5600K · 100% · Barn Doors, V-Lock mount, 12G 4K60p rated"
                   value={formData.specs}
                   onChange={(e) => setFormData({ ...formData, specs: e.target.value })}
                   className={`w-full p-2 text-xs rounded-lg border font-medium focus:ring-2 focus:ring-sky-500 custom-scrollbar ${
@@ -2420,7 +2420,7 @@ export const EquipmentPanel: React.FC = () => {
               {/* Preset Quick Loader */}
               <div>
                 <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-emerald-700 dark:text-emerald-400">
-                  âš¡ Choose Preset (Or type custom below)
+                  ⚡ Choose Preset (Or type custom below)
                 </label>
                 <select
                   onChange={(e) => {
@@ -2563,7 +2563,7 @@ export const EquipmentPanel: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 14.4V High-Draw Â· 150Wh Â· USB-C"
+                  placeholder="e.g. 14.4V High-Draw · 150Wh · USB-C"
                   value={packageFormData.specs}
                   onChange={(e) => setPackageFormData({ ...packageFormData, specs: e.target.value })}
                   className={`w-full p-2 text-xs rounded-lg border font-medium ${

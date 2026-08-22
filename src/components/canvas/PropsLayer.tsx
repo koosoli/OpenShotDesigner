@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ArrowElement, MeasurementElement, PropElement, TextElement, TrackElement, Waypoint } from '../../types';
 import { getDistance, getInterpolatedPositionAndRotation, getSmoothSplinePath } from '../../utils/geometry';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
@@ -477,15 +477,15 @@ const measurementLabelScale = baseLabelScale * (catLabelScale.measurements ?? 1)
               </g>
             ) : prop.propType === 'c_stand' ? (
               <g className="prop-c-stand">
-                {/* 1. Medium Leg (Top-Left 135Â°) */}
+                {/* 1. Medium Leg (Top-Left 135°) */}
                 <path d="M 0 0 C -10 -12, -20 -22, -32 -16" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
                 <rect x={-35} y={-18} width={6} height={4} rx={1} fill="#0f172a" />
 
-                {/* 2. Small Low Leg (Bottom-Left 225Â°) */}
+                {/* 2. Small Low Leg (Bottom-Left 225°) */}
                 <path d="M 0 0 C -10 12, -20 22, -32 16" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
                 <rect x={-35} y={14} width={6} height={4} rx={1} fill="#0f172a" />
 
-                {/* 3. Big High Leg (Front Load Leg extending 0Â° directly under the grip arm) */}
+                {/* 3. Big High Leg (Front Load Leg extending 0° directly under the grip arm) */}
                 <path d="M 0 0 C 12 -4, 24 -6, 36 -1" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
                 <rect x={35} y={-3} width={5} height={4} rx={1} fill="#0f172a" />
 
@@ -513,7 +513,7 @@ const measurementLabelScale = baseLabelScale * (catLabelScale.measurements ?? 1)
               </g>
             ) : prop.propType === 'tripod' ? (
               <g className="prop-tripod-stand">
-                {/* 3 Splayed Tubular Legs at 120Â° offsets */}
+                {/* 3 Splayed Tubular Legs at 120° offsets */}
                 <line x1={0} y1={0} x2={-24} y2={-16} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
                 <rect x={-27} y={-18} width={6} height={4} rx={1} fill="#0f172a" />
                 <line x1={0} y1={0} x2={-24} y2={16} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />

@@ -83,7 +83,19 @@ interface ParsedElement {
   text: string;
   type: ScriptElementType;
   sceneNumber?: string;
+  omitted?: boolean;
 }
+
+/** `[[OMITTED]]` directly after a slugline marks that scene as cut (round-trips our Fountain export). */
+const OMITTED_NOTE_RE = /^\[\[\s*OMITTED\s*\]\]$|^OMITTED$/i;
+
+const applyOmittedNote = (out: ParsedElement[], text: string): boolean => {
+  if (!OMITTED_NOTE_RE.test(text)) return false;
+  const previous = out[out.length - 1];
+  if (!previous || previous.type !== 'scene') return false;
+  previous.omitted = true;
+  return true;
+};
 
 /** Classify plain-text / fountain screenplay lines with a small state machine. */
 export const parseScreenplayText = (raw: string): ParsedElement[] => {
@@ -107,6 +119,7 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
       return;
     }
     if (PAGE_NUMBER_RE.test(text) || CONTINUED_RE.test(text)) return;
+    if (applyOmittedNote(out, text)) return;
 
     // Fountain forced-element prefixes
     if (text.startsWith('!')) {
@@ -207,6 +220,7 @@ export const parseFinalDraftXml = (raw: string): ParsedElement[] => {
       .replace(/\s+/g, ' ')
       .trim();
     if (!text) return;
+    if (applyOmittedNote(out, text)) return;
 
     const type = FDX_TYPE_MAP[paragraph.getAttribute('Type') || ''] || 'action';
     if (type === 'scene') {
@@ -244,6 +258,7 @@ export const parseScreenplay = (raw: string, fileName = ''): ScriptLine[] => {
       sceneNumber: currentScene,
       isSceneHeading: element.type === 'scene',
     };
+    if (element.omitted) line.omitted = true;
     return line;
   });
 };
@@ -289,6 +304,13 @@ export const serializeToFountain = (lines: ScriptLine[], title?: string): string
         const isStandardPrefix = /^(INT|EXT|EST|INT\.?\/EXT|I\/E)[.\s]/i.test(text);
         const prefix = isStandardPrefix ? '' : '.';
         out.push(`\n${prefix}${text.toUpperCase()}${sceneNum}\n`);
+        if (line.omitted) {
+          // Parked body is kept as boneyard so a round trip never loses it.
+          out.push('[[OMITTED]]\n');
+          if (line.omittedBody?.length) {
+            out.push(`/*\n${line.omittedBody.map((parked) => parked.text).join('\n')}\n*/\n`);
+          }
+        }
         break;
       }
       case 'character':

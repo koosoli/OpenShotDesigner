@@ -5,6 +5,7 @@
  * Missing technical fields stay undefined (rule 13); nothing is inferred.
  */
 
+import { setCustomFixtureProfiles } from './catalogStore';
 import type { FixtureProfile } from './types';
 
 const STORAGE_KEY = 'custom_fixture_profiles_v1';
@@ -94,6 +95,12 @@ export const saveCustomFixtureProfiles = (profiles: FixtureProfile[]): void => {
   } catch {
     // Storage unavailable — saving degrades silently like assemblies do.
   }
+  setCustomFixtureProfiles(profiles);
+};
+
+/** Feed the persisted custom profiles into the active catalog (call once at startup). */
+export const hydrateCustomFixtureProfiles = (): void => {
+  setCustomFixtureProfiles(loadCustomFixtureProfiles());
 };
 
 export const upsertCustomFixtureProfile = (profile: FixtureProfile): void => {

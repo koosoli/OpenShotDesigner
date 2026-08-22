@@ -1,5 +1,5 @@
 export type { Location, LocationType } from './types';
-export type { GeoPoint, GeocodeResult } from './map';
+export type { GeoPoint, GeocodeResult, ReverseGeocodeResult } from './map';
 export {
   locationPoint,
   locationQuery,
@@ -7,4 +7,5 @@ export {
   locationMapLinkUrl,
   locationOsmLinkUrl,
   geocodeLocation,
+  reverseGeocode,
 } from './map';

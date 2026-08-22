@@ -1,10 +1,37 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+
+/**
+ * Stamp a unique build id into the service worker so each deploy gets its
+ * own cache namespace (old caches are purged on activate). Without this the
+ * worker bytes never change and browsers keep serving the previous bundle.
+ */
+const serviceWorkerBuildId = (): Plugin => {
+  const buildId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  let outDir = 'dist';
+  return {
+    name: 'service-worker-build-id',
+    apply: 'build',
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
+    async closeBundle() {
+      const swPath = path.resolve(outDir, 'sw.js');
+      try {
+        const source = await readFile(swPath, 'utf8');
+        await writeFile(swPath, source.replace(/__BUILD_ID__/g, buildId), 'utf8');
+      } catch {
+        // No service worker in this build — nothing to stamp.
+      }
+    },
+  };
+};
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), serviceWorkerBuildId()],
   server: {
     port: 3000,
     host: true,

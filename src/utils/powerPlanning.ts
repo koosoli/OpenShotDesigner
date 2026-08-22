@@ -1,6 +1,6 @@
 import { CameraElement, CableElement, FloorPlanElement, LightElement, PropElement } from '../types';
 import { CABLE_TYPES } from '../constants/presets';
-import { fixtureProfileById } from '../domain/fixtures';
+import { findFixtureProfile as fixtureProfileById } from '../domain/fixtures';
 
 export interface PowerSummary {
   totalWatts: number;

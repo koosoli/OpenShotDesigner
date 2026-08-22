@@ -21,6 +21,12 @@ export interface ScriptScene {
   subLocation?: string;
   timeOfDay?: string;
 
+  /**
+   * Scene was cut from a numbered script. The number is kept so paperwork
+   * stays aligned; the scene renders as "SCENE n — OMITTED".
+   */
+  omitted?: boolean;
+
   synopsis?: string;
   /** Page length in eighths, as used by classic breakdowns. */
   pageLengthEighths?: number;

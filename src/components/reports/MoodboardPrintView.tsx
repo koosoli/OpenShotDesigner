@@ -1,6 +1,6 @@
 import React from 'react';
 import type { MoodBoard } from '../../domain/moodboard';
-import { CollageGrid } from '../moodboard/MoodboardCollage';
+import { CollageFreeform, CollageGrid } from '../moodboard/MoodboardCollage';
 
 interface MoodboardPrintViewProps {
   board: MoodBoard;
@@ -72,7 +72,11 @@ export const MoodboardPrintView: React.FC<MoodboardPrintViewProps> = ({ board, s
 
         <section>
           <h2 className="mb-section">Collage</h2>
-          <CollageGrid cards={cards} srcs={srcs} collage={collage} variant="print" />
+          {collage.mode === 'free' ? (
+            <CollageFreeform board={board} srcs={srcs} variant="print" />
+          ) : (
+            <CollageGrid cards={cards} srcs={srcs} collage={collage} variant="print" />
+          )}
         </section>
 
         <footer className="mb-footer">

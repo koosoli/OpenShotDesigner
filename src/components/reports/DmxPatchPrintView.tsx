@@ -5,6 +5,12 @@ interface DmxPatchPrintViewProps {
   rows: DmxPatchSheetRow[];
   productionTitle: string;
   sceneName?: string;
+  /**
+   * True when the sheet is rendered inside the Export Studio's paper area,
+   * which supplies its own header and print host — the standalone off-screen
+   * host styles and the big title are then omitted.
+   */
+  embedded?: boolean;
 }
 
 const pad = (value: number | undefined): string =>
@@ -15,7 +21,7 @@ const pad = (value: number | undefined): string =>
  * `.dmx-print-host` container: off-screen on screen; the only visible document
  * in print media. Planning aid only — not a substitute for console software.
  */
-export const DmxPatchPrintView: React.FC<DmxPatchPrintViewProps> = ({ rows, productionTitle, sceneName }) => {
+export const DmxPatchPrintView: React.FC<DmxPatchPrintViewProps> = ({ rows, productionTitle, sceneName, embedded = false }) => {
   const generatedAt = new Date().toISOString().split('T')[0];
   const patched = rows.filter((row) => row.universe !== undefined && row.address !== undefined);
   const unpatched = rows.filter((row) => row.universe === undefined || row.address === undefined);
@@ -24,7 +30,7 @@ export const DmxPatchPrintView: React.FC<DmxPatchPrintViewProps> = ({ rows, prod
 
   return (
     <>
-      <style>{`
+      {!embedded && <style>{`
         .dmx-print-host {
           position: absolute;
           left: -10000px;
@@ -51,11 +57,23 @@ export const DmxPatchPrintView: React.FC<DmxPatchPrintViewProps> = ({ rows, prod
         .dmx-conflict td { background: #fee2e2; }
         .dmx-note { border: 1.5px solid #b45309; background: #fffbeb; padding: 6px 10px; font-size: 10px; page-break-inside: avoid; break-inside: avoid; }
         .dmx-footer { margin-top: 18px; border-top: 1px solid #999; padding-top: 6px; font-size: 9px; color: #444; page-break-inside: avoid; break-inside: avoid; }
-      `}</style>
+      `}</style>}
+      {embedded && <style>{`
+        .dmx-doc { padding: 0; }
+        .dmx-doc * { box-sizing: border-box; }
+        .dmx-section-title { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1.5px solid #000; padding-bottom: 2px; margin: 14px 0 6px; page-break-after: avoid; break-after: avoid; }
+        .dmx-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .dmx-table th, .dmx-table td { border: 1px solid #444; padding: 3px 6px; text-align: left; vertical-align: top; }
+        .dmx-table th { background: #eee; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px; }
+        .dmx-table td.num, .dmx-table th.num { text-align: right; white-space: nowrap; font-family: monospace; }
+        .dmx-conflict td { background: #fee2e2; }
+        .dmx-note { border: 1.5px solid #b45309; background: #fffbeb; padding: 6px 10px; font-size: 10px; page-break-inside: avoid; break-inside: avoid; }
+        .dmx-footer { margin-top: 18px; border-top: 1px solid #999; padding-top: 6px; font-size: 9px; color: #444; }
+      `}</style>}
       <div className="dmx-doc">
         <header>
-          <p className="dmx-kicker">DMX-512 patch sheet</p>
-          <h1 className="dmx-title">{productionTitle}</h1>
+          {!embedded && <p className="dmx-kicker">DMX-512 patch sheet</p>}
+          {!embedded && <h1 className="dmx-title">{productionTitle}</h1>}
           <p className="dmx-meta">
             <span><strong>Scene:</strong> {sceneName ?? '—'}</span>
             <span><strong>Universes:</strong> {universes.length ? universes.join(', ') : '—'}</span>

@@ -16,6 +16,7 @@ import {
   locationOsmLinkUrl,
   locationPoint,
   locationQuery,
+  reverseGeocode,
 } from '../../domain/locations';
 import type { GeoPoint } from '../../domain/locations';
 import type { LocationType } from '../../domain/locations';
@@ -44,6 +45,18 @@ export const LocationsPanel: React.FC = () => {
   const isLight = theme === 'light';
 
   const locations = useMemo(() => project.locations ?? [], [project.locations]);
+  const people = useMemo(() => project.people ?? [], [project.people]);
+
+  /** Link / unlink a contact to a location (people stay canonical, rule 37). */
+  const toggleContact = (loc: { id: string; contactIds?: string[] }, personId: string) => {
+    const current = loc.contactIds ?? [];
+    const next = current.includes(personId) ? current.filter((id) => id !== personId) : [...current, personId];
+    updateProjectMeta({
+      locations: (project.locations ?? []).map((candidate) =>
+        candidate.id === loc.id ? { ...candidate, contactIds: next } : candidate,
+      ),
+    });
+  };
 
   /** setup id that is the declared master plan for each location id. */
   const masterSetupByLocation = useMemo(() => {
@@ -110,6 +123,33 @@ export const LocationsPanel: React.FC = () => {
         case 'unavailable':
           setGeocodeMessage({ id: loc.id, text: result.message });
           break;
+      }
+    } finally {
+      setGeocodingId(null);
+    }
+  };
+
+  /**
+   * A pin dropped on the map fills in the address (reverse geocoding) unless
+   * the user already typed one; "Use pin address" overwrites on demand.
+   */
+  const pickPin = async (loc: { id: string; address?: string }, picked: { lat: number; lng: number }, overwrite = false) => {
+    updateLocation(loc.id, { lat: picked.lat, lng: picked.lng });
+    if (loc.address && !overwrite) {
+      setGeocodeMessage({ id: loc.id, text: 'Pin moved. Use “Address from pin” to replace the typed address.' });
+      return;
+    }
+    setGeocodingId(loc.id);
+    setGeocodeMessage({ id: loc.id, text: 'Looking up the address for this pin…' });
+    try {
+      const result = await reverseGeocode(picked);
+      if (result.status === 'ok') {
+        updateProjectMeta({
+          locations: (project.locations ?? []).map((l) => (l.id === loc.id ? { ...l, lat: picked.lat, lng: picked.lng, address: result.address } : l)),
+        });
+        setGeocodeMessage({ id: loc.id, text: 'Address filled in from the pin (OpenStreetMap).' });
+      } else {
+        setGeocodeMessage({ id: loc.id, text: result.status === 'not_found' ? 'Pin placed — no address known for this spot.' : result.message ?? 'Address lookup unavailable.' });
       }
     } finally {
       setGeocodingId(null);
@@ -329,18 +369,25 @@ export const LocationsPanel: React.FC = () => {
                         <OsmMiniMap
                           point={point}
                           height={200}
-                          onPick={(picked) => {
-                            updateLocation(loc.id, { lat: picked.lat, lng: picked.lng });
-                            setGeocodeMessage({ id: loc.id, text: 'Pin moved.' });
-                          }}
+                          onPick={(picked) => void pickPin(loc, picked)}
                         />
-                        <p className={`text-[9px] ${mutedText}`}>Drag to pan · click to move the pin · buttons zoom.</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-[9px] ${mutedText}`}>Drag to pan · click to move the pin · buttons zoom.</p>
+                          <button
+                            onClick={() => void pickPin(loc, point, true)}
+                            disabled={geocodingId === loc.id}
+                            className={`${secondaryBtnClass} !min-h-[24px] !px-2 !text-[9px] disabled:opacity-50`}
+                            title="Replace the address field with the pin's postal address"
+                          >
+                            Address from pin
+                          </button>
+                        </div>
                       </>
                     ) : (
                       <>
-                        <OsmMiniMap point={null} height={160} onPick={(picked) => { updateLocation(loc.id, { lat: picked.lat, lng: picked.lng }); setGeocodeMessage(null); }} />
+                        <OsmMiniMap point={null} height={160} onPick={(picked) => void pickPin(loc, picked)} />
                         <p className={`text-[9px] leading-snug ${mutedText}`}>
-                          Click the map to drop a pin, or enter an address above and use “Find on map”. The pin follows the location into the scheduler and call sheets.
+                          Click the map to drop a pin — the address fills in automatically — or enter an address above and use “Find on map”. The pin follows the location into the scheduler and call sheets.
                         </p>
                       </>
                     )}
@@ -355,6 +402,48 @@ export const LocationsPanel: React.FC = () => {
                   </div>
                 );
               })()}
+
+              {/* Location contacts (people domain) — the same people the call
+                  sheet and crew list use; never a second copy of the details. */}
+              <div className="flex flex-col gap-1">
+                <span className={`text-[10px] font-medium ${mutedText}`}>Site contacts</span>
+                {people.length === 0 ? (
+                  <p className={`text-[10px] italic ${mutedText}`}>
+                    Add people in the Contacts module to link a site manager, owner or security here.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {people.map((person) => {
+                      const linked = (loc.contactIds ?? []).includes(person.id);
+                      return (
+                        <button
+                          key={person.id}
+                          onClick={() => toggleContact(loc, person.id)}
+                          title={[person.role, person.phone, person.email].filter(Boolean).join(' · ') || person.displayName}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${
+                            linked
+                              ? 'bg-sky-600 text-white border-sky-500'
+                              : isLight
+                                ? 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                                : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          {person.displayName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {(loc.contactIds ?? []).length > 0 && (
+                  <p className={`text-[9px] ${mutedText}`}>
+                    {(loc.contactIds ?? [])
+                      .map((id) => people.find((person) => person.id === id))
+                      .filter((person): person is NonNullable<typeof person> => !!person)
+                      .map((person) => [person.displayName, person.phone].filter(Boolean).join(' · '))
+                      .join(' — ')}
+                  </p>
+                )}
+              </div>
 
               <label className="flex flex-col gap-1">
                 <span className={`text-[10px] font-medium ${mutedText}`}>Notes</span>

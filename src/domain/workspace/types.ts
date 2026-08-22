@@ -32,6 +32,9 @@ export type ModuleId =
   | 'rigging'
   // Logistics family
   | 'logistics'
+  // People & management family
+  | 'contacts'
+  | 'tasks'
   // Collaborate family
   | 'comments';
 

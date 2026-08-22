@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
@@ -60,8 +60,16 @@ const SHAPE_TYPES: ShapeType[] = [
 ];
 import { loadLogoFile, loadStoryboardImageFile } from '../../utils/image';
 import { framesOf, setFramePatch, slotsOf } from '../../utils/storyboardFrames';
+import { FresnelLightIcon, MovieCameraIcon } from '../icons/ProductionIcons';
 import {
-  Camera,
+  findProfileForModel,
+  fixtureProfileLinkUpdates,
+  fixtureProfileSummary,
+  listBrandOptions,
+  profilesForBrand,
+} from '../../domain/fixtures';
+import { useFixtureCatalog } from './useFixtureCatalog';
+import {
   Circle,
   Compass,
   Copy,
@@ -74,7 +82,6 @@ import {
   FlipHorizontal,
   Image as ImageIcon,
   ImagePlus,
-  Lightbulb,
   Lock,
   Maximize,
   MapPin,
@@ -172,7 +179,7 @@ const PillToggle: React.FC<{
   </button>
 );
 
-/** Storyboard image uploader â€” reads an image file and stores it as a data URL
+/** Storyboard image uploader — reads an image file and stores it as a data URL
  *  (embedded inside the saved project JSON), OR links an external image URL so
  *  the project references it instead. Previews it inside the scene's aspect
  *  ratio frame, with fit + pan controls. */
@@ -307,8 +314,8 @@ const StoryboardField: React.FC<{
             {/* Storage note */}
             <p className={`text-[9px] leading-snug ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
               {isEmbedded
-                ? 'Embedded in the project file â€” saves and loads everywhere with the project.'
-                : 'Linked by URL â€” only loads when this address is reachable.'}
+                ? 'Embedded in the project file — saves and loads everywhere with the project.'
+                : 'Linked by URL — only loads when this address is reachable.'}
             </p>
 
             <div className="flex">
@@ -347,7 +354,7 @@ const StoryboardField: React.FC<{
                   value={linkDraft}
                   onChange={(e) => setLinkDraft(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && applyLink()}
-                  placeholder="https://â€¦/frame.jpg or relative/path.jpg"
+                  placeholder="https://…/frame.jpg or relative/path.jpg"
                   className={`flex-1 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 ${
                     isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                   }`}
@@ -378,7 +385,7 @@ const StoryboardField: React.FC<{
               isLight ? 'text-violet-600 border-violet-300 hover:bg-violet-50' : 'text-violet-300 border-violet-800 hover:bg-slate-800'
             }`}
           >
-            {showLinkInput ? 'Cancel linking' : 'or Link Image by URLâ€¦'}
+            {showLinkInput ? 'Cancel linking' : 'or Link Image by URL…'}
           </button>
           {showLinkInput && (
             <div className="flex gap-1">
@@ -387,7 +394,7 @@ const StoryboardField: React.FC<{
                 value={linkDraft}
                 onChange={(e) => setLinkDraft(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && applyLink()}
-                placeholder="https://â€¦/frame.jpg or relative/path.jpg"
+                placeholder="https://…/frame.jpg or relative/path.jpg"
                 className={`flex-1 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 ${
                   isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                 }`}
@@ -402,7 +409,7 @@ const StoryboardField: React.FC<{
           )}
           <p className={`text-[9px] leading-snug ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
             Uploading embeds the image in the project file (self-contained). Linking stores only the
-            URL â€” the image must stay reachable for it to display later.
+            URL — the image must stay reachable for it to display later.
           </p>
         </div>
       )}
@@ -597,7 +604,7 @@ const WaypointListEditor: React.FC<{
                 isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
               }`}
             />
-            <span className={`text-[9px] font-mono opacity-50 ${accentClass}`}>Â°</span>
+            <span className={`text-[9px] font-mono opacity-50 ${accentClass}`}>°</span>
             <div className="relative flex-1 min-w-0 flex items-center">
               <input
                 type="text"
@@ -688,6 +695,9 @@ const WaypointListEditor: React.FC<{
 export const InspectorPanel: React.FC = () => {
   const logoInputRef = React.useRef<HTMLInputElement>(null);
   const [dmxUniverseFixtureId, setDmxUniverseFixtureId] = useState<string | null>(null);
+  // Merged brand/model catalog: curated presets + bundled OFL snapshot + custom profiles.
+  const fixtureProfiles = useFixtureCatalog().profiles;
+  const brandOptions = React.useMemo(() => listBrandOptions(LIGHTING_BRANDS, fixtureProfiles), [fixtureProfiles]);
   const {
     activeSetup,
     project,
@@ -726,7 +736,7 @@ export const InspectorPanel: React.FC = () => {
     isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
   }`;
 
-  // --- Location link (plan Â§4.13 semantic links + Â§13 master plans) ---
+  // --- Location link (plan §4.13 semantic links + §13 master plans) ---
 
   const assignedLocation = (project.locations ?? []).find(
     (l) => l.id === activeSetup.locationId
@@ -763,7 +773,7 @@ export const InspectorPanel: React.FC = () => {
 
   /**
    * Declare this setup as THE reusable master plan for its assigned location.
-   * Both sides are kept in sync: SceneSetup.masterPlanForLocationId (Â§4.13)
+   * Both sides are kept in sync: SceneSetup.masterPlanForLocationId (§4.13)
    * and Location.masterPlanId. Any previous claimant is demoted first.
    */
   const makeThisSetupMasterPlan = () => {
@@ -797,8 +807,8 @@ export const InspectorPanel: React.FC = () => {
   };
 
   /**
-   * Detach-style copy (Â§13.1): snapshot the master plan's elements into THIS
-   * setup with fresh ids â€” future edits stay independent on both sides.
+   * Detach-style copy (§13.1): snapshot the master plan's elements into THIS
+   * setup with fresh ids — future edits stay independent on both sides.
    */
   const insertCopyOfMasterElements = () => {
     if (!masterSetupForLocation) return;
@@ -806,7 +816,7 @@ export const InspectorPanel: React.FC = () => {
     updateSetupMeta({ elements: [...activeSetup.elements, ...cloned.elements] });
   };
 
-  // Dedicated Reference Image inspector â€” shown when a background image is
+  // Dedicated Reference Image inspector — shown when a background image is
   // selected on the canvas (separate from the Scene Setup inspector).
   const selectedBg = backgroundImages.find((b) => b.id === selectedBackgroundId);
   if (selectedBg) {
@@ -831,7 +841,7 @@ export const InspectorPanel: React.FC = () => {
               isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
             }`}
           >
-            âœ•
+            ✕
           </button>
         </div>
 
@@ -947,7 +957,7 @@ export const InspectorPanel: React.FC = () => {
           </div>
           {selectedBg.calibration && (
             <div className={`text-[10px] rounded-md px-2 py-1.5 ${isLight ? 'bg-white/80' : 'bg-slate-950/50'}`}>
-              Calibrated from {selectedBg.calibration.realLength}{selectedBg.calibration.unit} Â· image resized {selectedBg.calibration.appliedScaleFactor.toFixed(3)}Ã—
+              Calibrated from {selectedBg.calibration.realLength}{selectedBg.calibration.unit} · image resized {selectedBg.calibration.appliedScaleFactor.toFixed(3)}×
             </div>
           )}
           <button
@@ -1181,7 +1191,7 @@ export const InspectorPanel: React.FC = () => {
             </div>
           </RubricSection>
 
-          {/* Rubric 1b: Location link (plan Â§4.13, Â§13 master plans) */}
+          {/* Rubric 1b: Location link (plan §4.13, §13 master plans) */}
           <RubricSection
             title="Location"
             icon={<MapPin className="w-3.5 h-3.5 text-sky-500" />}
@@ -1201,7 +1211,7 @@ export const InspectorPanel: React.FC = () => {
               </label>
               {(project.locations ?? []).length === 0 ? (
                 <p className={`text-[11px] italic mb-1 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-                  No locations defined yet â€” add some in the Loc tab.
+                  No locations defined yet — add some in the Loc tab.
                 </p>
               ) : null}
               <select
@@ -1211,7 +1221,7 @@ export const InspectorPanel: React.FC = () => {
                   isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                 }`}
               >
-                <option value="">â€” none â€”</option>
+                <option value="">— none —</option>
                 {(project.locations ?? []).map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
@@ -1239,7 +1249,7 @@ export const InspectorPanel: React.FC = () => {
                   isLight ? 'text-emerald-700' : 'text-emerald-300'
                 }`}>
                   <Crosshair className="w-3 h-3 flex-shrink-0" />
-                  This is the master plan for â€œ{assignedLocation.name}â€.
+                  This is the master plan for “{assignedLocation.name}”.
                 </span>
                 <button
                   type="button"
@@ -1290,7 +1300,7 @@ export const InspectorPanel: React.FC = () => {
                   </button>
                 </div>
                 <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Copies current state â€” future edits stay independent.
+                  Copies current state — future edits stay independent.
                 </p>
               </div>
             )}
@@ -1373,7 +1383,7 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
             </div>
-            {/* Production logo (mirrored with Schedule â†’ Call sheets) */}
+            {/* Production logo (mirrored with Schedule → Call sheets) */}
             <div>
               <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Logo</label>
               <div className="flex items-center gap-2">
@@ -1451,7 +1461,7 @@ export const InspectorPanel: React.FC = () => {
                 <input
                   type="text"
                   value={project.productionCompanyInfo?.phone || ''}
-                  placeholder="+49 â€¦"
+                  placeholder="+49 …"
                   onChange={(e) =>
                     updateProjectMeta({
                       productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), phone: e.target.value || undefined },
@@ -1483,7 +1493,7 @@ export const InspectorPanel: React.FC = () => {
                 <input
                   type="text"
                   value={project.productionCompanyInfo?.website || ''}
-                  placeholder="https://â€¦"
+                  placeholder="https://…"
                   onChange={(e) =>
                     updateProjectMeta({
                       productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), website: e.target.value || undefined },
@@ -1496,8 +1506,8 @@ export const InspectorPanel: React.FC = () => {
               </div>
             </div>
             <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-              These details also appear on every call sheet â€” the same fields are editable in{' '}
-              <span className="font-semibold not-italic">Schedule â†’ Call sheets â†’ Production company</span>.
+              These details also appear on every call sheet — the same fields are editable in{' '}
+              <span className="font-semibold not-italic">Schedule → Call sheets → Production company</span>.
             </p>
           </RubricSection>
 
@@ -1800,7 +1810,7 @@ export const InspectorPanel: React.FC = () => {
             </div>
           </RubricSection>
 
-          {/* Plan Layers (Â§6.1): visibility, lock & opacity per layer */}
+          {/* Plan Layers (§6.1): visibility, lock & opacity per layer */}
           <RubricSection
             title="Layers"
             icon={<Layers className="w-3.5 h-3.5 text-violet-500" />}
@@ -2038,7 +2048,7 @@ export const InspectorPanel: React.FC = () => {
           Multiple floor plan elements selected. You can move them together or rotate the selection.
         </p>
 
-        {/* Reusable assemblies (plan Â§6.5): save the selection as a template */}
+        {/* Reusable assemblies (plan §6.5): save the selection as a template */}
         <button
           onClick={() => promptSaveAssemblyFromIds(selectedElementIds, activeSetup.elements)}
           className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold border transition-colors ${
@@ -2062,7 +2072,7 @@ export const InspectorPanel: React.FC = () => {
               }`}
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Rotate -45Â°</span>
+              <span>Rotate -45°</span>
             </button>
             <button
               onClick={() => selectedElementIds.forEach((id) => rotateElementBy(id, 45))}
@@ -2071,7 +2081,7 @@ export const InspectorPanel: React.FC = () => {
               }`}
             >
               <RotateCw className="w-3.5 h-3.5" />
-              <span>Rotate +45Â°</span>
+              <span>Rotate +45°</span>
             </button>
           </div>
         </div>
@@ -2226,11 +2236,11 @@ export const InspectorPanel: React.FC = () => {
       <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
         <div className="flex items-center gap-2">
           {el.type === 'camera' ? (
-            <Camera className="w-4 h-4 text-sky-500" />
+            <MovieCameraIcon className="w-4 h-4 text-sky-500" />
           ) : el.type === 'actor' ? (
             <User className="w-4 h-4 text-emerald-500" />
           ) : el.type === 'light' ? (
-            <Lightbulb className="w-4 h-4 text-amber-500" />
+            <FresnelLightIcon className="w-4 h-4 text-amber-500" />
           ) : (
             <Sliders className="w-4 h-4 text-purple-500" />
           )}
@@ -2298,7 +2308,7 @@ export const InspectorPanel: React.FC = () => {
           icon={<Move3d className="w-3.5 h-3.5 text-slate-400" />}
           badge={
             <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 opacity-75">
-              X:{Math.round(el.x)} Y:{Math.round(el.y)} {currentRotation !== undefined ? `Â· ${currentRotation}Â°` : ''}
+              X:{Math.round(el.x)} Y:{Math.round(el.y)} {currentRotation !== undefined ? `· ${currentRotation}°` : ''}
             </span>
           }
           defaultOpen={false}
@@ -2349,7 +2359,7 @@ export const InspectorPanel: React.FC = () => {
                       isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                     }`}
                   />
-                  <span className="text-xs font-mono font-bold text-sky-500">Â°</span>
+                  <span className="text-xs font-mono font-bold text-sky-500">°</span>
                 </div>
               </div>
 
@@ -2367,39 +2377,39 @@ export const InspectorPanel: React.FC = () => {
               <div className="grid grid-cols-4 gap-1 pt-0.5">
                 <button
                   onClick={() => rotateElementBy(el.id, -90)}
-                  title="Rotate -90Â°"
+                  title="Rotate -90°"
                   className={`py-1 text-[10px] font-mono rounded border flex items-center justify-center gap-0.5 ${
                     isLight ? 'bg-white hover:bg-slate-100 border-slate-300' : 'bg-slate-900 hover:bg-slate-800 border-slate-700'
                   }`}
                 >
-                  <RotateCcw className="w-2.5 h-2.5" /> -90Â°
+                  <RotateCcw className="w-2.5 h-2.5" /> -90°
                 </button>
                 <button
                   onClick={() => rotateElementBy(el.id, -45)}
-                  title="Rotate -45Â°"
+                  title="Rotate -45°"
                   className={`py-1 text-[10px] font-mono rounded border flex items-center justify-center gap-0.5 ${
                     isLight ? 'bg-white hover:bg-slate-100 border-slate-300' : 'bg-slate-900 hover:bg-slate-800 border-slate-700'
                   }`}
                 >
-                  <RotateCcw className="w-2.5 h-2.5" /> -45Â°
+                  <RotateCcw className="w-2.5 h-2.5" /> -45°
                 </button>
                 <button
                   onClick={() => rotateElementBy(el.id, 45)}
-                  title="Rotate +45Â°"
+                  title="Rotate +45°"
                   className={`py-1 text-[10px] font-mono rounded border flex items-center justify-center gap-0.5 ${
                     isLight ? 'bg-white hover:bg-slate-100 border-slate-300' : 'bg-slate-900 hover:bg-slate-800 border-slate-700'
                   }`}
                 >
-                  <RotateCw className="w-2.5 h-2.5" /> +45Â°
+                  <RotateCw className="w-2.5 h-2.5" /> +45°
                 </button>
                 <button
                   onClick={() => rotateElementBy(el.id, 90)}
-                  title="Rotate +90Â°"
+                  title="Rotate +90°"
                   className={`py-1 text-[10px] font-mono rounded border flex items-center justify-center gap-0.5 ${
                     isLight ? 'bg-white hover:bg-slate-100 border-slate-300' : 'bg-slate-900 hover:bg-slate-800 border-slate-700'
                   }`}
                 >
-                  <RotateCw className="w-2.5 h-2.5" /> +90Â°
+                  <RotateCw className="w-2.5 h-2.5" /> +90°
                 </button>
               </div>
 
@@ -2411,7 +2421,7 @@ export const InspectorPanel: React.FC = () => {
                     currentRotation === 0 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                   }`}
                 >
-                  0Â° (Right)
+                  0° (Right)
                 </button>
                 <button
                   onClick={() => updateElement(el.id, { rotation: 90 })}
@@ -2419,7 +2429,7 @@ export const InspectorPanel: React.FC = () => {
                     currentRotation === 90 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                   }`}
                 >
-                  90Â° (Down)
+                  90° (Down)
                 </button>
                 <button
                   onClick={() => updateElement(el.id, { rotation: 180 })}
@@ -2427,7 +2437,7 @@ export const InspectorPanel: React.FC = () => {
                     currentRotation === 180 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                   }`}
                 >
-                  180Â° (Left)
+                  180° (Left)
                 </button>
                 <button
                   onClick={() => updateElement(el.id, { rotation: 270 })}
@@ -2435,7 +2445,7 @@ export const InspectorPanel: React.FC = () => {
                     currentRotation === 270 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                   }`}
                 >
-                  270Â° (Up)
+                  270° (Up)
                 </button>
               </div>
             </div>
@@ -2479,7 +2489,7 @@ export const InspectorPanel: React.FC = () => {
               {/* Rubric 1: Camera Identification & Rig */}
               <RubricSection
                 title="Camera Identity & Rig"
-                icon={<Camera className="w-3.5 h-3.5 text-sky-500" />}
+                icon={<MovieCameraIcon className="w-3.5 h-3.5 text-sky-500" />}
                 badge={
                   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500 font-bold">
                     CAM {cam.cameraLabel}
@@ -2649,7 +2659,7 @@ export const InspectorPanel: React.FC = () => {
                 icon={<Eye className="w-3.5 h-3.5 text-indigo-500" />}
                 badge={
                   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500 font-bold">
-                    {cam.focalLength}mm Â· {cam.fovAngle}Â°
+                    {cam.focalLength}mm · {cam.fovAngle}°
                   </span>
                 }
                 defaultOpen={true}
@@ -2705,7 +2715,7 @@ export const InspectorPanel: React.FC = () => {
                     ))}
                   </select>
                   <span className="text-[10px] opacity-60 mt-1 block">
-                    Horizontal FOV: <strong className="text-sky-500">{cam.fovAngle}Â°</strong>
+                    Horizontal FOV: <strong className="text-sky-500">{cam.fovAngle}°</strong>
                   </span>
                 </div>
 
@@ -2751,7 +2761,7 @@ export const InspectorPanel: React.FC = () => {
                 icon={<Gauge className="w-3.5 h-3.5 text-amber-500" />}
                 badge={
                   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold">
-                    {cam.aperture || 'f/2.8'} Â· ISO {cam.iso ?? 800}
+                    {cam.aperture || 'f/2.8'} · ISO {cam.iso ?? 800}
                   </span>
                 }
                 defaultOpen={false}
@@ -2790,7 +2800,7 @@ export const InspectorPanel: React.FC = () => {
                       className={selectClass}
                     >
                       {SHUTTER_ANGLES.map((value) => (
-                        <option key={value} value={value}>{value}Â°</option>
+                        <option key={value} value={value}>{value}°</option>
                       ))}
                     </select>
                   </div>
@@ -2922,11 +2932,11 @@ export const InspectorPanel: React.FC = () => {
                     <div className={`pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
                       <h4 className="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-1 flex items-center gap-1.5">
                         <ImageIcon className="w-3.5 h-3.5 text-violet-500" />
-                        Storyboard â€” Shot {linkedShot.shotNumber}
+                        Storyboard — Shot {linkedShot.shotNumber}
                       </h4>
                       <p className={`text-[10px] mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                         {slots.length > 1
-                          ? `One frame per keyframe of this move (${slots.map((slot) => slot.label).join(' â†’ ')}).`
+                          ? `One frame per keyframe of this move (${slots.map((slot) => slot.label).join(' → ')}).`
                           : 'Add a waypoint to this camera to board the move beat by beat.'}
                       </p>
 
@@ -3208,7 +3218,7 @@ export const InspectorPanel: React.FC = () => {
               {/* Rubric 1: Role, Fixture & Model */}
               <RubricSection
                 title="Role, Fixture & Model"
-                icon={<Lightbulb className="w-3.5 h-3.5 text-amber-500" />}
+                icon={<FresnelLightIcon className="w-3.5 h-3.5 text-amber-500" />}
                 badge={
                   light.lightRole && light.lightRole !== 'unassigned' ? (
                     <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold uppercase truncate max-w-[100px]">
@@ -3391,35 +3401,65 @@ export const InspectorPanel: React.FC = () => {
                         }`}
                       >
                         <option value="">(No Brand / Generic)</option>
-                        {LIGHTING_BRANDS.map((b) => (
-                          <option key={b.brand} value={b.brand}>
-                            {b.brand}
-                          </option>
-                        ))}
+                        <optgroup label="Presets">
+                          {brandOptions.filter((b) => b.preset).map((b) => (
+                            <option key={b.brand} value={b.brand}>
+                              {b.brand}{b.profileCount > 0 ? ` · ${b.profileCount} in database` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Fixture database (OFL)">
+                          {brandOptions.filter((b) => !b.preset).map((b) => (
+                            <option key={b.brand} value={b.brand}>
+                              {b.brand} · {b.profileCount}
+                            </option>
+                          ))}
+                        </optgroup>
                       </select>
                     </div>
 
                     <div>
-                      <label className="opacity-60 block mb-1 font-semibold">Model Preset</label>
+                      <label className="opacity-60 block mb-1 font-semibold">Model</label>
                       {(() => {
                         const brandObj = LIGHTING_BRANDS.find((b) => b.brand === light.brand);
                         const models = brandObj?.models || [];
-                        const isCustom = !!light.fixtureModel && !models.includes(light.fixtureModel);
+                        const dbProfiles = profilesForBrand(fixtureProfiles, light.brand);
+                        const linked = dbProfiles.find((p) => p.id === light.fixtureProfileId);
+                        const isCustom = !linked && !!light.fixtureModel && !models.includes(light.fixtureModel);
+                        const value = linked ? `profile:${linked.id}` : isCustom ? '__custom__' : (light.fixtureModel || '');
+                        const clearLink = {
+                          fixtureProfileId: undefined,
+                          fixtureModeId: undefined,
+                          dmxModeName: undefined,
+                          dmxChannelCount: undefined,
+                        };
 
                         return (
                           <select
-                            value={isCustom ? '__custom__' : (light.fixtureModel || '')}
+                            value={value}
                             onChange={(e) => {
                               const val = e.target.value;
                               const fix = LIGHT_FIXTURES.find((f) => f.type === light.fixtureType);
-                              if (val === '__custom__') {
-                                updateElement(light.id, { fixtureModel: light.fixtureModel || 'Custom Model' });
+                              if (val.startsWith('profile:')) {
+                                const profile = dbProfiles.find((p) => `profile:${p.id}` === val);
+                                if (!profile) return;
+                                const link = fixtureProfileLinkUpdates(profile);
+                                updateElement(light.id, { ...link, name: `${link.brand} ${link.fixtureModel}`.trim() });
+                              } else if (val === '__custom__') {
+                                updateElement(light.id, { ...clearLink, fixtureModel: light.fixtureModel || 'Custom Model' });
                               } else if (!val) {
                                 const newName = light.brand ? `${light.brand} ${fix?.name || 'Light'}` : (fix?.name || 'Light');
-                                updateElement(light.id, { fixtureModel: undefined, name: newName });
+                                updateElement(light.id, { ...clearLink, fixtureModel: undefined, name: newName });
                               } else {
+                                // Preset name: link the database profile when one clearly matches,
+                                // so watts / weight / DMX come from measured data, never guessed.
+                                const match = findProfileForModel(fixtureProfiles, light.brand, val);
                                 const newName = light.brand ? `${light.brand} ${val}`.trim() : val;
-                                updateElement(light.id, { fixtureModel: val, name: newName });
+                                updateElement(light.id, {
+                                  ...(match ? fixtureProfileLinkUpdates(match) : clearLink),
+                                  fixtureModel: val,
+                                  name: newName,
+                                });
                               }
                             }}
                             className={`w-full border rounded-lg p-2 ${
@@ -3427,24 +3467,45 @@ export const InspectorPanel: React.FC = () => {
                             }`}
                           >
                             <option value="">(Select a Model...)</option>
-                            {models.map((m) => (
-                              <option key={m} value={m}>
-                                {m}
-                              </option>
-                            ))}
-                            <option value="__custom__">âœï¸ Custom Model Nameâ€¦</option>
+                            {models.length > 0 && (
+                              <optgroup label="Presets">
+                                {models.map((m) => (
+                                  <option key={m} value={m}>
+                                    {m}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {dbProfiles.length > 0 && (
+                              <optgroup label="Fixture database — real watts / weight / DMX">
+                                {dbProfiles.map((p) => {
+                                  const summary = fixtureProfileSummary(p);
+                                  return (
+                                    <option key={p.id} value={`profile:${p.id}`}>
+                                      {p.model}{summary ? ` (${summary})` : ''}
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            )}
+                            <option value="__custom__">✏️ Custom Model Name…</option>
                           </select>
                         );
                       })()}
                     </div>
                   </div>
+                  {light.fixtureProfileId && (
+                    <p className="text-[10px]" style={{ color: isLight ? '#0369a1' : '#7dd3fc' }}>
+                      Linked to fixture database — power, weight, size and DMX modes below come from measured data.
+                    </p>
+                  )}
 
                   {/* Custom Model Name Input Field */}
                   {(() => {
                     const brandObj = LIGHTING_BRANDS.find((b) => b.brand === light.brand);
                     const models = brandObj?.models || [];
                     const isCustom = !models.includes(light.fixtureModel || '');
-                    if (!isCustom && !light.brand) return null;
+                    if ((!isCustom && !light.brand) || light.fixtureProfileId) return null;
 
                     return (
                       <div>
@@ -3482,7 +3543,14 @@ export const InspectorPanel: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 const newName = `${light.brand} ${m}`.trim();
-                                updateElement(light.id, { fixtureModel: m, name: newName });
+                                const match = findProfileForModel(fixtureProfiles, light.brand, m);
+                                updateElement(light.id, {
+                                  ...(match
+                                    ? fixtureProfileLinkUpdates(match)
+                                    : { fixtureProfileId: undefined, fixtureModeId: undefined, dmxModeName: undefined, dmxChannelCount: undefined }),
+                                  fixtureModel: m,
+                                  name: newName,
+                                });
                               }}
                               className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
                                 light.fixtureModel === m
@@ -3544,7 +3612,7 @@ export const InspectorPanel: React.FC = () => {
                                 : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
                             }`}
                           >
-                            Single Net (â‰ˆÂ½ stop)
+                            Single Net (≈½ stop)
                           </button>
                           <button
                             onClick={() => updateElement(light.id, { netValue: 'double' })}
@@ -3556,7 +3624,7 @@ export const InspectorPanel: React.FC = () => {
                                 : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
                             }`}
                           >
-                            Double Net (â‰ˆ1 stop)
+                            Double Net (≈1 stop)
                           </button>
                         </div>
                       </div>
@@ -3569,12 +3637,12 @@ export const InspectorPanel: React.FC = () => {
                         {flagLabel(light)}
                       </strong>
                       {light.fixtureType === 'flag_solid' || light.fixtureType === 'c_stand_flag'
-                        ? ' â€” blocks / removes light (negative fill).'
+                        ? ' — blocks / removes light (negative fill).'
                         : light.fixtureType === 'flag_silk'
-                        ? ' â€” softens & diffuses the light passing through it.'
+                        ? ' — softens & diffuses the light passing through it.'
                         : light.fixtureType === 'flag_net'
-                        ? ' â€” reduces intensity in a wash without changing color or softness.'
-                        : ' â€” shapes light with a long blade (kicks, forehead shadows).'}
+                        ? ' — reduces intensity in a wash without changing color or softness.'
+                        : ' — shapes light with a long blade (kicks, forehead shadows).'}
                       {' '}Flags do not emit light, so they have no beam, color temp, or intensity.
                     </div>
                   </div>
@@ -3589,7 +3657,7 @@ export const InspectorPanel: React.FC = () => {
                     icon={<Sun className="w-3.5 h-3.5 text-amber-500" />}
                     badge={
                       <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold">
-                        {isRgbMode ? colorHex : `${light.colorTemp || 5600}K`} Â· {light.intensity}%
+                        {isRgbMode ? colorHex : `${light.colorTemp || 5600}K`} · {light.intensity}%
                       </span>
                     }
                     defaultOpen={true}
@@ -3800,7 +3868,7 @@ export const InspectorPanel: React.FC = () => {
                             isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
                           }`}
                         >
-                          âœ• Remove RGB Color (Reset to Kelvin White)
+                          ✕ Remove RGB Color (Reset to Kelvin White)
                         </button>
                       </div>
                     )}
@@ -3847,7 +3915,7 @@ export const InspectorPanel: React.FC = () => {
                     icon={<Maximize className="w-3.5 h-3.5 text-sky-500" />}
                     badge={
                       <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500 font-bold">
-                        {light.beamAngle}Â° Â· {light.throwDistance}px
+                        {light.beamAngle}° · {light.throwDistance}px
                       </span>
                     }
                     defaultOpen={false}
@@ -3857,7 +3925,7 @@ export const InspectorPanel: React.FC = () => {
                       <div>
                         <div className="flex justify-between text-xs mb-1">
                           <span className="opacity-60">Beam Angle</span>
-                          <span className="font-mono text-amber-500 font-bold">{light.beamAngle}Â°</span>
+                          <span className="font-mono text-amber-500 font-bold">{light.beamAngle}°</span>
                         </div>
                         <input
                           type="range"
@@ -4062,7 +4130,7 @@ export const InspectorPanel: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="opacity-60 block mb-1">Start Address (1â€“512)</label>
+                        <label className="opacity-60 block mb-1">Start Address (1–512)</label>
                         <input
                           type="number"
                           min={1}
@@ -4112,8 +4180,8 @@ export const InspectorPanel: React.FC = () => {
                         <span>
                           U{light.dmxUniverse}:{String(light.dmxAddress).padStart(3, '0')}
                           <span className="opacity-60">
-                            {' '}Â· {light.dmxChannelCount}ch (range{' '}
-                            {light.dmxAddress}â€“{light.dmxAddress + light.dmxChannelCount - 1})
+                            {' '}· {light.dmxChannelCount}ch (range{' '}
+                            {light.dmxAddress}–{light.dmxAddress + light.dmxChannelCount - 1})
                           </span>
                         </span>
                         <span className="opacity-70">PATCHED</span>
@@ -4587,7 +4655,7 @@ export const InspectorPanel: React.FC = () => {
                             : isLight ? 'bg-slate-50 text-slate-700 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
                         }`}
                       >
-                        {deg}Â°
+                        {deg}°
                       </button>
                     ))}
                   </div>
@@ -4674,7 +4742,7 @@ export const InspectorPanel: React.FC = () => {
                   <div className="flex justify-between items-center mb-1">
                     <label className="opacity-60 text-xs">Window Facing Angle</label>
                     <span className="font-mono text-xs font-bold text-sky-500">
-                      {Math.round(((win.rotation || 0) % 360 + 360) % 360)}Â°
+                      {Math.round(((win.rotation || 0) % 360 + 360) % 360)}°
                     </span>
                   </div>
                   <input
@@ -4700,7 +4768,7 @@ export const InspectorPanel: React.FC = () => {
                       }`}
                     >
                       <RotateCw className="w-3 h-3" />
-                      Flip 180Â°
+                      Flip 180°
                     </button>
                     <button
                       type="button"
@@ -4716,7 +4784,7 @@ export const InspectorPanel: React.FC = () => {
                       }`}
                     >
                       <RotateCw className="w-3 h-3" />
-                      Rotate +90Â°
+                      Rotate +90°
                     </button>
                   </div>
                 </div>
@@ -4914,7 +4982,7 @@ export const InspectorPanel: React.FC = () => {
                     type="text"
                     value={shape.label || ''}
                     onChange={(e) => updateElement(shape.id, { label: e.target.value })}
-                    placeholder="e.g. Hot zone, carpet, shadowâ€¦"
+                    placeholder="e.g. Hot zone, carpet, shadow…"
                     className={`w-full border rounded p-1.5 text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
                   />
                 </div>
@@ -5170,7 +5238,7 @@ export const InspectorPanel: React.FC = () => {
                     type="text"
                     value={arr.label || ''}
                     onChange={(e) => updateElement(arr.id, { label: e.target.value })}
-                    placeholder="e.g. Camera move, Actor blockingâ€¦"
+                    placeholder="e.g. Camera move, Actor blocking…"
                     className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
                   />
                 </div>
@@ -5311,8 +5379,8 @@ export const InspectorPanel: React.FC = () => {
                   <div className="flex items-center gap-2 text-[11px] rounded-lg px-2.5 py-2 border bg-rose-950/40 border-rose-800/50 text-rose-300">
                     <Zap className="w-3.5 h-3.5 flex-shrink-0" />
                     <span>
-                      Power run Â· {cableInfo.connector}
-                      {cableInfo.rating ? ` Â· ${cableInfo.rating}` : ''}
+                      Power run · {cableInfo.connector}
+                      {cableInfo.rating ? ` · ${cableInfo.rating}` : ''}
                     </span>
                   </div>
                 )}
@@ -5324,7 +5392,7 @@ export const InspectorPanel: React.FC = () => {
                       type="text"
                       value={cable.fromLabel || ''}
                       onChange={(e) => updateElement(cable.id, { fromLabel: e.target.value })}
-                      placeholder="e.g. CAM A, CCU 1, FOHâ€¦"
+                      placeholder="e.g. CAM A, CCU 1, FOH…"
                       className={inputClass}
                     />
                   </div>
@@ -5334,7 +5402,7 @@ export const InspectorPanel: React.FC = () => {
                       type="text"
                       value={cable.toLabel || ''}
                       onChange={(e) => updateElement(cable.id, { toLabel: e.target.value })}
-                      placeholder="e.g. CCU 1, MON 3â€¦"
+                      placeholder="e.g. CCU 1, MON 3…"
                       className={inputClass}
                     />
                   </div>
@@ -5351,7 +5419,7 @@ export const InspectorPanel: React.FC = () => {
                         onChange={(e) => linkEndpoint('from', e.target.value)}
                         className={inputClass}
                       >
-                        <option value="">â€” none (label only) â€”</option>
+                        <option value="">— none (label only) —</option>
                         {linkableElements.map((e) => (
                           <option key={e.id} value={e.id}>
                             {e.name} [{e.type}]
@@ -5368,7 +5436,7 @@ export const InspectorPanel: React.FC = () => {
                         onChange={(e) => linkEndpoint('to', e.target.value)}
                         className={inputClass}
                       >
-                        <option value="">â€” none (label only) â€”</option>
+                        <option value="">— none (label only) —</option>
                         {linkableElements.map((e) => (
                           <option key={e.id} value={e.id}>
                             {e.name} [{e.type}]
@@ -5385,7 +5453,7 @@ export const InspectorPanel: React.FC = () => {
                     <div className="rounded-lg px-2.5 py-2 border bg-slate-900/40 border-slate-800 space-y-1.5">
                       <div className="text-[11px] text-slate-300">
                         <span className="font-mono">{cableInfo.shortLabel}</span>
-                        {' â†’ carries '}
+                        {' → carries '}
                         <span className="font-mono font-bold text-slate-100">
                           {impliedSignal ?? 'unknown signal'}
                         </span>
@@ -5405,14 +5473,14 @@ export const InspectorPanel: React.FC = () => {
 
                 <div className="flex items-center justify-between rounded-lg px-2.5 py-2 border bg-slate-900/40 border-slate-800">
                   <span className="text-[11px] text-slate-400">
-                    Run length â‰ˆ{' '}
+                    Run length ≈{' '}
                     <span className="font-mono font-bold text-slate-100">
                       {lengthVal}
                       {unit}
                     </span>
                   </span>
                   <span className="text-[10px] font-mono text-slate-500">
-                    {cableInfo.shortLabel} Â· {cableInfo.connector}
+                    {cableInfo.shortLabel} · {cableInfo.connector}
                   </span>
                 </div>
 
@@ -5490,7 +5558,7 @@ export const InspectorPanel: React.FC = () => {
                   <textarea
                     value={cable.notes || ''}
                     onChange={(e) => updateElement(cable.id, { notes: e.target.value })}
-                    placeholder="e.g. Route under stage, spare 10m, tie to trussâ€¦"
+                    placeholder="e.g. Route under stage, spare 10m, tie to truss…"
                     rows={2}
                     className={`${inputClass} resize-none`}
                   />

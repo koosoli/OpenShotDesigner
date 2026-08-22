@@ -4,14 +4,13 @@ import { ActiveTool, CableType, ShapeType } from '../../types';
 import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import { loadBackgroundImageFile } from '../../utils/image';
 import { useBreakpoint } from '../../utils/useMediaQuery';
+import { FresnelLightIcon, MovieCameraIcon } from '../icons/ProductionIcons';
 import {
   Cable,
-  Camera,
   DoorClosed,
   Flag,
   Hand,
   ImagePlus,
-  Lightbulb,
   MousePointer,
   MoveHorizontal,
   MoveUpRight,
@@ -161,14 +160,14 @@ export const LeftToolbar: React.FC = () => {
       id: 'camera',
       label: 'Camera & Shot',
       shortcut: 'C',
-      icon: <Camera className="w-4 h-4 text-sky-500" />,
+      icon: <MovieCameraIcon className="w-4 h-4 text-sky-500" />,
       hasSubmenu: true,
     },
     {
       id: 'light',
       label: 'Light Fixture',
       shortcut: 'L',
-      icon: <Lightbulb className="w-4 h-4 text-amber-500" />,
+      icon: <FresnelLightIcon className="w-4 h-4 text-amber-500" />,
       hasSubmenu: true,
     },
     {
@@ -472,7 +471,7 @@ export const LeftToolbar: React.FC = () => {
                         {f.isFlag ? (
                           <Flag className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                         ) : (
-                          <Lightbulb className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                          <FresnelLightIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                         )}
                         <span className="truncate">{f.name}</span>
                       </span>
@@ -547,7 +546,7 @@ export const LeftToolbar: React.FC = () => {
                       )}
                     >
                       <span>{rig.label}</span>
-                      <Camera className="w-3 h-3 opacity-40 flex-shrink-0" />
+                      <MovieCameraIcon className="w-3 h-3 opacity-40 flex-shrink-0" />
                     </button>
                   ))}
                 </div>

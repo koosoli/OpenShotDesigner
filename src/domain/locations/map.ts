@@ -84,6 +84,38 @@ interface NominatimPlace {
   display_name?: string;
 }
 
+const GEOCODE_TIMEOUT_MS = 8000;
+
+export interface ReverseGeocodeResult {
+  status: 'ok' | 'not_found' | 'unavailable';
+  address?: string;
+  message?: string;
+}
+
+const boundedSignal = (signal?: AbortSignal): AbortSignal | undefined => {
+  const timeoutSignal = typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(GEOCODE_TIMEOUT_MS) : undefined;
+  return signal && timeoutSignal && 'any' in AbortSignal ? AbortSignal.any([signal, timeoutSignal]) : signal ?? timeoutSignal;
+};
+
+/**
+ * Resolve a map pin into a postal address via OSM Nominatim (reverse
+ * geocoding). Like {@link geocodeLocation} it never throws.
+ */
+export const reverseGeocode = async (point: GeoPoint, signal?: AbortSignal): Promise<ReverseGeocodeResult> => {
+  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return { status: 'not_found' };
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${point.lat.toFixed(6)}&lon=${point.lng.toFixed(6)}`;
+  try {
+    const response = await fetch(url, { signal: boundedSignal(signal), headers: { Accept: 'application/json' } });
+    if (!response.ok) return { status: 'unavailable', message: `Lookup failed (HTTP ${response.status}).` };
+    const place = (await response.json()) as NominatimPlace;
+    const address = typeof place?.display_name === 'string' ? place.display_name.trim() : '';
+    return address ? { status: 'ok', address } : { status: 'not_found' };
+  } catch (error) {
+    const name = typeof error === 'object' && error !== null && 'name' in error ? String((error as { name: unknown }).name) : '';
+    return { status: 'unavailable', message: name === 'TimeoutError' ? 'Lookup timed out — check your connection.' : 'Lookup unavailable — check your connection.' };
+  }
+};
+
 /**
  * Resolve free text into coordinates via OSM Nominatim. Network-dependent:
  * every failure mode resolves (never throws) so the UI can fall back to the
@@ -97,7 +129,14 @@ export const geocodeLocation = async (
   if (!trimmed) return { status: 'not_found' };
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(trimmed)}`;
   try {
-    const response = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    // Never spin forever on a connected-but-dead network: bound the lookup.
+    const timeoutSignal = typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+      ? AbortSignal.timeout(GEOCODE_TIMEOUT_MS)
+      : undefined;
+    const combined = signal && timeoutSignal && 'any' in AbortSignal
+      ? AbortSignal.any([signal, timeoutSignal])
+      : signal ?? timeoutSignal;
+    const response = await fetch(url, { signal: combined, headers: { Accept: 'application/json' } });
     if (!response.ok) {
       return { status: 'unavailable', message: `Lookup failed (HTTP ${response.status}).` };
     }
@@ -109,9 +148,13 @@ export const geocodeLocation = async (
     const point = { lat, lng };
     return { status: 'ok', point, label: place.display_name ?? trimmed };
   } catch (error) {
-    const message = error instanceof Error && error.name === 'AbortError'
-      ? 'Lookup cancelled.'
-      : 'Lookup unavailable — check your connection.';
+    // DOMException is not an `Error` subclass in every runtime — read the name directly.
+    const name = typeof error === 'object' && error !== null && 'name' in error ? String((error as { name: unknown }).name) : '';
+    const message = name === 'TimeoutError'
+      ? 'Lookup timed out — check your connection.'
+      : name === 'AbortError'
+        ? 'Lookup cancelled.'
+        : 'Lookup unavailable — check your connection.';
     return { status: 'unavailable', message };
   }
 };

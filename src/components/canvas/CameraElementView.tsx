@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { CameraElement, Shot, Vector2D } from '../../types';
 import { getCameraFovPolygon, getInterpolatedPositionAndRotation, getSmoothSplinePath } from '../../utils/geometry';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
@@ -76,7 +76,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
     if (displaySettings.showShotAngleOnCamera && shot.cameraAngle) shotInfoParts.push(shot.cameraAngle);
   }
   const showShotInfoBadge = showCameraLabel && shot && shotInfoParts.length > 0;
-  const shotInfoText = shotInfoParts.join(' â€¢ ');
+  const shotInfoText = shotInfoParts.join(' • ');
 
   const { pathString, leftPt, rightPt, centerPt } = getCameraFovPolygon(
     { x: 0, y: 0 },
@@ -234,7 +234,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
               textAnchor="middle"
               className="select-none font-mono"
             >
-              {focal}mm ({Math.round(fovAngle)}Â°)
+              {focal}mm ({Math.round(fovAngle)}°)
             </text>
           </g>
         )}
@@ -377,7 +377,7 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
           >
             <circle cx={0} cy={0} r={7.5} fill="#78350f" stroke="#f59e0b" strokeWidth={1} />
             <text x={0} y={3} fill="#fef3c7" fontSize="8" fontWeight="bold" textAnchor="middle">
-              ðŸ”’
+              🔒
             </text>
           </g>
         )}

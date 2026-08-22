@@ -1,0 +1,104 @@
+import React from 'react';
+import type { CastAssignment, Person } from '../../domain/people';
+import { PERSON_KIND_LABELS, groupPeopleByDepartment } from '../../domain/people';
+import type { Character } from '../../domain/script';
+
+interface ContactListPrintViewProps {
+  people: Person[];
+  characters?: Character[];
+  castAssignments?: CastAssignment[];
+  /** Hide rates on copies handed to the whole crew. */
+  showRates?: boolean;
+}
+
+/**
+ * Printable production contact list: departments in crew order, then the
+ * cast list with character ↔ performer links. Derived on demand from
+ * canonical project data (plan rule 37) — nothing is stored.
+ */
+export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ people, characters = [], castAssignments = [], showRates = false }) => {
+  const groups = groupPeopleByDepartment(people);
+  const castRows = characters
+    .map((character) => {
+      const assignment = castAssignments.find((candidate) => candidate.characterId === character.id);
+      const person = assignment ? people.find((candidate) => candidate.id === assignment.personId) : undefined;
+      return { character, person };
+    })
+    .sort((a, b) => a.character.canonicalName.localeCompare(b.character.canonicalName));
+
+  const cell = 'border border-slate-300 px-2 py-1 align-top text-[10.5px]';
+  const head = `${cell} bg-slate-100 font-bold uppercase tracking-wider text-[9px] text-slate-700`;
+
+  return (
+    <div className="space-y-6">
+      <section className="print-section">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className={head}>Name</th>
+              <th className={head}>Role</th>
+              <th className={head}>Type</th>
+              <th className={head}>Phone</th>
+              <th className={head}>Email</th>
+              <th className={head}>Company</th>
+              {showRates && <th className={head}>Rate</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((group) => (
+              <React.Fragment key={group.department}>
+                <tr>
+                  <td colSpan={showRates ? 7 : 6} className="bg-slate-900 text-white px-2 py-1 text-[9px] font-black uppercase tracking-[0.18em]">
+                    {group.department}
+                  </td>
+                </tr>
+                {group.people.map((person) => (
+                  <tr key={person.id} className="break-inside-avoid">
+                    <td className={`${cell} font-semibold`}>
+                      {person.displayName}
+                      {person.emergencyContact && <div className="text-[9px] text-slate-500">ICE: {person.emergencyContact}</div>}
+                    </td>
+                    <td className={cell}>{person.role ?? ''}</td>
+                    <td className={cell}>{PERSON_KIND_LABELS[person.kind ?? 'other']}</td>
+                    <td className={`${cell} font-mono whitespace-nowrap`}>{person.phone ?? ''}</td>
+                    <td className={cell}>{person.email ?? ''}</td>
+                    <td className={cell}>{person.company ?? ''}</td>
+                    {showRates && <td className={`${cell} font-mono`}>{person.rate ?? ''}</td>}
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {castRows.length > 0 && (
+        <section className="print-section">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-1 mb-2">Cast list</h3>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className={head}>Character</th>
+                <th className={head}>Performer</th>
+                <th className={head}>Phone</th>
+                <th className={head}>Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {castRows.map(({ character, person }) => (
+                <tr key={character.id} className="break-inside-avoid">
+                  <td className={`${cell} font-bold uppercase`}>{character.canonicalName}</td>
+                  <td className={cell}>{person?.displayName ?? <span className="text-slate-400">not cast</span>}</td>
+                  <td className={`${cell} font-mono whitespace-nowrap`}>{person?.phone ?? ''}</td>
+                  <td className={cell}>{person?.email ?? ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      <p className="text-[9px] text-slate-500">Contact details are confidential to the production. Distribute only to the people who need them.</p>
+    </div>
+  );
+};

@@ -1,20 +1,22 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Database, Plus, Search, Trash2, X } from 'lucide-react';
 import type { LightElement } from '../../types';
 import {
   fixtureBoundingVolumeLitres,
   fixtureModeById,
-  OFFLINE_FIXTURE_DB_MANIFEST,
-  OFFLINE_FIXTURE_PROFILES,
+  fixtureProfileLinkUpdates,
+  fixtureProfileSummary,
+  profilesForBrand,
+  refreshOflSnapshotOnline,
   searchFixtureProfiles,
 } from '../../domain/fixtures';
-import type { FixtureProfile } from '../../domain/fixtures';
+import type { FixtureProfile, RefreshResult } from '../../domain/fixtures';
 import {
   buildCustomFixtureProfile,
   deleteCustomFixtureProfile,
-  loadCustomFixtureProfiles,
   upsertCustomFixtureProfile,
 } from '../../domain/fixtures/customProfiles';
+import { useFixtureCatalog } from './useFixtureCatalog';
 
 interface FixtureProfilePickerProps {
   light: LightElement;
@@ -30,14 +32,16 @@ const CONNECTOR_LABELS: Record<string, string> = {
 };
 
 /**
- * Real-fixture data picker (plan Â§17): search the bundled offline OFL
+ * Real-fixture data picker (plan §17): search the bundled offline OFL
  * snapshot plus locally authored profiles, apply one to this light, choose
  * its DMX personality, and read the technical card. One profile feeds the DMX
- * patch bay (channel footprint), power planning (explicit watts â€” never the
+ * patch bay (channel footprint), power planning (explicit watts — never the
  * model name) and surfaces weight/dimensions for rigging & logistics.
  */
 export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ light, onChange, isLight }) => {
-  const [customVersion, setCustomVersion] = useState(0);
+  const catalog = useFixtureCatalog();
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
   const [query, setQuery] = useState('');
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [draft, setDraft] = useState({
@@ -52,10 +56,16 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
     modesText: '',
   });
 
-  const allProfiles = useMemo<FixtureProfile[]>(() => {
-    void customVersion;
-    return [...OFFLINE_FIXTURE_PROFILES, ...loadCustomFixtureProfiles()];
-  }, [customVersion]);
+  const allProfiles: FixtureProfile[] = catalog.profiles;
+
+  const refreshOnline = async () => {
+    setRefreshing(true);
+    try {
+      setRefreshResult(await refreshOflSnapshotOnline({ force: true }));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const results = useMemo(() => {
     if (!query.trim()) return [];
@@ -66,16 +76,15 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
     allProfiles.find((candidate) => candidate.id === light.fixtureProfileId) ?? null;
   const mode = profile ? fixtureModeById(profile, light.fixtureModeId) : undefined;
 
+  // With no search typed, offer the light's brand straight away so the
+  // database is one click away instead of hidden behind a query.
+  const brandSuggestions = useMemo(
+    () => (profile || query.trim() ? [] : profilesForBrand(allProfiles, light.brand).slice(0, 6)),
+    [allProfiles, light.brand, profile, query],
+  );
+
   const applyProfile = (next: FixtureProfile, modeId?: string) => {
-    const chosen = fixtureModeById(next, modeId ?? next.modes[0]?.id);
-    onChange({
-      brand: next.manufacturer,
-      fixtureModel: next.model,
-      fixtureProfileId: next.id,
-      fixtureModeId: chosen?.id,
-      dmxModeName: chosen?.channelCount ? chosen.name : undefined,
-      dmxChannelCount: chosen?.channelCount || undefined,
-    });
+    onChange(fixtureProfileLinkUpdates(next, modeId));
     setQuery('');
   };
 
@@ -102,7 +111,6 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
     });
     if (!built) return;
     upsertCustomFixtureProfile(built);
-    setCustomVersion((v) => v + 1);
     setShowCustomForm(false);
     applyProfile(built);
   };
@@ -146,7 +154,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search manufacturer / modelâ€¦"
+          placeholder="Search manufacturer / model…"
           className={`${inputCls} !pl-7`}
           aria-label="Search fixture database"
         />
@@ -161,8 +169,8 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
                   className="w-full text-left px-2 py-1.5 text-[11px] hover:bg-sky-500/15"
                 >
                   <span className="font-bold">{candidate.manufacturer}</span> {candidate.model}
-                  {candidate.modes.length > 0 && (
-                    <span className="opacity-50"> Â· {candidate.modes.length} modes</span>
+                  {fixtureProfileSummary(candidate) && (
+                    <span className="opacity-50"> · {fixtureProfileSummary(candidate)}</span>
                   )}
                 </button>
               </li>
@@ -170,6 +178,34 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
           </ul>
         )}
       </div>
+
+      {brandSuggestions.length > 0 && (
+        <div className="space-y-1">
+          <span className={`text-[10px] font-semibold ${mutedCls}`}>{light.brand} in the database</span>
+          <ul className="space-y-0.5">
+            {brandSuggestions.map((candidate) => (
+              <li key={candidate.id}>
+                <button
+                  onClick={() => applyProfile(candidate)}
+                  className={`w-full text-left px-2 py-1 rounded text-[11px] flex items-center justify-between gap-2 ${
+                    isLight ? 'hover:bg-sky-50' : 'hover:bg-sky-500/10'
+                  }`}
+                >
+                  <span className="truncate">{candidate.model}</span>
+                  <span className="opacity-50 font-mono text-[10px] flex-shrink-0">{fixtureProfileSummary(candidate)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {!profile && brandSuggestions.length === 0 && !query.trim() && (
+        <p className={`text-[10px] ${mutedCls}`}>
+          {light.brand
+            ? `No ${light.brand} entries in the snapshot — search another spelling or author a custom profile.`
+            : 'Pick a brand above or search the database to attach real watts, weight, size and DMX modes.'}
+        </p>
+      )}
 
       {/* Mode selector for a linked profile */}
       {profile && profile.modes.length > 0 && (
@@ -182,7 +218,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
           >
             {profile.modes.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name} â€” {m.channelCount} ch
+                {m.name} — {m.channelCount} ch
               </option>
             ))}
           </select>
@@ -198,7 +234,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
               <dd className="font-mono">
                 {[profile.dimensions.widthMm, profile.dimensions.heightMm, profile.dimensions.depthMm]
                   .filter((v): v is number => typeof v === 'number')
-                  .join(' Ã— ')}{' '}
+                  .join(' × ')}{' '}
                 mm
               </dd>
             </>
@@ -217,7 +253,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
           )}
           {volumeLitres !== undefined && (
             <>
-              <dt className={mutedCls}>Volume â‰ˆ</dt>
+              <dt className={mutedCls}>Volume ≈</dt>
               <dd className="font-mono">{volumeLitres.toFixed(1)} L (bounding)</dd>
             </>
           )}
@@ -228,9 +264,9 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
             </>
           )}
           <dt className={mutedCls}>Source</dt>
-          <dd className="truncate" title={`${profile.source?.provider ?? 'unknown'} Â· ${profile.source?.license ?? ''}`}>
+          <dd className="truncate" title={`${profile.source?.provider ?? 'unknown'} · ${profile.source?.license ?? ''}`}>
             {isManualSource ? 'Manual entry' : `${profile.source?.provider ?? '?'} snapshot`}
-            {!isManualSource && profile.source?.license ? ` Â· ${profile.source.license}` : ''}
+            {!isManualSource && profile.source?.license ? ` · ${profile.source.license}` : ''}
           </dd>
         </dl>
       )}
@@ -249,8 +285,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
             <button
               onClick={() => {
                 deleteCustomFixtureProfile(profile.id);
-                setCustomVersion((v) => v + 1);
-                detachProfile();
+                            detachProfile();
               }}
               className="px-2 py-1 rounded-lg border border-rose-500/40 text-rose-500 text-[10px] font-bold flex items-center gap-1"
             >
@@ -293,10 +328,33 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
         </div>
       )}
 
-      <p className={`text-[9px] leading-snug ${mutedCls}`}>
-        Snapshot {OFFLINE_FIXTURE_DB_MANIFEST.snapshotId} Â· {OFFLINE_FIXTURE_DB_MANIFEST.count} fixtures Â·{' '}
-        {(OFFLINE_FIXTURE_DB_MANIFEST.license || '').slice(0, 40)} Â· works offline.
-      </p>
+      <div className={`text-[9px] leading-snug space-y-1 ${mutedCls}`}>
+        <p>
+          Open Fixture Library {catalog.oflSource === 'online' ? 'live snapshot' : 'bundled snapshot'} {catalog.manifest.snapshotId} ·{' '}
+          {catalog.counts.ofl} fixtures + {catalog.counts.curated} supplementary film profiles
+          {catalog.counts.custom > 0 ? ` + ${catalog.counts.custom} custom` : ''} · works offline.
+        </p>
+        {isManualSource === false && profile?.source?.provider === 'curated' && (
+          <p className="text-amber-500">
+            Supplementary profile — figures are unverified planning values. Check the unit's label before power or rigging calculations.
+          </p>
+        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={refreshOnline}
+            disabled={refreshing}
+            className={`px-2 py-0.5 rounded border text-[10px] font-bold disabled:opacity-50 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+            title="Download the newest profiles from open-fixture-library.org (requires internet)"
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh from OFL'}
+          </button>
+          {refreshResult && (
+            <span className={refreshResult.status === 'updated' || refreshResult.status === 'unchanged' ? 'text-emerald-500' : 'text-amber-500'}>
+              {refreshResult.message}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

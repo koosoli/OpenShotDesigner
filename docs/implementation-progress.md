@@ -1,7 +1,7 @@
 # Implementation Progress
 
 Running record of what has landed, mapped to `docs/IMPLEMENTATION_PLAN.md` batches.
-Typecheck and Vitest are green at time of writing; test count: **349**. Production builds are verified separately before handoff.
+Typecheck and Vitest are green at time of writing; test count: **466**. Production builds are verified separately before handoff.
 
 ## Batch 1 — Foundation ✅
 - Central ID service (`src/domain/ids.ts`), deep-clone/remap (`src/domain/clone.ts`)
@@ -59,6 +59,18 @@ Typecheck and Vitest are green at time of writing; test count: **349**. Producti
 
 ## Batch 10 — Mood Boards ✅
 - MoodBoardPanel tab: boards/sections/cards, asset-store-backed images (no base64 in project state), URL-reference cards, entity links
+
+## StudioBinder parity pass (2026-08-22) ✅
+Schema v13 (`src/domain/migrations/v12-to-v13.ts`, no backfill — every new field is absent-safe). Test count now **466**.
+- **Encoding repair:** 10 source files had been round-tripped through a Windows-1252 decode (the "strange signs" bug: degree signs, dashes and multiplication signs rendered as two or three Latin letters); bytes repaired, BOMs stripped, `.gitattributes`/`.editorconfig` added, `scripts/check-encoding.mjs` runs in `npm run lint` so CI fails on regressions.
+- **Screenplay omission:** deleting a scene heading now OMITS the scene (`src/domain/script/omission.ts`): the slug stays as "SCENE n — OMITTED" with Restore, a second delete removes it; the flag round-trips through Fountain (`[[OMITTED]]`), shows in the lined script, breakdown reports and schedule strips, and omitted scenes leave the schedulable pool.
+- **Script line identity:** re-parsing / re-importing a draft reconciles line ids (`src/domain/script/reconcile.ts`) so linings, shot links and scheduled scenes survive edits; project duplication now remaps the project-level screenplay, scene ids and scene strips consistently.
+- **Mood board:** free-form collage (drag to move, corner to resize, click to raise; persisted `collageLayout` in 1000-unit canvas coordinates, `src/domain/moodboard/collageLayout.ts`) for panel and print; palette extraction reports why it found nothing (CORS-blocked URL images) instead of silently returning an empty palette.
+- **Fixtures:** brand/model dropdowns merge the curated presets with the bundled OFL snapshot + custom profiles (`src/domain/fixtures/brandCatalog.ts`); picking a database model (or a preset with a confident match) links the profile so watts, weight, size and DMX modes come from measured data; the picker suggests the light's brand without typing.
+- **New modules:** Contacts / crew list (`src/components/contacts/`, people CRUD, cast ↔ character assignment, CSV import/export, printable contact list), Task board (`src/domain/tasks/`, kanban with due dates, priorities, assignees, labels, checklists, drag + touch moves), production calendar Month view with event category/status/assignee editing, Script Sides generator (scenes by selection or shooting day, per-character filter, Courier print) and a Day-out-of-days report in Script reports.
+- **Icons:** toolbar/inspector camera and light glyphs are now a motion-picture camera and a fresnel head (`src/components/icons/ProductionIcons.tsx`).
+- **Audit fixes:** debounced autosave with flush on project switch / tab hide / unload and surfaced IndexedDB save errors; real `updatedAt` on projects; IndexedDB open timeout + blocked/versionchange handling; pure AV-row updater; geocode timeout and network-stubbed tests; second-finger touch guard and element long-press menu on the canvas; keyboard shortcuts no longer steal copy/delete from text fields; timeline drag survives row deletion and no longer runs away past the axis; local-date today marker; service-worker cache keyed by build id with network-first navigations; camera stream released when the viewfinder closes mid-prompt; confirm before "Clear cache & reset".
+- See `docs/codebase-audit-2026-08-22.md` for the remaining open findings.
 
 ## Remaining / deferred
 - Batch 3A collaboration spike — intentionally deferred (CRDT choice is a locked "do not decide silently" item)

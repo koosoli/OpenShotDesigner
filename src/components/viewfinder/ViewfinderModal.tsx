@@ -4,6 +4,7 @@ import { ActorElement, CameraElement, PropElement } from '../../types';
 import { isPointInCameraFov } from '../../utils/geometry';
 import { loadStoryboardImageFile } from '../../utils/image';
 import { setFramePatch, slotsOf, START_SLOT } from '../../utils/storyboardFrames';
+import { renderSimulatedFrame } from '../../utils/simulatedFrame';
 import {
   APERTURES,
   ASPECT_RATIOS,
@@ -24,6 +25,7 @@ import {
   Layers,
   Maximize2,
   Minimize2,
+  PenTool,
   RotateCw,
   Image as ImageIcon,
   Save,
@@ -111,6 +113,12 @@ export const ViewfinderModal: React.FC = () => {
         video: { facingMode: { ideal: mode }, width: { ideal: 1920 } },
         audio: false,
       });
+      // The permission prompt can outlive the modal: if it closed meanwhile,
+      // release the camera immediately instead of leaving the LED on.
+      if (!isOpenRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       // Swap streams in one step so the old tracks always get released.
       setLiveStream((current) => {
         current?.getTracks().forEach((track) => track.stop());
@@ -134,7 +142,9 @@ export const ViewfinderModal: React.FC = () => {
     }
   }, [liveStream]);
 
+  const isOpenRef = useRef(isViewfinderOpen);
   useEffect(() => {
+    isOpenRef.current = isViewfinderOpen;
     if (!isViewfinderOpen) stopLiveCamera();
   }, [isViewfinderOpen]);
 
@@ -414,6 +424,45 @@ export const ViewfinderModal: React.FC = () => {
     setFrozenFrame(frame);
     video.pause();
     saveStoryboardImage(frame);
+  };
+
+  /**
+   * Board the SIMULATED frame: the blocking you see in the finder (silhouettes,
+   * props, guides) is rasterised and stored as this shot's storyboard art, so
+   * a board can be built from the floor plan alone — no camera, no drawing.
+   */
+  const captureSimulatedFrame = () => {
+    setLiveError(null);
+    const ratio = ASPECT_RATIOS.find((entry) => entry.value === (selectedCamera.aspectRatio || '16:9'))?.ratio || 16 / 9;
+    const image = renderSimulatedFrame({
+      aspectRatio: ratio,
+      showRuleOfThirds,
+      showSafeAreas,
+      showCrosshair,
+      caption: `CAM ${selectedCamera.cameraLabel} · ${focal}mm · ${selectedCamera.aspectRatio || '16:9'} · ${selectedCamera.cameraHeight || 'Eye Level'}`,
+      subjects: [
+        ...visibleProps.map(({ prop, normalizedX, distance }) => ({
+          kind: 'prop' as const,
+          label: prop.name || prop.propType,
+          normalizedX,
+          distance,
+        })),
+        ...visibleActors.map(({ actor, normalizedX, distance }) => ({
+          kind: 'actor' as const,
+          label: `${actor.name || actor.characterLetter} · ${(distance / 50).toFixed(1)}m`,
+          normalizedX,
+          distance,
+          color: actor.color || '#3b82f6',
+          badge: actor.characterLetter,
+        })),
+      ],
+    });
+    if (!image) {
+      setLiveError('This browser blocked reading the canvas, so the simulated frame could not be saved.');
+      return;
+    }
+    setFrozenFrame(image);
+    saveStoryboardImage(image);
   };
 
   const handleCameraPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1029,6 +1078,19 @@ export const ViewfinderModal: React.FC = () => {
               >
                 <Video className="w-3.5 h-3.5" />
                 <span>Live camera</span>
+              </button>
+            )}
+
+            {!liveStream && (
+              <button
+                onClick={captureSimulatedFrame}
+                title="Board this blocking: save the simulated frame (silhouettes, props and guides) as this shot's storyboard"
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
+                  photoFeedback ? 'bg-emerald-600 text-white' : 'bg-sky-600 hover:bg-sky-500 text-white'
+                }`}
+              >
+                <PenTool className="w-3.5 h-3.5" />
+                <span>{photoFeedback ? 'Board saved!' : 'Board this frame'}</span>
               </button>
             )}
 

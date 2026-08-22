@@ -8,6 +8,7 @@ import {
   productionDaySpan,
   shiftClipSpan,
   timelineBoundsFor,
+  todayIso,
 } from '../../domain/scheduling';
 
 /** Per-line clip palette; index 0 is the default for new lines. */
@@ -32,6 +33,12 @@ interface ActiveDrag {
   mode: ClipMode;
   /** Viewport x where the gesture started. */
   startClientX: number;
+  /**
+   * Pixels per day frozen at gesture start. Bounds grow while a clip is
+   * dragged past the edge; re-deriving the scale mid-gesture would feed the
+   * growth back into the delta (runaway resize).
+   */
+  pxPerDay: number;
 }
 
 interface TimelineCalendarProps {
@@ -104,14 +111,9 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
   useEffect(() => {
     if (!drag) return;
 
-    /** Convert horizontal pixels into whole-day deltas against the LIVE lane width. */
-    const deltaDaysFromPixels = (clientX: number): number => {
-      const lane = laneRef.current;
-      if (!lane || bounds.days <= 0) return 0;
-      const width = lane.getBoundingClientRect().width;
-      const pxPerDay = width / bounds.days;
-      return Math.round((clientX - drag.startClientX) / Math.max(pxPerDay, 1));
-    };
+    /** Convert horizontal pixels into whole-day deltas against the scale frozen at gesture start. */
+    const deltaDaysFromPixels = (clientX: number): number =>
+      Math.round((clientX - drag.startClientX) / Math.max(drag.pxPerDay, 1));
 
     const handleMove = (e: PointerEvent) => {
       const deltaDays = deltaDaysFromPixels(e.clientX);
@@ -156,13 +158,18 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
       window.removeEventListener('pointercancel', commit);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drag, bounds.days]);
+  }, [drag]);
 
   const startDrag = (kind: ActiveDrag['kind'], id: string, mode: ClipMode) => (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    setDrag({ kind, id, mode, startClientX: e.clientX });
+    // Measure the header lane: it is always mounted, unlike row lanes that
+    // come and go as events are added/deleted.
+    const width = laneRef.current?.getBoundingClientRect().width ?? 0;
+    const pxPerDay = bounds.days > 0 && width > 0 ? width / bounds.days : 0;
+    if (pxPerDay <= 0) return;
+    setDrag({ kind, id, mode, startClientX: e.clientX, pxPerDay });
   };
 
   const pctPerDay = 100 / bounds.days;
@@ -172,7 +179,9 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
     touchAction: 'none',
   });
 
-  const todayIsoNumber = isoDayNumber(new Date().toISOString().slice(0, 10));
+  // Local calendar date, like every other date in the scheduler (UTC would
+  // put the marker on yesterday's column east of Greenwich after midnight).
+  const todayIsoNumber = isoDayNumber(todayIso());
   const showTodayMarker =
     todayIsoNumber !== null && todayIsoNumber >= bounds.start && todayIsoNumber <= bounds.end;
 
@@ -183,7 +192,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
   const renderLaneHeader = () => (
     <div className="grid grid-cols-[170px_1fr] bg-slate-900 text-white h-9 items-center">
       <div className="px-3 text-[9px] font-black uppercase tracking-wider">Production timeline</div>
-      <div className="relative h-full overflow-hidden">
+      <div ref={laneRef} className="relative h-full overflow-hidden">
         {Array.from({ length: bounds.days }, (_, index) => {
           const date = new Date((bounds.start + index) * MS_PER_DAY);
           return (
@@ -205,7 +214,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
   const renderRowFrame = (key: React.Key, label: React.ReactNode, lane: React.ReactNode) => (
     <div key={key} className={`grid grid-cols-[170px_1fr] min-h-11 items-center border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
       <div className="px-3 flex items-center gap-2 min-w-0">{label}</div>
-      <div ref={laneRef} className={`relative h-7 overflow-hidden ${laneBg}`}>
+      <div className={`relative h-7 overflow-hidden ${laneBg}`}>
         {showTodayMarker && (
           <div
             className="absolute inset-y-0 w-px bg-cyan-400/70"

@@ -35,6 +35,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleReset = () => {
+    // On the localStorage fallback backend this wipes every saved project.
+    const confirmed = window.confirm(
+      'Clear cached local settings and restart?\n\nIf your projects are stored in this browser\'s local storage ' +
+        '(older browsers / private mode), they will be deleted too. Export your project file first if in doubt.',
+    );
+    if (!confirmed) return;
     try {
       localStorage.clear();
     } catch {}
