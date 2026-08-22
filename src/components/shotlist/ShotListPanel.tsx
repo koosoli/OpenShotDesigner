@@ -25,6 +25,7 @@ import {
   FileText,
   Trash2,
   Video,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface CamPickerOption {
@@ -75,6 +76,25 @@ const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, nextLett
   );
 };
 
+/** The status values a shot can carry, in workflow order. */
+const SHOT_STATUSES: ShotStatus[] = ['planned', 'rehearsed', 'ready', 'taken', 'omitted'];
+
+/** Optional columns of the production table. Shot # and name are never hidden. */
+type ShotColumnKey = 'cam' | 'size' | 'lens' | 'move' | 'angle' | 'takes' | 'status';
+
+const SHOT_COLUMNS: Array<{ key: ShotColumnKey; label: string }> = [
+  { key: 'cam', label: 'Cam' },
+  { key: 'size', label: 'Size' },
+  { key: 'lens', label: 'Lens' },
+  { key: 'move', label: 'Move' },
+  { key: 'angle', label: 'Angle' },
+  { key: 'takes', label: 'Takes' },
+  { key: 'status', label: 'Status' },
+];
+
+/** Device preference (rule 38): which columns this browser hides. */
+const SHOT_COLUMNS_KEY = 'osd.shotlist.hiddenColumns';
+
 export const ShotListPanel: React.FC = () => {
   const {
     project,
@@ -105,6 +125,32 @@ export const ShotListPanel: React.FC = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [filterCamera, setFilterCamera] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  /**
+   * Which table columns to show. A device preference, not project data (rule
+   * 38): two people looking at the same production want different columns.
+   */
+  const [hiddenColumns, setHiddenColumns] = useState<Set<ShotColumnKey>>(() => {
+    try {
+      const saved = localStorage.getItem(SHOT_COLUMNS_KEY);
+      return saved ? new Set(JSON.parse(saved) as ShotColumnKey[]) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleColumn = (key: ShotColumnKey) =>
+    setHiddenColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(SHOT_COLUMNS_KEY, JSON.stringify([...next]));
+      } catch {
+        // A device that refuses storage still gets the toggle for this session.
+      }
+      return next;
+    });
+  const shows = (key: ShotColumnKey) => !hiddenColumns.has(key);
   // Off by default: the list shows this scene only, unless the user asks for
   // the whole production.
   const [showAllScenes, setShowAllScenes] = useState(false);
@@ -580,6 +626,33 @@ export const ShotListPanel: React.FC = () => {
             </div>
           </div>
 
+          {/* Filters & columns. The camera and status filters existed in state
+              with no way to set them; column visibility is new. Both are view
+              preferences, so neither touches project data. */}
+          <button
+            onClick={() => setShowFilters((prev) => !prev)}
+            title="Filter shots and choose which columns to show"
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
+              showFilters || filterCamera !== 'all' || filterStatus !== 'all' || hiddenColumns.size > 0
+                ? 'bg-sky-600 text-white border-sky-500'
+                : isLight
+                ? 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">
+              Filter
+              {filterCamera !== 'all' || filterStatus !== 'all' || hiddenColumns.size > 0
+                ? ` (${
+                    (filterCamera !== 'all' ? 1 : 0) +
+                    (filterStatus !== 'all' ? 1 : 0) +
+                    (hiddenColumns.size > 0 ? 1 : 0)
+                  })`
+                : ''}
+            </span>
+          </button>
+
           {/* Scene scope: this scene only (default) or every scene */}
           <button
             onClick={() => setShowAllScenes((prev) => !prev)}
@@ -648,7 +721,100 @@ export const ShotListPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Main Content: Cards View or Table List View */}
+              {showFilters && (
+          <div
+            className={`mx-3 mb-2 rounded-xl border p-3 space-y-2.5 text-xs ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800'
+            }`}
+          >
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="space-y-1 block">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Camera
+                </span>
+                <select
+                  value={filterCamera}
+                  onChange={(e) => setFilterCamera(e.target.value)}
+                  className={`w-full rounded-lg border px-2 py-1.5 ${
+                    isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-200'
+                  }`}
+                >
+                  <option value="all">Every camera</option>
+                  {cameras.map((camera) => (
+                    <option key={camera.id} value={camera.id}>
+                      {(camera as { cameraLabel?: string }).cameraLabel || camera.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 block">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Status
+                </span>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className={`w-full rounded-lg border px-2 py-1.5 ${
+                    isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-200'
+                  }`}
+                >
+                  <option value="all">Any status</option>
+                  {SHOT_STATUSES.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="space-y-1">
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Columns
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {SHOT_COLUMNS.map((column) => (
+                  <button
+                    key={column.key}
+                    onClick={() => toggleColumn(column.key)}
+                    className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${
+                      shows(column.key)
+                        ? 'bg-sky-600 text-white border-sky-500'
+                        : isLight
+                        ? 'bg-white text-slate-400 border-slate-300 line-through'
+                        : 'bg-slate-900 text-slate-500 border-slate-700 line-through'
+                    }`}
+                  >
+                    {column.label}
+                  </button>
+                ))}
+              </div>
+              <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Shot number and name always show. Column choices are remembered on this device only.
+              </p>
+            </div>
+
+            {(filterCamera !== 'all' || filterStatus !== 'all' || hiddenColumns.size > 0) && (
+              <button
+                onClick={() => {
+                  setFilterCamera('all');
+                  setFilterStatus('all');
+                  setHiddenColumns(new Set());
+                  try {
+                    localStorage.removeItem(SHOT_COLUMNS_KEY);
+                  } catch {
+                    // nothing to clear
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold ${
+                  isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+                }`}
+              >
+                Reset filters &amp; columns
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* 3. Main Content: Cards View or Table List View */}
       <div
         ref={shotListContainerRef}
         onDragOver={handleDragOverEnd}
@@ -1035,13 +1201,13 @@ export const ShotListPanel: React.FC = () => {
                   {showStoryboards && <th className="py-2.5 px-2 w-12">Story</th>}
                   <th className="py-2.5 px-2 w-14">Shot #</th>
                   <th className="py-2.5 px-2">Shot Name / Action</th>
-                  <th className="py-2.5 px-2 w-24">Cam</th>
-                  <th className="py-2.5 px-2 w-16">Size</th>
-                  <th className="py-2.5 px-2 w-16">Lens</th>
-                  <th className="py-2.5 px-2 w-20">Move</th>
-                  <th className="py-2.5 px-2 w-20">Angle</th>
-                  <th className="py-2.5 px-2 w-16 text-center">Takes</th>
-                  <th className="py-2.5 px-2 w-20">Status</th>
+                  {shows('cam') && <th className="py-2.5 px-2 w-24">Cam</th>}
+                  {shows('size') && <th className="py-2.5 px-2 w-16">Size</th>}
+                  {shows('lens') && <th className="py-2.5 px-2 w-16">Lens</th>}
+                  {shows('move') && <th className="py-2.5 px-2 w-20">Move</th>}
+                  {shows('angle') && <th className="py-2.5 px-2 w-20">Angle</th>}
+                  {shows('takes') && <th className="py-2.5 px-2 w-16 text-center">Takes</th>}
+                  {shows('status') && <th className="py-2.5 px-2 w-20">Status</th>}
                   <th className="py-2.5 px-2 w-16 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1153,123 +1319,137 @@ export const ShotListPanel: React.FC = () => {
                       </td>
 
                       {/* Camera Combobox */}
-                      <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
+                      {shows('cam') && (
+                        <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <CamPicker
-                          isLight={isLight}
-                          value={camPickerValue(shot)}
-                          options={camPickerOptions}
-                          nextLetter={nextCameraLetter}
-                          onPick={(id) => pickCamera(shot, id)}
+                        isLight={isLight}
+                        value={camPickerValue(shot)}
+                        options={camPickerOptions}
+                        nextLetter={nextCameraLetter}
+                        onPick={(id) => pickCamera(shot, id)}
                         />
-                      </td>
+                        </td>
+                      )}
 
                       {/* Shot Size */}
-                      <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
+                      {shows('size') && (
+                        <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={shot.shotSize}
-                          onChange={(e) => updateShot(shot.id, { shotSize: e.target.value as ShotSize })}
-                          className={`w-full text-[10px] font-bold py-0.5 px-1 rounded border ${
-                            isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
-                          }`}
+                        value={shot.shotSize}
+                        onChange={(e) => updateShot(shot.id, { shotSize: e.target.value as ShotSize })}
+                        className={`w-full text-[10px] font-bold py-0.5 px-1 rounded border ${
+                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        }`}
                         >
-                          {SHOT_SIZES.map((sz) => (
-                            <option key={sz.value} value={sz.value}>
-                              {sz.code}
-                            </option>
-                          ))}
+                        {SHOT_SIZES.map((sz) => (
+                        <option key={sz.value} value={sz.value}>
+                        {sz.code}
+                        </option>
+                        ))}
                         </select>
-                      </td>
+                        </td>
+                      )}
 
                       {/* Lens */}
-                      <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
+                      {shows('lens') && (
+                        <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={shot.lensMm}
-                          onChange={(e) => updateShot(shot.id, { lensMm: Number(e.target.value) })}
-                          className={`w-full text-[10px] font-mono py-0.5 px-1 rounded border ${
-                            isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
-                          }`}
+                        value={shot.lensMm}
+                        onChange={(e) => updateShot(shot.id, { lensMm: Number(e.target.value) })}
+                        className={`w-full text-[10px] font-mono py-0.5 px-1 rounded border ${
+                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        }`}
                         >
-                          {[14, 18, 24, 28, 35, 50, 75, 85, 105, 135, 200].map((mm) => (
-                            <option key={mm} value={mm}>
-                              {mm}mm
-                            </option>
-                          ))}
+                        {[14, 18, 24, 28, 35, 50, 75, 85, 105, 135, 200].map((mm) => (
+                        <option key={mm} value={mm}>
+                        {mm}mm
+                        </option>
+                        ))}
                         </select>
-                      </td>
+                        </td>
+                      )}
 
                       {/* Movement */}
-                      <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
+                      {shows('move') && (
+                        <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={effectiveMovement(shot, linkedCamera)}
-                          onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
-                          title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
-                          className={`w-full text-[10px] py-0.5 px-1 rounded border ${
-                            isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
-                          }`}
+                        value={effectiveMovement(shot, linkedCamera)}
+                        onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
+                        title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
+                        className={`w-full text-[10px] py-0.5 px-1 rounded border ${
+                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        }`}
                         >
-                          {CAMERA_MOVEMENTS.map((m) => (
-                            <option key={m.value} value={m.value} disabled={m.value === 'Static' && hasCameraMove(linkedCamera)}>
-                              {m.label}
-                            </option>
-                          ))}
+                        {CAMERA_MOVEMENTS.map((m) => (
+                        <option key={m.value} value={m.value} disabled={m.value === 'Static' && hasCameraMove(linkedCamera)}>
+                        {m.label}
+                        </option>
+                        ))}
                         </select>
-                      </td>
+                        </td>
+                      )}
 
                       {/* Angle */}
-                      <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
+                      {shows('angle') && (
+                        <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={shot.cameraAngle || 'Eye Level'}
-                          onChange={(e) => updateShot(shot.id, { cameraAngle: e.target.value as any })}
-                          className={`w-full text-[10px] py-0.5 px-1 rounded border ${
-                            isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
-                          }`}
+                        value={shot.cameraAngle || 'Eye Level'}
+                        onChange={(e) => updateShot(shot.id, { cameraAngle: e.target.value as any })}
+                        className={`w-full text-[10px] py-0.5 px-1 rounded border ${
+                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        }`}
                         >
-                          {['Eye Level', 'Low Angle', 'High Angle', 'Ground', 'Knee', 'Waist', 'High', "Bird's Eye", "Worm's Eye", 'Dutch Angle'].map((a) => (
-                            <option key={a} value={a}>
-                              {a}
-                            </option>
-                          ))}
+                        {['Eye Level', 'Low Angle', 'High Angle', 'Ground', 'Knee', 'Waist', 'High', "Bird's Eye", "Worm's Eye", 'Dutch Angle'].map((a) => (
+                        <option key={a} value={a}>
+                        {a}
+                        </option>
+                        ))}
                         </select>
-                      </td>
+                        </td>
+                      )}
 
                       {/* Takes */}
-                      <td className="py-2 px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                      {shows('takes') && (
+                        <td className="py-2 px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1 font-mono text-xs font-bold text-sky-500">
-                          <button
-                            onClick={() => updateShot(shot.id, { takesCount: Math.max(0, (shot.takesCount || 0) - 1) })}
-                            className="px-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                          >
-                            -
-                          </button>
-                          <span>{shot.takesCount || 0}</span>
-                          <button
-                            onClick={() => updateShot(shot.id, { takesCount: (shot.takesCount || 0) + 1 })}
-                            className="px-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                          >
-                            +
-                          </button>
+                        <button
+                        onClick={() => updateShot(shot.id, { takesCount: Math.max(0, (shot.takesCount || 0) - 1) })}
+                        className="px-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        >
+                        -
+                        </button>
+                        <span>{shot.takesCount || 0}</span>
+                        <button
+                        onClick={() => updateShot(shot.id, { takesCount: (shot.takesCount || 0) + 1 })}
+                        className="px-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        >
+                        +
+                        </button>
                         </div>
-                      </td>
+                        </td>
+                      )}
 
                       {/* Status */}
-                      <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
+                      {shows('status') && (
+                        <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={shot.status}
-                          onChange={(e) => updateShot(shot.id, { status: e.target.value as ShotStatus })}
-                          className={`w-full text-[10px] font-bold py-0.5 px-1 rounded border ${
-                            shot.status === 'taken'
-                              ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/40'
-                              : shot.status === 'ready'
-                              ? 'bg-sky-500/15 text-sky-600 border-sky-500/40'
-                              : isLight ? 'bg-white text-slate-700 border-slate-300' : 'bg-slate-950 text-slate-300 border-slate-700'
-                          }`}
+                        value={shot.status}
+                        onChange={(e) => updateShot(shot.id, { status: e.target.value as ShotStatus })}
+                        className={`w-full text-[10px] font-bold py-0.5 px-1 rounded border ${
+                        shot.status === 'taken'
+                        ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/40'
+                        : shot.status === 'ready'
+                        ? 'bg-sky-500/15 text-sky-600 border-sky-500/40'
+                        : isLight ? 'bg-white text-slate-700 border-slate-300' : 'bg-slate-950 text-slate-300 border-slate-700'
+                        }`}
                         >
-                          <option value="planned">Planned</option>
-                          <option value="ready">Ready</option>
-                          <option value="taken">Done</option>
-                          <option value="omitted">Omit</option>
+                        <option value="planned">Planned</option>
+                        <option value="ready">Ready</option>
+                        <option value="taken">Done</option>
+                        <option value="omitted">Omit</option>
                         </select>
-                      </td>
+                        </td>
+                      )}
 
                       {/* Actions */}
                       <td className="py-2 px-2 text-right" onClick={(e) => e.stopPropagation()}>
