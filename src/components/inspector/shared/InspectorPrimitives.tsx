@@ -566,3 +566,15 @@ export const WaypointListEditor: React.FC<{
     </div>
   );
 };
+
+/**
+ * The inspector's standard `<select>` class string.
+ *
+ * Lived as a local in `InspectorPanel` until the twelve element inspectors were
+ * split out of it, at which point four of them needed the same string. One
+ * definition rather than four that drift apart.
+ */
+export const inspectorSelectClass = (isLight: boolean): string =>
+  `w-full border rounded px-1.5 py-1 text-[11px] ${
+    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+  }`;
