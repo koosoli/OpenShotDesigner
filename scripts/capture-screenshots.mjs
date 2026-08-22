@@ -282,6 +282,44 @@ const SHOTS = [
     })()`,
   },
   {
+    slug: 'sun',
+    title: 'Sun & time of day on the plan',
+    prepare: `(async () => {
+      const inspector = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Inspector');
+      if (inspector) inspector.click();
+      await new Promise(r => setTimeout(r, 500));
+
+      // The location picker lives in a collapsed section; open it first.
+      const locationSection = [...document.querySelectorAll('button')].find(b => /^LOCATION$/i.test(b.innerText.trim()));
+      if (locationSection) locationSection.click();
+      await new Promise(r => setTimeout(r, 400));
+
+      // Link the scene to a location that has a map pin.
+      const locationSelect = [...document.querySelectorAll('select')]
+        .find(s => [...s.options].some(o => o.text.includes('Riverside Diner')));
+      if (locationSelect) {
+        const option = [...locationSelect.options].find(o => o.text.includes('Riverside Diner'));
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+        setter.call(locationSelect, option.value);
+        locationSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise(r => setTimeout(r, 600));
+      }
+
+      // Open the sun section and switch the overlay on.
+      const section = [...document.querySelectorAll('button')].find(b => /SUN & TIME OF DAY/i.test(b.innerText));
+      if (section) section.click();
+      await new Promise(r => setTimeout(r, 400));
+      const toggle = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Off');
+      if (toggle) toggle.click();
+      await new Promise(r => setTimeout(r, 700));
+      // Bring the sun controls into view next to the plan they drive.
+      const heading = [...document.querySelectorAll('button')].find(b => /SUN & TIME OF DAY/i.test(b.innerText));
+      if (heading) heading.scrollIntoView({ block: 'center' });
+      await new Promise(r => setTimeout(r, 500));
+      return 'ok';
+    })()`,
+  },
+  {
     slug: 'call-sheet-print',
     title: 'Printed call sheet',
     // Mounts the hidden print document and captures it under print media, so

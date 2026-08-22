@@ -719,6 +719,25 @@ export interface ScriptMark {
   wavyEndOffset?: number;
 }
 
+/**
+ * Sun planning for an exterior (plan §37). All optional and absent-safe: a
+ * project that never opens the sun tools is unaffected.
+ */
+export interface SunSettings {
+  /** Draw the sun/compass overlay on the plan. */
+  enabled?: boolean;
+  /**
+   * Where true north points on this plan, clockwise from screen-up. A floor
+   * plan is drawn to fit the page, not to point north, so this is explicit
+   * rather than assumed.
+   */
+  planNorthDeg?: number;
+  /** ISO date being planned (YYYY-MM-DD); absent = the project date. */
+  date?: string;
+  /** Local time of day in minutes past midnight; absent = 12:00. */
+  timeMinutes?: number;
+}
+
 export interface GridSettings {
   size: number; // in pixels (e.g. 40px = 1 meter or 2.5 ft)
   snap: boolean;
@@ -838,6 +857,8 @@ export interface SceneSetup {
   shootMode?: 'single_cam' | 'multi_cam'; // single_cam (default: Cam A across shots) vs multi_cam (Cam A, B, C concurrent)
   aspectRatio?: AspectRatio; // project / storyboard aspect ratio for this scene
   gridSettings: GridSettings;
+  /** Sun/compass planning for this scene; absent = never configured. */
+  sunSettings?: SunSettings;
   canvasScale: number;
   canvasOffset: Vector2D;
 }

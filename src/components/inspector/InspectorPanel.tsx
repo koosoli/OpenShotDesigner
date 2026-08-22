@@ -167,6 +167,7 @@ function getElementBounds(el: FloorPlanElement): Bounds {
 
 /** Compact on/off pill used in the Display & Labels panel */
 import { LightInspector } from './elements/LightInspector';
+import { compassPoint, formatSunTime, sunPosition, sunTimes } from '../../domain/sun';
 import {
   ColorField,
   PillToggle,
@@ -212,6 +213,53 @@ export const InspectorPanel: React.FC = () => {
     startBackgroundCalibration,
     cancelBackgroundCalibration,
   } = useFloorPlan();
+
+  /**
+   * Sun planning for this scene (plan §37). Everything derives from the linked
+   * location's pin; with no pin there is nothing to compute and the section
+   * says so instead of guessing coordinates.
+   */
+  const sunLocation = React.useMemo(() => {
+    const location = (project.locations ?? []).find((l) => l.id === activeSetup.locationId);
+    return location?.lat !== undefined && location?.lng !== undefined ? location : null;
+  }, [project.locations, activeSetup.locationId]);
+
+  const sunMoment = React.useMemo(() => {
+    const iso = activeSetup.sunSettings?.date || project.date;
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
+    if (!parts) return null;
+    const minutes = activeSetup.sunSettings?.timeMinutes ?? 720;
+    return new Date(
+      Number(parts[1]),
+      Number(parts[2]) - 1,
+      Number(parts[3]),
+      Math.floor(minutes / 60),
+      minutes % 60,
+    );
+  }, [activeSetup.sunSettings?.date, activeSetup.sunSettings?.timeMinutes, project.date]);
+
+  const sunDayTimes = React.useMemo(
+    () =>
+      sunLocation && sunMoment
+        ? sunTimes({ lat: sunLocation.lat!, lng: sunLocation.lng!, date: sunMoment })
+        : null,
+    [sunLocation, sunMoment],
+  );
+
+  const sunReadout = React.useMemo(() => {
+    if (!sunLocation || !sunMoment) return null;
+    const sun = sunPosition({ lat: sunLocation.lat!, lng: sunLocation.lng!, date: sunMoment });
+    return sun.elevationDeg > 0
+      ? `${compassPoint(sun.azimuthDeg)} ${Math.round(sun.elevationDeg)}°`
+      : 'below horizon';
+  }, [sunLocation, sunMoment]);
+
+  const patchSunSettings = (updates: Partial<NonNullable<SceneSetup['sunSettings']>>) =>
+    updateSetupMeta({ sunSettings: { ...(activeSetup.sunSettings ?? {}), ...updates } });
+
+  /** "07:30" from minutes past midnight. */
+  const formatMinutesOfDay = (minutes: number): string =>
+    `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
   const isLight = theme === 'light';
   // Shared styling for the camera exposure dropdowns
@@ -1027,6 +1075,126 @@ export const InspectorPanel: React.FC = () => {
           </RubricSection>
 
           {/* Rubric 3: Display & Labels */}
+          {/* Sun & time of day (plan §37). Needs the scene's location pin;
+              without one there is nothing to compute from and we say so
+              rather than guessing a position. */}
+          <RubricSection
+            title="Sun & Time of Day"
+            icon={<Sun className="w-3.5 h-3.5 text-amber-500" />}
+            badge={
+              sunReadout ? (
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold">
+                  {sunReadout}
+                </span>
+              ) : undefined
+            }
+            defaultOpen={false}
+            isLight={isLight}
+          >
+            {!sunLocation ? (
+              <p className="text-[10px] opacity-60 leading-snug">
+                Link this scene to a location and drop its map pin (Locations tab) to plan the
+                sun. Coordinates are never guessed.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="opacity-60">Show sun &amp; compass on the plan</span>
+                  <PillToggle
+                    on={!!activeSetup.sunSettings?.enabled}
+                    onClick={() =>
+                      patchSunSettings({ enabled: !activeSetup.sunSettings?.enabled })
+                    }
+                    label={activeSetup.sunSettings?.enabled ? 'On' : 'Off'}
+                    isLight={isLight}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="opacity-60 block mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={activeSetup.sunSettings?.date ?? project.date ?? ''}
+                      onChange={(e) => patchSunSettings({ date: e.target.value || undefined })}
+                      className={`w-full border rounded p-1.5 text-xs ${
+                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="opacity-60 block mb-1">
+                      Time — {formatMinutesOfDay(activeSetup.sunSettings?.timeMinutes ?? 720)}
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1439}
+                      step={5}
+                      value={activeSetup.sunSettings?.timeMinutes ?? 720}
+                      onChange={(e) => patchSunSettings({ timeMinutes: Number(e.target.value) })}
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="opacity-60 block mb-1">
+                    Plan north — {Math.round(activeSetup.sunSettings?.planNorthDeg ?? 0)}° from screen-up
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={359}
+                    step={1}
+                    value={Math.round(activeSetup.sunSettings?.planNorthDeg ?? 0)}
+                    onChange={(e) => patchSunSettings({ planNorthDeg: Number(e.target.value) })}
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                  <p className="opacity-50 text-[9px] mt-0.5">
+                    A floor plan is drawn to fit the page, so tell it which way north actually points.
+                  </p>
+                </div>
+
+                {sunDayTimes && (
+                  <div
+                    className={`text-[10px] rounded-lg border p-2.5 space-y-0.5 leading-relaxed ${
+                      isLight ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-amber-950/30 text-amber-100 border-amber-900/60'
+                    }`}
+                  >
+                    {sunDayTimes.polarNight ? (
+                      <p>The sun does not rise on this date at this latitude.</p>
+                    ) : sunDayTimes.midnightSun ? (
+                      <p>The sun does not set on this date at this latitude.</p>
+                    ) : (
+                      <>
+                        <p>
+                          Sunrise <strong>{formatSunTime(sunDayTimes.sunrise)}</strong> · Solar noon{' '}
+                          <strong>{formatSunTime(sunDayTimes.solarNoon)}</strong> · Sunset{' '}
+                          <strong>{formatSunTime(sunDayTimes.sunset)}</strong>
+                        </p>
+                        <p className="opacity-80">
+                          Golden hour {formatSunTime(sunDayTimes.sunrise)}–
+                          {formatSunTime(sunDayTimes.goldenHourMorningEnd)} and{' '}
+                          {formatSunTime(sunDayTimes.goldenHourEveningStart)}–
+                          {formatSunTime(sunDayTimes.sunset)}
+                        </p>
+                        <p className="opacity-80">
+                          Civil twilight from {formatSunTime(sunDayTimes.civilDawn)} to{' '}
+                          {formatSunTime(sunDayTimes.civilDusk)}
+                        </p>
+                      </>
+                    )}
+                    <p className="opacity-70 pt-1">
+                      Calculated for {sunLocation.name}. Planning aid — check the site for what
+                      actually blocks the light.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </RubricSection>
+
           <RubricSection
             title="Display & Labels"
             icon={<Tags className="w-3.5 h-3.5 text-violet-500" />}

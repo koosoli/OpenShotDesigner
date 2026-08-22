@@ -48,6 +48,8 @@ import { calibrateBackgroundImage } from '../../domain/plan';
 import { createId } from '../../domain/ids';
 import { CableLayer } from './CableLayer';
 import { RoadLayer } from './RoadLayer';
+import { SunOverlay } from './SunOverlay';
+import { sunPosition } from '../../domain/sun';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
@@ -88,6 +90,7 @@ interface DragState {
 export const FloorPlanCanvas: React.FC = () => {
   const {
     activeSetup,
+    project,
     selectedElementIds,
     selectedShotId,
     highlightedElementId,
@@ -569,6 +572,35 @@ export const FloorPlanCanvas: React.FC = () => {
           }
           return merged as unknown as FloorPlanElement;
         });
+
+  /**
+   * Sun for this scene (plan §37): the linked location's map pin, on the date
+   * and time being planned. Absent whenever the scene has no location, the
+   * location has no pin, or the overlay is switched off — a sun position is
+   * never invented from a guess at where the shoot is.
+   */
+  const sunSettings = activeSetup.sunSettings;
+  const sunView = useMemo(() => {
+    if (!sunSettings?.enabled) return null;
+    const location = (project.locations ?? []).find((entry) => entry.id === activeSetup.locationId);
+    if (location?.lat === undefined || location?.lng === undefined) return null;
+
+    const isoDate = sunSettings.date || project.date;
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate ?? '');
+    if (!parts) return null;
+    const minutes = sunSettings.timeMinutes ?? 12 * 60;
+    const when = new Date(
+      Number(parts[1]),
+      Number(parts[2]) - 1,
+      Number(parts[3]),
+      Math.floor(minutes / 60),
+      minutes % 60,
+    );
+    return {
+      sun: sunPosition({ lat: location.lat, lng: location.lng, date: when }),
+      planNorthDeg: sunSettings.planNorthDeg ?? 0,
+    };
+  }, [sunSettings, project.locations, project.date, activeSetup.locationId]);
 
   const walls = renderedElements.filter((e) => e.type === 'wall') as WallElement[];
   const doors = renderedElements.filter((e) => e.type === 'door') as DoorElement[];
@@ -2530,6 +2562,16 @@ export const FloorPlanCanvas: React.FC = () => {
             canvasScale={canvasScale}
             showHiddenGhosts
           />
+
+          {sunView && (
+            <SunOverlay
+              sun={sunView.sun}
+              planNorthDeg={sunView.planNorthDeg}
+              center={{ x: 120, y: 120 }}
+              radius={78}
+              isLight={theme === 'light'}
+            />
+          )}
 
           {/* Streets sit under everything else on the plan: on an exterior the
               road is the ground, not an annotation on top of it. */}
