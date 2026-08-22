@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { FloorPlanProvider, useFloorPlan } from './context/FloorPlanContext';
 import { TopNavbar } from './components/toolbar/TopNavbar';
 import { LeftToolbar } from './components/toolbar/LeftToolbar';
@@ -8,20 +8,63 @@ import { ShotListPanel } from './components/shotlist/ShotListPanel';
 import { StoryboardPanel } from './components/storyboard/StoryboardPanel';
 import { ScriptPanel } from './components/script/ScriptPanel';
 import { InspectorPanel } from './components/inspector/InspectorPanel';
-import { ViewfinderModal } from './components/viewfinder/ViewfinderModal';
-import { PrintableShotPlan } from './components/export/PrintableShotPlan';
 import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
-import { EquipmentPanel } from './components/equipment/EquipmentPanel';
-import { SchedulePanel } from './components/schedule/SchedulePanel';
-import { MoodBoardPanel } from './components/moodboard/MoodBoardPanel';
-import { LocationsPanel } from './components/locations/LocationsPanel';
-import { PowerPanel } from './components/power/PowerPanel';
-import { LogisticsPanel } from './components/logistics/LogisticsPanel';
-import { RunOfShowPanel } from './components/runofshow/RunOfShowPanel';
-import { RiggingPanel } from './components/rigging/RiggingPanel';
-import { ContactsPanel } from './components/contacts/ContactsPanel';
 import { ensureBundledFixtureSnapshot } from './domain/fixtures';
-import { TaskBoardPanel } from './components/tasks/TaskBoardPanel';
+
+/**
+ * Code-split surfaces (plan §5.3 first-load budget).
+ *
+ * None of these is on the first-paint path: the export studio and the
+ * viewfinder are modals, and every production/technical panel is behind a tab
+ * the user has to choose. Loading them eagerly put the print stack (a dozen
+ * report views), the camera stack and nine panels into the entry chunk that
+ * everyone downloads before they can see their floor plan.
+ *
+ * Each is rendered inside <Suspense> with a quiet fallback, and the modals are
+ * additionally gated on their open flag so the chunk is not even requested
+ * until the user opens them.
+ */
+const ViewfinderModal = React.lazy(() =>
+  import('./components/viewfinder/ViewfinderModal').then((m) => ({ default: m.ViewfinderModal })),
+);
+const PrintableShotPlan = React.lazy(() =>
+  import('./components/export/PrintableShotPlan').then((m) => ({ default: m.PrintableShotPlan })),
+);
+const EquipmentPanel = React.lazy(() =>
+  import('./components/equipment/EquipmentPanel').then((m) => ({ default: m.EquipmentPanel })),
+);
+const SchedulePanel = React.lazy(() =>
+  import('./components/schedule/SchedulePanel').then((m) => ({ default: m.SchedulePanel })),
+);
+const MoodBoardPanel = React.lazy(() =>
+  import('./components/moodboard/MoodBoardPanel').then((m) => ({ default: m.MoodBoardPanel })),
+);
+const LocationsPanel = React.lazy(() =>
+  import('./components/locations/LocationsPanel').then((m) => ({ default: m.LocationsPanel })),
+);
+const PowerPanel = React.lazy(() =>
+  import('./components/power/PowerPanel').then((m) => ({ default: m.PowerPanel })),
+);
+const LogisticsPanel = React.lazy(() =>
+  import('./components/logistics/LogisticsPanel').then((m) => ({ default: m.LogisticsPanel })),
+);
+const RunOfShowPanel = React.lazy(() =>
+  import('./components/runofshow/RunOfShowPanel').then((m) => ({ default: m.RunOfShowPanel })),
+);
+const RiggingPanel = React.lazy(() =>
+  import('./components/rigging/RiggingPanel').then((m) => ({ default: m.RiggingPanel })),
+);
+const ContactsPanel = React.lazy(() =>
+  import('./components/contacts/ContactsPanel').then((m) => ({ default: m.ContactsPanel })),
+);
+const TaskBoardPanel = React.lazy(() =>
+  import('./components/tasks/TaskBoardPanel').then((m) => ({ default: m.TaskBoardPanel })),
+);
+
+/** Quiet placeholder while a panel chunk arrives; never a layout jump. */
+const PanelFallback: React.FC = () => (
+  <div className="h-full flex items-center justify-center text-xs opacity-50">Loading…</div>
+);
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { useBreakpoint } from './utils/useMediaQuery';
 import { AlertTriangle, Zap, Package, ListOrdered, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, KanbanSquare, MapPin, Maximize2, Minimize2, Users } from 'lucide-react';
@@ -32,7 +75,7 @@ type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedu
 type WorkspaceGroup = 'creative' | 'production' | 'technical';
 
 const MainLayout: React.FC = () => {
-  const { project, activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning, isModuleVisible } = useFloorPlan();
+  const { project, activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning, isModuleVisible, isViewfinderOpen, isExportModalOpen } = useFloorPlan();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   // Pull the bundled fixture snapshot in after first paint. It is a dynamic
@@ -318,8 +361,11 @@ const MainLayout: React.FC = () => {
               </div>
             </div>
 
-            {/* Tab Content */}
+            {/* Tab Content. One Suspense boundary around the whole switch: only
+                one panel is mounted at a time, and a per-panel boundary would
+                just repeat the same fallback. */}
             <div className="flex-1 overflow-hidden">
+              <Suspense fallback={<PanelFallback />}>
               {activeRightTab === 'shots' ? (
                 <ShotListPanel />
               ) : activeRightTab === 'storyboard' ? (
@@ -349,6 +395,7 @@ const MainLayout: React.FC = () => {
               ) : (
                 <InspectorPanel />
               )}
+              </Suspense>
             </div>
           </aside>
         ) : (
@@ -376,9 +423,17 @@ const MainLayout: React.FC = () => {
         )}
       </div>
 
-      {/* 3. Modals */}
-      <ViewfinderModal />
-      <PrintableShotPlan />
+      {/* 3. Modals — gated so their chunks load on first open, not on boot. */}
+      {isViewfinderOpen && (
+        <Suspense fallback={null}>
+          <ViewfinderModal />
+        </Suspense>
+      )}
+      {isExportModalOpen && (
+        <Suspense fallback={null}>
+          <PrintableShotPlan />
+        </Suspense>
+      )}
       <QuickAssetSearch />
       <ProjectDashboard />
     </div>
