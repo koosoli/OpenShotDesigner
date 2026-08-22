@@ -18,9 +18,24 @@ export interface ProductionDay {
   /** Explicit day-specific call-sheet details; canonical schedule data stays derived. */
   callSheet?: {
     type?: 'shoot' | 'rehearsal' | 'scout' | 'event';
+    /**
+     * Day-level overrides of the production's standing content. Blank means
+     * "inherit"; a day with genuinely no walkie plan says so in words rather
+     * than by being empty, so one stored value never carries two meanings.
+     */
+    walkieChannels?: string;
+    unitBase?: string;
     parking?: string;
     nearestHospital?: string;
     weatherSummary?: string;
+    /**
+     * Explicit sunrise / sunset for the day. Absent means "use the calculated
+     * time for the location pin"; present wins, because a production may work
+     * to its own published times or to a ridge line no ephemeris knows about
+     * (rule 37). Free text, stored exactly as entered.
+     */
+    sunriseOverride?: string;
+    sunsetOverride?: string;
     safetyNotes?: string;
     generalNotes?: string;
     /** Transport arrangements for the day as free text (shuttles, drivers). */

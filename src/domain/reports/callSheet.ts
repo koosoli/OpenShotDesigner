@@ -6,6 +6,12 @@
  */
 
 import { callSheetPhone } from '../people';
+import { deriveDaylight } from './callSheetSun';
+import type { CallSheetDaylight } from './callSheetSun';
+import { deriveDepartmentHeads } from './departmentHeads';
+import { resolveStandingCallSheet } from './standingCallSheet';
+import type { StandingCallSheet } from './standingCallSheet';
+import type { CallSheetDepartmentHead } from './departmentHeads';
 import type { Person } from '../people';
 import type { ProductionDay, ScheduleBlock } from '../scheduling';
 
@@ -91,8 +97,14 @@ export interface CallSheetData {
   plannedWrap?: string;
   type: NonNullable<ProductionDay['callSheet']>['type'];
   parking?: string;
+  /** Walkie plan, inherited from the production unless the day overrides it. */
+  walkieChannels?: string;
+  /** Where the unit is based, same inheritance. */
+  unitBase?: string;
   nearestHospital?: string;
   weatherSummary?: string;
+  /** Sunrise / sunset for the day: calculated from the location, override wins. */
+  daylight: CallSheetDaylight;
   safetyNotes?: string;
   generalNotes?: string;
   /** Free-text transport arrangements for the day. */
@@ -107,6 +119,11 @@ export interface CallSheetData {
   schedule: CallSheetEntry[];
   cast: CallSheetPerson[];
   crew: CallSheetPerson[];
+  /**
+   * Heads of department by role, so the sheet can be read by "who do I ring
+   * about this" rather than by name. Derived from the crew list (rule 37).
+   */
+  departmentHeads: CallSheetDepartmentHead[];
   totalEstimatedMinutes: number | null;
   warnings: string[];
   /** Present when a following shooting day exists. */
@@ -134,6 +151,8 @@ export interface DeriveCallSheetInput {
   productionCompany?: string;
   productionCompanyInfo?: CallSheetCompanyInfo;
   productionLogo?: string;
+  /** Production-level content every day inherits unless it overrides a field. */
+  standingCallSheet?: StandingCallSheet;
   people?: Person[];
   /** When supplied, only these cast/talent people are called for the day. */
   castPersonIds?: string[];
@@ -192,6 +211,10 @@ const formatClockMinutes = (total: number): string => {
 export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   const { day, blocks, productionTitle, productionCompany, productionCompanyInfo, productionLogo, people = [], locations = [] } = input;
   const warnings: string[] = [];
+
+  // Standing content resolves before anything reads it, so the warnings below
+  // and the printed sheet agree about what the day actually says.
+  const standing = resolveStandingCallSheet(input.standingCallSheet, day.callSheet);
 
   const scheduled = day.scheduleBlockIds
     .map((id) => blocks.find((b) => b.id === id))
@@ -295,7 +318,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   if (!day.crewCall) warnings.push('Crew call is not set.');
   if (schedule.length === 0) warnings.push('The shooting-day schedule is empty.');
   if (resolvedLocations.length === 0) warnings.push('No shooting location is linked to this day.');
-  if (!day.callSheet?.nearestHospital) warnings.push('Nearest hospital / emergency facility is not set.');
+  if (!standing.nearestHospital.value) warnings.push('Nearest hospital / emergency facility is not set.');
 
   let lookAhead: CallSheetLookAhead | undefined;
   if (input.nextDay) {
@@ -327,11 +350,13 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     crewCall: day.crewCall,
     plannedWrap: day.plannedWrap,
     type: day.callSheet?.type ?? 'shoot',
-    parking: day.callSheet?.parking,
-    nearestHospital: day.callSheet?.nearestHospital,
+    parking: standing.parking.value,
+    walkieChannels: standing.walkieChannels.value,
+    unitBase: standing.unitBase.value,
+    nearestHospital: standing.nearestHospital.value,
     weatherSummary: day.callSheet?.weatherSummary,
-    safetyNotes: day.callSheet?.safetyNotes,
-    generalNotes: day.callSheet?.generalNotes,
+    safetyNotes: standing.safetyNotes.value,
+    generalNotes: standing.generalNotes.value,
     pickupNotes: day.callSheet?.pickupNotes,
     pickups: (day.callSheet?.pickups ?? []).map((pickup) => {
       const person = people.find((candidate) => candidate.id === pickup.personId);
@@ -349,6 +374,16 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     schedule,
     cast,
     crew,
+    departmentHeads: deriveDepartmentHeads(people),
+    // The first pinned location is the one the unit works to; a day that moves
+    // between pins still has one sunset, and it is the one where they are.
+    daylight: deriveDaylight({
+      date: day.date,
+      lat: resolvedLocations.find((location) => typeof location.lat === 'number')?.lat,
+      lng: resolvedLocations.find((location) => typeof location.lng === 'number')?.lng,
+      sunriseOverride: day.callSheet?.sunriseOverride,
+      sunsetOverride: day.callSheet?.sunsetOverride,
+    }),
     totalEstimatedMinutes,
     warnings,
     ...(lookAhead ? { lookAhead } : {}),

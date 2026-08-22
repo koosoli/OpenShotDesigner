@@ -314,6 +314,7 @@ export const SchedulePanel: React.FC = () => {
       productionCompany: project.productionCompany,
       productionCompanyInfo: project.productionCompanyInfo,
       productionLogo: project.logo,
+      standingCallSheet: project.standingCallSheet,
       people: project.people ?? [],
       castPersonIds,
       locations,

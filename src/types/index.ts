@@ -934,6 +934,13 @@ export interface Project {
    * Optional and absent-safe; the canonical single source (plan rule 37) —
    * reports derive from it instead of storing hidden copies.
    */
+  /**
+   * Call-sheet content that belongs to the production rather than to one day —
+   * walkie channels, unit base, the standing safety policy. Every day inherits
+   * these live and may override any single field; only the override is stored,
+   * so changing a channel here changes every sheet that has not overridden it.
+   */
+  standingCallSheet?: import('../domain/reports').StandingCallSheet;
   productionCompanyInfo?: {
     address?: string;
     phone?: string;

@@ -154,9 +154,31 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         <div className="cs-strip">
           <div><b>Planned wrap</b>{sheet.plannedWrap ?? '—'}</div>
           <div><b>Weather</b>{sheet.weatherSummary ?? '—'}</div>
+          {/* Marked when typed, so a corrected time is never mistaken for an
+              astronomical one — and vice versa. */}
+          <div>
+            <b>Sunrise</b>
+            {sheet.daylight.sunrise ?? '—'}
+            {sheet.daylight.sunriseOrigin === 'override' && (
+              <span style={{ fontSize: '7px', marginLeft: '2px', color: '#475569' }}>set</span>
+            )}
+          </div>
+          <div>
+            <b>Sunset</b>
+            {sheet.daylight.sunset ?? '—'}
+            {sheet.daylight.sunsetOrigin === 'override' && (
+              <span style={{ fontSize: '7px', marginLeft: '2px', color: '#475569' }}>set</span>
+            )}
+          </div>
           <div><b>Parking / access</b>{sheet.parking ?? '—'}</div>
+          {sheet.unitBase && <div><b>Unit base</b>{sheet.unitBase}</div>}
+          {sheet.walkieChannels && <div><b>Walkies</b>{sheet.walkieChannels}</div>}
           <div><b>Nearest hospital</b>{sheet.nearestHospital ?? '—'}</div>
         </div>
+
+        {sheet.daylight.note && (
+          <p style={{ fontSize: '8px', color: '#475569', margin: '0 0 2mm' }}>{sheet.daylight.note}</p>
+        )}
 
         {sheet.safetyNotes && (
           <section className="cs-safety">
@@ -246,6 +268,31 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
               <p>No cast scheduled.</p>
             )}
           </section>
+          {/* Heads first: the sheet is read by someone who needs to reach the
+              person responsible for one thing, and the crew table below is
+              sorted by name, which is only findable if you already know it. */}
+          {sheet.departmentHeads.length > 0 && (
+            <section>
+              <h2 className="cs-section-title">Heads of department</h2>
+              <table className="cs-table">
+                <thead><tr><th>Role</th><th>Name</th><th>Contact</th></tr></thead>
+                <tbody>
+                  {sheet.departmentHeads.map((head, i) => (
+                    <tr key={`hod-${i}`}>
+                      <td><strong>{head.roleLabel}</strong></td>
+                      <td>
+                        {head.displayName}
+                        {head.shared && (
+                          <span style={{ fontSize: '8px', color: '#475569' }}> · shared role</span>
+                        )}
+                      </td>
+                      <td>{joinDefined([head.phone, head.email]) || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
           <section>
             <h2 className="cs-section-title">Crew</h2>
             {sheet.crew.length > 0 ? (

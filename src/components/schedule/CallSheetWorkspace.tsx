@@ -5,7 +5,9 @@ import { loadLogoFile } from '../../utils/image';
 import { locationMapLinkUrl } from '../../domain/locations';
 import { createId } from '../../domain/ids';
 import type { ProductionDay } from '../../domain/scheduling';
-import type { CallSheetData } from '../../domain/reports';
+import type { CallSheetData, StandingCallSheetField } from '../../domain/reports';
+import { resolveStandingCallSheet } from '../../domain/reports';
+import { StandingCallSheetEditor } from './StandingCallSheetEditor';
 
 interface CallSheetWorkspaceProps {
   days: ProductionDay[];
@@ -16,6 +18,25 @@ interface CallSheetWorkspaceProps {
   onPrint: (day: ProductionDay) => void;
   isLight: boolean;
 }
+
+/**
+ * Day fields that inherit from the production's standing content. Same order
+ * and labels as the standing editor, so the two read as one setting seen from
+ * two places rather than as two unrelated forms.
+ */
+const STANDING_DAY_FIELDS: Array<{
+  key: StandingCallSheetField;
+  label: string;
+  placeholder: string;
+  rows: number;
+}> = [
+  { key: 'walkieChannels', label: 'Walkie channels', placeholder: 'Ch 1 Production · Ch 2 Camera', rows: 2 },
+  { key: 'unitBase', label: 'Unit base', placeholder: 'Trucks, catering', rows: 2 },
+  { key: 'parking', label: 'Parking & access', placeholder: 'Parking and access notes', rows: 2 },
+  { key: 'nearestHospital', label: 'Nearest hospital', placeholder: 'Facility, address, phone', rows: 2 },
+  { key: 'safetyNotes', label: 'Safety bulletin', placeholder: 'Hazards, PPE, medic, emergency plan', rows: 2 },
+  { key: 'generalNotes', label: 'General notes', placeholder: 'Department notes, special instructions', rows: 3 },
+];
 
 const formatMinutes = (value: number | null): string => {
   if (value === null) return 'Incomplete';
@@ -105,6 +126,10 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
 
   const patchCallSheet = (updates: NonNullable<ProductionDay['callSheet']>) =>
     updateDay(selectedDay.id, { callSheet: { ...selectedDay.callSheet, ...updates } });
+
+  // What this day actually shows for each inheritable field, and where it came
+  // from — the editor labels it so overriding is a visible decision.
+  const standing = resolveStandingCallSheet(project.standingCallSheet, selectedDay.callSheet);
 
   return (
     <div className="h-full min-h-0 flex overflow-hidden">
@@ -228,11 +253,78 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               <label className="text-[9px] font-bold uppercase text-slate-500">Crew call<input value={selectedDay.crewCall ?? ''} onChange={(event) => updateDay(selectedDay.id, { crewCall: event.target.value || undefined })} placeholder="07:00" className={`${fieldClass} mt-1 font-mono`} /></label>
               <label className="text-[9px] font-bold uppercase text-slate-500">Wrap<input value={selectedDay.plannedWrap ?? ''} onChange={(event) => updateDay(selectedDay.id, { plannedWrap: event.target.value || undefined })} placeholder="18:30" className={`${fieldClass} mt-1 font-mono`} /></label>
             </div>
-            <label className="text-[9px] font-bold uppercase text-slate-500 block">Weather<textarea rows={2} value={selectedDay.callSheet?.weatherSummary ?? ''} onChange={(event) => patchCallSheet({ weatherSummary: event.target.value || undefined })} placeholder="Forecast, sunrise/sunset, temperature" className={`${fieldClass} mt-1 resize-none`} /></label>
-            <label className="text-[9px] font-bold uppercase text-slate-500 block">Parking & access<textarea rows={2} value={selectedDay.callSheet?.parking ?? ''} onChange={(event) => patchCallSheet({ parking: event.target.value || undefined })} placeholder="Unit base, parking, access notes" className={`${fieldClass} mt-1 resize-none`} /></label>
-            <label className="text-[9px] font-bold uppercase text-slate-500 block">Nearest hospital<textarea rows={2} value={selectedDay.callSheet?.nearestHospital ?? ''} onChange={(event) => patchCallSheet({ nearestHospital: event.target.value || undefined })} placeholder="Facility, address, phone" className={`${fieldClass} mt-1 resize-none`} /></label>
-            <label className="text-[9px] font-bold uppercase text-slate-500 block">Safety bulletin<textarea rows={2} value={selectedDay.callSheet?.safetyNotes ?? ''} onChange={(event) => patchCallSheet({ safetyNotes: event.target.value || undefined })} placeholder="Hazards, PPE, medic, emergency plan" className={`${fieldClass} mt-1 resize-none`} /></label>
-            <label className="text-[9px] font-bold uppercase text-slate-500 block">General notes<textarea rows={3} value={selectedDay.callSheet?.generalNotes ?? ''} onChange={(event) => patchCallSheet({ generalNotes: event.target.value || undefined })} placeholder="Walkies, department notes, special instructions" className={`${fieldClass} mt-1 resize-none`} /></label>
+            {/* Sunrise / sunset are calculated from the day's location pin.
+                These two fields exist for the times a production works to
+                instead — its own published figures, or a time adjusted for a
+                ridge or a building line. Blank = use the calculation, so the
+                placeholder shows what that is (rule 37). */}
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[9px] font-bold uppercase text-slate-500">
+                Sunrise
+                <input
+                  value={selectedDay.callSheet?.sunriseOverride ?? ''}
+                  onChange={(event) => patchCallSheet({ sunriseOverride: event.target.value || undefined })}
+                  placeholder={sheet.daylight.sunriseOrigin === 'derived' ? sheet.daylight.sunrise : 'No location pin'}
+                  className={`${fieldClass} mt-1 font-mono`}
+                />
+              </label>
+              <label className="text-[9px] font-bold uppercase text-slate-500">
+                Sunset
+                <input
+                  value={selectedDay.callSheet?.sunsetOverride ?? ''}
+                  onChange={(event) => patchCallSheet({ sunsetOverride: event.target.value || undefined })}
+                  placeholder={sheet.daylight.sunsetOrigin === 'derived' ? sheet.daylight.sunset : 'No location pin'}
+                  className={`${fieldClass} mt-1 font-mono`}
+                />
+              </label>
+            </div>
+            {sheet.daylight.note && (
+              <p className="text-[9px] text-amber-600">{sheet.daylight.note}</p>
+            )}
+            <label className="text-[9px] font-bold uppercase text-slate-500 block">Weather<textarea rows={2} value={selectedDay.callSheet?.weatherSummary ?? ''} onChange={(event) => patchCallSheet({ weatherSummary: event.target.value || undefined })} placeholder="Forecast, temperature, wind" className={`${fieldClass} mt-1 resize-none`} /></label>
+            {/* These fields inherit from the production's standing content.
+                Blank means "inherit", and the placeholder shows what that is,
+                so overriding is a visible decision rather than an accident. */}
+            {STANDING_DAY_FIELDS.map((field) => (
+              <label key={field.key} className="text-[9px] font-bold uppercase text-slate-500 block">
+                <span className="flex items-center gap-1.5">
+                  {field.label}
+                  {standing[field.key].origin === 'production' && (
+                    <span className="text-[8px] font-semibold normal-case text-cyan-600">
+                      from production
+                    </span>
+                  )}
+                  {standing[field.key].origin === 'day' && (
+                    <span className="text-[8px] font-semibold normal-case text-amber-600">
+                      overridden here
+                    </span>
+                  )}
+                </span>
+                <textarea
+                  rows={field.rows}
+                  value={selectedDay.callSheet?.[field.key] ?? ''}
+                  onChange={(event) => patchCallSheet({ [field.key]: event.target.value || undefined })}
+                  placeholder={
+                    standing[field.key].origin === 'production'
+                      ? standing[field.key].value
+                      : field.placeholder
+                  }
+                  className={`${fieldClass} mt-1 resize-none`}
+                />
+              </label>
+            ))}
+
+            {/* The production-level values every day above inherits. Edited in
+                the same column so the relationship is visible, rather than on a
+                settings page nobody connects to the fields it feeds. */}
+            <details className={`rounded-lg border p-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/60'}`}>
+              <summary className="text-[9px] font-bold uppercase text-slate-500 cursor-pointer">
+                Production standing content
+              </summary>
+              <div className="mt-2">
+                <StandingCallSheetEditor fieldClass={fieldClass} />
+              </div>
+            </details>
 
             {/* Individual calls. Only the exceptions are listed: everyone else
                 works to the general crew call at the top of the sheet. */}
@@ -379,6 +471,12 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               <div className="grid grid-cols-3 gap-px mt-3 bg-slate-300 border border-slate-300 text-[10px]">
                 <div className="bg-slate-50 p-2"><b className="block uppercase text-[8px] text-slate-500">Planned wrap</b>{sheet.plannedWrap ?? '—'}</div>
                 <div className="bg-slate-50 p-2"><b className="block uppercase text-[8px] text-slate-500">Weather</b>{sheet.weatherSummary ?? 'Not entered'}</div>
+                <div className="bg-slate-50 p-2">
+                  <b className="block uppercase text-[8px] text-slate-500">Sunrise / sunset</b>
+                  {sheet.daylight.sunrise || sheet.daylight.sunset
+                    ? `${sheet.daylight.sunrise ?? '—'} / ${sheet.daylight.sunset ?? '—'}`
+                    : 'Pin the location to calculate'}
+                </div>
                 <div className="bg-slate-50 p-2"><b className="block uppercase text-[8px] text-slate-500">Total schedule</b>{formatMinutes(sheet.totalEstimatedMinutes)}</div>
               </div>
 

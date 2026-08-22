@@ -7,6 +7,8 @@ import {
 import { parseScreenplay } from '../components/script/screenplayParser';
 import { createId } from '../domain/ids';
 import type { CastAssignment, Person } from '../domain/people';
+import { hasStandingContent } from '../domain/reports';
+import type { StandingCallSheet } from '../domain/reports';
 import type { BreakdownCategory, BreakdownItem, Character } from '../domain/script';
 import { tagBreakdownItem } from '../domain/script';
 import type { PowerCircuit, PowerConsumer, PowerPlan, PowerSource } from '../domain/power';
@@ -198,6 +200,7 @@ export interface SampleScheduleMeta {
     email?: string;
     website?: string;
   };
+  standingCallSheet?: StandingCallSheet;
 }
 
 /** ISO date `offset` days from today, local time. */
@@ -330,6 +333,15 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
       phone: '+49 30 555 0143',
       email: 'unit@lanternsample.example',
       website: 'lanternsample.example',
+    },
+    // Content that belongs to the shoot rather than to one day. Every call
+    // sheet inherits it, which is what the standing block is for.
+    standingCallSheet: {
+      walkieChannels: 'Ch 1 Production · Ch 2 Camera · Ch 3 Grip & Electric · Ch 4 Art',
+      unitBase: 'Backlot yard, Gate 4 — trucks, catering and green room',
+      parking: 'Crew parking on Backlot Avenue; unit vehicles in the yard only.',
+      nearestHospital: 'Charité Mitte, Charitéplatz 1 · +49 30 450 50',
+      safetyNotes: 'Hi-vis in the yard. Cable ramps on every crossing. Medic on unit base.',
     },
   };
 };
@@ -796,6 +808,14 @@ export const buildExampleProductionFill = (project: Project): ExampleFillResult 
       patch.breakdownItems = elements;
       filled.push('script breakdown elements');
     }
+  }
+
+  // Standing content is production-level, so it fills only when the project
+  // has none — never merged field by field, which would leave a half-inherited
+  // sheet nobody chose.
+  if (!hasStandingContent(project.standingCallSheet)) {
+    patch.standingCallSheet = schedule.standingCallSheet;
+    filled.push('standing call-sheet content');
   }
 
   if (!project.coverageMatrix || project.coverageMatrix.rowKeys.length === 0) {
