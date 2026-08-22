@@ -85,6 +85,12 @@ import { DmxPatchPrintView } from '../reports/DmxPatchPrintView';
 import { collectFixturePatches, findConflicts, sortedPatchRows } from '../../utils/dmxPatch';
 import { deriveCharacterReport, deriveDood } from '../../domain/reports';
 import { ScriptSidesPrintView } from '../reports/ScriptSidesPrintView';
+import { StripboardPrintView } from '../reports/StripboardPrintView';
+import { CoverageMatrixPrintView } from '../reports/CoverageMatrixPrintView';
+import {
+  buildPrintableCoverageRows,
+  buildPrintableStripboardDays,
+} from '../../domain/scheduling';
 import { useMoodboardImageSrcs } from '../moodboard/moodboardAssets';
 import { buildScriptSides, sidesCharacterOptions, splitScenes } from '../../domain/script';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
@@ -147,6 +153,10 @@ export const PrintableShotPlan: React.FC = () => {
     [scriptLines, sidesSceneIds, sidesCharacter],
   );
   const packageSides = React.useMemo(() => buildScriptSides(scriptLines), [scriptLines]);
+  /* The complete package prints the same board and coverage grid the Schedule
+     tab does — same domain builders, so the two can never disagree. */
+  const packageBoardDays = React.useMemo(() => buildPrintableStripboardDays(project), [project]);
+  const packageCoverageRows = React.useMemo(() => buildPrintableCoverageRows(project), [project]);
   const sidesDay = (project.productionDays ?? []).find((day) => day.id === sidesDayId);
   const applySidesDay = (dayId: string) => {
     setSidesDayId(dayId);
@@ -660,6 +670,17 @@ export const PrintableShotPlan: React.FC = () => {
               Complete Package
             </button>
           </div>
+
+          {/* What "everything" actually means, and what is missing from this
+              project so an empty section never looks like a lost section. */}
+          {exportSection === 'combined' && (
+            <p className="text-[10px] text-slate-400 leading-relaxed max-w-3xl">
+              Includes: floor plan · shot list · equipment &amp; gear manifest · DMX patch ·
+              storyboards · lined script · script breakdown reports · sides · stripboard ·
+              coverage matrix · contact list · mood board. Sections with no data in this
+              project are skipped.
+            </p>
+          )}
 
           {/* Quick Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -1986,6 +2007,29 @@ export const PrintableShotPlan: React.FC = () => {
                 title={project.title}
                 subtitle={project.date}
                 logo={project.logo}
+              />
+            </div>
+          )}
+
+          {exportSection === 'combined' && packageBoardDays.length > 0 && (
+            <div className="mb-8 print-section break-before-page">
+              <StripboardPrintView
+                productionTitle={project.title}
+                company={project.productionCompany}
+                logo={project.logo}
+                days={packageBoardDays}
+              />
+            </div>
+          )}
+
+          {exportSection === 'combined' && packageCoverageRows.length > 0 && (
+            <div className="mb-8 print-section break-before-page">
+              <CoverageMatrixPrintView
+                productionTitle={project.title}
+                company={project.productionCompany}
+                logo={project.logo}
+                cameras={project.coverageMatrix?.cameraIds ?? []}
+                rows={packageCoverageRows}
               />
             </div>
           )}

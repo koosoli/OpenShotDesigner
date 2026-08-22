@@ -1470,6 +1470,9 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
         light.fixtureType === 'flag_silk' ||
         light.fixtureType === 'flag_net' ||
         light.fixtureType === 'flag_cutter' ||
+        light.fixtureType === 'flag_cucoloris' ||
+        light.fixtureType === 'flag_branchaloris' ||
+        light.fixtureType === 'flag_shutter' ||
         light.fixtureType === 'overhead_diffusion';
 
       let modifierSpecs = `${kelvinStr} · ${light.intensity}% intensity · ${light.beamAngle}° beam`;

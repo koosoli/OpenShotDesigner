@@ -15,10 +15,14 @@ import {
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { Person, PersonKind } from '../../domain/people';
 import {
+  KEY_CREW_ROLES,
   PERSON_KINDS,
   PERSON_KIND_LABELS,
   PRODUCTION_DEPARTMENTS,
   assignCast,
+  assignKeyCrew,
+  keyCrewMember,
+  projectHeadFieldsFor,
   castPersonForCharacter,
   filterPeople,
   groupPeopleByDepartment,
@@ -221,6 +225,37 @@ export const ContactsPanel: React.FC = () => {
     });
   };
 
+  /**
+   * Assign (or vacate) a key production role. Director / DP additionally mirror
+   * into the legacy project fields the exports render, so the crew page and the
+   * scene inspector can never drift apart.
+   */
+  const assignRole = (roleKey: string, personId: string) => {
+    const nextPeople = assignKeyCrew(people, roleKey, personId);
+    const heads = projectHeadFieldsFor(nextPeople);
+    const role = KEY_CREW_ROLES.find((entry) => entry.key === roleKey);
+    const patch: Parameters<typeof updateProjectMeta>[0] = { people: nextPeople };
+    if (role?.projectField) {
+      // Vacating a role blanks the mirrored field rather than leaving a stale
+      // name behind; filling it writes the assigned person's name.
+      patch[role.projectField] = heads[role.projectField] ?? '';
+    }
+    updateProjectMeta(patch);
+  };
+
+  /** Heads named only as free text in the project details, with nobody linked. */
+  const legacyOnlyHeads = useMemo(
+    () =>
+      KEY_CREW_ROLES.filter((role) => role.projectField)
+        .filter((role) => !keyCrewMember(people, role.key))
+        .map((role) => {
+          const name = (project[role.projectField!] ?? '').trim();
+          return name ? `${role.label}: ${name}` : '';
+        })
+        .filter(Boolean),
+    [people, project.director, project.cinematographer],
+  );
+
   const exportCsv = () => {
     const blob = new Blob([peopleToCsv(people)], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -309,6 +344,49 @@ export const ContactsPanel: React.FC = () => {
       {editing && isNew && (
         <PersonForm draft={editing} onChange={setEditing} onSave={savePerson} onCancel={() => { setEditing(null); setIsNew(false); }} isLight={isLight} />
       )}
+
+      {/* Key crew: the named heads paperwork refers to by role. Assignments are
+          stored as the person's role title (single source of truth), and the
+          two legacy project fields the exports read are mirrored on change. */}
+      <section className={`rounded-xl border p-3 space-y-2 ${isLight ? 'border-slate-200 bg-slate-50/70' : 'border-slate-800 bg-slate-950/40'}`}>
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <h3 className={`text-[10px] font-black uppercase tracking-wider ${mutedCls}`}>Key crew</h3>
+          <p className={`text-[10px] ${mutedCls}`}>
+            Director and DP here are the same fields as the scene inspector and every export.
+          </p>
+        </div>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {KEY_CREW_ROLES.map((role) => {
+            const holder = keyCrewMember(people, role.key);
+            return (
+              <label key={role.key} className="flex items-center gap-2">
+                <span className={`w-[42%] shrink-0 text-[10px] font-semibold ${mutedCls}`}>{role.label}</span>
+                <select
+                  value={holder?.id ?? ''}
+                  onChange={(e) => assignRole(role.key, e.target.value)}
+                  className={`${inputCls} flex-1 min-w-0`}
+                >
+                  <option value="">— unassigned —</option>
+                  {people.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.displayName || 'Unnamed'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            );
+          })}
+        </div>
+        {people.length === 0 && (
+          <p className={`text-[10px] ${mutedCls}`}>Add people first — then assign them to the roles above.</p>
+        )}
+        {(legacyOnlyHeads.length > 0) && (
+          <p className={`text-[10px] ${mutedCls}`}>
+            {legacyOnlyHeads.join(' · ')} — typed directly into the project details and not yet linked to
+            anyone on this list. Add them as a person to link phone, email and call times.
+          </p>
+        )}
+      </section>
 
       <div className="flex items-center gap-1.5 flex-wrap">
         <div className="relative flex-1 min-w-[160px]">

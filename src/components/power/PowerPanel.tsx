@@ -13,8 +13,11 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import type { LightElement } from '../../types';
 import {
+  POWER_DISCLAIMER,
   calculatePowerLoad,
   circuitHeadroom,
+  phaseBalance,
+  powerLoadByGroup,
   type PowerCircuit,
   type PowerConsumer,
   type PowerSource,
@@ -84,8 +87,34 @@ export const PowerPanel: React.FC = () => {
           : null;
       return { source, watts, capacityWatts };
     });
-    return { load, circuitRows, sourceRows };
+    // Load per truss run and per distribution zone: the same estimation path
+    // as the flat total, only regrouped (domain does the maths, rule 4).
+    const trussLoads = powerLoadByGroup(consumers, () => undefined, (c) => c.trussElementId);
+    const zoneLoads = powerLoadByGroup(consumers, () => undefined, (c) => c.distroZone?.trim() || undefined);
+
+    // Phase balance is only meaningful on a 3-phase supply, and only for the
+    // circuits fed by that supply.
+    const phaseRows = sources
+      .filter((source) => source.phases === 3)
+      .map((source) => ({
+        source,
+        balance: phaseBalance(
+          circuitRows
+            .filter((row) => row.circuit.sourceId === source.id)
+            .map(({ circuit, watts }) => ({ circuit, watts })),
+          { voltageV: source.voltageV },
+        ),
+      }));
+
+    return { load, circuitRows, sourceRows, trussLoads, zoneLoads, phaseRows };
   }, [consumers, circuits, sources]);
+
+  const trussElements = project.trussElements ?? [];
+  const trussLabel = (trussId: string): string => {
+    const truss = trussElements.find((element) => element.id === trussId);
+    if (!truss) return 'Truss no longer on the rig';
+    return truss.label?.trim() || `Truss ${trussElements.indexOf(truss) + 1}`;
+  };
 
   const sceneLights = useMemo(
     () => activeSetup.elements.filter((e): e is LightElement => e.type === 'light'),
@@ -259,7 +288,7 @@ export const PowerPanel: React.FC = () => {
     </h3>
   );
 
-  const { load, circuitRows, sourceRows } = report;
+  const { load, circuitRows, sourceRows, trussLoads, zoneLoads, phaseRows } = report;
 
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-3">
@@ -271,9 +300,8 @@ export const PowerPanel: React.FC = () => {
       >
         <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
         <p>
-          Planning estimates only. Unknown wattages are excluded from totals — never counted
-          as 0. Confirm fixture draw against manufacturer data. This is not electrical
-          engineering or safety certification.
+          {POWER_DISCLAIMER} Unknown wattages are excluded from totals — never counted as 0;
+          confirm fixture draw against manufacturer data.
         </p>
       </div>
 
@@ -324,6 +352,105 @@ export const PowerPanel: React.FC = () => {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Load per truss run: what each rigged position actually draws, so a
+            distro can be sized per truss rather than for the whole rig. */}
+        {(trussLoads.groups.length > 0 || zoneLoads.groups.length > 0) && (
+          <div
+            className={`flex flex-col gap-1 pt-1 border-t border-dashed ${
+              isLight ? 'border-slate-200' : 'border-slate-800'
+            }`}
+          >
+            {trussLoads.groups.length > 0 && (
+              <>
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${mutedText}`}>Load per truss</p>
+                <ul className="flex flex-col gap-1">
+                  {trussLoads.groups.map((group) => (
+                    <li key={group.key} className="flex items-center gap-2 text-[11px] flex-wrap">
+                      <span className="font-medium truncate max-w-[45%]">{trussLabel(group.key)}</span>
+                      <span className={`font-mono ${mutedText}`}>{formatWatts(group.knownWatts)}</span>
+                      <span className={chipClass}>{group.consumerIds.length} fixtures</span>
+                      {group.unknownConsumerCount > 0 && (
+                        <span className="text-amber-500 font-medium">
+                          ⚠ {group.unknownConsumerCount} unknown
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {zoneLoads.groups.length > 0 && (
+              <>
+                <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${mutedText}`}>
+                  Load per distro zone
+                </p>
+                <ul className="flex flex-col gap-1">
+                  {zoneLoads.groups.map((group) => (
+                    <li key={group.key} className="flex items-center gap-2 text-[11px] flex-wrap">
+                      <span className="font-medium truncate max-w-[45%]">{group.key}</span>
+                      <span className={`font-mono ${mutedText}`}>{formatWatts(group.knownWatts)}</span>
+                      <span className={chipClass}>{group.consumerIds.length} items</span>
+                      {group.unknownConsumerCount > 0 && (
+                        <span className="text-amber-500 font-medium">
+                          ⚠ {group.unknownConsumerCount} unknown
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {trussLoads.ungrouped.consumerIds.length > 0 && (
+              <p className={`text-[10px] ${mutedText}`}>
+                {trussLoads.ungrouped.consumerIds.length} consumer
+                {trussLoads.ungrouped.consumerIds.length === 1 ? '' : 's'} not assigned to a truss
+                ({formatWatts(trussLoads.ungrouped.knownWatts)}).
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Phase balance per 3-phase supply. */}
+        {phaseRows.length > 0 && (
+          <div
+            className={`flex flex-col gap-1 pt-1 border-t border-dashed ${
+              isLight ? 'border-slate-200' : 'border-slate-800'
+            }`}
+          >
+            <p className={`text-[10px] font-bold uppercase tracking-wider ${mutedText}`}>Phase balance</p>
+            {phaseRows.map(({ source, balance }) => (
+              <div key={source.id} className="flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="font-medium truncate max-w-[35%]">{source.name}</span>
+                {balance.legs.map((leg) => (
+                  <span
+                    key={leg.leg}
+                    className={`font-mono ${
+                      balance.busiestLeg === leg.leg && (balance.imbalanceRatio ?? 0) > 0.2
+                        ? 'text-amber-500 font-bold'
+                        : mutedText
+                    }`}
+                  >
+                    L{leg.leg} {formatWatts(leg.watts)}
+                    {leg.ampsA !== null ? ` · ${formatAmps(leg.ampsA)}` : ''}
+                  </span>
+                ))}
+                {balance.imbalanceRatio === null ? (
+                  <span className={`${mutedText} italic`}>no legs assigned yet</span>
+                ) : (
+                  <span className={balance.imbalanceRatio > 0.2 ? 'text-amber-500 font-medium' : mutedText}>
+                    {Math.round(balance.imbalanceRatio * 100)}% spread
+                  </span>
+                )}
+                {balance.unassignedWatts > 0 && (
+                  <span className={`${mutedText} italic`}>
+                    {formatWatts(balance.unassignedWatts)} on circuits with no leg set
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         )}
 
         {sourceRows.length > 0 && (
@@ -548,6 +675,27 @@ export const PowerPanel: React.FC = () => {
                 aria-label={`Maximum amperes for ${circuit.name}`}
                 className={`${inputClass} !w-20`}
               />
+              {/* Only a 3-phase supply has legs to pick from; leaving it unset
+                  keeps the circuit out of the balance report rather than
+                  loading it onto L1 by default. */}
+              {sources.find((s) => s.id === circuit.sourceId)?.phases === 3 && (
+                <select
+                  value={circuit.phaseLeg ?? ''}
+                  onChange={(e) =>
+                    updateCircuit(circuit.id, {
+                      phaseLeg: e.target.value === '' ? undefined : (Number(e.target.value) as 1 | 2 | 3),
+                    })
+                  }
+                  aria-label={`Phase leg for ${circuit.name}`}
+                  title="Which leg of the 3-phase supply feeds this circuit"
+                  className={`${inputClass} !w-20`}
+                >
+                  <option value="">L?</option>
+                  <option value="1">L1</option>
+                  <option value="2">L2</option>
+                  <option value="3">L3</option>
+                </select>
+              )}
               <button
                 onClick={() => removeCircuit(circuit.id)}
                 title="Delete circuit (consumers become unassigned)"
@@ -677,6 +825,40 @@ export const PowerPanel: React.FC = () => {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                </div>
+                {/* Where this load physically hangs / is distributed from.
+                    Both are optional: a plan with no rig still totals fine. */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <select
+                    value={consumer.trussElementId ?? ''}
+                    onChange={(e) =>
+                      updateConsumer(consumer.id, {
+                        trussElementId: e.target.value === '' ? undefined : e.target.value,
+                      })
+                    }
+                    aria-label={`Truss for ${consumer.name}`}
+                    title="Truss run this fixture hangs on"
+                    className={`${inputClass} !w-auto max-w-[150px]`}
+                  >
+                    <option value="">No truss</option>
+                    {trussElements.map((truss, index) => (
+                      <option key={truss.id} value={truss.id}>
+                        {truss.label?.trim() || `Truss ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={consumer.distroZone ?? ''}
+                    onChange={(e) =>
+                      updateConsumer(consumer.id, {
+                        distroZone: e.target.value.trim() === '' ? undefined : e.target.value,
+                      })
+                    }
+                    placeholder="Distro zone"
+                    aria-label={`Distro zone for ${consumer.name}`}
+                    title="Free-form distribution zone, e.g. 'Stage-left distro'"
+                    className={`${inputClass} !w-auto max-w-[150px]`}
+                  />
                 </div>
                 <p className={`text-[10px] font-mono ${mutedText}`}>
                   {watts !== null

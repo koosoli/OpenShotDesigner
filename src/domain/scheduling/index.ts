@@ -37,3 +37,21 @@ export {
   defaultNewEventPeriod,
   shiftClipSpan,
 } from './calendarDate';
+export {
+  BLOCK_KIND_LABELS,
+  MANUAL_TYPE_LABELS,
+  STRIP_PRINT_TONES,
+  blockLabel,
+  blockPrintTone,
+  buildPrintableCoverageRows,
+  buildPrintableStripboardDays,
+  buildStripboardLabelContext,
+} from './stripboardPrint';
+export type {
+  ManualType,
+  PrintableCoverageRowData,
+  PrintableStripboardDayData,
+  PrintableStripboardItem,
+  StripboardLabelContext,
+  StripboardProjectLike,
+} from './stripboardPrint';

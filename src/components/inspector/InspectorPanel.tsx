@@ -1051,11 +1051,20 @@ export const InspectorPanel: React.FC = () => {
           isLight ? 'bg-white text-slate-800' : 'bg-slate-900 text-slate-200'
         }`}
       >
-        <div className={`flex items-center gap-2 pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-          <Sliders className="w-4 h-4 text-sky-500" />
-          <h3 className="text-xs font-bold uppercase tracking-wider">
-            Scene Setup Inspector
-          </h3>
+        {/* Nothing is selected, so this is the plan/scene settings view rather
+            than an element inspector. The two are named apart on purpose:
+            "inspector" means the selected element, everything here applies to
+            the whole plan, scene or project. */}
+        <div className={`pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className="flex items-center gap-2">
+            <Sliders className="w-4 h-4 text-sky-500" />
+            <h3 className="text-xs font-bold uppercase tracking-wider">
+              Plan &amp; Scene Settings
+            </h3>
+          </div>
+          <p className={`mt-1 text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            Nothing selected — pick an element on the plan to inspect it.
+          </p>
         </div>
         <AssembliesPanel />
         <div className="space-y-3">
@@ -1323,7 +1332,7 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Rubric 2: Production Info */}
           <RubricSection
-            title="Production Info"
+            title="Production Details (whole project)"
             icon={<Film className="w-3.5 h-3.5 text-sky-500" />}
             badge={
               project.title ? (
@@ -1351,6 +1360,7 @@ export const InspectorPanel: React.FC = () => {
                 <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Director</label>
                 <input
                   type="text"
+                  list="crew-name-options"
                   value={project.director}
                   placeholder="e.g. Jane Doe"
                   onChange={(e) => updateProjectMeta({ director: e.target.value })}
@@ -1363,6 +1373,7 @@ export const InspectorPanel: React.FC = () => {
                 <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Cinematographer / DP</label>
                 <input
                   type="text"
+                  list="crew-name-options"
                   value={project.cinematographer}
                   placeholder="e.g. John Smith"
                   onChange={(e) => updateProjectMeta({ cinematographer: e.target.value })}
@@ -1372,6 +1383,16 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
             </div>
+            {/* Same two fields the Crew page assigns by role; typing a name here
+                stays valid even with no crew list (plan rule 13). */}
+            <datalist id="crew-name-options">
+              {(project.people ?? []).map((person) => (
+                <option key={person.id} value={person.displayName} />
+              ))}
+            </datalist>
+            <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              Assign these by role — with phone, email and department — on the Crew tab.
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Company</label>
@@ -3860,6 +3881,28 @@ export const InspectorPanel: React.FC = () => {
                       </div>
                     )}
 
+                    {light.fixtureType === 'flag_shutter' && (
+                      <div>
+                        <label className="opacity-60 block mb-1">
+                          Shutter Cut — {Math.round(light.shutterCutDeg ?? 35)}°
+                        </label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={85}
+                          step={1}
+                          value={Math.round(light.shutterCutDeg ?? 35)}
+                          onChange={(e) =>
+                            updateElement(light.id, { shutterCutDeg: Number(e.target.value) })
+                          }
+                          className="w-full accent-sky-500"
+                        />
+                        <p className="opacity-50 text-[9px] mt-0.5">
+                          0° = doors folded flat against the face, 85° = wide open.
+                        </p>
+                      </div>
+                    )}
+
                     <div className={`text-[10px] rounded-lg border p-2.5 leading-relaxed ${
                       isLight ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-slate-900 text-slate-400 border-slate-800'
                     }`}>
@@ -3872,6 +3915,12 @@ export const InspectorPanel: React.FC = () => {
                         ? ' — softens & diffuses the light passing through it.'
                         : light.fixtureType === 'flag_net'
                         ? ' — reduces intensity in a wash without changing color or softness.'
+                        : light.fixtureType === 'flag_cucoloris'
+                        ? ' — throws a dappled, broken-up shadow pattern through cut-outs.'
+                        : light.fixtureType === 'flag_branchaloris'
+                        ? ' — a branch on a grip arm; breaks the light into foliage shadows.'
+                        : light.fixtureType === 'flag_shutter'
+                        ? ' — barn doors / framing shutters that cut spill at the fixture face.'
                         : ' — shapes light with a long blade (kicks, forehead shadows).'}
                       {' '}Flags do not emit light, so they have no beam, color temp, or intensity.
                     </div>

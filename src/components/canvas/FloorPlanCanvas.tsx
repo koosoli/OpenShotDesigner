@@ -2627,8 +2627,16 @@ export const FloorPlanCanvas: React.FC = () => {
               <g transform={`translate(${pivot.x}, ${pivot.y})`}>
                 <title>Rotate whole group</title>
                 <line x1={0} y1={0} x2={26} y2={-26} stroke="#38bdf8" strokeWidth={1.5} strokeDasharray="3 3" className="pointer-events-none" />
-                <circle r={18} fill="transparent" onPointerDown={handleGroupRotateStart} className="cursor-grab" />
-                <circle cx={30} cy={-30} r={7} fill="#38bdf8" stroke="#0f172a" strokeWidth={2} onPointerDown={handleGroupRotateStart} className="cursor-grab drop-shadow-md" />
+                {/* Pivot marker only - NOT a rotate hit target. It sits on top
+                    of the group's own contents, so making it grabbable turned
+                    ordinary drags into accidental rotations. Rotation is the
+                    offset knob below. */}
+                <circle r={3} fill="#38bdf8" opacity={0.7} className="pointer-events-none" />
+                {/* Offset rotate knob with a touch-sized transparent halo. */}
+                <g transform="translate(30, -30)" onPointerDown={handleGroupRotateStart} className="cursor-grab">
+                  <circle r={14} fill="transparent" />
+                  <circle r={7} fill="#38bdf8" stroke="#0f172a" strokeWidth={2} className="drop-shadow-md" />
+                </g>
               </g>
             );
           })()}

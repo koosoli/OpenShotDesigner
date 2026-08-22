@@ -354,7 +354,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
             strokeWidth={1.5 / canvasScale}
             strokeLinecap="round"
           />
-          <g transform={`translate(${16 / canvasScale}, 0)`}>
+          <g transform={`translate(${16 / canvasScale}, 0)`} className="pointer-events-none">
             <rect
               x={-14 / canvasScale}
               y={-9 / canvasScale}
@@ -570,7 +570,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
         />
 
         {/* Live Degree Badge above handle */}
-        <g transform={`translate(${16 / canvasScale}, 0) rotate(${-rotation})`}>
+        <g transform={`translate(${16 / canvasScale}, 0) rotate(${-rotation})`} className="pointer-events-none">
           <rect
             x={-14 / canvasScale}
             y={-9 / canvasScale}

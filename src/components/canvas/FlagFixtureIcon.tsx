@@ -9,6 +9,9 @@ export function isFlagFixture(fixtureType: string): boolean {
     fixtureType === 'flag_silk' ||
     fixtureType === 'flag_net' ||
     fixtureType === 'flag_cutter' ||
+    fixtureType === 'flag_cucoloris' ||
+    fixtureType === 'flag_branchaloris' ||
+    fixtureType === 'flag_shutter' ||
     fixtureType === 'c_stand_flag' ||
     fixtureType === 'tripod'
   );
@@ -29,6 +32,12 @@ export function flagLabel(light: LightElement): string {
       return `${light.netValue === 'double' ? 'Dbl' : 'Sng'} Net ${sizeLabel}`;
     case 'flag_cutter':
       return 'Cutter 18×48"';
+    case 'flag_cucoloris':
+      return `Cucoloris ${sizeLabel}`;
+    case 'flag_branchaloris':
+      return 'Branchaloris';
+    case 'flag_shutter':
+      return 'Barn Doors / Shutter';
     case 'flag_solid':
     default:
       return `Solid ${sizeLabel}`;
@@ -124,6 +133,131 @@ export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selecte
     );
   }
 
+  if (light.fixtureType === 'flag_branchaloris') {
+    // Branchaloris: a real tree branch rigged on a C-stand arm to break up
+    // light. Drawn as the grip arm plus the branch silhouette it carries.
+    const { w: branchW, h: branchH } = getFlagPanelDims(light);
+    const reach = branchW / 2;
+    const spread = branchH / 2;
+    return (
+      <g className="branchaloris-fixture">
+        {/* C-stand turtle base + gobo arm on the left */}
+        <g transform={`translate(${-reach - 20}, 0)`}>
+          <path d="M 0 0 C 6 -3, 14 -4, 20 0" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
+          <path d="M 0 0 C -6 -7, -12 -12, -18 -8" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
+          <path d="M 0 0 C -6 7, -12 12, -18 8" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
+          <circle cx={0} cy={0} r={4.5} fill="#1e293b" stroke="#94a3b8" strokeWidth={1.5} />
+          <line x1={0} y1={0} x2={20} y2={0} stroke="#0f172a" strokeWidth={3} strokeLinecap="round" />
+          <line x1={0} y1={0} x2={20} y2={0} stroke="#cbd5e1" strokeWidth={1.8} strokeLinecap="round" />
+          <rect x={17} y={-3.5} width={5.5} height={7} rx={1.2} fill="#0f172a" stroke="#94a3b8" strokeWidth={1} />
+        </g>
+
+        {/* Main limb, lashed to the arm tip and running across the beam */}
+        <path
+          d={`M ${-reach} 0 C ${-reach * 0.3} ${-spread * 0.35}, ${reach * 0.25} ${spread * 0.2}, ${reach} ${-spread * 0.15}`}
+          fill="none"
+          stroke={frameStroke}
+          strokeWidth={5}
+          strokeLinecap="round"
+        />
+        <path
+          d={`M ${-reach} 0 C ${-reach * 0.3} ${-spread * 0.35}, ${reach * 0.25} ${spread * 0.2}, ${reach} ${-spread * 0.15}`}
+          fill="none"
+          stroke="#4a3520"
+          strokeWidth={3}
+          strokeLinecap="round"
+        />
+
+        {/* Side branches: what actually breaks the light up */}
+        {[-0.55, -0.2, 0.15, 0.5].map((t, index) => {
+          const bx = t * reach;
+          const dir = index % 2 === 0 ? -1 : 1;
+          return (
+            <g key={`branch-${t}`}>
+              <path
+                d={`M ${bx} ${-spread * 0.1} Q ${bx + reach * 0.14} ${dir * spread * 0.45}, ${bx + reach * 0.3} ${dir * spread * 0.85}`}
+                fill="none"
+                stroke="#4a3520"
+                strokeWidth={2}
+                strokeLinecap="round"
+              />
+              <ellipse
+                cx={bx + reach * 0.3}
+                cy={dir * spread * 0.85}
+                rx={Math.max(3, reach * 0.11)}
+                ry={Math.max(2, spread * 0.14)}
+                fill="rgba(21, 128, 61, 0.55)"
+                stroke="#166534"
+                strokeWidth={0.8}
+              />
+            </g>
+          );
+        })}
+
+        {/* Lash point marker at the arm knuckle */}
+        <circle cx={-reach} cy={0} r={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={1.2} />
+      </g>
+    );
+  }
+
+  if (light.fixtureType === 'flag_shutter') {
+    // Barn doors / framing shutters: four hinged leaves on the fixture face.
+    // Drawn top-down as the fixture ring with the leaves splayed forward.
+    const { w: shutterW, h: shutterH } = getFlagPanelDims(light);
+    const half = shutterH / 2;
+    const leaf = Math.max(8, shutterW * 0.75);
+    const cut = Math.max(0, Math.min(85, light.shutterCutDeg ?? 35));
+    const rad = (cut * Math.PI) / 180;
+    const tipX = Math.cos(rad) * leaf;
+    const tipY = Math.sin(rad) * leaf;
+    return (
+      <g className="barndoor-shutter-fixture">
+        {/* Fixture face ring the doors clamp onto */}
+        <circle cx={0} cy={0} r={half} fill="rgba(15, 23, 42, 0.85)" stroke={frameStroke} strokeWidth={2} />
+        <circle cx={0} cy={0} r={half * 0.55} fill="rgba(248, 250, 252, 0.14)" stroke="#94a3b8" strokeWidth={1} />
+
+        {/* Top and bottom leaves, opened by the cut angle */}
+        {[-1, 1].map((side) => (
+          <g key={`leaf-${side}`}>
+            <line
+              x1={0}
+              y1={side * half}
+              x2={tipX}
+              y2={side * (half + tipY)}
+              stroke="#0f172a"
+              strokeWidth={5}
+              strokeLinecap="round"
+            />
+            <line
+              x1={0}
+              y1={side * half}
+              x2={tipX}
+              y2={side * (half + tipY)}
+              stroke={frameStroke}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+            />
+            <circle cx={0} cy={side * half} r={2.2} fill="#f59e0b" stroke="#0f172a" strokeWidth={0.6} />
+          </g>
+        ))}
+
+        {/* Narrow side leaves, drawn shorter so the glyph reads as 4-leaf */}
+        {[-1, 1].map((side) => (
+          <line
+            key={`side-leaf-${side}`}
+            x1={0}
+            y1={side * half * 0.35}
+            x2={tipX * 0.6}
+            y2={side * half * 0.35}
+            stroke="#64748b"
+            strokeWidth={2}
+            strokeLinecap="round"
+          />
+        ))}
+      </g>
+    );
+  }
+
   const { w: panelW, h: panelH } = getFlagPanelDims(light);
   const net = light.netValue === 'double' ? ('double' as FlagNetValue) : ('single' as FlagNetValue);
 
@@ -142,6 +276,8 @@ export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selecte
       ? 'rgba(226, 232, 240, 0.62)'
       : light.fixtureType === 'flag_net'
       ? 'rgba(15, 23, 42, 0.68)'
+      : light.fixtureType === 'flag_cucoloris'
+      ? '#3f2a16' // plywood cookie
       : '#0b0f14'; // solid black
 
   // Net weave lines, clipped to the square panel.
@@ -177,6 +313,39 @@ export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selecte
           strokeWidth={1.5}
         />
       );
+    }
+  }
+
+  // Cucoloris ("cookie"): irregular cut-outs in a plywood panel that throw a
+  // dappled shadow. The holes are laid out deterministically from the panel
+  // size so the same flag always draws the same pattern.
+  const cookieHoles: React.ReactNode[] = [];
+  if (light.fixtureType === 'flag_cucoloris') {
+    const cols = 4;
+    const rows = 5;
+    const cellW = panelW / cols;
+    const cellH = panelH / rows;
+    for (let cx = 0; cx < cols; cx++) {
+      for (let cy = 0; cy < rows; cy++) {
+        // Deterministic pseudo-jitter: no randomness in render output.
+        const seed = (cx * 7 + cy * 13) % 11;
+        if (seed % 4 === 0) continue; // solid webs between the holes
+        const jitterX = ((seed % 5) - 2) * (cellW * 0.08);
+        const jitterY = ((seed % 3) - 1) * (cellH * 0.1);
+        cookieHoles.push(
+          <ellipse
+            key={`cookie-${cx}-${cy}`}
+            cx={xL + cellW * (cx + 0.5) + jitterX}
+            cy={yT + cellH * (cy + 0.5) + jitterY}
+            rx={cellW * (0.22 + (seed % 4) * 0.05)}
+            ry={cellH * (0.2 + (seed % 3) * 0.06)}
+            transform={`rotate(${seed * 17} ${xL + cellW * (cx + 0.5) + jitterX} ${yT + cellH * (cy + 0.5) + jitterY})`}
+            fill="rgba(250, 204, 21, 0.32)"
+            stroke="rgba(120, 83, 22, 0.9)"
+            strokeWidth={0.8}
+          />
+        );
+      }
     }
   }
 
@@ -230,6 +399,7 @@ export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selecte
       <rect x={xL} y={yT} width={panelW} height={panelH} rx={2} fill={fill} stroke={frameStroke} strokeWidth={2} />
       {light.fixtureType === 'flag_net' && <g clipPath={`url(#${clipId})`}>{netLines}</g>}
       {light.fixtureType === 'flag_silk' && silkWrinkles}
+      {light.fixtureType === 'flag_cucoloris' && cookieHoles}
     </g>
   );
 };

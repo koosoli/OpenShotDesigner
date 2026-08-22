@@ -89,7 +89,7 @@ const MainLayout: React.FC = () => {
     { id: 'equipment', group: 'production', label: 'Gear', icon: Boxes, count: sceneEquipCount, visible: isModuleVisible('equipment') },
     { id: 'logistics', group: 'production', label: 'Logistics', icon: Package, visible: isModuleVisible('logistics') },
     { id: 'run_of_show', group: 'production', label: 'Run of show', icon: ListOrdered, visible: isModuleVisible('run_of_show') },
-    { id: 'contacts', group: 'production', label: 'Contacts', icon: Users, count: project.people?.length || undefined, visible: isModuleVisible('contacts') },
+    { id: 'contacts', group: 'production', label: 'Crew', icon: Users, count: project.people?.length || undefined, visible: isModuleVisible('contacts') },
     { id: 'tasks', group: 'production', label: 'Tasks', icon: KanbanSquare, count: project.tasks?.length || undefined, visible: isModuleVisible('tasks') },
     { id: 'power', group: 'technical', label: 'Power', icon: Zap, visible: isModuleVisible('power') },
     { id: 'rigging', group: 'technical', label: 'Rigging', icon: Anchor, visible: isModuleVisible('rigging') },

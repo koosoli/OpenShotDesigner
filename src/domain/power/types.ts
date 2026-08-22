@@ -30,6 +30,17 @@ export interface PowerConsumer {
   powerWattsOverride?: number;
   quantity: number;
   circuitId?: string;
+  /**
+   * Truss / rigged position this consumer hangs on (`TrussElement.id`), so the
+   * power report can be broken down per truss run. Absent = not rigged or not
+   * yet assigned; never guessed from the fixture's plan position.
+   */
+  trussElementId?: string;
+  /**
+   * Free-form distribution zone label ("Stage-left distro", "Genny B") for
+   * productions that group by area rather than by truss. Absent = ungrouped.
+   */
+  distroZone?: string;
 }
 
 export interface PowerCircuit {
@@ -38,6 +49,12 @@ export interface PowerCircuit {
   sourceId: string;
   maxAmperesA?: number;
   consumerIds: string[];
+  /**
+   * Which leg of a 3-phase supply this circuit hangs off (L1/L2/L3). Absent =
+   * unassigned, which keeps the circuit out of the phase-balance report rather
+   * than silently loading it onto L1 (plan rule 13).
+   */
+  phaseLeg?: 1 | 2 | 3;
 }
 
 /**
@@ -55,7 +72,7 @@ export interface PowerLoadResult {
   perConsumer: Array<{ consumerId: string; watts: number | null; source: PowerEstimateSource }>;
 }
 
-/** A project's persisted power topology (plan ง22). */
+/** A project's persisted power topology (plan ยง22). */
 export interface PowerPlan {
   sources: PowerSource[];
   circuits: PowerCircuit[];

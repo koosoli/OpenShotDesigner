@@ -16,3 +16,14 @@ export {
   upsertPerson,
 } from './logic';
 export type { DepartmentGroup, PeopleFilter, PeopleReferences } from './logic';
+export {
+  KEY_CREW_ROLES,
+  assignKeyCrew,
+  keyCrewDisplayName,
+  keyCrewMember,
+  keyCrewMembers,
+  keyCrewRoleByKey,
+  personHoldsRole,
+  projectHeadFieldsFor,
+} from './keyRoles';
+export type { KeyCrewRole } from './keyRoles';

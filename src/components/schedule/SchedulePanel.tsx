@@ -24,6 +24,12 @@ import { TimelineCalendar } from './TimelineCalendar';
 import { CalendarEventEditor, MonthCalendar } from './MonthCalendar';
 import { createId } from '../../domain/ids';
 import {
+  BLOCK_KIND_LABELS,
+  MANUAL_TYPE_LABELS,
+  blockLabel,
+  buildPrintableCoverageRows,
+  buildPrintableStripboardDays,
+  buildStripboardLabelContext,
   defaultCalendarMonth,
   defaultNewEventPeriod,
   deriveDaySummary,
@@ -31,6 +37,7 @@ import {
   followingDayAfterLast,
   todayIso,
 } from '../../domain/scheduling';
+import type { ManualType } from '../../domain/scheduling';
 import type {
   CallSheetLocation,
   CallSheetData,
@@ -47,10 +54,6 @@ import { CoverageMatrixPrintView } from '../reports/CoverageMatrixPrintView';
 import type { PrintableCoverageRow } from '../reports/CoverageMatrixPrintView';
 import { CallSheetWorkspace } from './CallSheetWorkspace';
 
-type ManualType = NonNullable<
-  Extract<ScheduleBlock, { kind: 'manual' }>['manualType']
->;
-
 const MANUAL_TYPES: ManualType[] = [
   'meal',
   'move',
@@ -60,60 +63,12 @@ const MANUAL_TYPES: ManualType[] = [
   'other',
 ];
 
-const MANUAL_TYPE_LABELS: Record<ManualType, string> = {
-  meal: 'Meal',
-  move: 'Move',
-  rehearsal: 'Rehearsal',
-  load_in: 'Load In',
-  strike: 'Strike',
-  other: 'Other',
-};
-
-const BLOCK_KIND_LABELS: Record<ScheduleBlock['kind'], string> = {
-  scene: 'Scene',
-  setup: 'Setup',
-  segment: 'Segment',
-  manual: 'Banner',
-  shots: 'Shots',
-  cue: 'Cue',
-};
-
 /** "3h 15m" / "45m" / "0m" */
 const formatMinutes = (total: number): string => {
   if (total <= 0) return '0m';
   const h = Math.floor(total / 60);
   const m = total % 60;
   return h > 0 ? `${h}h ${m}m`.trim() : `${m}m`;
-};
-
-/** Human label for a block, resolved against the project's optional collections. */
-const blockLabel = (
-  block: ScheduleBlock,
-  ctx: {
-    sceneNames: Map<string, string>;
-    setupNames: Map<string, string>;
-    segmentNames: Map<string, string>;
-    shotNames: Map<string, string>;
-  }
-): string => {
-  switch (block.kind) {
-    case 'scene':
-      return ctx.sceneNames.get(block.scriptSceneId) ?? `Scene ${block.scriptSceneId.slice(0, 6)}`;
-    case 'setup':
-      return ctx.setupNames.get(block.setupId) ?? `Setup ${block.setupId.slice(0, 6)}`;
-    case 'segment':
-      return ctx.segmentNames.get(block.segmentId) ?? `Segment ${block.segmentId.slice(0, 6)}`;
-    case 'manual':
-      return block.label || MANUAL_TYPE_LABELS[block.manualType ?? 'other'];
-    case 'shots':
-      return block.shotIds.length === 1
-        ? ctx.shotNames.get(block.shotIds[0]) ?? 'Unresolved shot'
-        : `${block.shotIds.length} shots · ${block.shotIds.map((id) => ctx.shotNames.get(id)?.split(' — ')[0]).filter(Boolean).join(', ')}`;
-    case 'cue':
-      return `Cue ${block.cueId.slice(0, 6)}`;
-    default:
-      return 'Block';
-  }
 };
 
 export const SchedulePanel: React.FC = () => {
@@ -149,45 +104,14 @@ export const SchedulePanel: React.FC = () => {
   // Whole-view printing for the other tabs: stripboard, calendar, coverage.
   const [printView, setPrintView] = useState<'stripboard' | 'calendar' | 'coverage' | null>(null);
 
-  const sceneNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const scene of project.scriptScenes ?? []) {
-      map.set(scene.id, `Scene ${scene.sceneNumber} — ${scene.heading}`);
-    }
-    return map;
-  }, [project.scriptScenes]);
-
-  const setupNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const setup of project.setups ?? []) {
-      map.set(setup.id, setup.name || 'Setup');
-    }
-    return map;
-  }, [project.setups]);
-
-  const segmentNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const segment of project.productionSegments ?? []) {
-      map.set(segment.id, segment.name);
-    }
-    return map;
-  }, [project.productionSegments]);
-
   const shotEntries = useMemo(
     () => project.setups.flatMap((setup) => setup.shots.map((shot) => ({ shot, setup }))),
     [project.setups]
   );
 
-  const shotNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const { shot } of shotEntries) map.set(shot.id, `Shot ${shot.shotNumber} — ${shot.name}`);
-    return map;
-  }, [shotEntries]);
-
-  const labelCtx = useMemo(
-    () => ({ sceneNames, setupNames, segmentNames, shotNames }),
-    [sceneNames, setupNames, segmentNames, shotNames]
-  );
+  // Scene / setup / segment / shot display names, derived once in the domain
+  // so the workspace and the exporter label strips identically.
+  const labelCtx = useMemo(() => buildStripboardLabelContext(project), [project]);
 
   // Mount the hidden print document, let the browser paint it, print, then
   // unmount. Covers the per-day call sheet and the whole-view printouts.
@@ -526,48 +450,10 @@ export const SchedulePanel: React.FC = () => {
    * strike/other slate), content strips off their block kind (scene amber,
    * setup cyan, shots violet, cue pink, segment indigo). Presentation-only.
    */
-  const PRINT_TONES: Record<ScheduleBlock['kind'] | ManualType, string> = {
-    scene: '#b45309',
-    setup: '#0e7490',
-    shots: '#7c3aed',
-    cue: '#db2777',
-    segment: '#4f46e5',
-    manual: '#475569',
-    meal: '#059669',
-    move: '#7c3aed',
-    rehearsal: '#d97706',
-    load_in: '#0e7490',
-    strike: '#64748b',
-    other: '#475569',
-  };
-
-  /** Tone for one strip: banners by manualType, everything else by kind. */
-  const blockPrintTone = (block: ScheduleBlock): string =>
-    block.kind === 'manual' ? PRINT_TONES[block.manualType ?? 'other'] : PRINT_TONES[block.kind];
-
-  const printableBoardDays = useMemo<PrintableStripboardDay[]>(() => {
-    return days.map((day) => {
-      const items = day.scheduleBlockIds
-        .map((id) => blocks.find((block) => block.id === id))
-        .filter((block): block is ScheduleBlock => Boolean(block))
-        .map((block) => ({
-          label: blockLabel(block, labelCtx),
-          kindLabel: BLOCK_KIND_LABELS[block.kind],
-          minutes: 'estimatedMinutes' in block ? block.estimatedMinutes : undefined,
-          tone: blockPrintTone(block),
-        }));
-      return {
-        id: day.id,
-        name: day.name,
-        date: day.date,
-        crewCall: day.crewCall,
-        plannedWrap: day.plannedWrap,
-        items,
-        totalMinutes: items.reduce((sum, item) => sum + (item.minutes ?? 0), 0),
-      };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, blocks, labelCtx]);
+  const printableBoardDays = useMemo<PrintableStripboardDay[]>(
+    () => buildPrintableStripboardDays(project, labelCtx),
+    [project, labelCtx],
+  );
 
   const printableCalendarEvents = useMemo<PrintableCalendarEvent[]>(
     () =>
@@ -594,17 +480,10 @@ export const SchedulePanel: React.FC = () => {
     [days, blocks]
   );
 
-  const printableCoverageRows = useMemo<PrintableCoverageRow[]>(() => {
-    const matrix = project.coverageMatrix;
-    if (!matrix) return [];
-    const cues = project.runOfShowCues ?? [];
-    const labelFor = (key: string) =>
-      matrix.rowLabels?.[key] ?? cues.find((cue) => cue.id === key)?.label ?? `Row ${key.slice(0, 6)}`;
-    return matrix.rowKeys.map((key) => ({
-      label: labelFor(key),
-      cells: matrix.cameraIds.map((cameraId) => matrix.cells[key]?.[cameraId] ?? ''),
-    }));
-  }, [project.coverageMatrix, project.runOfShowCues]);
+  const printableCoverageRows = useMemo<PrintableCoverageRow[]>(
+    () => buildPrintableCoverageRows(project),
+    [project],
+  );
 
   /** The header Print button prints whatever tab is active. */
   const handlePrintCurrent = () => {

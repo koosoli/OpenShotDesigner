@@ -132,6 +132,9 @@ const LIGHT_KEYWORDS: Partial<Record<LightFixtureType, string>> = {
   flag_silk: 'flag silk silk diffusion white silk 1/4 silk full silk scrim butterfly overhead soft light diffusion silk flag',
   flag_net: 'flag net single net double net scrim black net light reduction 1 stop 1/2 stop dimming net net flag',
   flag_cutter: 'flag cutter cutter french flag fingers dots long narrow flag hard shadow edge control cutter cutter flag',
+  flag_cucoloris: 'cucoloris cookie cuke kook dappled shadow breakup pattern plywood cookie celo cucalorus dapple break up light cucoloris cookie',
+  flag_branchaloris: 'branchaloris branch branchalorus tree branch dappled foliage leaf pattern branch on c stand nature breakup branchaloris',
+  flag_shutter: 'shutter barn doors barndoors framing shutter leaves blades cut spill flag off leko shutters barndoor shutter',
 };
 
 const RIG_KEYWORDS: Partial<Record<CameraRigType, string>> = {

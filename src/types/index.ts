@@ -137,6 +137,9 @@ export type LightFixtureType =
   | 'flag_silk'
   | 'flag_net'
   | 'flag_cutter'
+  | 'flag_cucoloris'
+  | 'flag_branchaloris'
+  | 'flag_shutter'
   | 'overhead_diffusion';
 
 export type FlagSize =
@@ -187,6 +190,12 @@ export interface LightElement extends BaseElement {
   lightRole?: LightRole; // Key, Fill, Negative Fill, Kicker, Backlight, Background, etc.
   flagSize?: FlagSize; // fabric size for C-stand flags (18×24", 24×36", ...)
   netValue?: FlagNetValue; // single (≈½ stop) vs double (≈1 stop) net
+  /**
+   * Barn-door / framing-shutter cut angle in degrees (0 = doors folded flat
+   * against the fixture face, 85 = wide open). Absent = the 35° default; never
+   * backfilled, so older saves keep drawing the default (plan rule 13).
+   */
+  shutterCutDeg?: number;
   labelColor?: string; // per-fixture custom label color (e.g. #ffffff, #f59e0b)
   roleColor?: string; // custom color for this fixture's function/role tag (e.g. #f59e0b)
   /** DMX-512 control universe (1-32). Absent/undefined = not on a DMX network. */

@@ -32,6 +32,9 @@ const WATTS_BY_FIXTURE: Record<string, number> = {
   flag_silk: 0,
   flag_net: 0,
   flag_cutter: 0,
+  flag_cucoloris: 0,
+  flag_branchaloris: 0,
+  flag_shutter: 0,
   overhead_diffusion: 0,
 };
 

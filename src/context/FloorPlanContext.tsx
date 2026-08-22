@@ -461,11 +461,15 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showWaypoints: true,
   showWaypointCues: false,
   showSpeechBubbles: false,
-  showFovCones: true,
+  // Camera FOV cones and light beams start OFF: a plan with every cone and
+  // beam drawn is unreadable for a first-time user. Both are one toggle away
+  // in Inspector - Display, and anyone who has already saved a preference
+  // keeps it (this default only applies to a fresh install).
+  showFovCones: false,
   fovConeOpacity: 1.0,
   showStoryboardThumbs: true,
   hideBlankStoryboardWaypoints: false,
-  showLightBeams: true,
+  showLightBeams: false,
   showGrid: false, // Default grid to hidden as requested
   showShotSizeInScript: true,
   showShotSizeOnCamera: false,

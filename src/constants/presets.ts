@@ -433,6 +433,30 @@ export const LIGHT_FIXTURES: {
     isFlag: true,
   },
   {
+    type: 'flag_cucoloris',
+    name: 'Cucoloris / Cookie (Dappled Shadow)',
+    defaultBeam: 0,
+    defaultTemp: 0,
+    defaultModel: 'Matthews 24x36 Wood Cucoloris',
+    isFlag: true,
+  },
+  {
+    type: 'flag_branchaloris',
+    name: 'Branchaloris (Branch on a C-Stand)',
+    defaultBeam: 0,
+    defaultTemp: 0,
+    defaultModel: 'Practical Branch on 40" C-Stand Arm',
+    isFlag: true,
+  },
+  {
+    type: 'flag_shutter',
+    name: 'Barn Doors / Framing Shutter',
+    defaultBeam: 0,
+    defaultTemp: 0,
+    defaultModel: '4-Leaf Barndoor / Framing Shutter Set',
+    isFlag: true,
+  },
+  {
     type: 'c_stand_flag',
     name: 'C-Stand + 40" Grip Arm',
     defaultBeam: 0,
@@ -488,6 +512,14 @@ export function getFlagPanelDims(light: {
   if (light.fixtureType === 'flag_cutter') {
     // Cutter is an elongated blade, but it still scales with the selected size.
     return { w: Math.max(10, size.w * 0.6), h: Math.max(10, size.h * 1.6) };
+  }
+  if (light.fixtureType === 'flag_branchaloris') {
+    // A branch rigged on a grip arm reads wider than tall from above.
+    return { w: Math.max(14, size.w * 1.15), h: Math.max(12, size.h * 0.9) };
+  }
+  if (light.fixtureType === 'flag_shutter') {
+    // Barn doors clamp to the fixture face, so they stay compact.
+    return { w: Math.max(10, size.w * 0.5), h: Math.max(10, size.h * 0.5) };
   }
   return { w: size.w, h: size.h };
 }

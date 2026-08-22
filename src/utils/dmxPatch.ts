@@ -12,6 +12,9 @@ const NON_DMX_TYPES = new Set<LightFixtureType>([
   'flag_silk',
   'flag_net',
   'flag_cutter',
+  'flag_cucoloris',
+  'flag_branchaloris',
+  'flag_shutter',
   'overhead_diffusion',
 ]);
 

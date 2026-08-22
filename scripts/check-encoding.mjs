@@ -22,6 +22,8 @@ const MOJIBAKE = new RegExp(
     '|\\u00E2[\\u20AC\\u201A\\u0192\\u201E\\u2026\\u2020\\u2021\\u02C6\\u2030\\u0160\\u2039\\u0152\\u017D\\u2018\\u2019\\u201C\\u201D\\u2022\\u2013\\u2014\\u02DC\\u2122\\u0161\\u203A\\u0153\\u017E\\u0178\\u0080-\\u00BF]' +
     '|\\u00F0\\u0178',
 );
+// Built from an escape so this file never trips its own check.
+const REPLACEMENT_CHAR = String.fromCharCode(0xfffd);
 const fixBom = process.argv.includes('--fix-bom');
 
 const walk = (entry, out = []) => {
@@ -61,6 +63,16 @@ for (const file of ROOTS.flatMap((root) => walk(root))) {
     if (MOJIBAKE.test(line)) {
       failures += 1;
       console.error(`mojibake: ${path.relative(process.cwd(), file)}:${index + 1}: ${line.trim().slice(0, 80)}`);
+    }
+    // A U+FFFD only ever appears here because readFileSync('utf8') hit bytes
+    // that are not valid UTF-8 at all — e.g. a lone Latin-1 0xA7 written by an
+    // editor that ignored .editorconfig. Mojibake detection cannot catch those:
+    // the bad bytes never decode into the tell-tale double-encoded pairs.
+    if (line.includes(REPLACEMENT_CHAR)) {
+      failures += 1;
+      console.error(
+        `invalid UTF-8: ${path.relative(process.cwd(), file)}:${index + 1}: ${line.trim().slice(0, 80)}`,
+      );
     }
   });
 }
