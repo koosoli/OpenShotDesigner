@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
-import { personInitials } from '../../domain/people';
+import { groupPeopleByDepartment, personInitials } from '../../domain/people';
+import type { Person } from '../../domain/people';
 import { todayIso } from '../../domain/scheduling';
 import type { Task, TaskBoard, TaskPriority } from '../../domain/tasks';
 import {
@@ -50,7 +51,7 @@ const DND_TYPE = 'application/x-cineplan-task';
 interface TaskEditorProps {
   task: Task;
   board: TaskBoard;
-  people: Array<{ id: string; displayName: string }>;
+  people: Person[];
   onChange: (updates: Partial<Task>) => void;
   onChecklistAdd: (text: string) => void;
   onChecklistToggle: (itemId: string) => void;
@@ -103,26 +104,43 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
         </label>
       </div>
       <div className="space-y-1">
-        <span className={labelCls}>Assignees</span>
+        <span className={labelCls}>
+          Assignees{task.assigneeIds.length > 0 && ` · ${task.assigneeIds.length} assigned`}
+        </span>
         {people.length === 0 ? (
-          <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Add people in the Contacts module to assign tasks.</p>
+          <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            Add crew on the Crew tab to assign tasks to them.
+          </p>
         ) : (
-          <div className="flex flex-wrap gap-1">
-            {people.map((person) => {
-              const on = task.assigneeIds.includes(person.id);
-              return (
-                <button
-                  key={person.id}
-                  type="button"
-                  onClick={() => onChange({ assigneeIds: on ? task.assigneeIds.filter((id) => id !== person.id) : [...task.assigneeIds, person.id] })}
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${
-                    on ? 'bg-sky-600 text-white border-sky-500' : isLight ? 'border-slate-300 text-slate-600 hover:bg-slate-100' : 'border-slate-700 text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  {person.displayName}
-                </button>
-              );
-            })}
+          /* Grouped by department: a real crew list is long, and "who in
+             Lighting is on this?" is the question a task board gets asked. */
+          <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+            {groupPeopleByDepartment(people).map((group) => (
+              <div key={group.department} className="space-y-1">
+                <span className={`text-[9px] font-black uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {group.department}
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {group.people.map((person) => {
+                    const on = task.assigneeIds.includes(person.id);
+                    return (
+                      <button
+                        key={person.id}
+                        type="button"
+                        title={person.role ? `${person.displayName} — ${person.role}` : person.displayName}
+                        onClick={() => onChange({ assigneeIds: on ? task.assigneeIds.filter((id) => id !== person.id) : [...task.assigneeIds, person.id] })}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${
+                          on ? 'bg-sky-600 text-white border-sky-500' : isLight ? 'border-slate-300 text-slate-600 hover:bg-slate-100' : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        {person.displayName}
+                        {person.role && <span className="opacity-60 font-normal"> · {person.role}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

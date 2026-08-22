@@ -1,4 +1,4 @@
-import { ScriptLine, ScriptMark } from '../types';
+import { Project, ScriptLine, ScriptMark } from '../types';
 import {
   SAMPLE_DIALOGUE_SCREENPLAY,
   SAMPLE_NOIR_SCREENPLAY,
@@ -658,4 +658,89 @@ export const sampleCastAssignments = (
     assignments.push({ id: createId('cast'), characterId: character.id, personId: actor.id });
   }
   return assignments;
+};
+
+/**
+ * Fill an EXISTING project with the example production data it is missing.
+ *
+ * The full example dataset only lands when a project is created from a
+ * template. A project started empty — or created before a module existed — has
+ * no way to see what the Schedule, Crew, Rigging or Power pages are for. This
+ * builds the patch that fills those gaps.
+ *
+ * Strictly additive: a collection that already has anything in it is left
+ * completely alone, and the returned patch only contains keys that were empty.
+ * Nothing the user made is ever overwritten or merged into.
+ */
+export interface ExampleFillResult {
+  /** Project patch to apply; empty when nothing was missing. */
+  patch: Partial<Project>;
+  /** Human-readable names of what was filled, for the confirmation message. */
+  filled: string[];
+}
+
+/** A collection counts as present when it exists and holds at least one item. */
+const hasItems = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
+
+export const buildExampleProductionFill = (project: Project): ExampleFillResult => {
+  const schedule = sampleScheduleMeta();
+  const planning = samplePlanningMeta(schedule.people);
+  const technical = sampleTechnicalMeta();
+
+  const patch: Partial<Project> = {};
+  const filled: string[] = [];
+
+  const fillArray = <K extends keyof Project>(key: K, value: Project[K], label: string): void => {
+    if (hasItems(project[key])) return;
+    patch[key] = value;
+    if (!filled.includes(label)) filled.push(label);
+  };
+
+  // People first: tasks and pick-ups reference them, so they must land together
+  // or not at all — a task assigned to a person who was not added would dangle.
+  const peopleMissing = !hasItems(project.people);
+  if (peopleMissing) {
+    patch.people = schedule.people;
+    filled.push('crew & cast');
+  }
+
+  fillArray('productionDays', schedule.productionDays, 'shooting days & call sheets');
+  fillArray('scheduleBlocks', schedule.scheduleBlocks, 'shooting days & call sheets');
+  fillArray('productionCalendarEvents', schedule.productionCalendarEvents, 'production calendar');
+  fillArray('locations', planning.locations, 'locations');
+  fillArray('runOfShowCues', planning.runOfShowCues, 'run of show');
+  fillArray('taskBoards', planning.taskBoards, 'task board');
+  fillArray('tasks', planning.tasks, 'task board');
+  fillArray('moodBoards', planning.moodBoards, 'mood board');
+  fillArray('logisticsContainers', planning.logisticsContainers, 'logistics');
+  fillArray('packedItems', planning.packedItems, 'logistics');
+  fillArray('trussProfiles', technical.trussProfiles, 'rigging');
+  fillArray('trussElements', technical.trussElements, 'rigging');
+  fillArray('suspendedLoads', technical.suspendedLoads, 'rigging');
+  fillArray('riggingItems', technical.riggingItems, 'rigging');
+
+  // Tasks and pick-ups only make sense with the people they reference. When the
+  // project already had its own crew, drop the parts that point at ours.
+  if (!peopleMissing) {
+    if (patch.tasks) patch.tasks = patch.tasks.map((task) => ({ ...task, assigneeIds: [] }));
+    if (patch.productionDays) {
+      patch.productionDays = patch.productionDays.map((day) =>
+        day.callSheet?.pickups
+          ? { ...day, callSheet: { ...day.callSheet, pickups: undefined } }
+          : day,
+      );
+    }
+  }
+
+  if (!project.coverageMatrix || project.coverageMatrix.rowKeys.length === 0) {
+    patch.coverageMatrix = schedule.coverageMatrix;
+    filled.push('coverage matrix');
+  }
+
+  if (!project.powerPlan || project.powerPlan.sources.length === 0) {
+    patch.powerPlan = technical.powerPlan;
+    filled.push('power plan');
+  }
+
+  return { patch, filled };
 };

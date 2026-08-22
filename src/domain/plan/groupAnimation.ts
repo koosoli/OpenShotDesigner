@@ -223,18 +223,37 @@ function effectiveRotationDeltas(path: Waypoint[]): Array<{ x: number; y: number
  * Group pivot position + rotation delta at a beat.
  *
  * Uses the same smoothstep easing and shortest-arc rotation interpolation as
- * camera paths (`getInterpolatedPositionAndRotation`). Before the first /
- * after the last keyframe the pose clamps to that endpoint keyframe.
+ * camera paths (`getInterpolatedPositionAndRotation`), including the same
+ * beat-1 convention: when `basePivot` is supplied and no keyframe sits at or
+ * before beat 1, the group's authored position IS the beat-1 node. Without it a
+ * single keyframe would clamp backwards over beat 1 and teleport the group away
+ * from where it was drawn — cameras and actors have never behaved that way.
+ *
+ * After the last keyframe the pose clamps to that keyframe.
  * Returns null when the group has no usable animation path.
  */
-export function interpolateGroupPose(group: PlanGroup, beat: number): GroupPose | null {
+export function interpolateGroupPose(
+  group: PlanGroup,
+  beat: number,
+  basePivot?: Vector2D | null,
+): GroupPose | null {
   const rawPath = group?.path;
   if (!Array.isArray(rawPath) || rawPath.length === 0) return null;
 
-  const nodes = effectiveRotationDeltas(rawPath)
+  const keyed = effectiveRotationDeltas(rawPath)
     .filter((wp) => isFiniteNumber(wp.x) && isFiniteNumber(wp.y))
     .sort((a, b) => a.beat - b.beat);
-  if (nodes.length === 0) return null;
+  if (keyed.length === 0) return null;
+
+  // The implicit beat-1 node: the group where it was authored, unrotated.
+  const needsBaseNode =
+    !!basePivot &&
+    isFiniteNumber(basePivot.x) &&
+    isFiniteNumber(basePivot.y) &&
+    keyed[0].beat > 1;
+  const nodes = needsBaseNode
+    ? [{ x: basePivot!.x, y: basePivot!.y, beat: 1, rotationDelta: 0 }, ...keyed]
+    : keyed;
 
   const atBeat = isFiniteNumber(beat) ? beat : -Infinity;
   const first = nodes[0];
@@ -431,15 +450,16 @@ export function computeGroupPoseOverrides(
   beat: number,
 ): Map<string, ElementPose> {
   const overrides = new Map<string, ElementPose>();
-  const pose = interpolateGroupPose(group, beat);
-  if (!pose) return overrides;
-
   const childIds = new Set(group.childIds ?? []);
   const members = elements.filter((el) => childIds.has(el.id));
   if (members.length === 0) return overrides;
 
   const basePivot = group.basePivot ?? groupPivotOf(members);
   if (!basePivot) return overrides;
+
+  // The base pivot doubles as the implicit beat-1 keyframe.
+  const pose = interpolateGroupPose(group, beat, basePivot);
+  if (!pose) return overrides;
 
   const transform: RigidTransform = {
     deltaDeg: pose.rotationDelta,

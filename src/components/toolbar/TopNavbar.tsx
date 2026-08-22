@@ -60,6 +60,7 @@ export const TopNavbar: React.FC = () => {
     updateProjectMeta,
     saveRevision,
     loadTemplateScene,
+    loadExampleProductionData,
     loadProjectFromJson,
     setGridSettings,
     openViewfinder,
@@ -72,6 +73,8 @@ export const TopNavbar: React.FC = () => {
   } = useFloorPlan();
 
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  /** Transient confirmation after filling empty modules with examples. */
+  const [exampleFillMessage, setExampleFillMessage] = useState<string | null>(null);
   const [isSetupsOpen, setIsSetupsOpen] = useState(false);
   const [isViewingOptionsOpen, setIsViewingOptionsOpen] = useState(false);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
@@ -349,7 +352,47 @@ export const TopNavbar: React.FC = () => {
                   Dramatic single top light, hard rim light, low angle & Dutch angle coverage.
                 </div>
               </button>
+
+              <div className={`mt-1 pt-1 border-t ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
+                <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1">
+                  Example production data
+                </div>
+                <button
+                  onClick={() => {
+                    const filled = loadExampleProductionData();
+                    setExampleFillMessage(
+                      filled.length === 0
+                        ? 'Every module already has data — nothing was changed.'
+                        : `Added example ${filled.join(', ')}.`,
+                    );
+                    setIsTemplatesOpen(false);
+                  }}
+                  className={`w-full text-left p-2 rounded-lg text-xs transition-colors ${
+                    isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="font-semibold text-emerald-500">Fill empty modules with examples</div>
+                  <div className="text-[11px] opacity-70">
+                    Crew, shooting days &amp; call sheets, locations, task board, mood board, run of
+                    show, logistics, rigging and power — only where this project is still empty.
+                    Nothing you already have is touched.
+                  </div>
+                </button>
+              </div>
             </div>
+          )}
+
+          {/* Confirmation of what the fill actually added; dismissed by click. */}
+          {exampleFillMessage && (
+            <button
+              onClick={() => setExampleFillMessage(null)}
+              className={`absolute top-full left-0 mt-1.5 w-72 text-left border rounded-xl shadow-2xl p-2.5 z-50 text-[11px] ${
+                isLight ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-emerald-950 border-emerald-800 text-emerald-100'
+              }`}
+            >
+              {exampleFillMessage}
+              <span className="block mt-1 opacity-60">Click to dismiss · Ctrl+Z undoes it.</span>
+            </button>
           )}
         </div>
       </div>

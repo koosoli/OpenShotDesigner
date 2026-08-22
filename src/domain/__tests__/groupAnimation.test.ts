@@ -574,13 +574,42 @@ describe('computeGroupPoseOverrides', () => {
     expect(cable.pathPoints![0].y).toBeCloseTo(24);
   });
 
-  it('clamps beats outside the keyframe range', () => {
+  it('clamps beats after the last keyframe to that keyframe', () => {
     const atBeat = computeGroupPoseOverrides(overridesElements(), overridesGroup, 2);
     const clamped = computeGroupPoseOverrides(overridesElements(), overridesGroup, 99);
     expect(clamped.get('actor-1')).toEqual(atBeat.get('actor-1'));
     expect(clamped.get('actor-1')!.rotation).toBe(120);
-    const before = computeGroupPoseOverrides(overridesElements(), overridesGroup, 0);
-    expect(before.get('actor-1')).toEqual(atBeat.get('actor-1'));
+  });
+
+  it('holds the AUTHORED pose before the first keyframe, like camera paths', () => {
+    // The base pivot is the implicit beat-1 node. Clamping backwards onto the
+    // first keyframe instead would teleport a group away from where it was
+    // drawn as soon as one keyframe existed.
+    const actorAtBase = overridesElements().find((el) => el.id === 'actor-1')!;
+    for (const beat of [0, 1]) {
+      const pose = computeGroupPoseOverrides(overridesElements(), overridesGroup, beat).get('actor-1')!;
+      expect(pose.x).toBeCloseTo(actorAtBase.x);
+      expect(pose.y).toBeCloseTo(actorAtBase.y);
+      expect(pose.rotation).toBe(actorAtBase.rotation);
+    }
+  });
+
+  it('eases from the authored pose into the first keyframe', () => {
+    const half = computeGroupPoseOverrides(overridesElements(), overridesGroup, 1.5).get('actor-1')!;
+    const atKey = computeGroupPoseOverrides(overridesElements(), overridesGroup, 2).get('actor-1')!;
+    const atBase = overridesElements().find((el) => el.id === 'actor-1')!;
+    // Strictly between the two poses: the group is on its way, not snapped.
+    expect(half.y).toBeGreaterThan(Math.min(atBase.y, atKey.y));
+    expect(half.y).toBeLessThan(Math.max(atBase.y, atKey.y));
+    expect(half.rotation).not.toBe(atBase.rotation);
+    expect(half.rotation).not.toBe(atKey.rotation);
+  });
+
+  it('still clamps backwards when no base pivot is available at all', () => {
+    // interpolateGroupPose without a pivot keeps the old endpoint clamp, so
+    // hand-authored data with no members still resolves to something sane.
+    const pose = interpolateGroupPose(overridesGroup, 0);
+    expect(pose).toEqual({ x: 10, y: 20, rotationDelta: 90 });
   });
 
   it('falls back to the member bbox centre when basePivot is absent', () => {

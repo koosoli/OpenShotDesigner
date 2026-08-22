@@ -42,7 +42,7 @@ import {
   SAMPLE_SCENES,
 } from '../constants/presets';
 import { calculateFovAngle } from '../utils/geometry';
-import { parseSampleScreenplay, sampleMarksFor } from '../utils/sampleContent';
+import { buildExampleProductionFill, parseSampleScreenplay, sampleMarksFor } from '../utils/sampleContent';
 import {
   NewProjectOptions,
   ProjectSummary,
@@ -262,7 +262,7 @@ interface FloorPlanContextType {
   addSetup: (name?: string) => void;
   duplicateCurrentSetup: () => void;
   deleteSetup: (setupId: string) => void;
-  updateSetupMeta: (updates: Partial<SceneSetup>) => void;
+  updateSetupMeta: (updates: Partial<SceneSetup>, recordHistory?: boolean) => void;
   /**
    * Patch project-level fields. Pass a function to build the patch from the
    * LATEST state — required after an `await`, where the render-time `project`
@@ -270,6 +270,12 @@ interface FloorPlanContextType {
    * changed while the request was in flight.
    */
   updateProjectMeta: (updates: Partial<Project> | ((prev: Project) => Partial<Project>)) => void;
+  /**
+   * Fill the modules that are still empty with the bundled example production.
+   * Strictly additive — anything the user already has is untouched. Returns the
+   * names of what was filled so the caller can confirm it.
+   */
+  loadExampleProductionData: () => string[];
 
   // Named revisions (plan §13.2): intentional milestones, distinct from undo.
   /** Saved revisions of the open project (oldest first). */
@@ -3451,12 +3457,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   };
 
-  const updateSetupMeta = (updates: Partial<SceneSetup>) => {
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      ...updates,
-    };
-    commitSetupState(updatedSetup);
+  /**
+   * Patch fields on the active setup. Built from the latest committed state, so
+   * two setup writes in the same render both land.
+   *
+   * `recordHistory = false` is for live gestures (dragging a group keyframe):
+   * the drag updates the project on every pointer move and the caller pushes a
+   * single history entry on release, so one drag stays one undo step instead of
+   * hundreds.
+   */
+  const updateSetupMeta = (updates: Partial<SceneSetup>, recordHistory = true) => {
+    commitSetupUpdate((prevSetup) => ({ ...prevSetup, ...updates }), recordHistory);
   };
 
   /** Switch the workspace to another project, saving nothing in flight. */
@@ -3618,6 +3629,19 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * with it (lined against the template's shots) unless the project already has
    * a script of its own.
    */
+  /**
+   * Load the bundled example production into the CURRENT project, filling only
+   * the collections that are still empty. Projects created before a module
+   * existed — or started from an empty stage — otherwise have no way to see
+   * what the Schedule, Crew, Rigging or Power pages are for.
+   */
+  const loadExampleProductionData = (): string[] => {
+    const { patch, filled } = buildExampleProductionFill(project);
+    if (filled.length === 0) return [];
+    updateProjectMeta(patch);
+    return filled;
+  };
+
   const loadTemplateScene = (templateIndex: number) => {
     const template = SAMPLE_SCENES[templateIndex];
     if (!template) return;
@@ -4022,6 +4046,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         deleteSetup,
         updateSetupMeta,
         updateProjectMeta,
+        loadExampleProductionData,
         revisions,
         saveRevision,
         restoreRevision,

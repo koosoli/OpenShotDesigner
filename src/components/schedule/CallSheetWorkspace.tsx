@@ -252,16 +252,22 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                   </button>
                 </div>
               ))}
+              {/* A pick-up row has to name somebody, so with no crew there is
+                  nothing to add. Say so on the button itself — a disabled
+                  control that silently ignores the click explains nothing. */}
+              {people.length === 0 && (
+                <p className="text-[10px] text-amber-500">
+                  Add crew and cast on the Crew tab first — a pick-up has to name who is collected.
+                </p>
+              )}
               <button
                 onClick={addPickup}
                 disabled={people.length === 0}
-                className={`h-9 px-3 rounded-md border text-[11px] font-semibold disabled:opacity-40 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+                title={people.length === 0 ? 'Add people on the Crew tab first' : 'Add a pick-up row'}
+                className={`h-9 px-3 rounded-md border text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
               >
-                + Add pick-up
+                {people.length === 0 ? 'Add crew first to add pick-ups' : '+ Add pick-up'}
               </button>
-              {people.length === 0 && (
-                <p className="text-[10px] text-slate-500">Add people on the Crew tab to build a pick-up list.</p>
-              )}
             </div>
           </section>
 

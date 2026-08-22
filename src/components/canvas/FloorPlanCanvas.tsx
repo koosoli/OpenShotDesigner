@@ -1306,18 +1306,33 @@ export const FloorPlanCanvas: React.FC = () => {
     });
   };
 
-  /** Immutably patch one keyframe of the active group. */
-  const patchGroupWaypoint = (groupId: string, waypointId: string, patch: { x: number; y: number }) => {
-    updateSetupMeta({
-      groups: (activeSetup.groups || []).map((group) =>
-        group.id !== groupId
-          ? group
-          : {
-              ...group,
-              path: (group.path || []).map((wp) => (wp.id === waypointId ? { ...wp, ...patch } : wp)),
-            },
-      ),
-    });
+  /**
+   * Immutably patch one keyframe of the active group.
+   *
+   * `recordHistory` is false while dragging: the gesture writes on every
+   * pointer move, and `commitCurrentState` on release pushes the single undo
+   * entry. Recording per move would bury the undo stack under one entry per
+   * pixel of drag.
+   */
+  const patchGroupWaypoint = (
+    groupId: string,
+    waypointId: string,
+    patch: { x: number; y: number },
+    recordHistory = true,
+  ) => {
+    updateSetupMeta(
+      {
+        groups: (activeSetup.groups || []).map((group) =>
+          group.id !== groupId
+            ? group
+            : {
+                ...group,
+                path: (group.path || []).map((wp) => (wp.id === waypointId ? { ...wp, ...patch } : wp)),
+              },
+        ),
+      },
+      recordHistory,
+    );
   };
 
   // Current rotation delta of an in-progress group-rotate gesture, in degrees.
@@ -1958,7 +1973,7 @@ export const FloorPlanCanvas: React.FC = () => {
         nextY = snapToGrid(nextY, gridSettings.size, true);
       }
       dragChangedRef.current = true;
-      patchGroupWaypoint(dragState.groupId, dragState.waypointId, { x: Math.round(nextX), y: Math.round(nextY) });
+      patchGroupWaypoint(dragState.groupId, dragState.waypointId, { x: Math.round(nextX), y: Math.round(nextY) }, false);
       return;
     }
 
