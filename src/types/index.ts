@@ -210,6 +210,13 @@ export interface LightElement extends BaseElement {
   fixtureProfileId?: string;
   /** Stable id of the selected control mode within fixtureProfileId. */
   fixtureModeId?: string;
+  /**
+   * Optional movement path — same beats and semantics as actors, cameras and
+   * props. Lights move more often than the plan model used to assume: followspots
+   * and practicals travel during a take, and on an event the whole position
+   * changes between numbers. Absent = the fixture stays where it was placed.
+   */
+  path?: Waypoint[];
 }
 
 export interface WallElement extends BaseElement {

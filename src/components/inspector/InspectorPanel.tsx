@@ -4509,6 +4509,73 @@ export const InspectorPanel: React.FC = () => {
                   </p>
                 )}
               </RubricSection>
+
+              {/* Waypoints & Movement: followspots, practicals on a dolly, and
+                  event rigs that reposition between numbers. Same beats and
+                  editor as actors, cameras and props. */}
+              {(() => {
+                const nextBeat = Math.max(2, ...(light.path || []).map((wp) => wp.beat + 1));
+                const handleAddLightWp = () => {
+                  const existingPath = light.path || [];
+                  const lastPoint = existingPath.length > 0
+                    ? existingPath[existingPath.length - 1]
+                    : { x: light.x, y: light.y, rotation: light.rotation || 0 };
+                  const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
+                  const offsetDist = 60;
+                  updateElement(light.id, {
+                    path: [
+                      ...existingPath,
+                      {
+                        id: createId('wp'),
+                        x: Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist),
+                        y: Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist),
+                        rotation: lastPoint.rotation || 0,
+                        beat: nextBeat,
+                      },
+                    ],
+                  } as Partial<LightElement>);
+                  if (nextBeat > (activeSetup.totalBeats || 1)) {
+                    updateSetupMeta({ totalBeats: nextBeat });
+                  }
+                };
+
+                return (
+                  <RubricSection
+                    title="Waypoints & Trajectory"
+                    icon={<Compass className="w-3.5 h-3.5 text-amber-500" />}
+                    defaultOpen={(light.path || []).length > 0}
+                    isLight={isLight}
+                    headerRight={
+                      <button
+                        type="button"
+                        title={`Add movement waypoint (Beat ${nextBeat})`}
+                        onClick={handleAddLightWp}
+                        className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-600 hover:bg-amber-700 active:scale-95 text-white transition-all cursor-pointer select-none"
+                      >
+                        + Waypoint
+                      </button>
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={handleAddLightWp}
+                      className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
+                        isLight ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100' : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
+                      }`}
+                    >
+                      + Add Light Waypoint (Beat {nextBeat})
+                    </button>
+
+                    <WaypointListEditor
+                      elementId={light.id}
+                      path={light.path || []}
+                      baseRotation={light.rotation}
+                      accentClass="text-amber-500"
+                      isLight={isLight}
+                    />
+                  </RubricSection>
+                );
+              })()}
             </div>
           );
         })()}

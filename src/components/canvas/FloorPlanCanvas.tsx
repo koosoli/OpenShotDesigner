@@ -44,6 +44,7 @@ import {
 } from '../../domain/plan';
 import type { ElementPose, FreehandToolSettings } from '../../domain/plan';
 import { calibrateBackgroundImage } from '../../domain/plan';
+import { createId } from '../../domain/ids';
 import { CableLayer } from './CableLayer';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
@@ -1509,6 +1510,33 @@ export const FloorPlanCanvas: React.FC = () => {
     }
   };
 
+  // Add light (followspot / practical / repositioned fixture) waypoint
+  const handleAddLightWaypoint = (lightId: string) => {
+    const light = activeSetup.elements.find((e) => e.id === lightId) as LightElement | undefined;
+    if (!light) return;
+    const existingPath = light.path || [];
+    const nextBeat = Math.max(2, ...existingPath.map((wp) => wp.beat + 1));
+    const lastPoint = existingPath.length > 0
+      ? existingPath[existingPath.length - 1]
+      : { x: light.x, y: light.y, rotation: light.rotation || 0 };
+
+    const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
+    const offsetDist = 60;
+    updateElement(light.id, {
+      path: [
+        ...existingPath,
+        {
+          id: createId('wp'),
+          x: Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist),
+          y: Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist),
+          rotation: lastPoint.rotation || 0,
+          beat: nextBeat,
+        },
+      ],
+    } as Partial<FloorPlanElement>);
+    if (nextBeat > (activeSetup.totalBeats || 1)) updateSetupMeta({ totalBeats: nextBeat });
+  };
+
   // Add prop (car / vehicle / furniture) waypoint
   const handleAddPropWaypoint = (propId: string) => {
     const prop = activeSetup.elements.find((e) => e.id === propId) as PropElement | undefined;
@@ -2508,6 +2536,10 @@ export const FloorPlanCanvas: React.FC = () => {
             onSelect={handleElementSelect}
             onDoubleClick={handleElementDoubleClick}
             displaySettings={displaySettings}
+            currentBeat={playback.currentBeat}
+            onAddWaypoint={handleAddLightWaypoint}
+            onWaypointDragStart={handleWaypointDragStart}
+            onWaypointRotateStart={handleWaypointRotateStart}
           />
 
           {/* 5. Walls, Doors, Windows with Live Snapping Glow */}

@@ -1,6 +1,11 @@
 import React from 'react';
-import { LightElement } from '../../types';
-import { getLightBeamPolygon, kelvinToRgb } from '../../utils/geometry';
+import { LightElement, Waypoint } from '../../types';
+import {
+  getInterpolatedPositionAndRotation,
+  getLightBeamPolygon,
+  getSmoothSplinePath,
+  kelvinToRgb,
+} from '../../utils/geometry';
 import { LIGHT_FIXTURES, LIGHT_ROLES } from '../../constants/presets';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 import { FlagFixtureIcon, flagLabel, getFlagSelectionRadius, isFlagFixture } from './FlagFixtureIcon';
@@ -12,6 +17,11 @@ interface LightingLayerProps {
   onSelect: (id: string, e: React.PointerEvent) => void;
   onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   displaySettings: DisplaySettings;
+  /** Playback beat used to animate fixtures along their waypoint path. */
+  currentBeat?: number;
+  onAddWaypoint?: (lightId: string) => void;
+  onWaypointDragStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
+  onWaypointRotateStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
 }
 
 export const LightingLayer: React.FC<LightingLayerProps> = ({
@@ -20,6 +30,10 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
   onSelect,
   onDoubleClick,
   displaySettings,
+  currentBeat = 1,
+  onAddWaypoint,
+  onWaypointDragStart,
+  onWaypointRotateStart,
 }) => {
   const showLightLabel = displaySettings.showLabels && displaySettings.showLightLabels;
   const showLightName = displaySettings.showLabels && displaySettings.showLightNameLabels;
@@ -47,10 +61,56 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
 
         const omniRadius = light.fixtureType === 'practical' ? Math.min(30, Math.max(16, throwDist / 6)) : throwDist / 2;
 
+        // Movement path: followspots, practicals on a dolly, and event rigs
+        // that reposition between numbers. Same beats and easing as actors,
+        // cameras and props.
+        const waypoints: Waypoint[] = light.path || [];
+        const hasPath = waypoints.length > 0;
+        const showWaypoints = displaySettings.showWaypoints !== false;
+        const moved =
+          hasPath && currentBeat > 1
+            ? getInterpolatedPositionAndRotation(
+                { x: light.x, y: light.y },
+                light.rotation,
+                waypoints,
+                currentBeat,
+              )
+            : { position: { x: light.x, y: light.y }, rotation: light.rotation };
+        const position = moved.position;
+        const rotation = moved.rotation;
+        const trajectoryPoints = [{ x: light.x, y: light.y }, ...waypoints.map((wp) => ({ x: wp.x, y: wp.y }))];
+
         return (
+          <g key={light.id}>
+          {/* Movement trail + ghost fixtures at each keyed beat */}
+          {hasPath && showWaypoints && (
+            <g className="light-path pointer-events-none">
+              <path
+                d={getSmoothSplinePath(trajectoryPoints)}
+                fill="none"
+                stroke={color}
+                strokeWidth={2.5}
+                strokeDasharray="6 4"
+                strokeOpacity={0.6}
+              />
+              {waypoints.map((wp, i) => (
+                <g
+                  key={`ghost-${wp.id || i}`}
+                  transform={`translate(${wp.x}, ${wp.y}) rotate(${wp.rotation ?? light.rotation})`}
+                  opacity={0.3}
+                >
+                  {isFlag ? (
+                    <FlagFixtureIcon light={light} />
+                  ) : (
+                    <FixtureGlyph fixtureType={light.fixtureType} color={color} />
+                  )}
+                </g>
+              ))}
+            </g>
+          )}
+
           <g
-            key={light.id}
-            transform={`translate(${light.x}, ${light.y}) rotate(${light.rotation})`}
+            transform={`translate(${position.x}, ${position.y}) rotate(${rotation})`}
             opacity={lightOpacity}
             className="cursor-pointer"
             onPointerDown={(e) => onSelect(light.id, e)}
@@ -197,7 +257,7 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
 
               return (
                 <g
-                  transform={`rotate(${-light.rotation}) translate(0, ${isOmni ? 34 : 26}) scale(${(displaySettings.labelScale ?? 1) * (displaySettings.labelCategoryScale?.lights ?? 1)})`}
+                  transform={`rotate(${-rotation}) translate(0, ${isOmni ? 34 : 26}) scale(${(displaySettings.labelScale ?? 1) * (displaySettings.labelCategoryScale?.lights ?? 1)})`}
                   opacity={(displaySettings.labelOpacity ?? 1) * (displaySettings.labelCategoryOpacity?.lights ?? 1)}
                   className="pointer-events-none"
                 >
@@ -342,7 +402,7 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
 
             {light.locked && (
               <g
-                transform={`rotate(${-light.rotation}) translate(-16, -16)`}
+                transform={`rotate(${-rotation}) translate(-16, -16)`}
                 className="pointer-events-none select-none"
               >
                 <circle cx={0} cy={0} r={7.5} fill="#78350f" stroke="#f59e0b" strokeWidth={1} />
@@ -351,6 +411,65 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
                 </text>
               </g>
             )}
+
+            {/* Add movement waypoint (top-right, stays upright) */}
+            {isSelected && onAddWaypoint && (
+              <g
+                transform={`rotate(${-rotation}) translate(30, -30)`}
+                className="pointer-events-auto cursor-pointer"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onAddWaypoint(light.id);
+                }}
+              >
+                <title>Add movement waypoint</title>
+                <circle cx={0} cy={0} r={11} fill="#22c55e" stroke="#0f172a" strokeWidth={1.5} className="drop-shadow-md" />
+                <text x={0} y={4.5} fill="#ffffff" fontSize="14" fontWeight="bold" textAnchor="middle" className="select-none">
+                  +
+                </text>
+              </g>
+            )}
+          </g>
+
+          {/* Interactive waypoint markers & aim handles */}
+          {hasPath && showWaypoints && (
+            <g className={isSelected ? 'light-waypoint-handles pointer-events-auto' : 'light-waypoint-handles pointer-events-none'}>
+              {waypoints.map((wp, i) => {
+                const wpRot = wp.rotation ?? light.rotation;
+                return (
+                  <g
+                    key={wp.id || i}
+                    transform={`translate(${wp.x}, ${wp.y})`}
+                    onPointerDown={
+                      isSelected && onWaypointDragStart
+                        ? (e) => onWaypointDragStart(light.id, wp.id, e)
+                        : undefined
+                    }
+                  >
+                    {isSelected && onWaypointRotateStart && (
+                      <g transform={`rotate(${wpRot})`} className="pointer-events-auto">
+                        <line x1={16} y1={0} x2={30} y2={0} stroke="#38bdf8" strokeWidth={1.5} strokeDasharray="3 3" />
+                        <circle
+                          cx={33}
+                          cy={0}
+                          r={6}
+                          fill="#38bdf8"
+                          stroke="#0f172a"
+                          strokeWidth={1.5}
+                          className="cursor-grab active:cursor-grabbing"
+                          onPointerDown={(e) => onWaypointRotateStart(light.id, wp.id, e)}
+                        />
+                      </g>
+                    )}
+                    <circle cx={0} cy={0} r={11} fill="#0f172a" stroke={isSelected ? '#38bdf8' : color} strokeWidth={isSelected ? 3 : 2} className="drop-shadow-md" />
+                    <text x={0} y={3.5} fill={color} fontSize="9" fontWeight="bold" textAnchor="middle" className="select-none font-mono">
+                      B{wp.beat}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          )}
           </g>
         );
       })}
