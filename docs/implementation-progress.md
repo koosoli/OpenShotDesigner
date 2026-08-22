@@ -1,7 +1,7 @@
 # Implementation Progress
 
 Running record of what has landed, mapped to `docs/IMPLEMENTATION_PLAN.md` batches.
-Typecheck and Vitest are green at time of writing; test count: **466**. Production builds are verified separately before handoff.
+Typecheck and Vitest are green at time of writing; test count: **591**. Production builds are verified separately before handoff.
 
 ## Batch 1 — Foundation ✅
 - Central ID service (`src/domain/ids.ts`), deep-clone/remap (`src/domain/clone.ts`)
@@ -71,6 +71,18 @@ Schema v13 (`src/domain/migrations/v12-to-v13.ts`, no backfill — every new fie
 - **Icons:** toolbar/inspector camera and light glyphs are now a motion-picture camera and a fresnel head (`src/components/icons/ProductionIcons.tsx`).
 - **Audit fixes:** debounced autosave with flush on project switch / tab hide / unload and surfaced IndexedDB save errors; real `updatedAt` on projects; IndexedDB open timeout + blocked/versionchange handling; pure AV-row updater; geocode timeout and network-stubbed tests; second-finger touch guard and element long-press menu on the canvas; keyboard shortcuts no longer steal copy/delete from text fields; timeline drag survives row deletion and no longer runs away past the axis; local-date today marker; service-worker cache keyed by build id with network-first navigations; camera stream released when the viewfinder closes mid-prompt; confirm before "Clear cache & reset".
 - See `docs/codebase-audit-2026-08-22.md` for the remaining open findings.
+
+## Modifier / crew / power pass (2026-08-22, second batch) ✅
+Schema v16 (`src/domain/migrations/v15-to-v16.ts`, no backfill — every new field is absent-safe). Test count now **591**.
+- **Light tools:** cucoloris (cookie), branchaloris and barn-door / framing shutter modifiers with top-down glyphs, a shutter cut-angle control, quick-search keywords, and correct exclusion from DMX addressing, power estimation and the equipment-list flag branch.
+- **Crew:** the Contacts tab is now **Crew**, with a key-crew block assigning Director, DP and eleven other heads by role (`src/domain/people/keyRoles.ts`). Assignments live on `Person.role` — no second table — and Director/DP mirror into the legacy project fields the exports render; the scene inspector offers the crew list via a datalist while still accepting free text.
+- **Power:** load per truss run and per distro zone (`powerLoadByGroup`) plus 3-phase leg assignment with a phase-balance readout (`phaseBalance`). Unassigned legs are excluded rather than loaded onto L1, and imbalance is `null` — never a falsely reassuring 0 % — when nothing is known.
+- **Export:** the complete package now also prints the stripboard and coverage matrix, and states its contents; strip labels/tones/coverage rows moved to `src/domain/scheduling/stripboardPrint.ts` so the schedule tab and the exporter share one implementation (rule 4).
+- **Defaults:** camera FOV cones and light beams start off for a fresh install; saved preferences are untouched.
+- **Canvas ergonomics:** the group pivot is no longer an invisible rotate hit target sitting on the group's own contents, and rotate-handle degree badges no longer extend the grab area — both turned ordinary drags into accidental rotations.
+- **Inspector naming:** the no-selection view is "Plan & Scene Settings"; "Production Info" is marked project-wide.
+- **Audit fixes:** same-render setup writes no longer overwrite each other (`commitSetupUpdate`); geocoding and mood-board uploads patch from `prev` instead of a stale closure; `src/domain/power/types.ts` had a raw Latin-1 byte and `npm run check:encoding` now fails on invalid UTF-8, a class its mojibake patterns could not detect.
+- See `docs/codebase-audit-2026-08-22b.md` for what remains open.
 
 ## Remaining / deferred
 - Batch 3A collaboration spike — intentionally deferred (CRDT choice is a locked "do not decide silently" item)
