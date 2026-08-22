@@ -265,7 +265,13 @@ interface FloorPlanContextType {
   duplicateCurrentSetup: () => void;
   deleteSetup: (setupId: string) => void;
   updateSetupMeta: (updates: Partial<SceneSetup>) => void;
-  updateProjectMeta: (updates: Partial<Project>) => void;
+  /**
+   * Patch project-level fields. Pass a function to build the patch from the
+   * LATEST state — required after an `await`, where the render-time `project`
+   * is already stale and a plain object patch would discard whatever the user
+   * changed while the request was in flight.
+   */
+  updateProjectMeta: (updates: Partial<Project> | ((prev: Project) => Partial<Project>)) => void;
 
   // Named revisions (plan §13.2): intentional milestones, distinct from undo.
   /** Saved revisions of the open project (oldest first). */
@@ -1002,6 +1008,38 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  /**
+   * Commit a change to the ACTIVE setup computed from the latest committed
+   * project state rather than from the render-time `activeSetup`.
+   *
+   * This is the difference between one write and two surviving: a handler that
+   * calls two setup mutations in the same render would otherwise have the
+   * second rebuild the whole setup from the stale render snapshot and silently
+   * discard the first. Returning `null` from the updater means "nothing to do"
+   * and leaves the project untouched.
+   */
+  const commitSetupUpdate = (
+    updater: (prevSetup: SceneSetup) => SceneSetup | null,
+    recordHistory = true,
+  ) => {
+    setProject((prev) => {
+      const currentSetup =
+        prev.setups.find((s) => s.id === prev.activeSetupId) || prev.setups[0];
+      if (!currentSetup) return prev;
+      const nextSetup = updater(currentSetup);
+      if (!nextSetup || nextSetup === currentSetup) return prev;
+      const next: Project = {
+        ...prev,
+        setups: prev.setups.map((s) => (s.id === nextSetup.id ? nextSetup : s)),
+      };
+      // Keep the live-drag snapshot in step with what was actually committed,
+      // so releasing a drag records the state the canvas is showing.
+      liveSetupRef.current = nextSetup;
+      if (recordHistory) pendingSnapshotsRef.current.push(next);
+      return next;
+    });
+  };
+
   const undo = () => {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
@@ -1437,62 +1475,63 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateElement = (id: string, updates: Partial<FloorPlanElement>, recordHistory = true) => {
-    const el = activeSetup.elements.find((e) => e.id === id);
-    if (!el) return;
+    // Built from the latest committed setup (see commitSetupUpdate) so two
+    // element updates in the same render both land.
+    commitSetupUpdate((activeSetup) => {
+      const el = activeSetup.elements.find((e) => e.id === id);
+      if (!el) return null;
 
-    // If updating a camera's focal length or sensor format, re-calculate FOV and update linked shot
-    let extraUpdates: Partial<FloorPlanElement> = {};
-    let updatedShots = activeSetup.shots;
-    if (el.type === 'camera') {
-      const cam = el as CameraElement;
-      const focal = (updates as Partial<CameraElement>).focalLength ?? cam.focalLength;
-      const sensor = (updates as Partial<CameraElement>).sensorFormat ?? cam.sensorFormat;
-      extraUpdates = { fovAngle: calculateFovAngle(focal, sensor) };
+      // If updating a camera's focal length or sensor format, re-calculate FOV and update linked shot
+      let extraUpdates: Partial<FloorPlanElement> = {};
+      let updatedShots = activeSetup.shots;
+      if (el.type === 'camera') {
+        const cam = el as CameraElement;
+        const focal = (updates as Partial<CameraElement>).focalLength ?? cam.focalLength;
+        const sensor = (updates as Partial<CameraElement>).sensorFormat ?? cam.sensorFormat;
+        extraUpdates = { fovAngle: calculateFovAngle(focal, sensor) };
 
-      // Sync the linked shot's lens in the SAME commit — a separate updateShot
-      // call would be overwritten by this commit, because both rebuild the
-      // setup from the same base state (last write wins per field).
-      if ((updates as Partial<CameraElement>).focalLength !== undefined) {
-        const linkedShot = activeSetup.shots.find((s) => s.cameraId === id || s.id === cam.associatedShotId);
-        if (linkedShot) {
-          updatedShots = activeSetup.shots.map((s) =>
-            s.id === linkedShot.id ? ({ ...s, lensMm: focal } as Shot) : s
-          );
-        }
-      }
-
-      // A camera that gains its FIRST waypoint is now moving — its linked shot
-      // can't stay Static. Flip it to Tracking (only if the user hadn't already
-      // picked a real movement).
-      if ((updates as Partial<CameraElement>).path !== undefined) {
-        const newPath = (updates as Partial<CameraElement>).path;
-        const hadMove = !!(cam.path && cam.path.length > 0);
-        const hasMove = !!newPath && newPath.length > 0;
-        if (hasMove && !hadMove) {
+        // Sync the linked shot's lens in the SAME commit — a separate updateShot
+        // call would be overwritten by this commit, because both rebuild the
+        // setup from the same base state (last write wins per field).
+        if ((updates as Partial<CameraElement>).focalLength !== undefined) {
           const linkedShot = activeSetup.shots.find((s) => s.cameraId === id || s.id === cam.associatedShotId);
           if (linkedShot) {
             updatedShots = activeSetup.shots.map((s) =>
-              s.id === linkedShot.id
-                ? ({ ...s, movement: s.movement === 'Static' ? ('Tracking' as CameraMovement) : s.movement } as Shot)
-                : s
+              s.id === linkedShot.id ? ({ ...s, lensMm: focal } as Shot) : s
             );
           }
         }
+
+        // A camera that gains its FIRST waypoint is now moving — its linked shot
+        // can't stay Static. Flip it to Tracking (only if the user hadn't already
+        // picked a real movement).
+        if ((updates as Partial<CameraElement>).path !== undefined) {
+          const newPath = (updates as Partial<CameraElement>).path;
+          const hadMove = !!(cam.path && cam.path.length > 0);
+          const hasMove = !!newPath && newPath.length > 0;
+          if (hasMove && !hadMove) {
+            const linkedShot = activeSetup.shots.find((s) => s.cameraId === id || s.id === cam.associatedShotId);
+            if (linkedShot) {
+              updatedShots = activeSetup.shots.map((s) =>
+                s.id === linkedShot.id
+                  ? ({ ...s, movement: s.movement === 'Static' ? ('Tracking' as CameraMovement) : s.movement } as Shot)
+                  : s
+              );
+            }
+          }
+        }
       }
-    }
 
-    const updatedElements = activeSetup.elements.map((e) =>
-      e.id === id ? ({ ...e, ...updates, ...extraUpdates } as FloorPlanElement) : e
-    );
+      const updatedElements = activeSetup.elements.map((e) =>
+        e.id === id ? ({ ...e, ...updates, ...extraUpdates } as FloorPlanElement) : e
+      );
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: updatedElements,
-      shots: updatedShots,
-    };
-
-    liveSetupRef.current = updatedSetup;
-    commitSetupState(updatedSetup, recordHistory);
+      return {
+        ...activeSetup,
+        elements: updatedElements,
+        shots: updatedShots,
+      } satisfies SceneSetup;
+    }, recordHistory);
   };
 
   const updateMultipleElements = (
@@ -1500,18 +1539,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     recordHistory = true
   ) => {
     const updateMap = new Map(updatesList.map((u) => [u.id, u.updates]));
-    const updatedElements = activeSetup.elements.map((e) => {
-      const u = updateMap.get(e.id);
-      return u ? ({ ...e, ...u } as FloorPlanElement) : e;
-    });
-
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: updatedElements,
-    };
-
-    liveSetupRef.current = updatedSetup;
-    commitSetupState(updatedSetup, recordHistory);
+    commitSetupUpdate(
+      (activeSetup) => ({
+        ...activeSetup,
+        elements: activeSetup.elements.map((e) => {
+          const u = updateMap.get(e.id);
+          return u ? ({ ...e, ...u } as FloorPlanElement) : e;
+        }),
+      }),
+      recordHistory,
+    );
   };
 
   /**
@@ -3511,9 +3548,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * schedule, mood-board, location and company edits are all Ctrl+Z-able.
    * Pass `record: false` for bookkeeping that should stay outside history.
    */
-  const updateProjectMeta = (updates: Partial<Project>, record = true) => {
+  const updateProjectMeta = (
+    updates: Partial<Project> | ((prev: Project) => Partial<Project>),
+    record = true,
+  ) => {
     setProject((prev) => {
-      const next: Project = { ...prev, ...updates };
+      const patch = typeof updates === 'function' ? updates(prev) : updates;
+      const next: Project = { ...prev, ...patch };
       if (record) pendingSnapshotsRef.current.push(next);
       return next;
     });

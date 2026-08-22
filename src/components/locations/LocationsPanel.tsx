@@ -97,12 +97,15 @@ export const LocationsPanel: React.FC = () => {
     setNewType('location');
   };
 
+  /**
+   * Patch one location from the LATEST project state. Geocoding callers reach
+   * this after an await, where the render-time `locations` array is stale —
+   * building the patch from `prev` keeps edits made during the request.
+   */
   const updateLocation = (id: string, updates: Partial<{ name: string; type: LocationType; address?: string; parentLocationId?: string; notes?: string; lat?: number; lng?: number }>) => {
-    updateProjectMeta({
-      locations: locations.map((l) =>
-        l.id === id ? { ...l, ...updates } : l
-      ),
-    });
+    updateProjectMeta((prev) => ({
+      locations: (prev.locations ?? []).map((l) => (l.id === id ? { ...l, ...updates } : l)),
+    }));
   };
 
   /** Resolve the location's address (or name) into a map pin via OSM Nominatim. */
@@ -144,9 +147,7 @@ export const LocationsPanel: React.FC = () => {
     try {
       const result = await reverseGeocode(picked);
       if (result.status === 'ok') {
-        updateProjectMeta({
-          locations: (project.locations ?? []).map((l) => (l.id === loc.id ? { ...l, lat: picked.lat, lng: picked.lng, address: result.address } : l)),
-        });
+        updateLocation(loc.id, { lat: picked.lat, lng: picked.lng, address: result.address });
         setGeocodeMessage({ id: loc.id, text: 'Address filled in from the pin (OpenStreetMap).' });
       } else {
         setGeocodeMessage({ id: loc.id, text: result.status === 'not_found' ? 'Pin placed — no address known for this spot.' : result.message ?? 'Address lookup unavailable.' });

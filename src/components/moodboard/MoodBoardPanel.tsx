@@ -305,9 +305,27 @@ export const MoodBoardPanel: React.FC = () => {
 
   const updateBoard = useCallback(
     (next: MoodBoard) => {
-      setBoards(boards.map((b) => (b.id === next.id ? next : b)));
+      // Merge against the LATEST boards, not the render-time array, so a write
+      // that lands while another board is being edited does not revert it.
+      updateProjectMeta((prev) => ({
+        moodBoards: (prev.moodBoards ?? []).map((b) => (b.id === next.id ? next : b)),
+      }));
     },
-    [boards, setBoards],
+    [updateProjectMeta],
+  );
+
+  /**
+   * Mutate one board from its latest stored value. Required by anything that
+   * writes after an `await` (asset upload, palette extraction): rebuilding from
+   * the render-time board would drop cards added in the meantime.
+   */
+  const updateBoardWith = useCallback(
+    (boardId: string, fn: (prev: MoodBoard) => MoodBoard) => {
+      updateProjectMeta((prev) => ({
+        moodBoards: (prev.moodBoards ?? []).map((b) => (b.id === boardId ? fn(b) : b)),
+      }));
+    },
+    [updateProjectMeta],
   );
 
   useEffect(() => {
@@ -372,7 +390,9 @@ export const MoodBoardPanel: React.FC = () => {
         );
         return;
       }
-      updateBoard({ ...activeBoard, palette });
+      // Written after an await: patch the stored board so cards added while
+      // sampling was running survive.
+      updateBoardWith(activeBoard.id, (prevBoard) => ({ ...prevBoard, palette }));
     } catch (error) {
       setPaletteError(error instanceof Error ? error.message : 'Palette extraction failed.');
     } finally {
@@ -399,25 +419,36 @@ export const MoodBoardPanel: React.FC = () => {
   const addImageFiles = useCallback(
     async (files: File[], sectionId: string) => {
       if (!activeBoard) return;
-      let board = activeBoard;
+      const boardId = activeBoard.id;
+      // Store every file first, then commit all the cards in ONE update built
+      // from the latest board. Committing inside the loop would race a second
+      // upload (or any other board edit) running at the same time.
+      const stored: Array<{ assetId: string; caption: string }> = [];
       for (const file of files) {
         if (!file.type.startsWith('image/')) continue;
         try {
           const ref = await moodboardAssetStore.put(file, { source: file.name });
-          board = addCard(board, {
-            id: createId('card'),
-            assetId: ref.id,
-            caption: file.name.replace(/\.[^.]+$/, ''),
-            tags: [],
-            sectionId,
-          });
+          stored.push({ assetId: ref.id, caption: file.name.replace(/\.[^.]+$/, '') });
         } catch {
           continue;
         }
       }
-      updateBoard(board);
+      if (stored.length === 0) return;
+      updateBoardWith(boardId, (prevBoard) =>
+        stored.reduce(
+          (board, entry) =>
+            addCard(board, {
+              id: createId('card'),
+              assetId: entry.assetId,
+              caption: entry.caption,
+              tags: [],
+              sectionId,
+            }),
+          prevBoard,
+        ),
+      );
     },
-    [activeBoard, updateBoard],
+    [activeBoard, updateBoardWith],
   );
 
   const handleAddUrl = () => {
