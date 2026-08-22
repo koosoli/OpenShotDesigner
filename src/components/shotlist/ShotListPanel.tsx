@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
 import { CAMERA_MOVEMENTS, SHOT_SIZES, ASPECT_RATIOS } from '../../constants/presets';
-import { framesOf } from '../../utils/storyboardFrames';
+import { framesOf, keyFrameImage } from '../../utils/storyboardFrames';
 import { effectiveMovement, hasCameraMove } from '../../utils/cameraMovement';
 import { exportShotListToCsv } from '../../utils/exportShotList';
+import { ProjectImage } from '../common/ProjectImage';
 import {
   ArrowUpDown,
   Camera,
@@ -208,8 +209,9 @@ export const ShotListPanel: React.FC = () => {
   };
 
   // Key storyboard frame for a shot (the same one the print export shows).
-  const storyboardImageFor = (shot: Shot): string | undefined =>
-    shot.storyboardImage || framesOf(shot)['start']?.image;
+  // `keyFrameImage` reads the frames and falls back to the retired single-image
+  // field for projects that still hold one, so both eras show a board.
+  const storyboardImageFor = (shot: Shot): string | undefined => keyFrameImage(shot);
 
   // Pick an existing camera (or null) for a shot. Choosing a letter re-labels
   // the shot's own camera element on the floor plan so the icon shows that
@@ -884,8 +886,8 @@ export const ShotListPanel: React.FC = () => {
                     className="overflow-hidden rounded-lg border mb-2 bg-slate-100 dark:bg-slate-950"
                     style={{ aspectRatio: `${sceneAspectRatio} / 1`, maxHeight: 190 }}
                   >
-                    <img
-                      src={storyboardImageFor(shot)!}
+                    <ProjectImage
+                      imageRef={storyboardImageFor(shot)}
                       alt={`Storyboard ${shot.shotNumber}`}
                       className="w-full h-full object-cover block pointer-events-none"
                       style={{
@@ -1272,8 +1274,8 @@ export const ShotListPanel: React.FC = () => {
                               className="overflow-hidden rounded border bg-slate-100 dark:bg-slate-950"
                               style={{ width: 40, aspectRatio: `${sceneAspectRatio} / 1` }}
                             >
-                              <img
-                                src={storyboardImageFor(shot)}
+                              <ProjectImage
+                                imageRef={storyboardImageFor(shot)}
                                 alt={`Storyboard ${shot.shotNumber}`}
                                 className="w-full h-full block"
                                 style={{

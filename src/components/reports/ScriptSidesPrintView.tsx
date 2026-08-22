@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ScriptSides } from '../../domain/script';
+import { ProjectImage } from '../common/ProjectImage';
 
 interface ScriptSidesPrintViewProps {
   sides: ScriptSides;
@@ -41,7 +42,7 @@ export const ScriptSidesPrintView: React.FC<ScriptSidesPrintViewProps> = ({ side
     <div className="font-mono text-[11.5px] leading-[1.35] text-slate-900" style={{ fontFamily: '"Courier Prime", "Courier New", Courier, monospace' }}>
       {logo && (
         <div className="flex justify-end mb-4">
-          <img src={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
+          <ProjectImage imageRef={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
         </div>
       )}
       {sides.scenes.map((scene, index) => (

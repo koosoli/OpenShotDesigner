@@ -1,4 +1,5 @@
 import React from 'react';
+import { ProjectImage } from '../common/ProjectImage';
 
 export interface PrintableStripboardItem {
   label: string;
@@ -95,7 +96,7 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
             <p className="sb-company">{days.length} shooting day{days.length === 1 ? '' : 's'} · generated {generatedAt}</p>
           </div>
           <div className="sb-meta">
-            {logo && <img src={logo} alt="Production logo" className="sb-logo" />}
+            {logo && <ProjectImage imageRef={logo} alt="Production logo" className="sb-logo" />}
             <div>Total estimated</div>
             <div style={{ fontSize: 20, color: '#0f172a', fontFamily: "'Courier New', monospace" }}>{formatMinutes(grandTotal)}</div>
           </div>

@@ -100,11 +100,34 @@ export const slotsOf = (shot: Shot, camera?: CameraElement | null): FrameSlot[] 
 };
 
 /**
- * Build the `updateShot` payload that writes one frame. The shot's key frame is
- * mirrored onto the legacy `storyboardImage` field so anything still reading it
- * (exports, thumbnails, the inspector) keeps showing a board: the start frame
- * when it carries art, otherwise the first other boarded frame — capturing any
- * slot must leave the shot with a visible storyboard.
+ * The frame that stands for the shot: its start frame when boarded, otherwise
+ * the first slot that carries art.
+ *
+ * This used to be answered by the `storyboardImage` field, which
+ * `setFramePatch` kept mirrored on every write. That was one picture stored
+ * twice, and the two could disagree: anything writing `storyboardImage`
+ * directly left `storyboardFrames` stale, and `framesOf` needed a
+ * "mirroredElsewhere" check to avoid showing the same frame twice.
+ *
+ * Reading the legacy fields continues — old projects are full of them, and
+ * `framesOf` folds them in. What has stopped is writing them.
+ */
+export const keyFrame = (shot: Shot): StoryboardFrame | undefined => {
+  const frames = framesOf(shot);
+  const start = frames[START_SLOT];
+  return start?.image ? start : Object.values(frames).find((frame) => frame?.image);
+};
+
+/** Just the image reference of {@link keyFrame}. */
+export const keyFrameImage = (shot: Shot): string | undefined => keyFrame(shot)?.image;
+
+/**
+ * Build the `updateShot` payload that writes one frame.
+ *
+ * `storyboardFrames` is the only thing written. The legacy single-image fields
+ * are explicitly cleared, so a shot sheds them the first time it is boarded —
+ * `framesOf` has already folded their content into `frames` above, so nothing
+ * is lost, and the shot stops carrying the same picture in two places.
  */
 export const setFramePatch = (
   shot: Shot,
@@ -116,14 +139,12 @@ export const setFramePatch = (
   if (updates === null) delete frames[slotKey];
   else frames[slotKey] = { ...(frames[slotKey] || { image: '' }), ...updates } as StoryboardFrame;
 
-  const start = frames[START_SLOT];
-  const keyFrame = (start?.image ? start : undefined) || Object.values(frames).find((frame) => frame?.image);
   return {
     storyboardFrames: frames,
-    // Legacy mirrors
-    storyboardImage: keyFrame?.image,
-    storyboardFit: keyFrame?.fit,
-    storyboardCanvasPosition: keyFrame?.canvasPosition,
+    // Retired mirrors: cleared, never written.
+    storyboardImage: undefined,
+    storyboardFit: undefined,
+    storyboardCanvasPosition: undefined,
     storyboardImageEnd: undefined,
     storyboardFitEnd: undefined,
     storyboardCanvasPositionEnd: undefined,

@@ -1,4 +1,5 @@
 import React from 'react';
+import { ProjectImage } from '../common/ProjectImage';
 
 export interface PrintableCoverageRow {
   label: string;
@@ -83,7 +84,7 @@ export const CoverageMatrixPrintView: React.FC<CoverageMatrixPrintViewProps> = (
               <h1 className="cv-title">{productionTitle}</h1>
               <p className="cv-company">{cameras.length} camera{cameras.length === 1 ? '' : 's'} · {rows.length} row{rows.length === 1 ? '' : 's'} · generated {generatedAt}</p>
             </div>
-            {logo && <img src={logo} alt="Production logo" className="cv-logo" />}
+            {logo && <ProjectImage imageRef={logo} alt="Production logo" className="cv-logo" />}
           </div>
         </header>
 

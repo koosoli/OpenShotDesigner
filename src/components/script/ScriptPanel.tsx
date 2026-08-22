@@ -44,6 +44,8 @@ import {
 import { omittedSceneLabel, reconcileScriptLineIds, removeLineOrOmit, restoreScene } from '../../domain/script';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
 import { BreakdownTagControl } from './BreakdownTagControl';
+import { ProjectImage } from '../common/ProjectImage';
+import { keyFrameImage } from '../../utils/storyboardFrames';
 
 type ScriptWorkspaceView = ScriptFormatMode | 'reports';
 
@@ -59,7 +61,7 @@ const AVStoryboardCell: React.FC<{
   onChange: (updates: Partial<AVScriptRow>) => void;
 }> = ({ row, linkedShot, isLight, onChange }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const inherited = !row.storyboardImage ? linkedShot?.storyboardImage : undefined;
+  const inherited = !row.storyboardImage && linkedShot ? keyFrameImage(linkedShot) : undefined;
   const image = row.storyboardImage ?? inherited;
   const fit = row.storyboardFit ?? linkedShot?.storyboardFit ?? 'cover';
 
@@ -88,7 +90,7 @@ const AVStoryboardCell: React.FC<{
       >
         {image ? (
           <>
-            <img src={image} alt={`Board for shot ${row.shotNumber}`} className="absolute inset-0 w-full h-full" style={{ objectFit: fit }} />
+            <ProjectImage imageRef={image} alt={`Board for shot ${row.shotNumber}`} className="absolute inset-0 w-full h-full" style={{ objectFit: fit }} />
             {inherited && (
               <span className="absolute bottom-0 inset-x-0 bg-black/65 text-[7px] font-bold uppercase tracking-wider text-sky-300 py-px">
                 From shot

@@ -9,6 +9,7 @@ import type { CallSheetData, StandingCallSheetField } from '../../domain/reports
 import { resolveStandingCallSheet } from '../../domain/reports';
 import { StandingCallSheetEditor } from './StandingCallSheetEditor';
 import { LocationMapCapture } from './LocationMapCapture';
+import { ProjectImage } from '../common/ProjectImage';
 
 interface CallSheetWorkspaceProps {
   days: ProductionDay[];
@@ -172,7 +173,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               <div className="flex items-center gap-2">
                 <div className={`w-14 h-10 rounded-md border flex items-center justify-center overflow-hidden flex-shrink-0 ${isLight ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'}`}>
                   {project.logo ? (
-                    <img src={project.logo} alt="Production logo" className="max-w-full max-h-full object-contain" />
+                    <ProjectImage imageRef={project.logo} alt="Production logo" className="max-w-full max-h-full object-contain" />
                   ) : (
                     <ImagePlus className="w-4 h-4 opacity-40" />
                   )}
@@ -187,7 +188,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                       const file = event.target.files?.[0];
                       if (file) {
                         loadLogoFile(file)
-                          .then(({ dataUrl, name }) => updateProjectMeta({ logo: dataUrl, logoName: name }))
+                          .then(({ ref, name }) => updateProjectMeta({ logo: ref, logoName: name }))
                           .catch(() => alert('Could not load that image as a logo.'));
                       }
                       event.target.value = '';
@@ -471,7 +472,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               <header className="grid grid-cols-[1fr_auto] gap-5 pb-4 border-b-[3px] border-slate-950">
                 <div><div className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-700">{sheet.productionCompany ? `${sheet.productionCompany} · Production call sheet` : 'Production call sheet'}</div><h1 className="mt-1 text-2xl font-black uppercase tracking-tight">{sheet.productionTitle}</h1><div className="mt-1 text-sm font-bold">{sheet.dayName}</div>{(sheet.productionCompanyInfo?.address || sheet.productionCompanyInfo?.phone || sheet.productionCompanyInfo?.email || sheet.productionCompanyInfo?.website) && <div className="mt-1 text-[10px] text-slate-600 leading-snug">{[sheet.productionCompanyInfo?.address, sheet.productionCompanyInfo?.phone, sheet.productionCompanyInfo?.email, sheet.productionCompanyInfo?.website].filter(Boolean).join(' · ')}</div>}</div>
                 <div className="text-right flex flex-col items-end gap-2">
-                  {sheet.productionLogo && <img src={sheet.productionLogo} alt="Production logo" className="max-w-[42mm] max-h-[18mm] object-contain" />}
+                  {sheet.productionLogo && <ProjectImage imageRef={sheet.productionLogo} alt="Production logo" className="max-w-[42mm] max-h-[18mm] object-contain" />}
                   <div><div className="text-[9px] font-bold uppercase text-slate-500">General crew call</div><div className="text-3xl font-black font-mono tracking-tight">{sheet.crewCall ?? '—'}</div><div className="text-[10px] font-bold">{sheet.date ?? 'DATE NOT SET'}</div></div>
                 </div>
               </header>

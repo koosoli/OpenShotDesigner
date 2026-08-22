@@ -4,6 +4,7 @@ import {
   START_SLOT,
   boardedFrames,
   framesOf,
+  keyFrameImage,
   setFramePatch,
   slotsOf,
 } from '../storyboardFrames';
@@ -92,40 +93,46 @@ describe('framesOf', () => {
 });
 
 describe('setFramePatch', () => {
-  it('mirrors a start capture onto the legacy storyboardImage', () => {
+  /**
+   * The legacy single-image fields used to be written on every capture, so one
+   * picture was stored twice and the two could disagree. They are now cleared
+   * on write and only read (by `framesOf`, for projects that still hold them).
+   */
+  it('writes the frame and clears the retired mirrors', () => {
     const shot = makeShot();
     const patch = setFramePatch(shot, START_SLOT, { image: 'data:a', fit: 'cover' });
-    expect(patch.storyboardImage).toBe('data:a');
-    expect(patch.storyboardFit).toBe('cover');
-    expect(patch.storyboardFrames?.[START_SLOT]?.image).toBe('data:a');
+    expect(patch.storyboardFrames?.[START_SLOT]).toMatchObject({ image: 'data:a', fit: 'cover' });
+    expect(patch.storyboardImage).toBeUndefined();
+    expect(patch.storyboardFit).toBeUndefined();
+    expect(patch.storyboardImageEnd).toBeUndefined();
   });
 
-  it('mirrors a non-start capture so the shot shows a board when no start frame exists', () => {
-    const shot = makeShot();
-    const patch = setFramePatch(shot, 'wp-1', { image: 'data:end', fit: 'cover' });
-    expect(patch.storyboardImage).toBe('data:end');
-    // The frame itself stays on its own slot — no duplicate start entry.
+  it('keeps a non-start capture on its own slot, with no start copy', () => {
+    const patch = setFramePatch(makeShot(), 'wp-1', { image: 'data:end', fit: 'cover' });
     expect(patch.storyboardFrames?.['wp-1']?.image).toBe('data:end');
     expect(patch.storyboardFrames?.[START_SLOT]).toBeUndefined();
   });
 
-  it('keeps mirroring the start frame once it is boarded, even when others exist', () => {
-    let shot = makeShot();
-    shot = { ...shot, ...setFramePatch(shot, 'wp-1', { image: 'data:end' }) } as Shot;
-    const patch = setFramePatch(shot, START_SLOT, { image: 'data:start' });
-    expect(patch.storyboardImage).toBe('data:start');
+  it('sheds a legacy field the first time the shot is boarded, without losing it', () => {
+    const legacy = { ...makeShot(), storyboardImage: 'data:old', storyboardFit: 'cover' } as Shot;
+    const patch = setFramePatch(legacy, 'wp-1', { image: 'data:new' });
+    // framesOf folded the old field into `start` before the write, so the art
+    // survives as a frame while the field itself goes.
+    expect(patch.storyboardFrames?.[START_SLOT]?.image).toBe('data:old');
+    expect(patch.storyboardFrames?.['wp-1']?.image).toBe('data:new');
+    expect(patch.storyboardImage).toBeUndefined();
   });
 
-  it('re-mirrors to the remaining boarded frame when the mirrored one is deleted', () => {
+  it('removes a frame without disturbing the others', () => {
     let shot = makeShot();
     shot = { ...shot, ...setFramePatch(shot, 'wp-1', { image: 'data:end' }) } as Shot;
     shot = { ...shot, ...setFramePatch(shot, 'wp-2', { image: 'data:last' }) } as Shot;
     const patch = setFramePatch(shot, 'wp-1', null);
     expect(patch.storyboardFrames?.['wp-1']).toBeUndefined();
-    expect(patch.storyboardImage).toBe('data:last');
+    expect(patch.storyboardFrames?.['wp-2']?.image).toBe('data:last');
   });
 
-  it('clears the legacy mirrors when the last frame is removed', () => {
+  it('clears everything when the last frame is removed', () => {
     let shot = makeShot();
     shot = { ...shot, ...setFramePatch(shot, START_SLOT, { image: 'data:a' }) } as Shot;
     const patch = setFramePatch(shot, START_SLOT, null);
@@ -137,20 +144,38 @@ describe('setFramePatch', () => {
     let shot = makeShot();
     shot = { ...shot, ...setFramePatch(shot, START_SLOT, { image: 'data:v1' }) } as Shot;
     const patch = setFramePatch(shot, START_SLOT, { image: 'data:v2' });
-    expect(patch.storyboardImage).toBe('data:v2');
+    expect(patch.storyboardFrames?.[START_SLOT]?.image).toBe('data:v2');
     expect(Object.keys(patch.storyboardFrames || {})).toEqual([START_SLOT]);
   });
 
-  it('round-trips through framesOf without duplicating mirrored art', () => {
+  it('round-trips through framesOf without growing a start copy', () => {
     let shot = makeShot();
     shot = { ...shot, ...setFramePatch(shot, 'wp-1', { image: 'data:end', fit: 'cover' }) } as Shot;
-    // A later patch re-reads the shot; the mirror must not grow a start copy.
     const patch = setFramePatch(shot, 'wp-2', { image: 'data:last' });
     expect(patch.storyboardFrames?.[START_SLOT]).toBeUndefined();
     expect(patch.storyboardFrames?.['wp-1']?.image).toBe('data:end');
     expect(patch.storyboardFrames?.['wp-2']?.image).toBe('data:last');
-    // The mirror stays pinned to the earliest boarded frame while start is empty.
-    expect(patch.storyboardImage).toBe('data:end');
+  });
+});
+
+describe('keyFrameImage', () => {
+  it('is the start frame when the shot has one', () => {
+    const shot = { ...makeShot(), storyboardFrames: { [START_SLOT]: { image: 'data:a' }, 'wp-1': { image: 'data:b' } } } as Shot;
+    expect(keyFrameImage(shot)).toBe('data:a');
+  });
+
+  it('falls back to the first boarded frame when start is empty', () => {
+    const shot = { ...makeShot(), storyboardFrames: { 'wp-1': { image: 'data:b' } } } as Shot;
+    expect(keyFrameImage(shot)).toBe('data:b');
+  });
+
+  /** Old projects have the field and no frames; the picture must still show. */
+  it('reads a legacy project that only has the retired field', () => {
+    expect(keyFrameImage({ ...makeShot(), storyboardImage: 'data:old' } as Shot)).toBe('data:old');
+  });
+
+  it('is undefined for an unboarded shot', () => {
+    expect(keyFrameImage(makeShot())).toBeUndefined();
   });
 });
 

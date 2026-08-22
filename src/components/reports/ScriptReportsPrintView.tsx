@@ -3,6 +3,7 @@ import type { BreakdownItem, Character, ScriptScene } from '../../domain/script'
 import { groupBreakdownItems } from '../../domain/script';
 import type { CharacterReport, DoodColumn, DoodRow, DoodWorkStatus } from '../../domain/reports';
 import type { ScriptLocationBreakdown } from '../../domain/script/logic';
+import { ProjectImage } from '../common/ProjectImage';
 
 interface ScriptReportsPrintViewProps {
   productionTitle: string;
@@ -66,7 +67,7 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
     <div className="space-y-6">
       {logo && (
         <div className="flex justify-end">
-          <img src={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
+          <ProjectImage imageRef={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
         </div>
       )}
       {sections.scenes && (

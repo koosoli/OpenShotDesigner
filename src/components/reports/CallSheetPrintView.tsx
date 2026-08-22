@@ -4,6 +4,7 @@ import { locationMapLinkUrl } from '../../domain/locations';
 import { classifyDepartment, CREW_DEPARTMENTS } from '../../domain/reports/crewSheet';
 import { PersonAvatar } from '../contacts/PersonAvatar';
 import { CallSheetMap } from './CallSheetMap';
+import { ProjectImage } from '../common/ProjectImage';
 
 interface CallSheetPrintViewProps {
   sheet: CallSheetData;
@@ -144,7 +145,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             {companyLine && <p className="cs-company">{companyLine}</p>}
           </div>
           <div className="cs-callbox">
-            {sheet.productionLogo && <img src={sheet.productionLogo} alt="Production logo" />}
+            {sheet.productionLogo && <ProjectImage imageRef={sheet.productionLogo} alt="Production logo" />}
             <div>
               <div className="cs-call-label">General crew call</div>
               <div className="cs-call-time">{sheet.crewCall ?? '—'}</div>

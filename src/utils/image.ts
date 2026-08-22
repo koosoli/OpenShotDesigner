@@ -1,113 +1,87 @@
 import { BackgroundImage } from '../types';
+import { storeImageAsset } from './assetImages';
+
+/**
+ * Image loaders (rule 26).
+ *
+ * These used to return base64 data URLs that went straight into project state.
+ * They now downscale and put the bytes in the content-addressed asset store,
+ * returning an asset id in the same string field — so every call site kept
+ * working unchanged, and every reader already accepts both forms.
+ *
+ * The background loader is the one that mattered most: it did no downscaling at
+ * all, so a phone photo of a floor plan went into the project at full
+ * resolution, and stayed there inside every undo snapshot and every duplicate.
+ */
 
 /**
  * Reads an image file (screenshot, blueprint, scout photo) and produces a
  * BackgroundImage object with sensible default sizing for the floor plan canvas.
  */
-export function loadBackgroundImageFile(file: File): Promise<BackgroundImage> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Could not read image file.'));
-    reader.onload = (event) => {
-      const url = event.target?.result as string;
-      const img = new Image();
-      img.onerror = () => reject(new Error('Invalid image file.'));
-      img.onload = () => {
-        const aspect = img.width / img.height || 1;
-        const defaultWidth = 800;
-        const defaultHeight = defaultWidth / aspect;
-
-        resolve({
-          url,
-          name: file.name,
-          x: 50,
-          y: 50,
-          width: Math.round(defaultWidth),
-          height: Math.round(defaultHeight),
-          opacity: 0.5,
-          locked: false,
-          visible: true,
-          naturalWidth: img.width,
-          naturalHeight: img.height,
-        });
-      };
-      img.src = url;
-    };
-    reader.readAsDataURL(file);
+export async function loadBackgroundImageFile(file: File): Promise<BackgroundImage> {
+  const { assetId, width: storedWidth, height: storedHeight } = await storeImageAsset(file, {
+    // Reference plates are traced over at canvas zoom, so they keep more detail
+    // than a storyboard — but not the 12 MP the camera produced.
+    maxSize: 2400,
+    quality: 0.86,
+    source: `background:${file.name}`,
   });
+
+  const aspect = storedWidth / storedHeight || 1;
+  const defaultWidth = 800;
+
+  return {
+    url: assetId,
+    name: file.name,
+    x: 50,
+    y: 50,
+    width: Math.round(defaultWidth),
+    height: Math.round(defaultWidth / aspect),
+    opacity: 0.5,
+    locked: false,
+    visible: true,
+    naturalWidth: storedWidth,
+    naturalHeight: storedHeight,
+  };
 }
 
 /**
- * Reads a production logo and scales it down (keeping transparency) so it can
- * be stored with the project without eating the browser's storage quota.
+ * Reads a production logo, keeping its transparency, and stores it.
+ *
+ * PNG rather than JPEG because a logo on a white call-sheet masthead needs its
+ * alpha; the size cost is small at 320 px.
  */
-export function loadLogoFile(file: File, maxSize = 320): Promise<{ dataUrl: string; name: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Could not read the logo file.'));
-    reader.onload = (event) => {
-      const source = event.target?.result as string;
-      const img = new Image();
-      img.onerror = () => reject(new Error('That file is not a readable image.'));
-      img.onload = () => {
-        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-        const width = Math.max(1, Math.round(img.width * scale));
-        const height = Math.max(1, Math.round(img.height * scale));
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve({ dataUrl: source, name: file.name });
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve({ dataUrl: canvas.toDataURL('image/png'), name: file.name });
-      };
-      img.src = source;
-    };
-    reader.readAsDataURL(file);
+export async function loadLogoFile(
+  file: File,
+  maxSize = 320,
+): Promise<{ ref: string; name: string }> {
+  const { assetId } = await storeImageAsset(file, {
+    maxSize,
+    keepAlpha: true,
+    source: `logo:${file.name}`,
   });
+  return { ref: assetId, name: file.name };
 }
 
 /**
- * Reads a photo (camera roll, webcam grab, scan) and returns a data URL that is
- * safe to keep in the project: full-size phone photos are several megabytes and
- * blow the browser's storage quota, so the long edge is capped and the result
- * is re-encoded as JPEG.
+ * Reads a photo (camera roll, webcam grab, scan) for a storyboard frame and
+ * stores it, returning its asset id.
+ *
+ * The long edge is capped and it is re-encoded as JPEG: a storyboard is looked
+ * at, never zoomed into, so 1280 px is already more than the largest place one
+ * is shown.
  */
-export function loadStoryboardImageFile(file: File, maxSize = 1280, quality = 0.82): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Could not read the image file.'));
-    reader.onload = (event) => {
-      const source = event.target?.result as string;
-      const img = new Image();
-      img.onerror = () => reject(new Error('That file is not a readable image.'));
-      img.onload = () => {
-        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-        const width = Math.max(1, Math.round(img.width * scale));
-        const height = Math.max(1, Math.round(img.height * scale));
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(source);
-          return;
-        }
-        // White backing: JPEG has no alpha, and a transparent PNG would go black
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.src = source;
-    };
-    reader.readAsDataURL(file);
+export async function loadStoryboardImageFile(
+  file: File,
+  maxSize = 1280,
+  quality = 0.82,
+): Promise<string> {
+  const { assetId } = await storeImageAsset(file, {
+    maxSize,
+    quality,
+    source: `storyboard:${file.name}`,
   });
+  return assetId;
 }
 
 /**

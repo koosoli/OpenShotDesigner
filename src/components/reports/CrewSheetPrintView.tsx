@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CrewSheetData } from '../../domain/reports/crewSheet';
 import { CREW_DEPARTMENTS, CREW_SHEET_NOTE } from '../../domain/reports/crewSheet';
+import { ProjectImage } from '../common/ProjectImage';
 
 interface CrewSheetPrintViewProps {
   sheet: CrewSheetData;
@@ -84,7 +85,7 @@ export const CrewSheetPrintView: React.FC<CrewSheetPrintViewProps> = ({ sheet, l
                 </span>
               </p>
             </div>
-            {logo && <img src={logo} alt="Production logo" className="cws-logo" />}
+            {logo && <ProjectImage imageRef={logo} alt="Production logo" className="cws-logo" />}
           </div>
         </header>
 

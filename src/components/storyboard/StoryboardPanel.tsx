@@ -33,6 +33,7 @@ import {
   visibleStoryboardSlots,
 } from '../../utils/storyboardFrames';
 import { loadStoryboardImageFile } from '../../utils/image';
+import { ProjectImage } from '../common/ProjectImage';
 
 /** A moving shot is boarded on each of its camera's keyframes. */
 export const shotHasMove = (shot: Shot): boolean =>
@@ -138,8 +139,8 @@ export const StoryboardPanel: React.FC = () => {
         }}
       >
         {image ? (
-          <img
-            src={image}
+          <ProjectImage
+            imageRef={image}
             alt={`${slot.label} frame for shot ${shot.shotNumber}`}
             className="absolute inset-0 w-full h-full"
             style={{ objectFit: fit }}

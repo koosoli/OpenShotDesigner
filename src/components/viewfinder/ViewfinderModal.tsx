@@ -3,7 +3,7 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { ActorElement, CameraElement, PropElement } from '../../types';
 import { isPointInCameraFov } from '../../utils/geometry';
 import { loadStoryboardImageFile } from '../../utils/image';
-import { setFramePatch, isSlotOmitted, slotsOf, START_SLOT } from '../../utils/storyboardFrames';
+import { setFramePatch, isSlotOmitted, slotsOf, START_SLOT, keyFrameImage } from '../../utils/storyboardFrames';
 import { renderSimulatedFrame, SimulatedSubject } from '../../utils/simulatedFrame';
 import {
   APERTURES,
@@ -15,6 +15,7 @@ import {
   SENSOR_FORMATS,
   SHUTTER_ANGLES,
 } from '../../constants/presets';
+import { ProjectImage } from '../common/ProjectImage';
 import {
   Camera,
   ChevronLeft,
@@ -292,7 +293,7 @@ export const ViewfinderModal: React.FC = () => {
   };
   const currentSlotKey = activeSlot ? resolveWriteSlotKey(activeSlot.key) : START_SLOT;
   const resolvedSlot = frameSlots.find((slot) => slot.key === currentSlotKey) || activeSlot;
-  const shownStoryboard = resolvedSlot?.frame?.image || targetShot?.storyboardImage;
+  const shownStoryboard = resolvedSlot?.frame?.image || (targetShot ? keyFrameImage(targetShot) : undefined);
   const showsRealImage = !!liveStream || !!frozenFrame || (showStoryboard && !!shownStoryboard);
 
   const framingNotes = () => {
@@ -633,8 +634,8 @@ export const ViewfinderModal: React.FC = () => {
 
             {/* Attached storyboard art, shown as the frame's backing plate */}
             {!liveStream && showStoryboard && shownStoryboard && (
-              <img
-                src={shownStoryboard}
+              <ProjectImage
+                imageRef={shownStoryboard}
                 alt={`Storyboard for shot ${targetShot?.shotNumber}`}
                 className="absolute inset-0 w-full h-full z-[5]"
                 style={{ objectFit: resolvedSlot?.frame?.fit || 'cover' }}
@@ -1157,7 +1158,7 @@ export const ViewfinderModal: React.FC = () => {
               <span>Photo file</span>
             </button>
 
-            {targetShot?.storyboardImage && !liveStream && (
+            {targetShot && keyFrameImage(targetShot) && !liveStream && (
               <button
                 onClick={() => setShowStoryboard((shown) => !shown)}
                 title="Show or hide the attached storyboard inside the finder"

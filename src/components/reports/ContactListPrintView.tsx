@@ -3,6 +3,7 @@ import type { CastAssignment, Person } from '../../domain/people';
 import { PERSON_KIND_LABELS, callSheetPhone, groupPeopleByDepartment, usesProductionPhone } from '../../domain/people';
 import { PersonAvatar } from '../contacts/PersonAvatar';
 import type { Character } from '../../domain/script';
+import { ProjectImage } from '../common/ProjectImage';
 
 interface ContactListPrintViewProps {
   people: Person[];
@@ -41,7 +42,7 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
     <div className="space-y-6">
       {logo && (
         <div className="flex justify-end">
-          <img src={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
+          <ProjectImage imageRef={logo} alt="Production logo" className="max-w-[42mm] max-h-[16mm] object-contain" />
         </div>
       )}
       <section className="print-section">

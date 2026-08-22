@@ -1,4 +1,5 @@
 import React from 'react';
+import { ProjectImage } from '../common/ProjectImage';
 
 export interface PrintableCalendarEvent {
   title: string;
@@ -114,7 +115,7 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
               <h1 className="sc-title">{productionTitle}</h1>
               <p className="sc-company">Generated {generatedAt}</p>
             </div>
-            {logo && <img src={logo} alt="Production logo" className="sc-logo" />}
+            {logo && <ProjectImage imageRef={logo} alt="Production logo" className="sc-logo" />}
           </div>
         </header>
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createIdbAssetStore } from '../domain/storage/idbAssetStore';
+import { isAssetRef } from '../domain/media';
 
 /**
  * Project images that live in the asset store, not in project state (rule 26).
@@ -184,4 +185,35 @@ export const useAssetImageSrcs = (assetIds: ReadonlyArray<string | undefined>): 
 export const useAssetImageSrc = (assetId?: string): string | null => {
   const srcs = useAssetImageSrcs([assetId]);
   return assetId ? srcs[assetId] ?? null : null;
+};
+
+/**
+ * Resolve image references that may be EITHER an asset id or a legacy inline
+ * data URL, keyed by the reference itself.
+ *
+ * Every storyboard, background plate and AV row held a data URL until the media
+ * migration, and a project can be half-migrated — the pass is forgiving and an
+ * image it could not decode keeps its inline value forever. So readers cannot
+ * assume one form, and `src={ref}` cannot simply be replaced with a lookup.
+ * Passing a data URL straight through costs nothing: it already is a usable
+ * src.
+ */
+export const useImageRefSrcs = (
+  refs: ReadonlyArray<string | undefined>,
+): Record<string, string | null> => {
+  const assetIds = refs.filter((ref): ref is string => isAssetRef(ref));
+  const resolved = useAssetImageSrcs(assetIds);
+
+  const out: Record<string, string | null> = {};
+  for (const ref of refs) {
+    if (!ref) continue;
+    out[ref] = isAssetRef(ref) ? resolved[ref] ?? null : ref;
+  }
+  return out;
+};
+
+/** One reference, in whichever form it is stored. */
+export const useImageRefSrc = (ref?: string): string | null => {
+  const srcs = useImageRefSrcs([ref]);
+  return ref ? srcs[ref] ?? null : null;
 };

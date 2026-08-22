@@ -168,6 +168,7 @@ function getElementBounds(el: FloorPlanElement): Bounds {
 /** Compact on/off pill used in the Display & Labels panel */
 import { LightInspector } from './elements/LightInspector';
 import { compassPoint, formatSunTime, sunPosition, sunTimes } from '../../domain/sun';
+import { ProjectImage } from '../common/ProjectImage';
 import {
   ColorField,
   PillToggle,
@@ -956,7 +957,7 @@ export const InspectorPanel: React.FC = () => {
                   }`}
                 >
                   {project.logo ? (
-                    <img src={project.logo} alt="Production logo" className="max-w-full max-h-full object-contain" />
+                    <ProjectImage imageRef={project.logo} alt="Production logo" className="max-w-full max-h-full object-contain" />
                   ) : (
                     <ImagePlus className="w-4 h-4 opacity-40" />
                   )}
@@ -971,7 +972,7 @@ export const InspectorPanel: React.FC = () => {
                       const file = e.target.files?.[0];
                       if (file) {
                         loadLogoFile(file)
-                          .then(({ dataUrl, name }) => updateProjectMeta({ logo: dataUrl, logoName: name }))
+                          .then(({ ref, name }) => updateProjectMeta({ logo: ref, logoName: name }))
                           .catch(() => alert('Could not load that image as a logo.'));
                       }
                       e.target.value = '';

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BackgroundImage } from '../../types';
+import { useImageRefSrc } from '../../utils/assetImages';
 
 interface BackgroundLayerProps {
   backgroundImages: BackgroundImage[];
@@ -37,6 +38,7 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
 }) => {
   const { x, y, width, height } = img;
   const locked = !!img.locked;
+  const resolvedUrl = useImageRefSrc(img.url);
 
   const handlePointerDown = (handle: ResizeHandle, e: React.PointerEvent) => {
     e.stopPropagation();
@@ -118,8 +120,10 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
 
   return (
     <g className="background-reference-item">
+      {/* Reference plates were inline data URLs until the media migration and
+          may still be, so the reference is resolved rather than used raw. */}
       <image
-        href={img.url}
+        href={resolvedUrl ?? undefined}
         x={x}
         y={y}
         width={width}

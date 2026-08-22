@@ -98,6 +98,8 @@ import { useMoodboardImageSrcs } from '../moodboard/moodboardAssets';
 import { buildScriptSides, sidesCharacterOptions, splitScenes } from '../../domain/script';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
 import { attachBreakdownItemsToScenes } from '../../domain/script';
+import { ProjectImage } from '../common/ProjectImage';
+import { keyFrameImage } from '../../utils/storyboardFrames';
 
 export const PrintableShotPlan: React.FC = () => {
   const {
@@ -1099,8 +1101,8 @@ export const PrintableShotPlan: React.FC = () => {
             <div className="flex justify-between items-start gap-4">
               <div className="flex items-start gap-3 min-w-0">
                 {project.logo && (
-                  <img
-                    src={project.logo}
+                  <ProjectImage
+                    imageRef={project.logo}
                     alt=""
                     className="h-14 w-auto max-w-[9rem] object-contain flex-shrink-0"
                   />
@@ -1560,13 +1562,13 @@ export const PrintableShotPlan: React.FC = () => {
                         <tr key={shot.id} className="hover:bg-slate-50">
                           {showStoryboards && (
                             <td className="p-2.5 align-middle">
-                              {shot.storyboardImage ? (
+                              {keyFrameImage(shot) ? (
                                 <div
                                   className="overflow-hidden rounded border border-slate-300 bg-slate-100"
                                   style={{ width: 64, aspectRatio: `${sceneAspectRatio} / 1` }}
                                 >
-                                  <img
-                                    src={shot.storyboardImage}
+                                  <ProjectImage
+                                    imageRef={keyFrameImage(shot)}
                                     alt={`Storyboard ${shot.shotNumber}`}
                                     className="w-full h-full"
                                     style={{
@@ -1831,8 +1833,8 @@ export const PrintableShotPlan: React.FC = () => {
                                   style={{ aspectRatio: String(sceneAspectRatio) }}
                                 >
                                   {image ? (
-                                    <img
-                                      src={image}
+                                    <ProjectImage
+                                      imageRef={image}
                                       alt=""
                                       className="absolute inset-0 w-full h-full"
                                       style={{ objectFit: fit }}

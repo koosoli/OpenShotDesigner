@@ -32,6 +32,7 @@ import {
 } from '../types';
 import { createId } from '../domain/ids';
 import { deriveScriptBreakdown } from '../domain/script/logic';
+import { applyMediaReplacements, migrateProjectMedia } from '../utils/projectMedia';
 import {
   ACTOR_COLOR_PALETTE,
   CAMERA_COLOR_PALETTE,
@@ -3515,6 +3516,40 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   /** Switch the workspace to another project, saving nothing in flight. */
+  /**
+   * Move any inline images this project still carries into the asset store
+   * (rule 26).
+   *
+   * Not a schema migration: those are pure functions over JSON, which is what
+   * makes them fixture-testable and replayable, and moving bytes into
+   * IndexedDB is neither pure nor synchronous. So it runs once per project
+   * here, and the schema version is not involved.
+   *
+   * The result is applied as replacements rather than as a whole project, so
+   * edits made while it ran are not overwritten by a stale snapshot. It is
+   * silent on purpose — nothing the user asked for happened, and a toast about
+   * housekeeping is noise.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const projectId = project.id;
+    void (async () => {
+      const result = await migrateProjectMedia(liveProjectRef.current ?? project);
+      if (cancelled || !result.changed) return;
+      setProject((prev) => {
+        if (prev.id !== projectId) return prev;
+        const { project: next, applied } = applyMediaReplacements(prev, result.replacements);
+        return applied > 0 ? next : prev;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Once per project: re-running on every edit would re-scan a large project
+    // continuously for images that are, by then, already asset ids.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
+
   const loadProjectIntoWorkspace = (next: Project) => {
     setProject(next);
     setActiveProjectId(next.id);
