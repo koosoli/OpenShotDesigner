@@ -41,8 +41,10 @@ export {
 } from './catalogStore';
 export type { FixtureCatalogState } from './catalogStore';
 export { OFL_EXPORT_URL, readOflExport } from './oflZip';
+export { OFL_ATTRIBUTION, fetchOflFixtures, fetchOflManufacturers, fetchOflTree, toOflDump } from './oflGithubSource';
+export type { OflTree, OflTreeEntry } from './oflGithubSource';
 export { adaptOflDump, loadStoredOflSnapshot, refreshOflSnapshotOnline } from './onlineRefresh';
-export type { RefreshResult } from './onlineRefresh';
+export type { RefreshOptions, RefreshResult } from './onlineRefresh';
 
 /** Backwards-compatible name: looks up the ACTIVE catalog (bundled/online OFL + curated + custom). */
 export { findFixtureProfile as fixtureProfileById } from './catalogStore';

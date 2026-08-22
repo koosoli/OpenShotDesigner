@@ -41,6 +41,7 @@ const CONNECTOR_LABELS: Record<string, string> = {
 export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ light, onChange, isLight }) => {
   const catalog = useFixtureCatalog();
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState<{ done: number; total: number } | null>(null);
   const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
   const [query, setQuery] = useState('');
   const [showCustomForm, setShowCustomForm] = useState(false);
@@ -60,10 +61,18 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
 
   const refreshOnline = async () => {
     setRefreshing(true);
+    setRefreshResult(null);
+    setRefreshProgress(null);
     try {
-      setRefreshResult(await refreshOflSnapshotOnline({ force: true }));
+      setRefreshResult(
+        await refreshOflSnapshotOnline({
+          force: true,
+          onProgress: (done, total) => setRefreshProgress({ done, total }),
+        }),
+      );
     } finally {
       setRefreshing(false);
+      setRefreshProgress(null);
     }
   };
 
@@ -344,9 +353,13 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
             onClick={refreshOnline}
             disabled={refreshing}
             className={`px-2 py-0.5 rounded border text-[10px] font-bold disabled:opacity-50 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
-            title="Download the newest profiles from open-fixture-library.org (requires internet)"
+            title="Sync the newest profiles from the Open Fixture Library repository (requires internet; only changed files are downloaded)"
           >
-            {refreshing ? 'Refreshing…' : 'Refresh from OFL'}
+            {refreshing
+              ? refreshProgress && refreshProgress.total > 0
+                ? `Syncing ${refreshProgress.done}/${refreshProgress.total}…`
+                : 'Checking…'
+              : 'Refresh from OFL'}
           </button>
           {refreshResult && (
             <span className={refreshResult.status === 'updated' || refreshResult.status === 'unchanged' ? 'text-emerald-500' : 'text-amber-500'}>
