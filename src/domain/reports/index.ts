@@ -39,3 +39,5 @@ export type {
   DoodWorkStatus,
   DeriveDoodInput,
 } from './dood';
+export { castPersonIdsForDay, charactersScheduledOn } from './dayCast';
+export type { DayCastSources } from './dayCast';

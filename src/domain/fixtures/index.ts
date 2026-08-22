@@ -19,7 +19,8 @@ export {
 } from './oflAdapter';
 export type { FixtureDbManifest, OflProvenance } from './oflAdapter';
 export { fixtureBoundingVolumeLitres, fixtureModeById, searchFixtureProfiles } from './catalog';
-export { OFFLINE_FIXTURE_DB_MANIFEST, OFFLINE_FIXTURE_PROFILES } from './offlineCatalog';
+export { PENDING_FIXTURE_DB_MANIFEST, loadOfflineFixtureDb } from './offlineCatalog';
+export type { OfflineFixtureDatabase } from './offlineCatalog';
 export {
   findProfileForModel,
   fixtureProfileLinkUpdates,
@@ -33,6 +34,7 @@ export { fixtureIdentityKey, mergeFixtureProfiles } from './catalogMerge';
 export { CURATED_FILM_FIXTURES } from './curatedFilmFixtures';
 export type { MergeReport } from './catalogMerge';
 export {
+  ensureBundledFixtureSnapshot,
   findFixtureProfile,
   getFixtureCatalog,
   setCustomFixtureProfiles,

@@ -10,6 +10,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { createId } from '../../domain/ids';
 import type { LightElement } from '../../types';
 import {
@@ -42,6 +43,10 @@ const parseOptionalNumber = (raw: string): number | undefined => {
 
 export const PowerPanel: React.FC = () => {
   const { project, theme, updateProjectMeta, activeSetup } = useFloorPlan();
+  // Re-render when the fixture catalog changes: the bundled snapshot arrives
+  // asynchronously and an online refresh can replace it, and both change the
+  // wattage and specs derived below.
+  useFixtureCatalog();
   const isLight = theme === 'light';
 
   const plan = getPowerPlan(project);

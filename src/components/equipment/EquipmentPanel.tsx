@@ -32,6 +32,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { waitForImages } from '../../utils/image';
 import { CameraElement, EquipmentCategory, EquipmentItem, EquipmentPackageItem, LightElement, MasterEquipmentItem } from '../../types';
 import {
@@ -71,6 +72,10 @@ export const EquipmentPanel: React.FC = () => {
     selectedElementIds,
     setHighlightedElement,
   } = useFloorPlan();
+  // Re-render when the fixture catalog changes: the bundled snapshot arrives
+  // asynchronously and an online refresh can replace it, and both change the
+  // wattage and specs derived below.
+  useFixtureCatalog();
 
   const isLight = theme === 'light';
 

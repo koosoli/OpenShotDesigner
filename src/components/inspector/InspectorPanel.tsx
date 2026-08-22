@@ -3049,7 +3049,7 @@ export const InspectorPanel: React.FC = () => {
                   const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
                   const offsetDist = 60;
                   const newWp = {
-                    id: `wp-${Date.now()}`,
+                    id: createId('wp'),
                     x: Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist),
                     y: Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist),
                     rotation: lastPoint.rotation || 0,
@@ -3401,7 +3401,7 @@ export const InspectorPanel: React.FC = () => {
                   const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
                   const offsetDist = 50;
                   const newWp = {
-                    id: `wp-${Date.now()}`,
+                    id: createId('wp'),
                     x: Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist),
                     y: Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist),
                     rotation: lastPoint.rotation || 0,
@@ -4739,7 +4739,7 @@ export const InspectorPanel: React.FC = () => {
                   const angleRad = ((lastPoint.rotation || 0) * Math.PI) / 180;
                   const offsetDist = 70;
                   const newWp = {
-                    id: `wp-${Date.now()}`,
+                    id: createId('wp'),
                     x: Math.round(lastPoint.x + Math.cos(angleRad) * offsetDist),
                     y: Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist),
                     rotation: lastPoint.rotation || 0,

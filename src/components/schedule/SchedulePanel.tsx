@@ -45,7 +45,7 @@ import type {
 } from '../../domain/reports';
 import type { Location } from '../../domain/locations';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
-import { deriveCallSheet } from '../../domain/reports';
+import { castPersonIdsForDay as deriveCastPersonIdsForDay, deriveCallSheet } from '../../domain/reports';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { StripboardPrintView } from '../reports/StripboardPrintView';
 import type { PrintableStripboardDay } from '../reports/StripboardPrintView';
@@ -278,20 +278,16 @@ export const SchedulePanel: React.FC = () => {
   };
 
   /** Performers assigned to characters that appear in a day's scheduled scenes. */
-  const castPersonIdsForDay = (day: ProductionDay): string[] => {
-    const scheduledCharacterIds = new Set<string>();
-    for (const id of day.scheduleBlockIds) {
-      const block = blocks.find((b) => b.id === id);
-      if (!block) continue;
-      if (block.kind === 'scene') {
-        const scene = project.scriptScenes?.find((candidate) => candidate.id === block.scriptSceneId);
-        for (const characterId of scene?.characterIds ?? []) scheduledCharacterIds.add(characterId);
-      }
-    }
-    return (project.castAssignments ?? [])
-      .filter((assignment) => scheduledCharacterIds.has(assignment.characterId))
-      .map((assignment) => assignment.personId);
-  };
+  /**
+   * Who is called on a day. Derived in the domain so scenes, setups AND shots
+   * all contribute their cast — scheduling by setup used to yield nobody.
+   */
+  const castPersonIdsForDay = (day: ProductionDay): string[] =>
+    deriveCastPersonIdsForDay(day.scheduleBlockIds, blocks, {
+      scriptScenes: project.scriptScenes,
+      setups: project.setups,
+      castAssignments: project.castAssignments,
+    });
 
   /** Derive the call sheet for one day, reusing the panel's label resolution. */
   const buildCallSheet = (day: ProductionDay): CallSheetData => {

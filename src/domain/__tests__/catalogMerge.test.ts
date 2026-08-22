@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CURATED_FILM_FIXTURES, OFFLINE_FIXTURE_PROFILES, fixtureIdentityKey, mergeFixtureProfiles } from '../fixtures';
+import { CURATED_FILM_FIXTURES, fixtureIdentityKey, loadOfflineFixtureDb, mergeFixtureProfiles } from '../fixtures';
 import type { FixtureProfile } from '../fixtures';
 
 const profile = (provider: string, manufacturer: string, model: string, powerWatts?: number): FixtureProfile => ({
@@ -51,7 +51,10 @@ describe('supplementary film fixtures', () => {
     expect(CURATED_FILM_FIXTURES.length).toBeGreaterThan(20);
   });
 
-  it('never shadows a model the bundled OFL snapshot already provides', () => {
+  it('never shadows a model the bundled OFL snapshot already provides', async () => {
+    // The snapshot is a dynamic import now (it is 1.2 MB and must not sit in
+    // the entry chunk), so the test awaits it like the app does.
+    const { fixtures: OFFLINE_FIXTURE_PROFILES } = await loadOfflineFixtureDb();
     const oflKeys = new Set(OFFLINE_FIXTURE_PROFILES.map(fixtureIdentityKey));
     const shadowed = CURATED_FILM_FIXTURES.filter((fixture) => oflKeys.has(fixtureIdentityKey(fixture)));
     expect(shadowed.map((f) => `${f.manufacturer} ${f.model}`)).toEqual([]);

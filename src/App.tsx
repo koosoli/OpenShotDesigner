@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FloorPlanProvider, useFloorPlan } from './context/FloorPlanContext';
 import { TopNavbar } from './components/toolbar/TopNavbar';
 import { LeftToolbar } from './components/toolbar/LeftToolbar';
@@ -20,6 +20,7 @@ import { LogisticsPanel } from './components/logistics/LogisticsPanel';
 import { RunOfShowPanel } from './components/runofshow/RunOfShowPanel';
 import { RiggingPanel } from './components/rigging/RiggingPanel';
 import { ContactsPanel } from './components/contacts/ContactsPanel';
+import { ensureBundledFixtureSnapshot } from './domain/fixtures';
 import { TaskBoardPanel } from './components/tasks/TaskBoardPanel';
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { useBreakpoint } from './utils/useMediaQuery';
@@ -33,6 +34,14 @@ type WorkspaceGroup = 'creative' | 'production' | 'technical';
 const MainLayout: React.FC = () => {
   const { project, activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning, isModuleVisible } = useFloorPlan();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+
+  // Pull the bundled fixture snapshot in after first paint. It is a dynamic
+  // import so it stays out of the entry chunk; starting it here means it has
+  // normally arrived long before anyone opens the fixture picker, while the
+  // app is already interactive.
+  useEffect(() => {
+    void ensureBundledFixtureSnapshot();
+  }, []);
   const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
   const calculateDefaultSidebarWidth = (): number => {
     if (typeof window === 'undefined') return 860;

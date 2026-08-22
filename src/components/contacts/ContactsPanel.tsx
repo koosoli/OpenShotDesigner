@@ -213,11 +213,22 @@ export const ContactsPanel: React.FC = () => {
 
   const deletePerson = (personId: string) => {
     if (!window.confirm('Remove this contact? Cast assignments and location contact links to them are cleared too.')) return;
-    const next = removePerson({ people, castAssignments, locations: project.locations ?? [] }, personId);
+    const next = removePerson(
+      {
+        people,
+        castAssignments,
+        locations: project.locations ?? [],
+        tasks: project.tasks ?? [],
+        productionDays: project.productionDays ?? [],
+      },
+      personId,
+    );
     updateProjectMeta({
       people: next.people,
       castAssignments: next.castAssignments,
       locations: next.locations as typeof project.locations,
+      tasks: next.tasks as typeof project.tasks,
+      productionDays: next.productionDays as typeof project.productionDays,
     });
     if (editing?.id === personId) {
       setEditing(null);

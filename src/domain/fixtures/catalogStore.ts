@@ -9,21 +9,24 @@
 import { mergeFixtureProfiles } from './catalogMerge';
 import { CURATED_FILM_FIXTURES } from './curatedFilmFixtures';
 import type { FixtureDbManifest } from './oflAdapter';
-import { OFFLINE_FIXTURE_DB_MANIFEST, OFFLINE_FIXTURE_PROFILES } from './offlineCatalog';
+import { PENDING_FIXTURE_DB_MANIFEST, loadOfflineFixtureDb } from './offlineCatalog';
 import type { FixtureProfile } from './types';
 
 export interface FixtureCatalogState {
   profiles: FixtureProfile[];
   /** Manifest of the OFL snapshot currently in use (bundled or online). */
   manifest: FixtureDbManifest;
-  /** Where the OFL part came from. */
-  oflSource: 'bundled' | 'online';
+  /** Where the OFL part came from. `pending` = the bundled snapshot is still loading. */
+  oflSource: 'pending' | 'bundled' | 'online';
   counts: { ofl: number; curated: number; custom: number };
 }
 
-let oflProfiles: readonly FixtureProfile[] = OFFLINE_FIXTURE_PROFILES;
-let oflManifest: FixtureDbManifest = OFFLINE_FIXTURE_DB_MANIFEST;
-let oflSource: FixtureCatalogState['oflSource'] = 'bundled';
+// The bundled snapshot arrives asynchronously (see offlineCatalog). Until it
+// does the catalog is the curated film table plus the user's own profiles,
+// which is a smaller but entirely valid catalog — never a broken one.
+let oflProfiles: readonly FixtureProfile[] = [];
+let oflManifest: FixtureDbManifest = PENDING_FIXTURE_DB_MANIFEST;
+let oflSource: FixtureCatalogState['oflSource'] = 'pending';
 let customProfiles: readonly FixtureProfile[] = [];
 let state: FixtureCatalogState = build();
 const listeners = new Set<() => void>();
@@ -50,6 +53,26 @@ export const subscribeFixtureCatalog = (listener: () => void): (() => void) => {
   return () => {
     listeners.delete(listener);
   };
+};
+
+/**
+ * Load the bundled OFL snapshot into the catalog, once.
+ *
+ * Safe to call from anywhere, any number of times: concurrent calls share one
+ * load, and a snapshot already replaced by a newer ONLINE one is never
+ * downgraded back to the bundled copy. Failure is swallowed — the app keeps
+ * working on the curated catalog rather than breaking over an optional
+ * database.
+ */
+export const ensureBundledFixtureSnapshot = async (): Promise<void> => {
+  if (oflSource !== 'pending') return;
+  try {
+    const database = await loadOfflineFixtureDb();
+    if (oflSource !== 'pending') return; // an online refresh won the race
+    setOflSnapshot(database.fixtures, database.manifest, 'bundled');
+  } catch {
+    // Optional data: leave the curated catalog in place.
+  }
 };
 
 /** Replace the OFL part of the catalog (online refresh). */

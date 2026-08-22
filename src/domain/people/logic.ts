@@ -64,9 +64,19 @@ export interface PeopleReferences {
   castAssignments: CastAssignment[];
   /** Locations keep contact ids; removed people must drop out of them too. */
   locations: Array<{ contactIds?: string[] }>;
+  /** Task assignees reference people by id. Optional: not every caller has tasks. */
+  tasks?: Array<{ assigneeIds?: string[] }>;
+  /** Call-sheet pick-ups name the person collected. Optional for the same reason. */
+  productionDays?: Array<{ callSheet?: { pickups?: Array<{ personId: string }> } }>;
 }
 
-/** Remove a person and every reference to them (rule: referential integrity on delete). */
+/**
+ * Remove a person and every reference to them (referential integrity on
+ * delete). Anything that points at a person by id has to be listed here — a
+ * dangling assignee silently disappears from a task card, and a dangling
+ * pick-up prints as "contact removed" on a call sheet, which is honest but is
+ * not something anyone asked to keep.
+ */
 export const removePerson = <R extends PeopleReferences>(refs: R, personId: string): R => ({
   ...refs,
   people: refs.people.filter((person) => person.id !== personId),
@@ -76,6 +86,30 @@ export const removePerson = <R extends PeopleReferences>(refs: R, personId: stri
       ? { ...location, contactIds: location.contactIds.filter((id) => id !== personId) }
       : location,
   ),
+  ...(refs.tasks
+    ? {
+        tasks: refs.tasks.map((task) =>
+          task.assigneeIds?.includes(personId)
+            ? { ...task, assigneeIds: task.assigneeIds.filter((id) => id !== personId) }
+            : task,
+        ),
+      }
+    : {}),
+  ...(refs.productionDays
+    ? {
+        productionDays: refs.productionDays.map((day) =>
+          day.callSheet?.pickups?.some((pickup) => pickup.personId === personId)
+            ? {
+                ...day,
+                callSheet: {
+                  ...day.callSheet,
+                  pickups: day.callSheet.pickups.filter((pickup) => pickup.personId !== personId),
+                },
+              }
+            : day,
+        ),
+      }
+    : {}),
 });
 
 /** One performer per character: assigning replaces any previous assignment for that character. */

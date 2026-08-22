@@ -1469,7 +1469,7 @@ export const FloorPlanCanvas: React.FC = () => {
     const spawnY = Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist);
 
     const newWp = {
-      id: `wp-${Date.now()}`,
+      id: createId('wp'),
       x: spawnX,
       y: spawnY,
       rotation: lastPoint.rotation || 0,
@@ -1499,7 +1499,7 @@ export const FloorPlanCanvas: React.FC = () => {
     const spawnY = Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist);
 
     const newWp = {
-      id: `wp-${Date.now()}`,
+      id: createId('wp'),
       x: spawnX,
       y: spawnY,
       rotation: lastPoint.rotation || 0,
@@ -1556,7 +1556,7 @@ export const FloorPlanCanvas: React.FC = () => {
     const spawnY = Math.round(lastPoint.y + Math.sin(angleRad) * offsetDist);
 
     const newWp = {
-      id: `wp-${Date.now()}`,
+      id: createId('wp'),
       x: spawnX,
       y: spawnY,
       rotation: lastPoint.rotation || 0,
