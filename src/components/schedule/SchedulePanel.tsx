@@ -45,7 +45,7 @@ import type {
 } from '../../domain/reports';
 import type { Location } from '../../domain/locations';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
-import { castPersonIdsForDay as deriveCastPersonIdsForDay, deriveCallSheet } from '../../domain/reports';
+import { castFilterForDay, deriveCallSheet } from '../../domain/reports';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { StripboardPrintView } from '../reports/StripboardPrintView';
 import type { PrintableStripboardDay } from '../reports/StripboardPrintView';
@@ -285,10 +285,12 @@ export const SchedulePanel: React.FC = () => {
   /** Performers assigned to characters that appear in a day's scheduled scenes. */
   /**
    * Who is called on a day. Derived in the domain so scenes, setups AND shots
-   * all contribute their cast — scheduling by setup used to yield nobody.
+   * all contribute their cast — scheduling by setup used to yield nobody — and
+   * so a production with no cast model at all (a concert, a broadcast) calls
+   * everyone rather than nobody. `undefined` means "no filter".
    */
-  const castPersonIdsForDay = (day: ProductionDay): string[] =>
-    deriveCastPersonIdsForDay(day.scheduleBlockIds, blocks, {
+  const castPersonIdsForDay = (day: ProductionDay): string[] | undefined =>
+    castFilterForDay(day.scheduleBlockIds, blocks, {
       scriptScenes: project.scriptScenes,
       setups: project.setups,
       castAssignments: project.castAssignments,

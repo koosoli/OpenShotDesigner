@@ -105,3 +105,36 @@ export const castPersonIdsForDay = (
   }
   return [...personIds];
 };
+
+/**
+ * The cast filter to hand `deriveCallSheet`, or `undefined` for "call everyone".
+ *
+ * `castPersonIdsForDay` answers "who is cast for what is scheduled", and `[]`
+ * is its honest answer both when a day genuinely calls nobody and when the
+ * production has no cast model at all. The call sheet cannot tell those apart:
+ * it reads an empty array as an explicit filter matching no one, so a concert
+ * or a broadcast — no characters, no cast assignments, performers sitting in
+ * `people` as `kind: 'cast'` — issued its show-day sheet with an empty cast
+ * table while the band stood on the plan.
+ *
+ * This is the same defect as "call sheets listed no cast unless screenplay
+ * scenes were scheduled", one layer up: that fix taught the derivation to walk
+ * setups and shots, but a production that never had characters still lands on
+ * `[]`.
+ *
+ * So the distinction is whether cast linkage exists at all:
+ *
+ *  - no `castAssignments` → this production does not route cast through
+ *    characters. Return `undefined`; every cast/talent person is called.
+ *  - assignments exist → the day's resolved list is authoritative, empty
+ *    included, because "nobody is called on a company-move day" is a real
+ *    and useful answer.
+ */
+export const castFilterForDay = (
+  scheduleBlockIds: readonly string[],
+  blocks: readonly ScheduleBlock[],
+  sources: DayCastSources,
+): string[] | undefined => {
+  if ((sources.castAssignments ?? []).length === 0) return undefined;
+  return castPersonIdsForDay(scheduleBlockIds, blocks, sources);
+};
