@@ -5,6 +5,7 @@
  * user overrides are stored — never a hidden duplicate copy of every field.
  */
 
+import { callSheetPhone } from '../people';
 import type { Person } from '../people';
 import type { ProductionDay, ScheduleBlock } from '../scheduling';
 
@@ -271,7 +272,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
       displayName: p.displayName,
       role: p.role,
       email: p.email,
-      phone: p.phone,
+      phone: callSheetPhone(p),
       ...callFor(p.id),
     }));
   const crew = people
@@ -282,7 +283,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
       department: p.department,
       role: p.role,
       email: p.email,
-      phone: p.phone,
+      phone: callSheetPhone(p),
     }));
 
   const estimates = schedule.map((e) => e.estimatedMinutes);
@@ -312,7 +313,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
         .map((block) => ({ kind: block.kind, ...labelForBlock(block, input) })),
       cast: people
         .filter((p) => (p.kind === 'cast' || p.kind === 'talent') && (!nextCastFilter || nextCastFilter.has(p.id)))
-        .map((p) => ({ displayName: p.displayName, role: p.role, email: p.email, phone: p.phone })),
+        .map((p) => ({ displayName: p.displayName, role: p.role, email: p.email, phone: callSheetPhone(p) })),
     };
   }
 
@@ -337,7 +338,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
       return {
         displayName: person?.displayName ?? 'Unknown contact',
         role: person?.role,
-        phone: person?.phone,
+        phone: person ? callSheetPhone(person) : undefined,
         time: pickup.time,
         location: pickup.location,
         notes: pickup.notes,

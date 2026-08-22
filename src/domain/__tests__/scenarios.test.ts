@@ -182,3 +182,34 @@ describe('floor-plan-only scenario — must always remain supported', () => {
     expect(equipment.every((item) => item.usedInSetups.length === 1)).toBe(true);
   });
 });
+
+/**
+ * The number a call sheet prints is the production-issued one when there is
+ * one. Asserted through `deriveCallSheet` rather than on the helper alone,
+ * because the helper being right is worth nothing if the sheet does not call it.
+ */
+describe('production phone reaches the call sheet', () => {
+  const withUnitHandsets = (): Project => {
+    const base = concertFixture();
+    return {
+      ...base,
+      people: (base.people ?? []).map((person) =>
+        person.id === 'p-le'
+          ? { ...person, phone: '+49 170 555 0104', productionPhone: '+49 151 555 0011' }
+          : { ...person, phone: '+49 170 555 0105' },
+      ),
+    };
+  };
+
+  it('prints the production number for whoever has one', () => {
+    const sheet = callSheetFor(withUnitHandsets());
+    const designer = sheet.crew.find((c) => c.displayName === 'Petra Nowak');
+    expect(designer?.phone).toBe('+49 151 555 0011');
+  });
+
+  it('prints the personal number for everyone who does not', () => {
+    const sheet = callSheetFor(withUnitHandsets());
+    const foh = sheet.crew.find((c) => c.displayName === 'Dan Whitfield');
+    expect(foh?.phone).toBe('+49 170 555 0105');
+  });
+});

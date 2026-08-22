@@ -216,8 +216,8 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
   const people: Person[] = [
     { id: createId('person'), displayName: 'Mara Vogel', kind: 'crew', department: 'Direction', role: 'Director', phone: '+49 170 555 0101', email: 'mara@lanternsample.example' },
     { id: createId('person'), displayName: 'Jonas Feld', kind: 'crew', department: 'Camera', role: 'Director of Photography', phone: '+49 170 555 0102', email: 'jonas@lanternsample.example' },
-    { id: createId('person'), displayName: 'Priya Anand', kind: 'crew', department: 'Direction', role: '1st Assistant Director', phone: '+49 170 555 0103', email: 'priya@lanternsample.example' },
-    { id: createId('person'), displayName: 'Elif Kaya', kind: 'crew', department: 'Production', role: 'Producer', phone: '+49 170 555 0106', email: 'elif@lanternsample.example' },
+    { id: createId('person'), displayName: 'Priya Anand', kind: 'crew', department: 'Direction', role: '1st Assistant Director', phone: '+49 170 555 0103', productionPhone: '+49 151 555 0011', email: 'priya@lanternsample.example' },
+    { id: createId('person'), displayName: 'Elif Kaya', kind: 'crew', department: 'Production', role: 'Producer', phone: '+49 170 555 0106', productionPhone: '+49 151 555 0012', email: 'elif@lanternsample.example' },
     { id: createId('person'), displayName: 'Tom Reilly', kind: 'crew', department: 'Lighting / Electric', role: 'Gaffer', phone: '+49 170 555 0104' },
     { id: createId('person'), displayName: 'Dana Osei', kind: 'crew', department: 'Grip', role: 'Key Grip', phone: '+49 170 555 0107' },
     { id: createId('person'), displayName: 'Alex Kim', kind: 'crew', department: 'Sound', role: 'Production Sound Mixer', phone: '+49 170 555 0105' },

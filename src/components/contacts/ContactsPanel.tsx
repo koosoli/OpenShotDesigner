@@ -23,6 +23,7 @@ import {
   assignKeyCrew,
   keyCrewMember,
   projectHeadFieldsFor,
+  callSheetPhone,
   castPersonForCharacter,
   filterPeople,
   groupPeopleByDepartment,
@@ -32,6 +33,7 @@ import {
   removePerson,
   unassignCast,
   upsertPerson,
+  usesProductionPhone,
 } from '../../domain/people';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
 import { createId } from '../../domain/ids';
@@ -117,6 +119,10 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
         </label>
         {field('role', 'Role / position', 'Gaffer, 1st AD, Lead…')}
         {field('phone', 'Phone', '+1 555 0100', 'tel')}
+        {/* A number issued for this job only — a rented handset, a department
+            line. When present it is what the call sheet prints, because that is
+            the number the unit should ring today. */}
+        {field('productionPhone', 'Production phone', 'Unit handset / SIM', 'tel')}
         {field('email', 'Email', 'name@example.com', 'email')}
         {field('company', 'Company / agency')}
         {field('rate', 'Rate', '€450/day')}
@@ -480,9 +486,22 @@ export const ContactsPanel: React.FC = () => {
                     </span>
                   </span>
                   <span className="flex items-center gap-1 flex-shrink-0">
-                    {person.phone && (
-                      <a href={`tel:${person.phone.replace(/\s+/g, '')}`} onClick={(e) => e.stopPropagation()} title={person.phone} className={`p-1.5 rounded-md ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
-                        <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                    {/* The call button dials whatever the call sheet prints, so
+                        the list and the paperwork can never disagree. */}
+                    {callSheetPhone(person) && (
+                      <a
+                        href={`tel:${callSheetPhone(person)!.replace(/\s+/g, '')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        title={
+                          usesProductionPhone(person)
+                            ? `${callSheetPhone(person)} — production number, used on call sheets`
+                            : callSheetPhone(person)
+                        }
+                        className={`p-1.5 rounded-md ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}
+                      >
+                        <Phone
+                          className={`w-3.5 h-3.5 ${usesProductionPhone(person) ? 'text-amber-500' : 'text-emerald-500'}`}
+                        />
                       </a>
                     )}
                     {person.email && (

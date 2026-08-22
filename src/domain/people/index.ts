@@ -4,6 +4,7 @@ export {
   PERSON_KIND_LABELS,
   PRODUCTION_DEPARTMENTS,
   assignCast,
+  callSheetPhone,
   castPersonForCharacter,
   filterPeople,
   groupPeopleByDepartment,
@@ -14,6 +15,7 @@ export {
   sortPeople,
   unassignCast,
   upsertPerson,
+  usesProductionPhone,
 } from './logic';
 export type { DepartmentGroup, PeopleFilter, PeopleReferences } from './logic';
 export {

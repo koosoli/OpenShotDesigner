@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   assignCast,
+  callSheetPhone,
   castPersonForCharacter,
   filterPeople,
   groupPeopleByDepartment,
@@ -10,6 +11,7 @@ import {
   removePerson,
   unassignCast,
   upsertPerson,
+  usesProductionPhone,
 } from '../people';
 import type { CastAssignment, Person } from '../people';
 
@@ -84,7 +86,7 @@ describe('CSV round-trip', () => {
   it('exports every person and re-imports them with fresh ids', () => {
     const csv = peopleToCsv(people);
     expect(csv.split('\n')[0]).toBe(
-      'Name,Type,Department,Role,Phone,Email,Company,Address,Rate,Emergency contact,Hotel,Hotel address,Check-in,Check-out,Notes',
+      'Name,Type,Department,Role,Phone,Production phone,Email,Company,Address,Rate,Emergency contact,Hotel,Hotel address,Check-in,Check-out,Notes',
     );
     expect(csv).toContain('"Needs 7am pickup, ""north gate"""');
     const imported = parsePeopleCsv(csv);
@@ -101,5 +103,50 @@ describe('CSV round-trip', () => {
     expect(imported).toHaveLength(1);
     expect(imported[0]).toMatchObject({ displayName: 'Gus Reed', department: 'Sound', role: 'Mixer', phone: '0123', email: 'gus@x.io' });
     expect(parsePeopleCsv('Name\n')).toEqual([]);
+  });
+});
+
+describe('callSheetPhone', () => {
+  it('prefers the number the production issued', () => {
+    expect(callSheetPhone({ phone: '+1 555 0100', productionPhone: '+1 555 0999' })).toBe('+1 555 0999');
+  });
+
+  it('falls back to the person’s own number rather than printing nothing', () => {
+    expect(callSheetPhone({ phone: '+1 555 0100' })).toBe('+1 555 0100');
+  });
+
+  /**
+   * Clearing the production number has to restore the personal one. If the two
+   * were ever copied instead of resolved, a wrapped production's dead handset
+   * would stay on next year's paperwork.
+   */
+  it('treats a blank production number as absent', () => {
+    expect(callSheetPhone({ phone: '+1 555 0100', productionPhone: '   ' })).toBe('+1 555 0100');
+    expect(usesProductionPhone({ phone: '+1 555 0100', productionPhone: '  ' })).toBe(false);
+  });
+
+  it('reports no number at all rather than an empty string', () => {
+    expect(callSheetPhone({})).toBeUndefined();
+    expect(callSheetPhone({ phone: '  ' })).toBeUndefined();
+  });
+
+  it('says when the printed number is the production one', () => {
+    expect(usesProductionPhone({ productionPhone: '+1 555 0999' })).toBe(true);
+    expect(usesProductionPhone({ phone: '+1 555 0100' })).toBe(false);
+  });
+});
+
+describe('production phone in CSV', () => {
+  it('round-trips through export and import', () => {
+    const csv = peopleToCsv([
+      { id: 'x', displayName: 'Ada Reyes', kind: 'crew', phone: '+1 555 0100', productionPhone: '+1 555 0999' },
+    ]);
+    const [imported] = parsePeopleCsv(csv);
+    expect(imported).toMatchObject({ phone: '+1 555 0100', productionPhone: '+1 555 0999' });
+  });
+
+  it('accepts the headers a production office actually types', () => {
+    const csv = 'Name,Unit phone\r\nAda Reyes,+1 555 0999\r\n';
+    expect(parsePeopleCsv(csv)[0].productionPhone).toBe('+1 555 0999');
   });
 });

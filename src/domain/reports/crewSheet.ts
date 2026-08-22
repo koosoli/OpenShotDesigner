@@ -6,6 +6,7 @@
  * mirroring the call-sheet pattern in callSheet.ts.
  */
 
+import { callSheetPhone } from '../people';
 import type { Person } from '../people';
 import { sortCues } from '../scheduling/runOfShow';
 import type { RunOfShowCue } from '../scheduling/runOfShow';
@@ -131,14 +132,14 @@ export const deriveCrewSheet = (input: DeriveCrewSheetInput): CrewSheetData => {
   const seen = new Set<string>();
   const contacts: CrewSheetContact[] = [];
   for (const person of crew) {
-    const key = person.id ?? `${person.displayName}|${person.phone ?? ''}|${person.email ?? ''}`;
+    const key = person.id ?? `${person.displayName}|${callSheetPhone(person) ?? ''}|${person.email ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
     contacts.push({
       displayName: person.displayName,
       department: person.department,
       role: person.role,
-      phone: person.phone,
+      phone: callSheetPhone(person),
       email: person.email,
     });
   }

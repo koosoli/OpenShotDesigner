@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CastAssignment, Person } from '../../domain/people';
-import { PERSON_KIND_LABELS, groupPeopleByDepartment } from '../../domain/people';
+import { PERSON_KIND_LABELS, callSheetPhone, groupPeopleByDepartment, usesProductionPhone } from '../../domain/people';
 import type { Character } from '../../domain/script';
 
 interface ContactListPrintViewProps {
@@ -73,7 +73,16 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
                     </td>
                     <td className={cell}>{person.role ?? ''}</td>
                     <td className={cell}>{PERSON_KIND_LABELS[person.kind ?? 'other']}</td>
-                    <td className={`${cell} font-mono whitespace-nowrap`}>{person.phone ?? ''}</td>
+                    {/* The production's number is what the unit rings, so it
+                        leads. The personal number stays underneath rather than
+                        being replaced — the office still needs to reach people
+                        after the handsets go back. */}
+                    <td className={`${cell} font-mono whitespace-nowrap`}>
+                      {callSheetPhone(person) ?? ''}
+                      {usesProductionPhone(person) && person.phone && (
+                        <div className="text-[9px] text-slate-500">own: {person.phone}</div>
+                      )}
+                    </td>
                     <td className={cell}>{person.email ?? ''}</td>
                     <td className={cell}>{person.company ?? ''}</td>
                     {showRates && <td className={`${cell} font-mono`}>{person.rate ?? ''}</td>}
@@ -102,7 +111,7 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
                 <tr key={character.id} className="break-inside-avoid">
                   <td className={`${cell} font-bold uppercase`}>{character.canonicalName}</td>
                   <td className={cell}>{person?.displayName ?? <span className="text-slate-400">not cast</span>}</td>
-                  <td className={`${cell} font-mono whitespace-nowrap`}>{person?.phone ?? ''}</td>
+                  <td className={`${cell} font-mono whitespace-nowrap`}>{person ? callSheetPhone(person) ?? '' : ''}</td>
                   <td className={cell}>{person?.email ?? ''}</td>
                 </tr>
               ))}

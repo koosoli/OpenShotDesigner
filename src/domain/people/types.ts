@@ -16,7 +16,22 @@ export interface Person {
   department?: string;
   role?: string;
   email?: string;
+  /**
+   * The person's own number — agency, mobile, however they are normally
+   * reached. Kept as the number of record beyond this production.
+   */
   phone?: string;
+  /**
+   * A number the production issued for this job only: a rented handset, a
+   * department line, a temporary SIM. When present it is what belongs on the
+   * call sheet — that is the number the unit should ring today, and it is the
+   * one that stops working when the production wraps.
+   *
+   * Absent means there is no production number, not that it equals `phone`;
+   * `callSheetPhone` does the falling back so nothing is ever copied between
+   * the two fields (rule 13).
+   */
+  productionPhone?: string;
   notes?: string;
   /** Optional contact-sheet fields (plan §4.5); absent = unknown, never blank-filled. */
   company?: string;

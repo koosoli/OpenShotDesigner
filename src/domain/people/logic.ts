@@ -151,7 +151,7 @@ export const filterPeople = (people: readonly Person[], filter: PeopleFilter = {
     if (kind && (person.kind ?? 'other') !== kind) return false;
     if (department && normalize(person.department).toLowerCase() !== department) return false;
     if (!query) return true;
-    const haystack = [person.displayName, person.role, person.department, person.company, person.email, person.phone, person.notes]
+    const haystack = [person.displayName, person.role, person.department, person.company, person.email, person.phone, person.productionPhone, person.notes]
       .map((value) => normalize(value).toLowerCase())
       .join(' ');
     return query.split(' ').every((term) => haystack.includes(term));
@@ -200,6 +200,7 @@ const CSV_COLUMNS: Array<keyof Person> = [
   'department',
   'role',
   'phone',
+  'productionPhone',
   'email',
   'company',
   'address',
@@ -219,6 +220,7 @@ const CSV_HEADERS: Record<keyof Person, string> = {
   department: 'Department',
   role: 'Role',
   phone: 'Phone',
+  productionPhone: 'Production phone',
   email: 'Email',
   company: 'Company',
   address: 'Address',
@@ -303,6 +305,9 @@ export const parsePeopleCsv = (text: string): Person[] => {
     if (cell === 'dept') return 'department';
     if (cell === 'position' || cell === 'title') return 'role';
     if (cell === 'mobile' || cell === 'cell' || cell === 'telephone') return 'phone';
+    if (cell === 'prod phone' || cell === 'production mobile' || cell === 'unit phone') {
+      return 'productionPhone';
+    }
     if (cell === 'e-mail' || cell === 'mail') return 'email';
     return undefined;
   };
@@ -327,3 +332,26 @@ export const parsePeopleCsv = (text: string): Person[] => {
   }
   return out;
 };
+
+/**
+ * The number to print on a call sheet for this person.
+ *
+ * A production-issued number wins over the person's own: it is the line the
+ * unit is meant to use today, and printing an agency number instead sends the
+ * 2nd AD somewhere that cannot help at 05:00. Falling back rather than copying
+ * keeps the two fields independent — clearing the production number restores
+ * the personal one instead of leaving a stale duplicate behind.
+ */
+export const callSheetPhone = (
+  person: Pick<Person, 'phone' | 'productionPhone'>,
+): string | undefined => {
+  const production = person.productionPhone?.trim();
+  if (production) return production;
+  const personal = person.phone?.trim();
+  return personal || undefined;
+};
+
+/** True when the number on the call sheet is one the production issued. */
+export const usesProductionPhone = (
+  person: Pick<Person, 'phone' | 'productionPhone'>,
+): boolean => !!person.productionPhone?.trim();
