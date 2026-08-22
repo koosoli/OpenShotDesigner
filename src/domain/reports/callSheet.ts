@@ -44,6 +44,14 @@ export interface CallSheetPerson {
   role?: string;
   email?: string;
   phone?: string;
+  /**
+   * This person's own call, when they have one. Absent means they work to the
+   * general crew call — which is what the sheet already says at the top, so it
+   * is never restated per line.
+   */
+  callTime?: string;
+  /** What that call is for: make-up, pre-rig, travel. */
+  callNote?: string;
 }
 
 /** One resolved transport pick-up on a call sheet. */
@@ -247,12 +255,29 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   const resolvedLocations = locations;
 
   const castIdFilter = input.castPersonIds ? new Set(input.castPersonIds) : null;
+  // Individual calls, keyed by person, applied to both lists below.
+  const personCalls = new Map(
+    (day.callSheet?.personCalls ?? []).map((entry) => [entry.personId, entry] as const),
+  );
+  const callFor = (personId: string) => {
+    const entry = personCalls.get(personId);
+    return entry?.time || entry?.note
+      ? { ...(entry.time ? { callTime: entry.time } : {}), ...(entry.note ? { callNote: entry.note } : {}) }
+      : {};
+  };
   const cast = people
     .filter((p) => (p.kind === 'cast' || p.kind === 'talent') && (!castIdFilter || castIdFilter.has(p.id)))
-    .map((p) => ({ displayName: p.displayName, role: p.role, email: p.email, phone: p.phone }));
+    .map((p) => ({
+      displayName: p.displayName,
+      role: p.role,
+      email: p.email,
+      phone: p.phone,
+      ...callFor(p.id),
+    }));
   const crew = people
     .filter((p) => p.kind === 'crew')
     .map((p) => ({
+      ...callFor(p.id),
       displayName: p.displayName,
       department: p.department,
       role: p.role,

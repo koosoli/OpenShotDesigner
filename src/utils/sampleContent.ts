@@ -189,6 +189,10 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
     { id: createId('person'), displayName: 'Yara Solis', kind: 'cast', department: 'Cast', role: 'Lead — "Detective"', phone: '+49 171 555 0204', address: 'Munich (travelling in)', hotelName: 'Hotel Astoria', hotelAddress: 'Kohlfurter Strasse 8, Berlin', hotelCheckIn: isoFromToday(6), hotelCheckOut: isoFromToday(9) },
   ];
 
+  /** Sample-data helper: the crew member holding a given role title. */
+  const crewIdByRole = (list: Person[], role: string): string =>
+    list.find((person) => person.kind === 'crew' && person.role === role)?.id ?? '';
+
   /** Sample-data helper: the actor cast as a given character name. */
   const castByRoleName = (characterName: string): string =>
     people.find((person) => (person.role ?? '').includes(`"${characterName}"`))?.id ?? '';
@@ -232,6 +236,11 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
         safetyNotes: 'Low-key lighting rig — mind cable runs in the dark.',
         generalNotes: 'Art department resets the room at lunch.',
         pickupNotes: 'Unit driver runs the hotel shuttle; crew van leaves the production office at 07:45.',
+        personCalls: [
+          { id: createId('call'), personId: castByRoleName('Suspect'), time: '07:45', note: 'Make-up & wardrobe' },
+          { id: createId('call'), personId: castByRoleName('Detective'), time: '08:00', note: 'Make-up' },
+          { id: createId('call'), personId: crewIdByRole(people, 'Gaffer'), time: '07:00', note: 'Pre-rig the interrogation room' },
+        ],
         pickups: [
           { id: createId('pickup'), personId: castByRoleName('Suspect'), time: '07:15', location: 'Hotel Astoria lobby', notes: 'Straight to make-up on arrival.' },
           { id: createId('pickup'), personId: castByRoleName('Detective'), time: '07:15', location: 'Hotel Astoria lobby' },

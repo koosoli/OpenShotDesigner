@@ -441,7 +441,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
   let scriptLines;
   // The example characters are discovered from the example screenplay and then
   // persisted, so the cast links below stay pointed at stable character ids.
-  let sampleCharacters;
+  let sampleCharacters: import('../domain/script').Character[] | undefined;
   let castAssignments;
   if (withSamples) {
     scriptLines = parseSampleScreenplay();
@@ -450,6 +450,25 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     });
     sampleCharacters = deriveScriptBreakdown(scriptLines).characters;
     castAssignments = sampleCastAssignments(sampleCharacters, scheduleMeta?.people ?? []);
+
+    // Link each example actor marker to the script character it plays. The
+    // template cannot hardcode the id (characters are discovered per project),
+    // so they are matched by name here. Without this the chain
+    // actor -> character -> cast assignment -> call sheet is broken, and a day
+    // scheduled by setup lists no cast even though the actors are on the plan.
+    const characterByName = new Map(
+      sampleCharacters.map((character) => [character.canonicalName.trim().toUpperCase(), character] as const),
+    );
+    setups.forEach((setup) => {
+      setup.elements = setup.elements.map((element) => {
+        if (element.type !== 'actor') return element;
+        const actor = element as ActorElement;
+        const match =
+          characterByName.get((actor.characterName ?? '').trim().toUpperCase()) ??
+          characterByName.get((actor.name ?? '').trim().toUpperCase());
+        return match ? { ...actor, characterId: match.id, characterName: match.canonicalName } : element;
+      });
+    });
   }
 
   // A sample production has a real crew, so the two legacy paperwork fields

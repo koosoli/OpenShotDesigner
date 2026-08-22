@@ -38,6 +38,19 @@ export interface ProductionDay {
       location?: string;
       notes?: string;
     }>;
+    /**
+     * Per-person call times. A general crew call is not enough to issue a sheet:
+     * cast come in for make-up, departments pre-rig, and a few people are on a
+     * later call. Absent for a person means they work to the general crew call.
+     */
+    personCalls?: Array<{
+      id: string;
+      personId: string;
+      /** "07:30". Free text so "on set 08:00" and "O/C" stay expressible. */
+      time?: string;
+      /** What the call is for: make-up, rigging, travel. */
+      note?: string;
+    }>;
   };
   scheduleBlockIds: string[];
 }

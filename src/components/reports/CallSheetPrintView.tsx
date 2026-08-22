@@ -225,11 +225,17 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             <h2 className="cs-section-title accent">Cast</h2>
             {sheet.cast.length > 0 ? (
               <table className="cs-table">
-                <thead><tr><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
+                <thead><tr><th style={{ width: '16mm' }}>Call</th><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
                 <tbody>
                   {sheet.cast.map((p, i) => (
                     <tr key={`cast-${i}`}>
-                      <td><strong>{p.displayName}</strong></td>
+                      {/* Blank means "general crew call", which the masthead
+                          already states — repeating it on every line is noise. */}
+                      <td className="time">{p.callTime ?? ''}</td>
+                      <td>
+                        <strong>{p.displayName}</strong>
+                        {p.callNote && <div style={{ fontSize: '8px', color: '#475569' }}>{p.callNote}</div>}
+                      </td>
                       <td>{p.role ?? '—'}</td>
                       <td>{joinDefined([p.phone, p.email]) || '—'}</td>
                     </tr>
@@ -244,14 +250,18 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             <h2 className="cs-section-title">Crew</h2>
             {sheet.crew.length > 0 ? (
               <table className="cs-table">
-                <thead><tr><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
+                <thead><tr><th style={{ width: '16mm' }}>Call</th><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
                 <tbody>
                   {crewGroups.map((group) => (
                     <React.Fragment key={group.department}>
-                      <tr className="cs-dept"><td colSpan={3}>{group.department}</td></tr>
+                      <tr className="cs-dept"><td colSpan={4}>{group.department}</td></tr>
                       {group.people.map((p, i) => (
                         <tr key={`${group.department}-${i}`}>
-                          <td><strong>{p.displayName}</strong></td>
+                          <td className="time">{p.callTime ?? ''}</td>
+                          <td>
+                            <strong>{p.displayName}</strong>
+                            {p.callNote && <div style={{ fontSize: '8px', color: '#475569' }}>{p.callNote}</div>}
+                          </td>
                           <td>{p.role ?? '—'}</td>
                           <td>{joinDefined([p.phone, p.email]) || '—'}</td>
                         </tr>

@@ -61,6 +61,32 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
   const removePickup = (pickupId: string) =>
     setPickups(pickups.filter((pickup) => pickup.id !== pickupId));
 
+  /**
+   * Individual call times. A person with no entry works to the general crew
+   * call, so the list only holds the exceptions rather than a row per head.
+   */
+  const personCalls = selectedDay?.callSheet?.personCalls ?? [];
+  const setPersonCalls = (
+    next: NonNullable<NonNullable<ProductionDay['callSheet']>['personCalls']>,
+  ) => {
+    if (!selectedDay) return;
+    updateDay(selectedDay.id, {
+      callSheet: { ...(selectedDay.callSheet ?? {}), personCalls: next },
+    });
+  };
+  const addPersonCall = () => {
+    const uncalled = people.find((person) => !personCalls.some((call) => call.personId === person.id));
+    const target = uncalled ?? people[0];
+    if (!target) return;
+    setPersonCalls([...personCalls, { id: createId('call'), personId: target.id }]);
+  };
+  const patchPersonCall = (
+    callId: string,
+    updates: Partial<NonNullable<NonNullable<ProductionDay['callSheet']>['personCalls']>[number]>,
+  ) => setPersonCalls(personCalls.map((call) => (call.id === callId ? { ...call, ...updates } : call)));
+  const removePersonCall = (callId: string) =>
+    setPersonCalls(personCalls.filter((call) => call.id !== callId));
+
   const companyInfo = project.productionCompanyInfo ?? {};
   const patchCompanyInfo = (updates: Partial<typeof companyInfo>) =>
     updateProjectMeta({ productionCompanyInfo: { ...companyInfo, ...updates } });
@@ -207,6 +233,70 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
             <label className="text-[9px] font-bold uppercase text-slate-500 block">Nearest hospital<textarea rows={2} value={selectedDay.callSheet?.nearestHospital ?? ''} onChange={(event) => patchCallSheet({ nearestHospital: event.target.value || undefined })} placeholder="Facility, address, phone" className={`${fieldClass} mt-1 resize-none`} /></label>
             <label className="text-[9px] font-bold uppercase text-slate-500 block">Safety bulletin<textarea rows={2} value={selectedDay.callSheet?.safetyNotes ?? ''} onChange={(event) => patchCallSheet({ safetyNotes: event.target.value || undefined })} placeholder="Hazards, PPE, medic, emergency plan" className={`${fieldClass} mt-1 resize-none`} /></label>
             <label className="text-[9px] font-bold uppercase text-slate-500 block">General notes<textarea rows={3} value={selectedDay.callSheet?.generalNotes ?? ''} onChange={(event) => patchCallSheet({ generalNotes: event.target.value || undefined })} placeholder="Walkies, department notes, special instructions" className={`${fieldClass} mt-1 resize-none`} /></label>
+
+            {/* Individual calls. Only the exceptions are listed: everyone else
+                works to the general crew call at the top of the sheet. */}
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-bold uppercase text-slate-500 block">
+                Individual call times
+              </span>
+              {personCalls.map((call) => (
+                <div key={call.id} className="flex items-center gap-1.5">
+                  <input
+                    value={call.time ?? ''}
+                    onChange={(event) => patchPersonCall(call.id, { time: event.target.value || undefined })}
+                    placeholder="07:30"
+                    aria-label="Call time"
+                    className={`${fieldClass} !w-16 font-mono`}
+                  />
+                  <select
+                    value={call.personId}
+                    onChange={(event) => patchPersonCall(call.id, { personId: event.target.value })}
+                    aria-label="Person called"
+                    className={`${fieldClass} !w-auto flex-1 min-w-0`}
+                  >
+                    {people.some((person) => person.id === call.personId) ? null : (
+                      <option value={call.personId}>Contact removed</option>
+                    )}
+                    {people.map((person) => (
+                      <option key={person.id} value={person.id}>{person.displayName}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={call.note ?? ''}
+                    onChange={(event) => patchPersonCall(call.id, { note: event.target.value || undefined })}
+                    placeholder="Make-up"
+                    aria-label="What the call is for"
+                    className={`${fieldClass} !w-auto flex-1 min-w-0`}
+                  />
+                  <button
+                    onClick={() => removePersonCall(call.id)}
+                    title="Remove individual call"
+                    aria-label="Remove individual call"
+                    className="h-9 w-9 shrink-0 rounded-md text-slate-400 hover:text-rose-500"
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+              {people.length === 0 ? (
+                <p className="text-[10px] text-amber-500">
+                  Add crew and cast on the Crew tab first — a call has to name who it is for.
+                </p>
+              ) : (
+                <p className="text-[10px] text-slate-500">
+                  Anyone not listed works to the general crew call.
+                </p>
+              )}
+              <button
+                onClick={addPersonCall}
+                disabled={people.length === 0}
+                title={people.length === 0 ? 'Add people on the Crew tab first' : 'Add an individual call'}
+                className={`h-9 px-3 rounded-md border text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+              >
+                {people.length === 0 ? 'Add crew first to set calls' : '+ Add individual call'}
+              </button>
+            </div>
 
             {/* Transport: general arrangements plus a per-person pick-up list.
                 Rows reference contacts, so the printed sheet can show their

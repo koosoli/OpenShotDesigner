@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createProject } from '../projectLibrary';
 import { keyCrewMember } from '../../domain/people';
+import { castPersonIdsForDay } from '../../domain/reports';
 
 /**
  * A template project has to demonstrate every module. The first-run project
@@ -146,6 +147,50 @@ describe('sample project content', () => {
       expect(personIds.has(pickup.personId)).toBe(true);
       expect(pickup.id).toBeTruthy();
     }
+  });
+
+  it('ships individual call times that resolve to real people', () => {
+    const personIds = new Set((project.people ?? []).map((p) => p.id));
+    const calls = (project.productionDays ?? []).flatMap((day) => day.callSheet?.personCalls ?? []);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(personIds.has(call.personId)).toBe(true);
+      expect(call.time).toBeTruthy();
+    }
+  });
+
+  it('ships map pins on the example locations, so the sun planner works', () => {
+    const pinned = (project.locations ?? []).filter((l) => l.lat !== undefined && l.lng !== undefined);
+    expect(pinned.length).toBeGreaterThan(0);
+    for (const location of pinned) {
+      expect(Math.abs(location.lat!)).toBeLessThanOrEqual(90);
+      expect(Math.abs(location.lng!)).toBeLessThanOrEqual(180);
+    }
+  });
+
+  it('links the example actors on the plan to the script characters they play', () => {
+    // The chain a call sheet depends on: actor marker -> character -> cast
+    // assignment. Broken, a day scheduled by setup lists no cast at all.
+    const characterIds = new Set((project.characters ?? []).map((c) => c.id));
+    const actors = project.setups.flatMap((setup) =>
+      setup.elements.filter((element) => element.type === 'actor'),
+    );
+    const linked = actors.filter((actor) => 'characterId' in actor && actor.characterId);
+    expect(linked.length).toBeGreaterThan(0);
+    for (const actor of linked) {
+      expect(characterIds.has((actor as { characterId: string }).characterId)).toBe(true);
+    }
+  });
+
+  it('resolves cast for a day scheduled by setup, not just by scene', () => {
+    const day = (project.productionDays ?? [])[0];
+    expect(day).toBeDefined();
+    const called = castPersonIdsForDay(day.scheduleBlockIds, project.scheduleBlocks ?? [], {
+      scriptScenes: project.scriptScenes,
+      setups: project.setups,
+      castAssignments: project.castAssignments,
+    });
+    expect(called.length).toBeGreaterThan(0);
   });
 
   it('leaves a project created WITHOUT samples empty of example data', () => {
