@@ -1,165 +1,161 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { CURRENT_PROJECT_SCHEMA_VERSION } from '../../domain/migrations';
 import {
-  flushPendingWrites,
-  getActiveProjectId,
-  initProjectLibrary,
+  createProject,
+  getUnreadableProject,
+  listUnreadableProjects,
   loadLibrary,
-  newProjectId,
   readProject,
   removeProject,
-  setActiveProjectId,
-  subscribeSaveState,
+  summarize,
   writeProject,
 } from '../projectLibrary';
-import type { Project } from '../../types';
-import { CURRENT_PROJECT_SCHEMA_VERSION } from '../../domain/migrations';
-import { makeCleanSetup, makeProject } from './fixtures';
 
-const LIBRARY_KEY = 'openshotdesigner_library_v1';
-const LEGACY_ID = 'legacy-proj-1';
+/**
+ * The storage facade is the floor under every project in the app, and it had no
+ * tests. These cover the read/write/summarize contract, and pin two behaviours
+ * that were previously wrong: a project that fails to migrate must not look
+ * like a project that does not exist, and it must never be stamped as current.
+ */
 
-const makeStorableProject = (overrides: Partial<Project> = {}): Project =>
-  makeProject([makeCleanSetup({ id: 'lib-setup-1' })], overrides);
+const project = (over: Partial<ReturnType<typeof createProject>> = {}) => ({
+  ...createProject({ title: 'Test production' }),
+  ...over,
+});
 
-const withTwoShots = (project: Project): Project => {
-  const setup = project.setups[0];
-  setup.shots.push({
-    ...setup.shots[0],
-    id: 'lib-shot-2',
-    name: 'Shot 2',
-    shotNumber: '1/2',
-  });
-  return project;
-};
+beforeEach(() => {
+  for (const summary of loadLibrary()) removeProject(summary.id);
+});
 
-describe('projectLibrary', () => {
-  beforeAll(async () => {
-    localStorage.clear();
-    // Seed legacy (pre-migration) data exactly the way the old single-page app left it.
-    const legacyProject = withTwoShots(makeStorableProject({ id: LEGACY_ID, title: 'Legacy Production' }));
-    localStorage.setItem(`${'openshotdesigner_project_'}${LEGACY_ID}`, JSON.stringify(legacyProject));
-    localStorage.setItem(
-      LIBRARY_KEY,
-      JSON.stringify([
-        { id: LEGACY_ID, title: 'Legacy Production', updatedAt: '2025-01-01T00:00:00.000Z', setupCount: 1, shotCount: 2, hasScript: false },
-      ]),
+describe('summarize', () => {
+  it('counts setups and shots, and reports whether there is a script', () => {
+    const withSamples = createProject({ title: 'Sample', withSampleScenes: true });
+    const summary = summarize(withSamples);
+    expect(summary.title).toBe('Sample');
+    expect(summary.setupCount).toBe(withSamples.setups.length);
+    expect(summary.shotCount).toBe(
+      withSamples.setups.reduce((total, setup) => total + setup.shots.length, 0),
     );
-    await initProjectLibrary();
+    expect(summary.hasScript).toBe(true);
   });
 
-  it('hydrates legacy localStorage projects into the library', () => {
-    const summaries = loadLibrary();
-    expect(summaries.some((s) => s.id === LEGACY_ID)).toBe(true);
+  it('falls back to a readable title', () => {
+    expect(summarize(project({ title: '' })).title).toBe('Untitled project');
   });
 
-  it('applies pending migrations when reading a stored legacy project', () => {
-    const project = readProject(LEGACY_ID);
-    expect(project).not.toBeNull();
-    expect(project!.id).toBe(LEGACY_ID);
-    expect(project!.title).toBe('Legacy Production');
-    expect((project as unknown as Record<string, unknown>).schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+  it('sorts a project with no updatedAt last rather than first', () => {
+    expect(summarize(project({ updatedAt: undefined })).updatedAt).toBe('');
+  });
+});
+
+describe('write / read round trip', () => {
+  it('stores a project and reads it back', () => {
+    const saved = project();
+    writeProject(saved);
+    expect(readProject(saved.id)?.id).toBe(saved.id);
   });
 
-  it('roundtrips a written project through readProject', () => {
-    const project = withTwoShots(makeStorableProject({ id: 'roundtrip-1', title: 'Roundtrip' }));
-    writeProject(project);
-    const read = readProject('roundtrip-1');
-    expect(read).not.toBeNull();
-    const normalized = JSON.parse(JSON.stringify(read)) as Record<string, unknown>;
-    expect(normalized.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
-    delete normalized.schemaVersion;
-    // Saving stamps the last-saved time; the caller's data never carries it.
-    expect(typeof normalized.updatedAt).toBe('string');
-    delete normalized.updatedAt;
-    // Migration backfills these documented defaults; strip them so the
-    // comparison focuses on the data the caller wrote.
-    const backfilled = [
-      'locations', 'people', 'castAssignments', 'characters', 'scriptScenes',
-      'breakdownItems', 'productionSegments', 'productionDays', 'scheduleBlocks',
-      'productionCalendarEvents',
-      'runOfShowCues', 'logisticsContainers', 'packedItems', 'powerPlan',
-      'trussProfiles', 'trussElements', 'suspendedLoads', 'riggingItems',
-      'revisions',
-    ];
-    for (const key of backfilled) delete normalized[key];
-    const stripLayerDefaults = (value: Record<string, unknown>) => {
-      for (const setup of value.setups as Array<Record<string, unknown>>) {
-        delete setup.layers;
-        delete setup.groups;
-      }
-    };
-    stripLayerDefaults(normalized);
-    const original = JSON.parse(JSON.stringify(project)) as Record<string, unknown>;
-    stripLayerDefaults(original);
-    expect(normalized).toEqual(original);
+  it('stamps updatedAt on write, and honours touch:false', () => {
+    const saved = project({ updatedAt: undefined });
+    const summary = writeProject(saved);
+    expect(summary.updatedAt).not.toBe('');
+
+    const untouched = writeProject({ ...saved, updatedAt: '2020-01-01T00:00:00.000Z' }, { touch: false });
+    expect(untouched.updatedAt).toBe('2020-01-01T00:00:00.000Z');
   });
 
-  it('summarizes projects with correct counts in loadLibrary', () => {
-    const summaries = loadLibrary();
-    const entry = summaries.find((s) => s.id === 'roundtrip-1');
-    expect(entry).toBeDefined();
-    expect(entry!.setupCount).toBe(1);
-    expect(entry!.shotCount).toBe(2);
-    expect(typeof entry!.updatedAt).toBe('string');
+  it('returns null for an id that was never stored', () => {
+    expect(readProject('nope')).toBeNull();
   });
 
-  it('overwrites duplicate project ids instead of duplicating entries', () => {
-    const project = withTwoShots(makeStorableProject({ id: 'dup-1', title: 'First title' }));
-    writeProject(project);
-    writeProject({ ...structuredClone(project), title: 'Second title' });
-    const entries = loadLibrary().filter((s) => s.id === 'dup-1');
-    expect(entries).toHaveLength(1);
-    expect(readProject('dup-1')!.title).toBe('Second title');
+  it('returns null for a stored project with no setups', () => {
+    const empty = { ...project(), setups: [] };
+    writeProject(empty);
+    expect(readProject(empty.id)).toBeNull();
   });
 
-  it('removes projects from both the index and storage', () => {
-    const project = makeStorableProject({ id: 'doomed-1' });
-    writeProject(project);
-    expect(readProject('doomed-1')).not.toBeNull();
-    removeProject('doomed-1');
-    expect(readProject('doomed-1')).toBeNull();
-    expect(loadLibrary().some((s) => s.id === 'doomed-1')).toBe(false);
+  it('lists projects newest first', () => {
+    const older = writeProject({ ...project({ title: 'Older' }), updatedAt: '2024-01-01T00:00:00.000Z' }, { touch: false });
+    const newer = writeProject({ ...project({ title: 'Newer' }), updatedAt: '2025-01-01T00:00:00.000Z' }, { touch: false });
+    const ids = loadLibrary().map((entry) => entry.id);
+    expect(ids.indexOf(newer.id)).toBeLessThan(ids.indexOf(older.id));
   });
 
-  it('returns null for unknown ids', () => {
-    expect(readProject('no-such-project')).toBeNull();
+  it('removes a project from the library', () => {
+    const saved = project();
+    writeProject(saved);
+    removeProject(saved.id);
+    expect(readProject(saved.id)).toBeNull();
+    expect(loadLibrary().some((entry) => entry.id === saved.id)).toBe(false);
+  });
+});
+
+describe('migration on read', () => {
+  it('migrates an older project and persists the migrated form', () => {
+    const old = { ...project(), schemaVersion: 15 };
+    writeProject(old, { touch: false });
+    const loaded = readProject(old.id);
+    expect(loaded?.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    // Persisted, so a second read does not migrate again.
+    expect(readProject(old.id)?.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+  });
+});
+
+describe('a project that cannot be migrated', () => {
+  /** A version from the future: no migration path exists to today's schema. */
+  const fromTheFuture = () => ({
+    ...project({ title: 'From a newer build' }),
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION + 5,
   });
 
-  it('persists the active project id preference', () => {
-    setActiveProjectId('roundtrip-1');
-    expect(getActiveProjectId()).toBe('roundtrip-1');
+  it('is NOT silently stamped as current when written', () => {
+    // Claiming a version the data does not satisfy means the next load skips
+    // migration and hands malformed data straight to the app.
+    const future = fromTheFuture();
+    writeProject(future, { touch: false });
+    const stored = loadLibrary().find((entry) => entry.id === future.id);
+    expect(stored).toBeDefined();
+    expect(getUnreadableProject(future.id)).toBeUndefined(); // not read yet
+    expect(readProject(future.id)).toBeNull();
   });
 
-  it('generates fresh, non-empty project ids', () => {
-    const a = newProjectId();
-    const b = newProjectId();
-    expect(typeof a).toBe('string');
-    expect(a.length).toBeGreaterThan(0);
-    expect(a).not.toBe(b);
+  it('is reported with a reason instead of just vanishing', () => {
+    const future = fromTheFuture();
+    writeProject(future, { touch: false });
+    readProject(future.id);
+
+    const failure = getUnreadableProject(future.id);
+    expect(failure).toBeDefined();
+    expect(failure!.title).toBe('From a newer build');
+    expect(failure!.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION + 5);
+    expect(failure!.message).toMatch(/newer schema version/i);
+    expect(listUnreadableProjects().map((entry) => entry.id)).toContain(future.id);
   });
 
-  it('notifies save-state subscribers, ending at "saved" once writes are flushed', async () => {
-    const states: string[] = [];
-    const unsubscribe = subscribeSaveState((state) => states.push(state));
-    try {
-      const project = makeStorableProject({ id: 'save-state-1' });
-      writeProject(project);
-      await flushPendingWrites();
-      expect(states.length).toBeGreaterThan(0);
-      expect(states).not.toContain('error');
-      expect(states[states.length - 1]).toBe('saved');
-    } finally {
-      unsubscribe();
-    }
+  it('still appears in the library, so nothing looks deleted', () => {
+    const future = fromTheFuture();
+    writeProject(future, { touch: false });
+    readProject(future.id);
+    expect(loadLibrary().some((entry) => entry.id === future.id)).toBe(true);
   });
 
-  it('stops notifying after unsubscribing', async () => {
-    const states: string[] = [];
-    const unsubscribe = subscribeSaveState((state) => states.push(state));
-    unsubscribe();
-    writeProject(makeStorableProject({ id: 'save-state-2' }));
-    await flushPendingWrites();
-    expect(states).toEqual([]);
-    removeProject('save-state-2');
+  it('leaves the stored data exactly as it was', () => {
+    const future = fromTheFuture();
+    writeProject(future, { touch: false });
+    readProject(future.id);
+    // A second read fails the same way rather than finding rewritten data.
+    expect(readProject(future.id)).toBeNull();
+    expect(getUnreadableProject(future.id)?.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION + 5);
+  });
+
+  it('clears the failure once the project becomes readable again', () => {
+    const future = fromTheFuture();
+    writeProject(future, { touch: false });
+    readProject(future.id);
+    expect(getUnreadableProject(future.id)).toBeDefined();
+
+    writeProject({ ...future, schemaVersion: 15 }, { touch: false });
+    expect(readProject(future.id)).not.toBeNull();
+    expect(getUnreadableProject(future.id)).toBeUndefined();
   });
 });

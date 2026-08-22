@@ -15,6 +15,7 @@ import { createId } from '../domain/ids';
 import { cloneProjectWithNewIds } from '../domain/clone';
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
+  MigrationError,
   detectSchemaVersion,
   migrateProject,
 } from '../domain/migrations';
@@ -83,6 +84,19 @@ let initialized = false;
 
 /** In-memory mirror — the synchronous source of truth for reads. */
 const memory = new Map<string, Project>();
+
+/** A stored project that exists but could not be migrated to the current schema. */
+export interface UnreadableProject {
+  id: string;
+  title: string;
+  /** The version detected in the stored data, or null when unrecognisable. */
+  schemaVersion: number | null;
+  message: string;
+  issues: string[];
+}
+
+/** Populated by readProject when a migration fails; never persisted. */
+const unreadableProjects = new Map<string, UnreadableProject>();
 
 const pendingWrites = new Set<Promise<unknown>>();
 
@@ -167,17 +181,41 @@ export const readProject = (id: string): Project | null => {
   if (!stored?.setups?.length) return null;
 
   const version = detectSchemaVersion(stored);
-  if (version === CURRENT_PROJECT_SCHEMA_VERSION) return stored;
+  if (version === CURRENT_PROJECT_SCHEMA_VERSION) {
+    // Any earlier failure is stale once the project reads cleanly.
+    unreadableProjects.delete(id);
+    return stored;
+  }
 
   try {
     const { project } = migrateProject(stored);
     memory.set(id, project);
     persistProject(project);
+    unreadableProjects.delete(id);
     return project;
-  } catch {
+  } catch (error) {
+    // A project that cannot be migrated is NOT the same as a project that does
+    // not exist, and returning null for both made someone's production look
+    // like it had vanished. The reason is recorded so the dashboard can say
+    // what happened and offer the raw JSON, and the stored data is left exactly
+    // as it is — never rewritten, never re-stamped.
+    unreadableProjects.set(id, {
+      id,
+      title: typeof stored.title === 'string' ? stored.title : 'Untitled project',
+      schemaVersion: version,
+      message: error instanceof Error ? error.message : 'Unknown migration failure.',
+      issues: error instanceof MigrationError ? error.issues : [],
+    });
     return null;
   }
 };
+
+/** Why a project could not be loaded, or undefined when it loaded fine. */
+export const getUnreadableProject = (id: string): UnreadableProject | undefined =>
+  unreadableProjects.get(id);
+
+/** Every project in the library that failed to migrate this session. */
+export const listUnreadableProjects = (): UnreadableProject[] => [...unreadableProjects.values()];
 
 /** Save a project and refresh its entry in the index. Throws when out of quota. */
 export const writeProject = (project: Project, options: { touch?: boolean } = {}): ProjectSummary => {
@@ -186,8 +224,11 @@ export const writeProject = (project: Project, options: { touch?: boolean } = {}
     try {
       storable = migrateProject(project).project;
     } catch {
-      // Keep the caller's data rather than failing the whole save.
-      storable = { ...project, schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION };
+      // Keep the caller's data rather than failing the whole save — but do NOT
+      // stamp it as current. Claiming a version the data does not satisfy means
+      // the next load skips migration entirely and hands malformed data to the
+      // app, which is a worse outcome than an honest old version marker.
+      storable = project;
     }
   }
   if (options.touch !== false) {

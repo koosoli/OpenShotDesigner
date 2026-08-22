@@ -16,8 +16,22 @@ const TRANSITION_RE = /^(FADE (IN|OUT|TO)|CUT TO|SMASH CUT|MATCH CUT|DISSOLVE TO
 const SHOT_RE = /^(ANGLE ON|CLOSE ON|CLOSE UP|WIDE ON|POV|INSERT|BACK TO SCENE|REVERSE ANGLE|TIGHT ON|PUSH IN|PAN TO)\b/i;
 const CONTINUED_RE = /^\(?\s*(CONTINUED|CONT'D|MORE)\s*:?\s*\)?$/i;
 const PAGE_NUMBER_RE = /^\d{1,3}[.)]?$/;
-/** Character cue: JENNA, JENNA (CONT'D), MAN'S VOICE (O.S.), BOB & RAY */
-const CHARACTER_RE = /^[A-Z0-9][A-Z0-9 .,'’&/#-]*(\((V\.?O\.?|O\.?S\.?|O\.?C\.?|CONT'?D|PRE-?LAP|SUBTITLED?|filtered|on phone)[^)]*\)\s*)*$/i;
+/**
+ * Character cue: JENNA, JENNA (CONT'D), MAN'S VOICE (O.S.), BOB & RAY,
+ * JENNA (WHISPERING), DISPATCHER (INTO RADIO), MARIA (IN SPANISH).
+ *
+ * The extension in brackets is deliberately unconstrained. It used to be a
+ * whitelist of V.O./O.S./CONT'D and a handful of others, which meant a cue
+ * carrying any other direction — and writers use anything — was classified as
+ * ACTION. That took the speech with it (the dialogue under a non-cue is action
+ * too) and kept the character out of the breakdown, the cast list, the
+ * day-out-of-days, the sides and the actor-to-character link.
+ *
+ * What keeps action lines from matching is the surrounding guard, not this
+ * pattern: a cue is upper case, at most 45 characters, does not end in a full
+ * stop, and in a columnar script must be indented.
+ */
+const CHARACTER_RE = /^[A-Z0-9][A-Z0-9 .,'’&/#-]*(\([^)]*\)\s*)*$/i;
 
 /** Pull a scene number out of a slugline: "8  INT. LOFT - NIGHT  8" or "#8#". */
 const extractSceneNumber = (raw: string): { text: string; sceneNumber?: string } => {

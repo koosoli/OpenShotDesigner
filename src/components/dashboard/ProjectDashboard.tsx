@@ -15,7 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { readProject } from '../../utils/projectLibrary';
+import { listUnreadableProjects, readProject } from '../../utils/projectLibrary';
 import { WORKSPACE_PRESETS, getPreset, type WorkspacePresetId } from '../../domain/workspace';
 import { BRANDING } from '../../config/branding';
 import { exportProjectPackage, importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
@@ -69,6 +69,10 @@ export const ProjectDashboard: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newTitle, setNewTitle] = useState('');
   const [startWithSamples, setStartWithSamples] = useState(false);
+  // Read on every render rather than memoised: it is a Map spread, and the
+  // registry is filled by readProject as the library hydrates, so any memo key
+  // would be a guess about when that finished.
+  const unreadable = isDashboardOpen ? listUnreadableProjects() : [];
   const [presetId, setPresetId] = useState<WorkspacePresetId>('shot_planning');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -251,6 +255,42 @@ export const ProjectDashboard: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Projects that exist but could not be migrated. Previously these were
+            indistinguishable from "not found", so a production simply appeared
+            to have vanished. The stored data is untouched; say so plainly. */}
+        {unreadable.length > 0 && (
+          <div
+            className={`mb-4 rounded-2xl border p-4 ${
+              isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/40 text-amber-100'
+            }`}
+          >
+            <h2 className="text-xs font-bold uppercase tracking-wide flex items-center gap-2">
+              <Clapperboard className="w-4 h-4" />
+              {unreadable.length} project{unreadable.length === 1 ? '' : 's'} could not be opened
+            </h2>
+            <ul className="mt-2 space-y-1.5 text-xs">
+              {unreadable.map((entry) => (
+                <li key={entry.id}>
+                  <strong>{entry.title}</strong>
+                  {entry.schemaVersion !== null && ` — saved with schema v${entry.schemaVersion}`}
+                  <div className="opacity-80">{entry.message}</div>
+                  {entry.issues.length > 0 && (
+                    <ul className="mt-0.5 ml-4 list-disc opacity-70">
+                      {entry.issues.slice(0, 4).map((issue) => (
+                        <li key={issue}>{issue}</li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[11px] opacity-80">
+              Nothing has been deleted or rewritten — the saved data is exactly as it was. This usually
+              means the file came from a newer build.
+            </p>
+          </div>
+        )}
 
         {/* Saved projects */}
         <h2 className="text-xs font-bold uppercase tracking-wide mb-2 opacity-70">
