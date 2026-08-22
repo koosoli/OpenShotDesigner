@@ -447,30 +447,38 @@ const RubricSection: React.FC<{
         isLight ? 'bg-slate-50/70 border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.04)]' : 'bg-slate-950/40 border-slate-800'
       } ${className}`}
     >
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors select-none ${
-          isLight
-            ? 'hover:bg-slate-100/70 text-slate-800'
-            : 'hover:bg-slate-800/50 text-slate-200'
+      {/* The badge and headerRight slots are frequently buttons themselves
+          ("Add waypoint", "Add beat"), so they must sit OUTSIDE the collapse
+          toggle: a <button> inside a <button> is invalid HTML, and the browser
+          routes some of those clicks to the outer control — which collapsed the
+          section instead of doing what the inner button said. */}
+      <div
+        className={`w-full px-3 py-2.5 flex items-center justify-between gap-2 transition-colors select-none ${
+          isLight ? 'text-slate-800' : 'text-slate-200'
         }`}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          className={`flex-1 min-w-0 flex items-center gap-2 text-left rounded -mx-1 px-1 py-0.5 transition-colors ${
+            isLight ? 'hover:bg-slate-100/70' : 'hover:bg-slate-800/50'
+          }`}
+        >
           {icon && <span className="text-sky-500 flex-shrink-0">{icon}</span>}
           <span className="text-[11px] font-bold tracking-wider uppercase truncate opacity-90">
             {title}
           </span>
-          {badge && <span className="flex-shrink-0">{badge}</span>}
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {headerRight}
-          <span className="opacity-50 transition-transform">
+          <span className="opacity-50 flex-shrink-0">
             {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           </span>
+        </button>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {badge}
+          {headerRight}
         </div>
-      </button>
+      </div>
 
       {isOpen && (
         <div
@@ -2176,12 +2184,20 @@ export const InspectorPanel: React.FC = () => {
               .filter((el): el is FloorPlanElement => !!el);
             const pivot = groupPivotOf(members);
             if (!pivot) return;
-            const carried = keyframes.length > 0 ? (keyframes[keyframes.length - 1].rotation ?? 0) : 0;
+            const last = keyframes[keyframes.length - 1];
+            const carried = last ? (last.rotation ?? 0) : 0;
+            // Spawn each new keyframe clear of the previous one (the way camera
+            // waypoints do). Stacking them on the same pivot made the group look
+            // like it was not animating at all, because every beat resolved to
+            // the same position.
+            const origin = last ?? pivot;
+            const spawnX = Math.round(origin.x + (last ? 80 : 0));
+            const spawnY = Math.round(origin.y);
             persistGroups([
               ...(activeSetup.groups || []).map((g) =>
                 g.id !== activeGroup.id
                   ? g
-                  : { ...g, path: [...(g.path || []), { id: createId('gpwp'), x: Math.round(pivot.x), y: Math.round(pivot.y), beat: nextBeat, rotation: carried }] },
+                  : { ...g, path: [...(g.path || []), { id: createId('gpwp'), x: spawnX, y: spawnY, beat: nextBeat, rotation: carried }] },
               ),
             ]);
             if (nextBeat > (activeSetup.totalBeats || 1)) updateSetupMeta({ totalBeats: nextBeat });
@@ -2211,7 +2227,8 @@ export const InspectorPanel: React.FC = () => {
                   Group ({activeGroup.childIds.length} items)
                 </label>
                 <p className="text-[10px] opacity-50 leading-snug">
-                  Rotation turns the whole group around its shared pivot. Keyframes move/rotate every member together during playback.
+                  Rotation turns the whole group around its shared pivot. Keyframes move and rotate every member
+                  together during playback — drag the numbered dots on the plan to set where the group travels.
                 </p>
                 <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                   {keyframes.length === 0 && (

@@ -66,7 +66,8 @@ interface DragState {
     | 'waypoint'
     | 'waypoint_rotate'
     | 'curve'
-    | 'group_rotate';
+    | 'group_rotate'
+    | 'group_waypoint';
   startMouse: Vector2D;
   startElements: Map<string, FloorPlanElement>;
   selectedIds: string[];
@@ -527,7 +528,10 @@ export const FloorPlanCanvas: React.FC = () => {
   // interpolated pose at the current beat. Ephemeral render state only —
   // editing keeps targeting base data, so pauses/drags stay stable.
   const groupPoseOverrides = new Map<string, ElementPose>();
-  if (!dragState) {
+  // Poses are suppressed mid-drag so editing targets base data — except while
+  // dragging a group keyframe, where the whole point is to watch the group
+  // follow the dot.
+  if (!dragState || dragState.type === 'group_waypoint') {
     for (const group of activeSetup.groups || []) {
       if (!group.path || group.path.length === 0) continue;
       computeGroupPoseOverrides(visibleElements, group, playback.currentBeat).forEach((pose, id) =>
@@ -1282,6 +1286,40 @@ export const FloorPlanCanvas: React.FC = () => {
     });
   };
 
+  /**
+   * Drag one group keyframe to a new plan position. Group keyframes carry the
+   * GROUP PIVOT position for that beat, so moving the dot moves every member
+   * together during playback — the same gesture actor and camera waypoints use.
+   */
+  const handleGroupWaypointDragStart = (waypointId: string, e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (activeTool !== 'select' || !activeGroup) return;
+    if (e.isPrimary === false) return;
+    setDragState({
+      type: 'group_waypoint',
+      startMouse: { x: e.clientX, y: e.clientY },
+      startElements: new Map(),
+      selectedIds: [...activeGroup.childIds],
+      activeElementId: activeGroup.id,
+      groupId: activeGroup.id,
+      waypointId,
+    });
+  };
+
+  /** Immutably patch one keyframe of the active group. */
+  const patchGroupWaypoint = (groupId: string, waypointId: string, patch: { x: number; y: number }) => {
+    updateSetupMeta({
+      groups: (activeSetup.groups || []).map((group) =>
+        group.id !== groupId
+          ? group
+          : {
+              ...group,
+              path: (group.path || []).map((wp) => (wp.id === waypointId ? { ...wp, ...patch } : wp)),
+            },
+      ),
+    });
+  };
+
   // Current rotation delta of an in-progress group-rotate gesture, in degrees.
   const groupRotateDeltaNow = (ds: DragState, nowPos: Vector2D): number => {
     if (!ds.startPivot || ds.startAngleDeg === undefined) return 0;
@@ -1912,6 +1950,18 @@ export const FloorPlanCanvas: React.FC = () => {
     }
 
     // Drag an actor / camera movement waypoint directly on the canvas
+    if (dragState.type === 'group_waypoint' && dragState.groupId && dragState.waypointId) {
+      let nextX = mouseCanvas.x;
+      let nextY = mouseCanvas.y;
+      if (gridSettings.snap && !altDownRef.current) {
+        nextX = snapToGrid(nextX, gridSettings.size, true);
+        nextY = snapToGrid(nextY, gridSettings.size, true);
+      }
+      dragChangedRef.current = true;
+      patchGroupWaypoint(dragState.groupId, dragState.waypointId, { x: Math.round(nextX), y: Math.round(nextY) });
+      return;
+    }
+
     if (dragState.type === 'waypoint' && dragState.activeElementId && dragState.waypointId) {
       const el = activeSetup.elements.find((e2) => e2.id === dragState.activeElementId);
       if (el && 'path' in el && Array.isArray((el as any).path)) {
@@ -2045,7 +2095,7 @@ export const FloorPlanCanvas: React.FC = () => {
     if (
       dragChangedRef.current &&
       dragState &&
-      ['move', 'rotate', 'group_rotate', 'endpoint_start', 'endpoint_end', 'waypoint', 'waypoint_rotate', 'curve'].includes(dragState.type)
+      ['move', 'rotate', 'group_rotate', 'group_waypoint', 'endpoint_start', 'endpoint_end', 'waypoint', 'waypoint_rotate', 'curve'].includes(dragState.type)
     ) {
       commitCurrentState();
     }
@@ -2614,6 +2664,73 @@ export const FloorPlanCanvas: React.FC = () => {
               displaySettings={displaySettings}
             />
           ))}
+
+          {/* 9b-bis. Group motion path: the keyframes were previously invisible,
+              so a group could be animated but never seen or adjusted on the
+              plan. Each dot is the GROUP PIVOT at that beat and is draggable,
+              exactly like an actor or camera waypoint. */}
+          {activeGroup && (activeGroup.path?.length ?? 0) > 0 && (() => {
+            const path = [...(activeGroup.path || [])].sort((a, b) => a.beat - b.beat);
+            const members = activeGroup.childIds
+              .map((id) => activeSetup.elements.find((el) => el.id === id))
+              .filter((el): el is FloorPlanElement => !!el);
+            const basePivot = groupPivotOf(members);
+            // The base pose is where the group sits before the first keyframe.
+            const points = basePivot ? [basePivot, ...path] : path;
+            return (
+              <g className="group-motion-path">
+                <polyline
+                  points={points.map((p) => `${p.x},${p.y}`).join(' ')}
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth={1.5 / canvasScale}
+                  strokeDasharray="6 4"
+                  opacity={0.75}
+                  className="pointer-events-none"
+                />
+                {basePivot && (
+                  <circle
+                    cx={basePivot.x}
+                    cy={basePivot.y}
+                    r={4 / canvasScale}
+                    fill="none"
+                    stroke="#38bdf8"
+                    strokeWidth={1.5 / canvasScale}
+                    className="pointer-events-none"
+                  />
+                )}
+                {path.map((wp) => (
+                  <g
+                    key={wp.id}
+                    transform={`translate(${wp.x}, ${wp.y})`}
+                    className="cursor-grab active:cursor-grabbing"
+                    onPointerDown={(e) => handleGroupWaypointDragStart(wp.id, e)}
+                  >
+                    <title>{`Group keyframe — beat ${wp.beat}, ${Math.round(wp.rotation ?? 0)}deg. Drag to move the whole group.`}</title>
+                    {/* Touch-sized invisible grab area around the dot. */}
+                    <circle r={16 / canvasScale} fill="transparent" />
+                    <circle
+                      r={8 / canvasScale}
+                      fill={playback.currentBeat === wp.beat ? '#0ea5e9' : '#0f172a'}
+                      stroke="#38bdf8"
+                      strokeWidth={2 / canvasScale}
+                    />
+                    <text
+                      y={3 / canvasScale}
+                      textAnchor="middle"
+                      fill="#e0f2fe"
+                      fontSize={8 / canvasScale}
+                      fontWeight="bold"
+                      fontFamily="monospace"
+                      className="pointer-events-none select-none"
+                    >
+                      {wp.beat}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            );
+          })()}
 
           {/* 9c. Whole-group rotate handle: shown when the selection exactly
               matches one plan group; rotates every member around the pivot. */}
