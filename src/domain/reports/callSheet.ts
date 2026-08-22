@@ -46,6 +46,18 @@ export interface CallSheetPerson {
   phone?: string;
 }
 
+/** One resolved transport pick-up on a call sheet. */
+export interface CallSheetPickup {
+  displayName: string;
+  role?: string;
+  phone?: string;
+  time?: string;
+  location?: string;
+  notes?: string;
+  /** True when the referenced person no longer exists in the contact list. */
+  unresolved?: boolean;
+}
+
 /** Sneak peek of the following shooting day printed at the foot of a sheet. */
 export interface CallSheetLookAhead {
   dayName: string;
@@ -74,6 +86,14 @@ export interface CallSheetData {
   weatherSummary?: string;
   safetyNotes?: string;
   generalNotes?: string;
+  /** Free-text transport arrangements for the day. */
+  pickupNotes?: string;
+  /**
+   * Resolved pick-up list. A row whose person was deleted keeps its time and
+   * location and is marked `unresolved`, so transport that was planned never
+   * silently disappears from a sheet (plan rule 13).
+   */
+  pickups: CallSheetPickup[];
   locations: CallSheetLocation[];
   schedule: CallSheetEntry[];
   cast: CallSheetPerson[];
@@ -286,6 +306,19 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     weatherSummary: day.callSheet?.weatherSummary,
     safetyNotes: day.callSheet?.safetyNotes,
     generalNotes: day.callSheet?.generalNotes,
+    pickupNotes: day.callSheet?.pickupNotes,
+    pickups: (day.callSheet?.pickups ?? []).map((pickup) => {
+      const person = people.find((candidate) => candidate.id === pickup.personId);
+      return {
+        displayName: person?.displayName ?? 'Unknown contact',
+        role: person?.role,
+        phone: person?.phone,
+        time: pickup.time,
+        location: pickup.location,
+        notes: pickup.notes,
+        ...(person ? {} : { unresolved: true }),
+      };
+    }),
     locations: resolvedLocations,
     schedule,
     cast,

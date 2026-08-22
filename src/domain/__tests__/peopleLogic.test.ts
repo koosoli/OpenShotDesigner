@@ -83,7 +83,9 @@ describe('filterPeople / groupPeopleByDepartment', () => {
 describe('CSV round-trip', () => {
   it('exports every person and re-imports them with fresh ids', () => {
     const csv = peopleToCsv(people);
-    expect(csv.split('\n')[0]).toBe('Name,Type,Department,Role,Phone,Email,Company,Address,Rate,Emergency contact,Notes');
+    expect(csv.split('\n')[0]).toBe(
+      'Name,Type,Department,Role,Phone,Email,Company,Address,Rate,Emergency contact,Hotel,Hotel address,Check-in,Check-out,Notes',
+    );
     expect(csv).toContain('"Needs 7am pickup, ""north gate"""');
     const imported = parsePeopleCsv(csv);
     expect(imported).toHaveLength(people.length);

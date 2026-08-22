@@ -3,6 +3,7 @@ import { AlertTriangle, Building2, CheckCircle2, ImagePlus, MapPin, Printer, Shi
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { loadLogoFile } from '../../utils/image';
 import { locationMapLinkUrl } from '../../domain/locations';
+import { createId } from '../../domain/ids';
 import type { ProductionDay } from '../../domain/scheduling';
 import type { CallSheetData } from '../../domain/reports';
 
@@ -38,6 +39,28 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
   const fieldClass = `w-full min-h-9 rounded-md border px-2.5 py-2 text-[11px] outline-none focus:ring-2 focus:ring-cyan-500/25 ${
     isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-700 text-slate-100'
   }`;
+  const people = project.people ?? [];
+  const pickups = selectedDay?.callSheet?.pickups ?? [];
+
+  /** Immutable pick-up-list mutations; each writes the whole day's call sheet. */
+  const setPickups = (next: NonNullable<NonNullable<ProductionDay['callSheet']>['pickups']>) => {
+    if (!selectedDay) return;
+    updateDay(selectedDay.id, {
+      callSheet: { ...(selectedDay.callSheet ?? {}), pickups: next },
+    });
+  };
+  const addPickup = () => {
+    const first = people[0];
+    if (!first) return;
+    setPickups([...pickups, { id: createId('pickup'), personId: first.id }]);
+  };
+  const patchPickup = (
+    pickupId: string,
+    updates: Partial<NonNullable<NonNullable<ProductionDay['callSheet']>['pickups']>[number]>,
+  ) => setPickups(pickups.map((pickup) => (pickup.id === pickupId ? { ...pickup, ...updates } : pickup)));
+  const removePickup = (pickupId: string) =>
+    setPickups(pickups.filter((pickup) => pickup.id !== pickupId));
+
   const companyInfo = project.productionCompanyInfo ?? {};
   const patchCompanyInfo = (updates: Partial<typeof companyInfo>) =>
     updateProjectMeta({ productionCompanyInfo: { ...companyInfo, ...updates } });
@@ -184,6 +207,62 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
             <label className="text-[9px] font-bold uppercase text-slate-500 block">Nearest hospital<textarea rows={2} value={selectedDay.callSheet?.nearestHospital ?? ''} onChange={(event) => patchCallSheet({ nearestHospital: event.target.value || undefined })} placeholder="Facility, address, phone" className={`${fieldClass} mt-1 resize-none`} /></label>
             <label className="text-[9px] font-bold uppercase text-slate-500 block">Safety bulletin<textarea rows={2} value={selectedDay.callSheet?.safetyNotes ?? ''} onChange={(event) => patchCallSheet({ safetyNotes: event.target.value || undefined })} placeholder="Hazards, PPE, medic, emergency plan" className={`${fieldClass} mt-1 resize-none`} /></label>
             <label className="text-[9px] font-bold uppercase text-slate-500 block">General notes<textarea rows={3} value={selectedDay.callSheet?.generalNotes ?? ''} onChange={(event) => patchCallSheet({ generalNotes: event.target.value || undefined })} placeholder="Walkies, department notes, special instructions" className={`${fieldClass} mt-1 resize-none`} /></label>
+
+            {/* Transport: general arrangements plus a per-person pick-up list.
+                Rows reference contacts, so the printed sheet can show their
+                phone number without a second copy of it. */}
+            <label className="text-[9px] font-bold uppercase text-slate-500 block">Transport &amp; pick-ups<textarea rows={2} value={selectedDay.callSheet?.pickupNotes ?? ''} onChange={(event) => patchCallSheet({ pickupNotes: event.target.value || undefined })} placeholder="Shuttle from the hotel 06:15, driver contact, crew van route" className={`${fieldClass} mt-1 resize-none`} /></label>
+            <div className="space-y-1.5">
+              {pickups.map((pickup) => (
+                <div key={pickup.id} className="flex items-center gap-1.5">
+                  <input
+                    value={pickup.time ?? ''}
+                    onChange={(event) => patchPickup(pickup.id, { time: event.target.value || undefined })}
+                    placeholder="06:15"
+                    aria-label="Pick-up time"
+                    className={`${fieldClass} !w-16 font-mono`}
+                  />
+                  <select
+                    value={pickup.personId}
+                    onChange={(event) => patchPickup(pickup.id, { personId: event.target.value })}
+                    aria-label="Person picked up"
+                    className={`${fieldClass} !w-auto flex-1 min-w-0`}
+                  >
+                    {people.some((person) => person.id === pickup.personId) ? null : (
+                      <option value={pickup.personId}>Contact removed</option>
+                    )}
+                    {people.map((person) => (
+                      <option key={person.id} value={person.id}>{person.displayName}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={pickup.location ?? ''}
+                    onChange={(event) => patchPickup(pickup.id, { location: event.target.value || undefined })}
+                    placeholder="Hotel lobby"
+                    aria-label="Pick-up location"
+                    className={`${fieldClass} !w-auto flex-1 min-w-0`}
+                  />
+                  <button
+                    onClick={() => removePickup(pickup.id)}
+                    title="Remove pick-up"
+                    aria-label={`Remove pick-up for ${pickup.personId}`}
+                    className="h-9 w-9 shrink-0 rounded-md text-slate-400 hover:text-rose-500"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={addPickup}
+                disabled={people.length === 0}
+                className={`h-9 px-3 rounded-md border text-[11px] font-semibold disabled:opacity-40 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+              >
+                + Add pick-up
+              </button>
+              {people.length === 0 && (
+                <p className="text-[10px] text-slate-500">Add people on the Crew tab to build a pick-up list.</p>
+              )}
+            </div>
           </section>
 
           <section className={`p-4 ${isLight ? 'bg-slate-200/60' : 'bg-slate-950'}`}>

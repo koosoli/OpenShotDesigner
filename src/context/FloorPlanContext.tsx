@@ -40,7 +40,6 @@ import {
   SAMPLE_DIALOGUE_SCREENPLAY,
   SAMPLE_NOIR_SCREENPLAY,
   SAMPLE_SCENES,
-  SAMPLE_SCREENPLAY,
 } from '../constants/presets';
 import { calculateFovAngle } from '../utils/geometry';
 import { parseSampleScreenplay, sampleMarksFor } from '../utils/sampleContent';
@@ -60,7 +59,6 @@ import {
   subscribeSaveState,
   writeProject,
 } from '../utils/projectLibrary';
-import { CURRENT_PROJECT_SCHEMA_VERSION } from '../domain/migrations';
 import { deriveSceneEquipment } from '../utils/equipmentList';
 import { migrateProject } from '../domain/migrations';
 import { validateProject } from '../domain/validation';
@@ -652,24 +650,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // ignore and start fresh
     }
 
-    const starterScriptLines = parseSampleScreenplay();
-    const starterSetups = SAMPLE_SCENES.map((setup) => ({
-      ...setup,
-      scriptMarks: sampleMarksFor(setup.id, starterScriptLines, setup.sceneNumber),
-    }));
-    return {
-      id: newProjectId(),
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    // The first-run project is a normal sample project, built by the one
+    // factory that knows about every module's example data. It used to be
+    // hand-rolled here with only the scenes and the screenplay, which is why
+    // the very first project a user ever opened had an empty schedule, crew
+    // list, locations, tasks, rig and power plan while a project created from
+    // the dashboard had all of them.
+    return buildProject({
       title: 'Short Film Floor Plan & Shot List',
-      director: 'Film Director / Student',
-      cinematographer: 'DP / Camera Operator',
-      date: new Date().toISOString().split('T')[0],
-      scriptTitle: 'Sample scene',
-      scriptText: SAMPLE_SCREENPLAY,
-      scriptLines: starterScriptLines,
-      setups: starterSetups,
-      activeSetupId: starterSetups[0].id,
-    };
+      withSampleScenes: true,
+    });
   });
 
   const [projects, setProjects] = useState<ProjectSummary[]>(() => {

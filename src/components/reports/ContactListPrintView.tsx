@@ -28,6 +28,11 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
     })
     .sort((a, b) => a.character.canonicalName.localeCompare(b.character.canonicalName));
 
+  /** Only people with something booked appear on the accommodation table. */
+  const lodgingRows = people.filter(
+    (person) => person.hotelName || person.hotelAddress || person.hotelCheckIn || person.hotelCheckOut,
+  );
+
   const cell = 'border border-slate-300 px-2 py-1 align-top text-[10.5px]';
   const head = `${cell} bg-slate-100 font-bold uppercase tracking-wider text-[9px] text-slate-700`;
 
@@ -63,7 +68,8 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
                   <tr key={person.id} className="break-inside-avoid">
                     <td className={`${cell} font-semibold`}>
                       {person.displayName}
-                      {person.emergencyContact && <div className="text-[9px] text-slate-500">ICE: {person.emergencyContact}</div>}
+                      {person.address && <div className="text-[9px] font-normal text-slate-500">{person.address}</div>}
+                      {person.emergencyContact && <div className="text-[9px] font-normal text-slate-500">ICE: {person.emergencyContact}</div>}
                     </td>
                     <td className={cell}>{person.role ?? ''}</td>
                     <td className={cell}>{PERSON_KIND_LABELS[person.kind ?? 'other']}</td>
@@ -98,6 +104,36 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
                   <td className={cell}>{person?.displayName ?? <span className="text-slate-400">not cast</span>}</td>
                   <td className={`${cell} font-mono whitespace-nowrap`}>{person?.phone ?? ''}</td>
                   <td className={cell}>{person?.email ?? ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Accommodation gets its own section rather than more columns: only some
+          people stay in a hotel, and the main table is already wide. */}
+      {lodgingRows.length > 0 && (
+        <section className="print-section">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-1 mb-2">Accommodation</h3>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className={head}>Name</th>
+                <th className={head}>Hotel</th>
+                <th className={head}>Address</th>
+                <th className={head}>Check-in</th>
+                <th className={head}>Check-out</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lodgingRows.map((person) => (
+                <tr key={person.id} className="break-inside-avoid">
+                  <td className={`${cell} font-semibold`}>{person.displayName}</td>
+                  <td className={cell}>{person.hotelName ?? ''}</td>
+                  <td className={cell}>{person.hotelAddress ?? ''}</td>
+                  <td className={`${cell} font-mono whitespace-nowrap`}>{person.hotelCheckIn ?? ''}</td>
+                  <td className={`${cell} font-mono whitespace-nowrap`}>{person.hotelCheckOut ?? ''}</td>
                 </tr>
               ))}
             </tbody>

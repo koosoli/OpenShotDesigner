@@ -171,6 +171,10 @@ const CSV_COLUMNS: Array<keyof Person> = [
   'address',
   'rate',
   'emergencyContact',
+  'hotelName',
+  'hotelAddress',
+  'hotelCheckIn',
+  'hotelCheckOut',
   'notes',
 ];
 
@@ -186,6 +190,10 @@ const CSV_HEADERS: Record<keyof Person, string> = {
   address: 'Address',
   rate: 'Rate',
   emergencyContact: 'Emergency contact',
+  hotelName: 'Hotel',
+  hotelAddress: 'Hotel address',
+  hotelCheckIn: 'Check-in',
+  hotelCheckOut: 'Check-out',
   notes: 'Notes',
 };
 

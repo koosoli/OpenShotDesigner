@@ -266,6 +266,41 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
           </section>
         </div>
 
+        {(sheet.pickups.length > 0 || sheet.pickupNotes) && (
+          <section>
+            <h2 className="cs-section-title accent">Transport &amp; pick-ups</h2>
+            {sheet.pickupNotes && (
+              <p className="cs-notes" style={{ margin: '6px 0 0' }}>{sheet.pickupNotes}</p>
+            )}
+            {sheet.pickups.length > 0 && (
+              <table className="cs-table" style={{ marginTop: sheet.pickupNotes ? '6px' : 0 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '18mm' }}>Time</th>
+                    <th style={{ width: '32%' }}>Name</th>
+                    <th>Pick-up from</th>
+                    <th style={{ width: '28%' }}>Contact / notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sheet.pickups.map((pickup, i) => (
+                    <tr key={`pickup-${i}`}>
+                      <td className="time">{pickup.time ?? 'TBC'}</td>
+                      <td>
+                        <strong>{pickup.displayName}</strong>
+                        {pickup.unresolved && ' (contact removed)'}
+                        {pickup.role ? ` — ${pickup.role}` : ''}
+                      </td>
+                      <td>{pickup.location ?? 'TBC'}</td>
+                      <td>{joinDefined([pickup.phone, pickup.notes]) || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )}
+
         {sheet.generalNotes && (
           <section>
             <h2 className="cs-section-title">General notes</h2>

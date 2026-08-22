@@ -120,8 +120,16 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
         {field('email', 'Email', 'name@example.com', 'email')}
         {field('company', 'Company / agency')}
         {field('rate', 'Rate', '€450/day')}
-        <div className="col-span-2">{field('address', 'Address')}</div>
+        <div className="col-span-2">{field('address', 'Address', 'Street, postcode, city')}</div>
         <div className="col-span-2">{field('emergencyContact', 'Emergency contact', 'Name · phone')}</div>
+        {/* Lodging for away shoots — every part optional on its own, because a
+            production often knows the hotel before the dates or the reverse. */}
+        {field('hotelName', 'Hotel', 'Hotel Astoria')}
+        <div className="grid grid-cols-2 gap-2">
+          {field('hotelCheckIn', 'Check-in', '', 'date')}
+          {field('hotelCheckOut', 'Check-out', '', 'date')}
+        </div>
+        <div className="col-span-2">{field('hotelAddress', 'Hotel address', 'Street, postcode, city')}</div>
       </div>
       <label className="block space-y-1">
         <span className={labelCls}>Notes</span>

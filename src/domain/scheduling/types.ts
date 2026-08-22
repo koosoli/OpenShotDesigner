@@ -23,6 +23,21 @@ export interface ProductionDay {
     weatherSummary?: string;
     safetyNotes?: string;
     generalNotes?: string;
+    /** Transport arrangements for the day as free text (shuttles, drivers). */
+    pickupNotes?: string;
+    /**
+     * Individual pick-ups: who is collected, when and from where. Each entry
+     * references a `Person`; a person with no time or location yet is still a
+     * valid row (the transport captain fills it in later), and a reference to a
+     * deleted person is rendered as unresolved rather than dropped silently.
+     */
+    pickups?: Array<{
+      id: string;
+      personId: string;
+      time?: string;
+      location?: string;
+      notes?: string;
+    }>;
   };
   scheduleBlockIds: string[];
 }

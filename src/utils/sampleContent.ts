@@ -6,7 +6,10 @@ import {
 } from '../constants/presets';
 import { parseScreenplay } from '../components/script/screenplayParser';
 import { createId } from '../domain/ids';
-import type { Person } from '../domain/people';
+import type { CastAssignment, Person } from '../domain/people';
+import type { Character } from '../domain/script';
+import type { PowerCircuit, PowerConsumer, PowerPlan, PowerSource } from '../domain/power';
+import type { RiggingItem, SuspendedLoad, TrussElement, TrussProfile } from '../domain/rigging';
 import type { Location } from '../domain/locations';
 import type { LogisticsContainer, PackedItem } from '../domain/logistics';
 import type { MoodBoard, MoodBoardCard, MoodBoardSection } from '../domain/moodboard';
@@ -168,15 +171,27 @@ const isoFromToday = (offset: number): string => {
 };
 
 export const sampleScheduleMeta = (): SampleScheduleMeta => {
+  // Departments use the canonical PRODUCTION_DEPARTMENTS names so the crew list
+  // groups them, and the crew roles use the canonical KEY_CREW_ROLES titles so
+  // the Key crew block on the Crew page resolves every head.
   const people: Person[] = [
-    { id: createId('person'), displayName: 'Mara Vogel', kind: 'crew', department: 'Directing', role: 'Director', phone: '+49 170 555 0101', email: 'mara@lanternsample.example' },
+    { id: createId('person'), displayName: 'Mara Vogel', kind: 'crew', department: 'Direction', role: 'Director', phone: '+49 170 555 0101', email: 'mara@lanternsample.example' },
     { id: createId('person'), displayName: 'Jonas Feld', kind: 'crew', department: 'Camera', role: 'Director of Photography', phone: '+49 170 555 0102', email: 'jonas@lanternsample.example' },
-    { id: createId('person'), displayName: 'Priya Anand', kind: 'crew', department: 'Production', role: '1st Assistant Director', phone: '+49 170 555 0103', email: 'priya@lanternsample.example' },
-    { id: createId('person'), displayName: 'Tom Reilly', kind: 'crew', department: 'Lighting', role: 'Gaffer', phone: '+49 170 555 0104' },
-    { id: createId('person'), displayName: 'Alex Kim', kind: 'crew', department: 'Sound', role: 'Sound Mixer', phone: '+49 170 555 0105' },
-    { id: createId('person'), displayName: 'Alex Hunter', kind: 'cast', role: 'Lead — "Sarah"', phone: '+49 171 555 0201', email: 'alex.hunter@casting.example' },
-    { id: createId('person'), displayName: 'Noah Brecht', kind: 'cast', role: 'Lead — "Suspect"', phone: '+49 171 555 0202' },
+    { id: createId('person'), displayName: 'Priya Anand', kind: 'crew', department: 'Direction', role: '1st Assistant Director', phone: '+49 170 555 0103', email: 'priya@lanternsample.example' },
+    { id: createId('person'), displayName: 'Elif Kaya', kind: 'crew', department: 'Production', role: 'Producer', phone: '+49 170 555 0106', email: 'elif@lanternsample.example' },
+    { id: createId('person'), displayName: 'Tom Reilly', kind: 'crew', department: 'Lighting / Electric', role: 'Gaffer', phone: '+49 170 555 0104' },
+    { id: createId('person'), displayName: 'Dana Osei', kind: 'crew', department: 'Grip', role: 'Key Grip', phone: '+49 170 555 0107' },
+    { id: createId('person'), displayName: 'Alex Kim', kind: 'crew', department: 'Sound', role: 'Production Sound Mixer', phone: '+49 170 555 0105' },
+    { id: createId('person'), displayName: 'Ruth Adeyemi', kind: 'crew', department: 'Direction', role: 'Script Supervisor', phone: '+49 170 555 0108' },
+    { id: createId('person'), displayName: 'Alex Hunter', kind: 'cast', department: 'Cast', role: 'Lead — "Sarah"', phone: '+49 171 555 0201', email: 'alex.hunter@casting.example' },
+    { id: createId('person'), displayName: 'Marco Lenz', kind: 'cast', department: 'Cast', role: 'Lead — "Alex"', phone: '+49 171 555 0203', email: 'marco.lenz@casting.example' },
+    { id: createId('person'), displayName: 'Noah Brecht', kind: 'cast', department: 'Cast', role: 'Lead — "Suspect"', phone: '+49 171 555 0202', address: 'Hamburg (travelling in)', hotelName: 'Hotel Astoria', hotelAddress: 'Kohlfurter Strasse 8, Berlin', hotelCheckIn: isoFromToday(6), hotelCheckOut: isoFromToday(9) },
+    { id: createId('person'), displayName: 'Yara Solis', kind: 'cast', department: 'Cast', role: 'Lead — "Detective"', phone: '+49 171 555 0204', address: 'Munich (travelling in)', hotelName: 'Hotel Astoria', hotelAddress: 'Kohlfurter Strasse 8, Berlin', hotelCheckIn: isoFromToday(6), hotelCheckOut: isoFromToday(9) },
   ];
+
+  /** Sample-data helper: the actor cast as a given character name. */
+  const castByRoleName = (characterName: string): string =>
+    people.find((person) => (person.role ?? '').includes(`"${characterName}"`))?.id ?? '';
 
   const bRehearsal: ScheduleBlock = { id: createId('block'), kind: 'manual', label: 'Blocking rehearsal', manualType: 'rehearsal', estimatedMinutes: 30 };
   const bScene1: ScheduleBlock = { id: createId('block'), kind: 'setup', setupId: 'setup-dialogue-classic', estimatedMinutes: 180 };
@@ -216,6 +231,11 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
         weatherSummary: 'Overcast, 17 °C (interior day)',
         safetyNotes: 'Low-key lighting rig — mind cable runs in the dark.',
         generalNotes: 'Art department resets the room at lunch.',
+        pickupNotes: 'Unit driver runs the hotel shuttle; crew van leaves the production office at 07:45.',
+        pickups: [
+          { id: createId('pickup'), personId: castByRoleName('Suspect'), time: '07:15', location: 'Hotel Astoria lobby', notes: 'Straight to make-up on arrival.' },
+          { id: createId('pickup'), personId: castByRoleName('Detective'), time: '07:15', location: 'Hotel Astoria lobby' },
+        ],
       },
       scheduleBlockIds: [bScene2.id, bMove.id, bPickups2.id],
     },
@@ -513,4 +533,129 @@ export const samplePlanningMeta = (people: Person[]): SamplePlanningMeta => {
     logisticsContainers,
     packedItems,
   };
+};
+
+/**
+ * Example technical data for a template project: the studio rig for Day 2 and
+ * the distribution feeding it. Ships alongside {@link sampleScheduleMeta} and
+ * {@link samplePlanningMeta} so the Rigging and Power pages demonstrate how
+ * they work instead of opening empty (plan §42).
+ *
+ * Every figure is an explicit planning input — nothing is inferred from a model
+ * name (rule 28) — and one consumer deliberately has NO wattage so the
+ * "unknown is excluded, never counted as 0" behaviour is visible in the sample
+ * (rule 13). Planning aid only, not an electrical or structural design
+ * (rule 15).
+ */
+export interface SampleTechnicalMeta {
+  trussProfiles: TrussProfile[];
+  trussElements: TrussElement[];
+  suspendedLoads: SuspendedLoad[];
+  riggingItems: RiggingItem[];
+  powerPlan: PowerPlan & { consumers: PowerConsumer[] };
+}
+
+export const sampleTechnicalMeta = (): SampleTechnicalMeta => {
+  const boxProfile: TrussProfile = {
+    id: createId('trussprofile'),
+    manufacturer: 'Generic',
+    model: '300 mm box truss, 3 m bay',
+    geometry: 'box',
+    lengthMm: 3000,
+    widthMm: 300,
+    heightMm: 300,
+    selfWeightKg: 22,
+    source: { provider: 'manual', version: 'sample data', license: 'example only' },
+  };
+
+  const gridUpstage: TrussElement = {
+    id: createId('truss'),
+    label: 'Grid A — upstage',
+    profileId: boxProfile.id,
+    x: 240,
+    y: 180,
+    rotation: 0,
+  };
+  const gridDownstage: TrussElement = {
+    id: createId('truss'),
+    label: 'Grid B — downstage',
+    profileId: boxProfile.id,
+    x: 240,
+    y: 460,
+    rotation: 0,
+  };
+
+  const suspendedLoads: SuspendedLoad[] = [
+    { id: createId('load'), trussElementId: gridUpstage.id, label: 'LED panel + yoke', weightKg: 11.5, quantity: 2, source: 'manual' },
+    { id: createId('load'), trussElementId: gridUpstage.id, label: 'Overhead diffusion frame', weightKg: 6, quantity: 1, source: 'manual' },
+    { id: createId('load'), trussElementId: gridDownstage.id, label: 'Fresnel + safety bond', weightKg: 8.2, quantity: 2, source: 'manual' },
+    // Weight unknown on purpose: the rig report must show it as unknown rather
+    // than quietly treating the hang as weightless.
+    { id: createId('load'), trussElementId: gridDownstage.id, label: 'Practical neon sign (weight TBC)', quantity: 1, source: 'unknown' },
+  ];
+
+  const riggingItems: RiggingItem[] = [
+    { id: createId('rig'), kind: 'motor', trussElementId: gridUpstage.id, positionMm: 300, capacityKg: 250, label: 'Chain hoist SL' },
+    { id: createId('rig'), kind: 'motor', trussElementId: gridUpstage.id, positionMm: 2700, capacityKg: 250, label: 'Chain hoist SR' },
+    { id: createId('rig'), kind: 'hang_point', trussElementId: gridDownstage.id, positionMm: 500, label: 'Grid clamp — house steel' },
+    { id: createId('rig'), kind: 'safety', trussElementId: gridDownstage.id, label: 'Safety bonds on every fixture', notes: 'Checked by the key grip before each shooting day.' },
+  ];
+
+  const distro: PowerSource = {
+    id: createId('psrc'),
+    name: 'Stage 2 distro (3-phase)',
+    kind: 'three_phase_400v_63a',
+    voltageV: 230,
+    ampsPerPhaseA: 63,
+    phases: 3,
+    notes: 'Phase voltage is line-to-neutral; the 400 V figure is line-to-line.',
+  };
+
+  const circuitKey: PowerCircuit = { id: createId('pcirc'), name: 'C1 — key side', sourceId: distro.id, maxAmperesA: 16, consumerIds: [], phaseLeg: 1 };
+  const circuitFill: PowerCircuit = { id: createId('pcirc'), name: 'C2 — fill & backlight', sourceId: distro.id, maxAmperesA: 16, consumerIds: [], phaseLeg: 2 };
+  const circuitPractical: PowerCircuit = { id: createId('pcirc'), name: 'C3 — practicals & video village', sourceId: distro.id, maxAmperesA: 16, consumerIds: [], phaseLeg: 3 };
+
+  const powerConsumers: PowerConsumer[] = [
+    { id: createId('pcons'), name: 'LED panel — key', quantity: 1, powerWattsOverride: 1200, circuitId: circuitKey.id, trussElementId: gridUpstage.id, distroZone: 'Stage left' },
+    { id: createId('pcons'), name: 'LED panel — soft top', quantity: 1, powerWattsOverride: 650, circuitId: circuitKey.id, trussElementId: gridUpstage.id, distroZone: 'Stage left' },
+    { id: createId('pcons'), name: 'Fresnel — backlight', quantity: 2, powerWattsOverride: 1000, circuitId: circuitFill.id, trussElementId: gridDownstage.id, distroZone: 'Stage right' },
+    { id: createId('pcons'), name: 'Practical table lamp', quantity: 1, powerWattsOverride: 60, circuitId: circuitPractical.id, distroZone: 'Floor' },
+    { id: createId('pcons'), name: 'Video village (monitors + recorder)', quantity: 1, powerWattsOverride: 320, circuitId: circuitPractical.id, distroZone: 'Video village' },
+    // No wattage on purpose — shows as "excluded from totals", never as 0 W.
+    { id: createId('pcons'), name: 'Hired haze machine (draw TBC)', quantity: 1, circuitId: circuitPractical.id, distroZone: 'Floor' },
+  ];
+
+  return {
+    trussProfiles: [boxProfile],
+    trussElements: [gridUpstage, gridDownstage],
+    suspendedLoads,
+    riggingItems,
+    powerPlan: {
+      sources: [distro],
+      circuits: [circuitKey, circuitFill, circuitPractical],
+      consumers: powerConsumers,
+    },
+  };
+};
+
+/**
+ * Cast the sample production: link each script character to the sample actor
+ * playing them, matched by the character name quoted in the actor's role.
+ * Characters the screenplay has but nobody is cast for simply stay uncast —
+ * casting is never invented.
+ */
+export const sampleCastAssignments = (
+  characters: readonly Character[],
+  people: readonly Person[],
+): CastAssignment[] => {
+  const assignments: CastAssignment[] = [];
+  for (const character of characters) {
+    const name = character.canonicalName.trim().toLowerCase();
+    const actor = people.find(
+      (person) => person.kind === 'cast' && (person.role ?? '').toLowerCase().includes(`"${name}"`),
+    );
+    if (!actor) continue;
+    assignments.push({ id: createId('cast'), characterId: character.id, personId: actor.id });
+  }
+  return assignments;
 };

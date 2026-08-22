@@ -24,6 +24,16 @@ export interface Person {
   /** Free text such as "€450/day" — never parsed into money math. */
   rate?: string;
   emergencyContact?: string;
+  /**
+   * Lodging for an away shoot. All optional and independent: a production may
+   * know the hotel long before the dates, or the dates before the address.
+   * Absent means "not staying / not known" — never an empty booking.
+   */
+  hotelName?: string;
+  hotelAddress?: string;
+  /** ISO date (YYYY-MM-DD) or free text; stored exactly as entered. */
+  hotelCheckIn?: string;
+  hotelCheckOut?: string;
 }
 
 /** Character = screenplay/story entity; Person = real human. Linked, never merged. */

@@ -9,6 +9,7 @@ export type {
   CallSheetLocation,
   CallSheetLookAhead,
   CallSheetPerson,
+  CallSheetPickup,
   DeriveCallSheetInput,
   DocumentLifecycle,
   GeneratedSheet,

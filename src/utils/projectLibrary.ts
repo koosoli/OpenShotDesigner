@@ -1,7 +1,16 @@
 import type { ActorElement, CameraElement, Project, SceneSetup, Shot } from '../types';
 import { SAMPLE_SCENES, SAMPLE_SCREENPLAY } from '../constants/presets';
 import { calculateFovAngle } from './geometry';
-import { parseSampleScreenplay, sampleMarksFor, samplePlanningMeta, sampleScheduleMeta } from './sampleContent';
+import {
+  parseSampleScreenplay,
+  sampleCastAssignments,
+  sampleMarksFor,
+  samplePlanningMeta,
+  sampleScheduleMeta,
+  sampleTechnicalMeta,
+} from './sampleContent';
+import { deriveScriptBreakdown } from '../domain/script/logic';
+import { projectHeadFieldsFor } from '../domain/people';
 import { createId } from '../domain/ids';
 import { cloneProjectWithNewIds } from '../domain/clone';
 import {
@@ -387,13 +396,24 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
   const scheduleMeta = withSamples ? sampleScheduleMeta() : null;
   const planningMeta =
     withSamples && scheduleMeta ? samplePlanningMeta(scheduleMeta.people) : null;
+  const technicalMeta = withSamples ? sampleTechnicalMeta() : null;
   let scriptLines;
+  // The example characters are discovered from the example screenplay and then
+  // persisted, so the cast links below stay pointed at stable character ids.
+  let sampleCharacters;
+  let castAssignments;
   if (withSamples) {
     scriptLines = parseSampleScreenplay();
     setups.forEach((setup) => {
       setup.scriptMarks = sampleMarksFor(setup.id, scriptLines!, setup.sceneNumber);
     });
+    sampleCharacters = deriveScriptBreakdown(scriptLines).characters;
+    castAssignments = sampleCastAssignments(sampleCharacters, scheduleMeta?.people ?? []);
   }
+
+  // A sample production has a real crew, so the two legacy paperwork fields
+  // name the people actually holding those roles instead of a placeholder.
+  const sampleHeads = scheduleMeta ? projectHeadFieldsFor(scheduleMeta.people) : {};
 
   const initialAVRows = withSamples || isBlankPreset
     ? []
@@ -413,8 +433,8 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
   return {
     id: newProjectId(),
     title: options.title?.trim() || 'Untitled project',
-    director: options.director || '',
-    cinematographer: options.cinematographer || '',
+    director: options.director || sampleHeads.director || '',
+    cinematographer: options.cinematographer || sampleHeads.cinematographer || '',
     date: new Date().toISOString().split('T')[0],
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     setups,
@@ -425,8 +445,11 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
           scriptTitle: 'Sample scene',
           scriptText: SAMPLE_SCREENPLAY,
           scriptLines,
+          characters: sampleCharacters,
+          castAssignments,
           ...scheduleMeta,
           ...planningMeta,
+          ...technicalMeta,
         }
       : {}),
   };
