@@ -59,6 +59,41 @@ See `docs/collaboration-boundaries.md` for rule 38's concrete partitioning in th
 - **Storage:** all persistence goes through the storage facade (`src/utils/projectLibrary` → IndexedDB-backed store implementing the `ProjectStore` shape). Do not touch `localStorage`/IndexedDB directly from components. **No new base64 blobs embedded in project state going forward** — binary media belongs in the asset store, referenced by ID.
 - **No business logic in React components:** calculations like cable length, DMX patching, rig loads, day equipment, scheduling belong in domain/service modules with unit tests.
 - **No new `any`:** extend typed domain models instead; do not widen existing escapes.
+- **Keep files small enough to hold in your head.** This codebase has been bitten
+  by this: `InspectorPanel.tsx` reached 6,100 lines and `FloorPlanContext.tsx`
+  4,100, and both were still growing because every new feature was one more
+  branch in an existing switch. That is how a bug like "this effect closes over
+  stale state" survives for months — nobody can read the whole file.
+
+  Working limits, not hard gates:
+
+  | Kind | Comfortable | Split it |
+  | --- | --- | --- |
+  | React component | under 400 lines | over ~600 |
+  | Domain module | under 300 lines | over ~500 |
+  | Context / store | under 800 lines | over ~1,200 |
+
+  **Before adding to a file that is already over the limit, extract first, then
+  add.** Adding "just one more section" to a 2,000-line component is how it got
+  to 2,000 lines.
+
+  How to split, in preference order:
+  1. **Move the logic out.** Most oversized components are big because they hold
+     calculations. Those belong in `src/domain/` with tests, and the component
+     shrinks on its own (see `stripboardPrint.ts`, `dayCast.ts`).
+  2. **One file per variant.** A switch over element/report/panel types becomes
+     one module per case — `inspector/elements/LightInspector.tsx` is the
+     pattern: it reads context directly rather than taking twenty props, because
+     a twenty-prop list is just a copy of the context.
+  3. **Lift shared widgets.** Anything used by three or more siblings goes in a
+     `shared/` module (`inspector/shared/InspectorPrimitives.tsx`).
+
+  Do NOT split a file by cutting it at an arbitrary line into `PartA`/`PartB`.
+  A split has to follow a real seam — one element type, one report, one concern —
+  or it makes the code harder to follow, not easier.
+- **Prefer composition over flags.** A component with several booleans that each
+  switch large branches on and off is usually several components. `variant`
+  props that change more than styling are the same smell.
 - **Units:** canonical SI units internally (see `src/domain/units.ts` policy: mm/kg/W/A/V/degrees/explicit time fields). Convert only at display/export edges; user display-unit preference never changes stored meaning.
 
 ## PR / task checklist (from plan §39.1)

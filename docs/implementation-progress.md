@@ -1,7 +1,7 @@
 # Implementation Progress
 
 Running record of what has landed, mapped to `docs/IMPLEMENTATION_PLAN.md` batches.
-Typecheck and Vitest are green at time of writing; test count: **684**. Production builds are verified separately before handoff.
+Typecheck and Vitest are green at time of writing; test count: **802**. Production builds are verified separately before handoff.
 
 ## Batch 1 — Foundation ✅
 - Central ID service (`src/domain/ids.ts`), deep-clone/remap (`src/domain/clone.ts`)
@@ -91,6 +91,19 @@ Test count now **684**. See `docs/codebase-audit-2026-08-23.md` for the full rep
 - **Stale catalog:** Gear and Power never subscribed to the fixture catalog, so an online refresh left stale wattages on screen. Both subscribe now.
 - **Referential integrity:** `removePerson` also clears task assignees and call-sheet pick-ups.
 - **IDs:** six waypoint sites minted `wp-${Date.now()}` (collides within a millisecond, breaks React keys and drag targeting); all use `createId('wp')` (rule 16).
+
+## Audit follow-through (2026-08-23) ✅
+Schema v20. Test count **802**. Full report in `docs/codebase-audit-2026-08-23.md`; next steps in `docs/handover-2026-08-23.md`.
+- **ESLint** (flat config, react-hooks + jsx-a11y, `exhaustive-deps` as an error) added and all 22 hook errors fixed — 12 unstable `?? []` memo deps, one real stale closure, and five missing deps on the canvas keyboard effect.
+- **Concurrent setup writes** merge per key (`src/domain/plan/setupWrite.ts`), so two mutations in one render no longer discard each other. `createCameraAndShot` returns a real shot id; `duplicateCurrentSetup` remaps ids; `addElement` and the waypoint sites use `createId`.
+- **Referential integrity** (`src/domain/integrity.ts`) for truss / cue / circuit / source deletion; `removePerson` also clears task assignees and pick-ups.
+- **Storage**: unmigratable projects are reported on the dashboard instead of vanishing, and are never re-stamped as current. First tests for the facade.
+- **Screenplay parser** tested for the first time; cues with any bracketed extension (`JENNA (WHISPERING)`) were being read as action, losing the character from every report.
+- **Call-sheet cast** now resolves for days scheduled by setup or shot, not only by screenplay scene (`src/domain/reports/dayCast.ts`).
+- **Printing**: the global stylesheet hid every `<header>` — the masthead of every report, which is why attached logos never appeared.
+- **First load**: entry chunk 2,838 kB → 1,146 kB (gzip 498 → 307 kB) by dynamic-importing the fixture snapshot and lazy-loading the export studio, viewfinder and all production panels.
+- **Features**: sun & time-of-day planning (`src/domain/sun/`), per-person call times, shot-list filters and column visibility, and the script-breakdown tagging domain (UI pending).
+- **Structure**: InspectorPanel 6,105 → 4,417 lines; `AGENTS.md` gained file-size limits and a split strategy.
 
 ## Remaining / deferred
 - Batch 3A collaboration spike — intentionally deferred (CRDT choice is a locked "do not decide silently" item)
