@@ -501,6 +501,31 @@ export type FloorPlanElement =
   | CableElement
   | StrokeElement;
 
+type KeysOfUnion<T> = T extends unknown ? keyof T : never;
+type ValueOfUnion<T, K extends PropertyKey> = T extends unknown
+  ? K extends keyof T
+    ? T[K]
+    : never
+  : never;
+
+/**
+ * A partial update to any floor-plan element.
+ *
+ * `Partial<FloorPlanElement>` looks like the right type and is not: over a
+ * union it distributes to `Partial<ActorElement> | Partial<CameraElement> | …`,
+ * so `{ path: [...] }` matches no member on its own and every caller reached
+ * for `as any` to get past it. Seventy-odd of those accumulated in the canvas,
+ * and each one is a place where a misspelled key writes a junk property
+ * straight into persisted project state with nothing to complain.
+ *
+ * This flattens the union instead: every key any element declares, optional,
+ * with that key's real value type. `{ x2: 12 }` type-checks; `{ x2: 'twelve' }`
+ * and `{ xx2: 12 }` do not.
+ */
+export type ElementPatch = {
+  [K in KeysOfUnion<FloorPlanElement>]?: ValueOfUnion<FloorPlanElement, K>;
+};
+
 /** A single sampled point of a freehand stroke (plan §6.2). */
 export interface StrokePoint {
   x: number;

@@ -5,6 +5,7 @@ import {
   CableElement,
   CameraElement,
   DoorElement,
+  ElementPatch,
   FloorPlanElement,
   LightElement,
   RoadElement,
@@ -37,11 +38,15 @@ import {
   computeGroupPoseOverrides,
   getFreehandToolPreferences,
   groupPivotOf,
+  hasWaypointPath,
   isEndpointElement,
   isStrokeElement,
+  patchWaypoint,
   planElementBounds,
   setFreehandToolPreferences,
   transformMemberElement,
+  translatePath,
+  translateStrokePoints,
 } from '../../domain/plan';
 import type { ElementPose, FreehandToolSettings } from '../../domain/plan';
 import { calibrateBackgroundImage } from '../../domain/plan';
@@ -1025,13 +1030,13 @@ export const FloorPlanCanvas: React.FC = () => {
               ? [
                   ...path,
                   {
-                    id: `cable-wp-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+                    id: createId('wp'),
                     x: Math.round(chain.x),
                     y: Math.round(chain.y),
                   },
                 ]
               : path;
-          updateElement(chain.cableId, { path: newPath, x2: drawPos.x, y2: drawPos.y } as any);
+          updateElement(chain.cableId, { path: newPath, x2: drawPos.x, y2: drawPos.y });
           // Continue the chain from the new vertex
           setConnectedCableStart({ cableId: chain.cableId, x: drawPos.x, y: drawPos.y });
         }
@@ -1584,7 +1589,7 @@ export const FloorPlanCanvas: React.FC = () => {
           beat: nextBeat,
         },
       ],
-    } as Partial<FloorPlanElement>);
+    });
     if (nextBeat > (activeSetup.totalBeats || 1)) updateSetupMeta({ totalBeats: nextBeat });
   };
 
@@ -1612,7 +1617,7 @@ export const FloorPlanCanvas: React.FC = () => {
       dialogueCue: '',
     };
 
-    updateElement(prop.id, { path: [...existingPath, newWp] } as any);
+    updateElement(prop.id, { path: [...existingPath, newWp] });
     if (nextBeat > (activeSetup.totalBeats || 1)) {
       updateSetupMeta({ totalBeats: nextBeat });
     }
@@ -1699,7 +1704,7 @@ export const FloorPlanCanvas: React.FC = () => {
       const deltaCanvasX = deltaScreenX / canvasScale;
       const deltaCanvasY = deltaScreenY / canvasScale;
 
-      const updates: { id: string; updates: Partial<FloorPlanElement> }[] = [];
+      const updates: { id: string; updates: ElementPatch }[] = [];
 
       // Multi-element drags snap ONCE and apply the identical final delta to
       // EVERY element. Snapping each member independently would re-grid
@@ -1748,33 +1753,25 @@ export const FloorPlanCanvas: React.FC = () => {
         const dx = finalX - origEl.x;
         const dy = finalY - origEl.y;
 
-        const updateObj: Partial<FloorPlanElement> = {
+        const updateObj: ElementPatch = {
           x: finalX,
           y: finalY,
           rotation: nextRotation,
         };
 
-        if ('x2' in origEl && typeof (origEl as any).x2 === 'number') {
-          (updateObj as any).x2 = (origEl as any).x2 + dx;
-          (updateObj as any).y2 = (origEl as any).y2 + dy;
+        if ('x2' in origEl && typeof origEl.x2 === 'number') {
+          updateObj.x2 = origEl.x2 + dx;
+          updateObj.y2 = origEl.y2 + dy;
         }
 
-        if ('path' in origEl && Array.isArray((origEl as any).path)) {
-          (updateObj as any).path = (origEl as any).path.map((wp: any) => ({
-            ...wp,
-            x: wp.x + dx,
-            y: wp.y + dy,
-          }));
+        if ('path' in origEl && Array.isArray(origEl.path)) {
+          updateObj.path = translatePath(origEl.path, dx, dy);
         }
 
         // Freehand strokes store absolute vertices — translate them with the
         // element so dragging actually moves the ink.
-        if ('points' in origEl && Array.isArray((origEl as any).points)) {
-          (updateObj as any).points = ((origEl as any).points as StrokePoint[]).map((point) => ({
-            ...point,
-            x: point.x + dx,
-            y: point.y + dy,
-          }));
+        if ('points' in origEl && Array.isArray(origEl.points)) {
+          updateObj.points = translateStrokePoints(origEl.points, dx, dy);
         }
 
         updates.push({ id, updates: updateObj });
@@ -1805,23 +1802,19 @@ export const FloorPlanCanvas: React.FC = () => {
             movedCableSnapshotsRef.current.set(cable.id, snapshot);
           }
 
-          const updateObj: Partial<FloorPlanElement> = {};
+          const updateObj: ElementPatch = {};
           if (fromDelta) {
             updateObj.x = snapshot.x + fromDelta.dx;
             updateObj.y = snapshot.y + fromDelta.dy;
           }
           if (toDelta) {
-            (updateObj as any).x2 = snapshot.x2 + toDelta.dx;
-            (updateObj as any).y2 = snapshot.y2 + toDelta.dy;
+            updateObj.x2 = snapshot.x2 + toDelta.dx;
+            updateObj.y2 = snapshot.y2 + toDelta.dy;
           }
           if (snapshot.path && snapshot.path.length > 0) {
             const interiorDx = ((fromDelta?.dx ?? 0) + (toDelta?.dx ?? 0)) / ((fromDelta ? 1 : 0) + (toDelta ? 1 : 0) || 1);
             const interiorDy = ((fromDelta?.dy ?? 0) + (toDelta?.dy ?? 0)) / ((fromDelta ? 1 : 0) + (toDelta ? 1 : 0) || 1);
-            (updateObj as any).path = snapshot.path.map((point) => ({
-              ...point,
-              x: point.x + interiorDx,
-              y: point.y + interiorDy,
-            }));
+            updateObj.path = translatePath(snapshot.path, interiorDx, interiorDy);
           }
           if ('x' in updateObj || 'x2' in updateObj || 'path' in updateObj) {
             updates.push({ id: cable.id, updates: updateObj });
@@ -1861,7 +1854,7 @@ export const FloorPlanCanvas: React.FC = () => {
       let delta = groupRotateDeltaNow(dragState, mouseCanvas);
       if (e.shiftKey) delta = Math.round(delta / 45) * 45;
       const pivot = dragState.startPivot!;
-      const updates: { id: string; updates: Partial<FloorPlanElement> }[] = [];
+      const updates: { id: string; updates: ElementPatch }[] = [];
       dragState.startElements.forEach((origEl, id) => {
         const transformed = transformMemberElement(origEl, {
           deltaDeg: delta,
@@ -1882,7 +1875,7 @@ export const FloorPlanCanvas: React.FC = () => {
         } else if ('path' in transformed) {
           updateObj.path = (transformed as { path?: Waypoint[] }).path;
         }
-        updates.push({ id, updates: updateObj as Partial<FloorPlanElement> });
+        updates.push({ id, updates: updateObj });
       });
       dragChangedRef.current = true;
       updateMultipleElements(updates, false);
@@ -1929,7 +1922,7 @@ export const FloorPlanCanvas: React.FC = () => {
             y: newCenter.y,
             width: Math.round(newLen),
             rotation: Math.round((newAngle + 360) % 360),
-          } as any,
+          },
           false
         );
         return;
@@ -1940,7 +1933,7 @@ export const FloorPlanCanvas: React.FC = () => {
         updateElement(dragState.activeElementId, { x: drawPos.x, y: drawPos.y }, false);
       } else {
         dragChangedRef.current = true;
-        updateElement(dragState.activeElementId, { x2: drawPos.x, y2: drawPos.y } as any, false);
+        updateElement(dragState.activeElementId, { x2: drawPos.x, y2: drawPos.y }, false);
       }
       return;
     }
@@ -1973,7 +1966,7 @@ export const FloorPlanCanvas: React.FC = () => {
       dragChangedRef.current = true;
       updateElement(
         dragState.activeElementId,
-        { isCurved: snappedIsCurved, curveOffset: offset } as any,
+        { isCurved: snappedIsCurved, curveOffset: offset },
         false
       );
       return;
@@ -2058,18 +2051,19 @@ export const FloorPlanCanvas: React.FC = () => {
 
     if (dragState.type === 'waypoint' && dragState.activeElementId && dragState.waypointId) {
       const el = activeSetup.elements.find((e2) => e2.id === dragState.activeElementId);
-      if (el && 'path' in el && Array.isArray((el as any).path)) {
+      if (el && hasWaypointPath(el)) {
         let nextX = mouseCanvas.x;
         let nextY = mouseCanvas.y;
         if (gridSettings.snap && !altDownRef.current) {
           nextX = snapToGrid(nextX, gridSettings.size, true);
           nextY = snapToGrid(nextY, gridSettings.size, true);
         }
-        const newPath = (el as any).path.map((wp: any) =>
-          wp.id === dragState.waypointId ? { ...wp, x: nextX, y: nextY } : wp
-        );
         dragChangedRef.current = true;
-        updateElement(dragState.activeElementId, { path: newPath } as any, false);
+        updateElement(
+          dragState.activeElementId,
+          { path: patchWaypoint(el.path, dragState.waypointId, { x: nextX, y: nextY }) },
+          false,
+        );
       }
       return;
     }
@@ -2077,8 +2071,8 @@ export const FloorPlanCanvas: React.FC = () => {
     // Rotate a waypoint's facing direction on the canvas
     if (dragState.type === 'waypoint_rotate' && dragState.activeElementId && dragState.waypointId) {
       const el = activeSetup.elements.find((e2) => e2.id === dragState.activeElementId);
-      if (el && 'path' in el && Array.isArray((el as any).path)) {
-        const wp = (el as any).path.find((w: any) => w.id === dragState.waypointId);
+      if (el && hasWaypointPath(el)) {
+        const wp = el.path.find((w) => w.id === dragState.waypointId);
         if (wp) {
           let angle = getAngleBetweenPoints({ x: wp.x, y: wp.y }, mouseCanvas);
           if (e.shiftKey) {
@@ -2086,11 +2080,12 @@ export const FloorPlanCanvas: React.FC = () => {
           } else {
             angle = Math.round(angle / 5) * 5;
           }
-          const newPath = (el as any).path.map((w: any) =>
-            w.id === dragState.waypointId ? { ...w, rotation: (angle + 360) % 360 } : w
-          );
           dragChangedRef.current = true;
-          updateElement(dragState.activeElementId, { path: newPath } as any, false);
+          updateElement(
+            dragState.activeElementId,
+            { path: patchWaypoint(el.path, dragState.waypointId, { rotation: (angle + 360) % 360 }) },
+            false,
+          );
         }
       }
       return;
@@ -2111,7 +2106,7 @@ export const FloorPlanCanvas: React.FC = () => {
       if (el && 'x2' in el) {
         const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
         if (length < 5) {
-          updateElement(el.id, { x2: el.x + 150, y2: el.y } as any, false);
+          updateElement(el.id, { x2: el.x + 150, y2: el.y }, false);
         }
       }
       setTool('select');
@@ -2122,7 +2117,7 @@ export const FloorPlanCanvas: React.FC = () => {
       if (el && 'x2' in el) {
         const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
         if (length < 5) {
-          updateElement(el.id, { x2: el.x + 150, y2: el.y } as any, false);
+          updateElement(el.id, { x2: el.x + 150, y2: el.y }, false);
         }
       }
       setTool('select');
@@ -2145,10 +2140,10 @@ export const FloorPlanCanvas: React.FC = () => {
         if (length < 5) {
           // Just a click, not a drag: give the first segment a sensible default
           // length, then keep the tool active for chaining.
-          updateElement(el.id, { x2: el.x + 150, y2: el.y } as any, false);
+          updateElement(el.id, { x2: el.x + 150, y2: el.y }, false);
           setConnectedCableStart({ cableId: el.id, x: el.x + 150, y: el.y });
         } else {
-          setConnectedCableStart({ cableId: el.id, x: (el as any).x2, y: (el as any).y2 });
+          setConnectedCableStart({ cableId: el.id, x: el.x2, y: el.y2 });
         }
       }
       // Stay in the cable tool — the next click routes a corner.
@@ -2156,11 +2151,11 @@ export const FloorPlanCanvas: React.FC = () => {
     if (dragState?.type === 'draw_wall') {
       // If user dragged a significant wall length, finish wall; if clicked in place, leave connected wall mode active
       const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
-      if (el && 'x2' in el && typeof (el as any).x2 === 'number') {
-        const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
+      if (el && 'x2' in el && typeof el.x2 === 'number') {
+        const length = Math.hypot(el.x2 - el.x, el.y2 - el.y);
         if (length > 20) {
           // Keep connected wall point at endpoint so user can continue chaining
-          setConnectedWallStart({ x: (el as any).x2, y: (el as any).y2 });
+          setConnectedWallStart({ x: el.x2, y: el.y2 });
         }
       }
     }
@@ -2179,11 +2174,11 @@ export const FloorPlanCanvas: React.FC = () => {
         if (device && device.id !== otherEndId) {
           updateElement(el.id, isStart
             ? { fromElementId: device.id, fromLabel: deviceLabelOf(device) }
-            : { toElementId: device.id, toLabel: deviceLabelOf(device) } as any, false);
+            : { toElementId: device.id, toLabel: deviceLabelOf(device) }, false);
         } else {
           updateElement(el.id, isStart
             ? { fromElementId: undefined }
-            : { toElementId: undefined } as any, false);
+            : { toElementId: undefined }, false);
         }
       }
     }
@@ -2374,20 +2369,21 @@ export const FloorPlanCanvas: React.FC = () => {
           .map((id) => {
             const el = activeSetup.elements.find((e) => e.id === id);
             if (!el || isEffectivelyLocked(el)) return null;
-            const hasX2 = 'x2' in el && typeof (el as any).x2 === 'number';
-            const linearUpdates = hasX2
-              ? { x2: (el as any).x2 + dx, y2: (el as any).y2 + dy }
-              : {};
+            const linearUpdates: ElementPatch =
+              'x2' in el && typeof el.x2 === 'number'
+                ? { x2: el.x2 + dx, y2: el.y2 + dy }
+                : {};
             // Strokes nudge via their absolute vertices.
-            const strokeUpdates =
-              el.type === 'stroke' && Array.isArray((el as any).points)
-                ? {
-                    points: ((el as any).points as StrokePoint[]).map((point) => ({
-                      ...point,
-                      x: point.x + dx,
-                      y: point.y + dy,
-                    })),
-                  }
+            const strokeUpdates: ElementPatch =
+              el.type === 'stroke' && Array.isArray(el.points)
+                ? { points: translateStrokePoints(el.points, dx, dy) }
+                : {};
+            // Movement paths and cable routes are absolute too. Dragging has
+            // always carried them; the keyboard nudge did not, so arrowing an
+            // actor across the plan left its beats standing where they were.
+            const pathUpdates: ElementPatch =
+              'path' in el && Array.isArray(el.path) && el.path.length > 0
+                ? { path: translatePath(el.path, dx, dy) }
                 : {};
             return {
               id,
@@ -2396,10 +2392,11 @@ export const FloorPlanCanvas: React.FC = () => {
                 y: el.y + dy,
                 ...linearUpdates,
                 ...strokeUpdates,
+                ...pathUpdates,
               },
             };
           })
-          .filter(Boolean) as { id: string; updates: Partial<FloorPlanElement> }[];
+          .filter(Boolean) as { id: string; updates: ElementPatch }[];
 
         updateMultipleElements(updates, true);
       }
@@ -2592,7 +2589,7 @@ export const FloorPlanCanvas: React.FC = () => {
             selectedIds={selectedElementIds}
             onSelect={handleElementSelect}
             onDoubleClick={handleElementDoubleClick}
-            onUpdateText={(id, newText) => updateElement(id, { text: newText } as any)}
+            onUpdateText={(id, newText) => updateElement(id, { text: newText })}
             pixelsPerUnit={gridSettings.pixelsPerUnit}
             displaySettings={displaySettings}
             currentBeat={playback.currentBeat}
@@ -2680,8 +2677,8 @@ export const FloorPlanCanvas: React.FC = () => {
           {/* 6b. Live Cable Routing Rubberband Preview */}
           {connectedCableStart && activeDrawPos && (() => {
             const cEl = activeSetup.elements.find((e) => e.id === connectedCableStart.cableId);
-            const cInfo = cEl && cEl.type === 'cable' ? CABLE_TYPES.find((c) => c.type === (cEl as any).cableType) : null;
-            const cColor = cEl && cEl.type === 'cable' ? (cEl as any).color || cInfo?.color || '#38bdf8' : '#38bdf8';
+            const cInfo = cEl && cEl.type === 'cable' ? CABLE_TYPES.find((c) => c.type === cEl.cableType) : null;
+            const cColor = cEl && cEl.type === 'cable' ? cEl.color || cInfo?.color || '#38bdf8' : '#38bdf8';
             const segLen = Math.hypot(activeDrawPos.x - connectedCableStart.x, activeDrawPos.y - connectedCableStart.y);
             return (
               <g className="pointer-events-none">

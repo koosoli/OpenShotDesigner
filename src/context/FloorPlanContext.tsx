@@ -7,6 +7,7 @@ import {
   CableType,
   CameraElement,
   CameraRigType,
+  ElementPatch,
   FloorPlanElement,
   LightElement,
   LightFixtureType,
@@ -156,8 +157,8 @@ interface FloorPlanContextType {
   // Element CRUD
   addElement: (element: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }) => string;
   quickAddElement: (element: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }) => string;
-  updateElement: (id: string, updates: Partial<FloorPlanElement>, recordHistory?: boolean) => void;
-  updateMultipleElements: (updates: { id: string; updates: Partial<FloorPlanElement> }[], recordHistory?: boolean) => void;
+  updateElement: (id: string, updates: ElementPatch, recordHistory?: boolean) => void;
+  updateMultipleElements: (updates: { id: string; updates: ElementPatch }[], recordHistory?: boolean) => void;
   deleteSelectedElements: () => void;
   deleteElementById: (id: string) => void;
   duplicateSelected: () => void;
@@ -1508,7 +1509,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return id;
   };
 
-  const updateElement = (id: string, updates: Partial<FloorPlanElement>, recordHistory = true) => {
+  const updateElement = (id: string, updates: ElementPatch, recordHistory = true) => {
     // Built from the latest committed setup (see commitSetupUpdate) so two
     // element updates in the same render both land.
     commitSetupUpdate((activeSetup) => {
@@ -1516,7 +1517,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!el) return null;
 
       // If updating a camera's focal length or sensor format, re-calculate FOV and update linked shot
-      let extraUpdates: Partial<FloorPlanElement> = {};
+      let extraUpdates: ElementPatch = {};
       let updatedShots = activeSetup.shots;
       if (el.type === 'camera') {
         const cam = el as CameraElement;
@@ -1569,7 +1570,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateMultipleElements = (
-    updatesList: { id: string; updates: Partial<FloorPlanElement> }[],
+    updatesList: { id: string; updates: ElementPatch }[],
     recordHistory = true
   ) => {
     const updateMap = new Map(updatesList.map((u) => [u.id, u.updates]));
