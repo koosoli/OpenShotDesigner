@@ -533,11 +533,12 @@ export const PROP_CATALOG: {
   { type: 'camera_cart', name: 'Camera Magliner Cart', category: 'Studio & Stage', defaultWidth: 110, defaultHeight: 55, defaultColor: '#475569' },
   { type: 'green_screen', name: 'Chroma Green / Seamless Backdrop', category: 'Studio & Stage', defaultWidth: 240, defaultHeight: 20, defaultColor: '#16a34a' },
 
-  // Vehicles (Sized for 4 full actor blocking seats)
-  { type: 'car', name: 'Sedan Passenger Car (4-Door)', category: 'Vehicles', defaultWidth: 180, defaultHeight: 360, defaultColor: '#2563eb' },
-  { type: 'vehicle_suv', name: 'SUV / 4x4 Vehicle', category: 'Vehicles', defaultWidth: 200, defaultHeight: 400, defaultColor: '#475569' },
-  { type: 'vehicle_truck', name: 'Production Grip Truck', category: 'Vehicles', defaultWidth: 220, defaultHeight: 520, defaultColor: '#334155' },
-  { type: 'vehicle_police', name: 'Police Cruiser (4-Door)', category: 'Vehicles', defaultWidth: 190, defaultHeight: 380, defaultColor: '#0284c7' },
+  // Vehicles — realistic footprints at 30 px/m (sedan ≈ 4.8 × 1.9 m).
+  // Symbols keep their original artwork; only default scale is true-to-size.
+  { type: 'car', name: 'Sedan Passenger Car (4-Door)', category: 'Vehicles', defaultWidth: 74, defaultHeight: 145, defaultColor: '#2563eb' },
+  { type: 'vehicle_suv', name: 'SUV / 4x4 Vehicle', category: 'Vehicles', defaultWidth: 78, defaultHeight: 152, defaultColor: '#475569' },
+  { type: 'vehicle_truck', name: 'Production Grip Truck', category: 'Vehicles', defaultWidth: 92, defaultHeight: 230, defaultColor: '#334155' },
+  { type: 'vehicle_police', name: 'Police Cruiser (4-Door)', category: 'Vehicles', defaultWidth: 76, defaultHeight: 148, defaultColor: '#0284c7' },
 
   // Concert & Live Event Staging
   { type: 'stage', name: 'Concert Stage Platform', category: 'Concert & Stage', defaultWidth: 480, defaultHeight: 240, defaultColor: '#1e293b' },
@@ -557,10 +558,10 @@ export const PROP_CATALOG: {
   { type: 'barricade', name: 'Crowd Barrier / Barricade', category: 'Concert & Stage', defaultWidth: 180, defaultHeight: 20, defaultColor: '#64748b' },
   { type: 'video_wall', name: 'LED Video Wall / Screen', category: 'Concert & Stage', defaultWidth: 300, defaultHeight: 180, defaultColor: '#020617' },
 
-  // Broadcast & Production
-  { type: 'broadcast_truck', name: 'Broadcast Production Truck', category: 'Broadcast & Production', defaultWidth: 260, defaultHeight: 560, defaultColor: '#1e293b' },
-  { type: 'broadcast_van', name: 'ENG / News Van', category: 'Broadcast & Production', defaultWidth: 190, defaultHeight: 380, defaultColor: '#0f172a' },
-  { type: 'sat_truck', name: 'Satellite Uplink Truck', category: 'Broadcast & Production', defaultWidth: 240, defaultHeight: 480, defaultColor: '#111827' },
+  // Broadcast & Production — realistic footprints at 30 px/m.
+  { type: 'broadcast_truck', name: 'Broadcast Production Truck', category: 'Broadcast & Production', defaultWidth: 140, defaultHeight: 330, defaultColor: '#1e293b' },
+  { type: 'broadcast_van', name: 'ENG / News Van', category: 'Broadcast & Production', defaultWidth: 95, defaultHeight: 175, defaultColor: '#0f172a' },
+  { type: 'sat_truck', name: 'Satellite Uplink Truck', category: 'Broadcast & Production', defaultWidth: 110, defaultHeight: 255, defaultColor: '#111827' },
 
   // Weapons & Explosives
   { type: 'gun', name: 'Handgun / Pistol Firearm', category: 'Weapons & Explosives', defaultWidth: 44, defaultHeight: 32, defaultColor: '#1e293b' },

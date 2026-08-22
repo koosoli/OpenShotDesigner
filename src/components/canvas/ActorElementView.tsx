@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ActorElement, Vector2D } from '../../types';
 import { getInterpolatedPositionAndRotation, getSmoothSplinePath } from '../../utils/geometry';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
@@ -51,7 +51,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
   const hasPath = waypoints.length > 0;
 
   const showActorLabel = displaySettings.showLabels && displaySettings.showActorLabels;
-  const labelScale = displaySettings.labelScale;
+  const labelScale = (displaySettings.labelScale ?? 1) * (displaySettings.labelCategoryScale?.actors ?? 1);
   const labelOpacity = (displaySettings.labelOpacity ?? 1) * (displaySettings.labelCategoryOpacity?.actors ?? 1);
   const labelColor = displaySettings.actorLabelColor;
 
@@ -197,7 +197,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
           >
             <circle cx={0} cy={0} r={7.5} fill="#78350f" stroke="#f59e0b" strokeWidth={1} />
             <text x={0} y={3} fill="#fef3c7" fontSize="8" fontWeight="bold" textAnchor="middle">
-              🔒
+              ðŸ”’
             </text>
           </g>
         )}
@@ -279,7 +279,7 @@ export const ActorElementView: React.FC<ActorElementViewProps> = ({
             fontWeight="700"
             className="select-none font-sans"
           >
-            {(actor.characterName || actor.name).toUpperCase()} · B{Math.max(1, Math.round(currentBeat))}
+            {(actor.characterName || actor.name).toUpperCase()} Â· B{Math.max(1, Math.round(currentBeat))}
           </text>
           <text
             x={-bubbleWidth / 2 + 12}

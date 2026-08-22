@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ArrowElement, MeasurementElement, PropElement, TextElement, TrackElement, Waypoint } from '../../types';
 import { getDistance, getInterpolatedPositionAndRotation, getSmoothSplinePath } from '../../utils/geometry';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
@@ -46,7 +46,11 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
   const showTrackLabel = displaySettings.showLabels && displaySettings.showTrackLabels;
   const showPropLabel = displaySettings.showLabels && displaySettings.showPropLabels;
   const showMeasurementLabel = displaySettings.showLabels && displaySettings.showMeasurementLabels;
-  const labelScale = displaySettings.labelScale;
+  const baseLabelScale = displaySettings.labelScale ?? 1;
+const catLabelScale = displaySettings.labelCategoryScale ?? {};
+const propLabelScale = baseLabelScale * (catLabelScale.props ?? 1);
+const trackLabelScale = baseLabelScale * (catLabelScale.tracks ?? 1);
+const measurementLabelScale = baseLabelScale * (catLabelScale.measurements ?? 1);
   const masterLabelOpacity = displaySettings.labelOpacity ?? 1;
   const propLabelOpacity = masterLabelOpacity * (displaySettings.labelCategoryOpacity?.props ?? 1);
   const trackLabelOpacity = masterLabelOpacity * (displaySettings.labelCategoryOpacity?.tracks ?? 1);
@@ -144,7 +148,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
 
               {/* Label */}
               {showTrackLabel && (
-                <g transform={`translate(${ctrlX}, ${ctrlY - 14}) scale(${labelScale})`} opacity={trackLabelOpacity}>
+                <g transform={`translate(${ctrlX}, ${ctrlY - 14}) scale(${trackLabelScale})`} opacity={trackLabelOpacity}>
                   <rect x={-45} y={-9} width={90} height={18} rx={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={1} />
                   <text x={0} y={3.5} fill={displaySettings.trackLabelColor ?? '#38bdf8'} fontSize="9" fontWeight="bold" textAnchor="middle" className="select-none font-mono">
                     CURVED TRACK
@@ -198,7 +202,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
                 fontSize="10"
                 textAnchor="middle"
                 opacity={trackLabelOpacity}
-                transform={`scale(${labelScale})`}
+                transform={`scale(${trackLabelScale})`}
                 className="select-none font-mono"
               >
                 DOLLY TRACK ({Math.round(dist / 25)}ft)
@@ -473,15 +477,15 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
               </g>
             ) : prop.propType === 'c_stand' ? (
               <g className="prop-c-stand">
-                {/* 1. Medium Leg (Top-Left 135°) */}
+                {/* 1. Medium Leg (Top-Left 135Â°) */}
                 <path d="M 0 0 C -10 -12, -20 -22, -32 -16" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
                 <rect x={-35} y={-18} width={6} height={4} rx={1} fill="#0f172a" />
 
-                {/* 2. Small Low Leg (Bottom-Left 225°) */}
+                {/* 2. Small Low Leg (Bottom-Left 225Â°) */}
                 <path d="M 0 0 C -10 12, -20 22, -32 16" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
                 <rect x={-35} y={14} width={6} height={4} rx={1} fill="#0f172a" />
 
-                {/* 3. Big High Leg (Front Load Leg extending 0° directly under the grip arm) */}
+                {/* 3. Big High Leg (Front Load Leg extending 0Â° directly under the grip arm) */}
                 <path d="M 0 0 C 12 -4, 24 -6, 36 -1" fill="none" stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
                 <rect x={35} y={-3} width={5} height={4} rx={1} fill="#0f172a" />
 
@@ -509,7 +513,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
               </g>
             ) : prop.propType === 'tripod' ? (
               <g className="prop-tripod-stand">
-                {/* 3 Splayed Tubular Legs at 120° offsets */}
+                {/* 3 Splayed Tubular Legs at 120Â° offsets */}
                 <line x1={0} y1={0} x2={-24} y2={-16} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
                 <rect x={-27} y={-18} width={6} height={4} rx={1} fill="#0f172a" />
                 <line x1={0} y1={0} x2={-24} y2={16} stroke="#64748b" strokeWidth={3.5} strokeLinecap="round" />
@@ -1276,7 +1280,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
             {/* Prop Label (always upright, positioned cleanly below the icon) */}
             {showPropLabel && (
               <g
-                transform={`rotate(${-rotation}) translate(0, ${Math.max(h / 2 + 14, 28)}) scale(${labelScale})`}
+                transform={`rotate(${-rotation}) translate(0, ${Math.max(h / 2 + 14, 28)}) scale(${propLabelScale})`}
                 opacity={propLabelOpacity}
               >
                 <text
@@ -1411,7 +1415,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
             {/* Dimension Badge */}
             {showMeasurementLabel && (
               <g
-                transform={`translate(${midX}, ${midY}) rotate(${(angle * 180) / Math.PI}) scale(${labelScale})`}
+                transform={`translate(${midX}, ${midY}) rotate(${(angle * 180) / Math.PI}) scale(${measurementLabelScale})`}
                 opacity={measurementLabelOpacity}
               >
                 <rect
@@ -1501,7 +1505,7 @@ export const PropsLayer: React.FC<PropsLayerProps> = ({
             {/* Optional label */}
             {a.label && (
               <g
-                transform={`translate(${midX}, ${midY + labelOffsetY}) scale(${labelScale})`}
+                transform={`translate(${midX}, ${midY + labelOffsetY}) scale(${baseLabelScale})`}
                 opacity={labelOpacity}
               >
                 <rect

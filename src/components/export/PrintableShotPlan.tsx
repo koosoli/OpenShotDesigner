@@ -78,6 +78,8 @@ import {
 } from 'lucide-react';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 import { selectPrintablePlanElements } from '../../domain/plan';
+import { MoodboardPrintView } from '../reports/MoodboardPrintView';
+import { useMoodboardImageSrcs } from '../moodboard/moodboardAssets';
 
 export const PrintableShotPlan: React.FC = () => {
   const {
@@ -112,6 +114,16 @@ export const PrintableShotPlan: React.FC = () => {
     panY: 0,
   });
   const floorPlanSvgRef = useRef<SVGSVGElement>(null);
+
+  // Mood-board export: which board to print (defaults to the first).
+  const moodBoards = React.useMemo(() => project.moodBoards ?? [], [project.moodBoards]);
+  const [exportBoardId, setExportBoardId] = useState<string | null>(null);
+  const exportBoard = moodBoards.find((b) => b.id === exportBoardId) ?? moodBoards[0] ?? null;
+  const exportCards = React.useMemo(
+    () => (exportBoard ? [...exportBoard.cards].sort((a, b) => a.order - b.order) : []),
+    [exportBoard]
+  );
+  const exportImageSrcs = useMoodboardImageSrcs(exportCards);
 
   // When the export opens, default the storyboard toggle ON if any shot has a
   // storyboard attached (still fully toggleable off/on by the user).
@@ -508,6 +520,16 @@ export const PrintableShotPlan: React.FC = () => {
               Equipment List
             </button>
             <button
+              onClick={() => setExportSection('moodboard')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'moodboard'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Mood Board
+            </button>
+            <button
               onClick={() => setExportSection('combined')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'combined'
@@ -799,6 +821,26 @@ export const PrintableShotPlan: React.FC = () => {
           </div>
         )}
 
+        {/* Mood-board options */}
+        {exportSection === 'moodboard' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] uppercase font-bold text-slate-500">Board:</span>
+            <select
+              value={exportBoard?.id ?? ''}
+              onChange={(e) => setExportBoardId(e.target.value || null)}
+              className="px-2 py-1.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
+            >
+              {moodBoards.length === 0 && <option value="">No mood boards yet</option>}
+              {moodBoards.map((b) => (
+                <option key={b.id} value={b.id}>{b.title}</option>
+              ))}
+            </select>
+            <span className="text-[10px] text-slate-500">
+              Layout, captions and the color palette are edited on the Mood Board tab (Collage view).
+            </span>
+          </div>
+        )}
+
         {/* Printable Document Paper View (Strictly Pure White for Ink Saving) */}
         <div
           id="printable-content"
@@ -831,6 +873,8 @@ export const PrintableShotPlan: React.FC = () => {
                       ? '• LINED SHOOTING SCRIPT'
                       : exportSection === 'equipment'
                       ? (equipmentScope === 'all' ? '• ALL SCENES MASTER TRUCK MANIFEST' : '• SCENE EQUIPMENT PACKAGE')
+                      : exportSection === 'moodboard'
+                      ? '• VISUAL MOOD BOARD COLLAGE'
                       : '• COMPLETE PRODUCTION CALL SHEET'}
                   </span>
                 </div>
@@ -852,6 +896,11 @@ export const PrintableShotPlan: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Mood-board collage document */}
+          {exportSection === 'moodboard' && exportBoard && (
+            <MoodboardPrintView board={exportBoard} srcs={exportImageSrcs} />
+          )}
 
           {/* ========================================================================= */}
           {/* SECTION A: 2D FLOOR PLAN BLUEPRINT GRAPHIC                                */}

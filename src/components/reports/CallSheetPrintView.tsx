@@ -70,6 +70,9 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         .cs-table td.num, .cs-table th.num { text-align: right; white-space: nowrap; }
         .cs-total-row td { font-weight: bold; background: #f5f5f5; }
         .cs-unresolved { color: #7a0000; font-style: italic; }
+        .cs-omitted td { color: #666; }
+        .cs-omitted .cs-item-label { text-decoration: line-through; }
+        .cs-omitted-badge { display: inline-block; margin-left: 4px; padding: 0 3px; border: 1px solid #999; font-size: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
         .cs-warnings { border: 1.5px solid #7a0000; padding: 6px 10px; font-family: Arial, Helvetica, sans-serif; font-size: 11px; page-break-inside: avoid; break-inside: avoid; }
         .cs-warnings ul { margin: 4px 0 0; padding-left: 18px; }
         .cs-warnings li { margin-bottom: 2px; }
@@ -165,10 +168,13 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             </thead>
             <tbody>
               {sheet.schedule.map((entry, i) => (
-                <tr key={`entry-${i}`}>
+                <tr key={`entry-${i}`} className={entry.omitted ? 'cs-omitted' : undefined}>
                   <td className="num">{i + 1}</td>
                   <td className="num">{entry.scheduledStart ?? '—'}</td>
-                  <td className={entry.unresolved ? 'cs-unresolved' : undefined}>{entry.label}</td>
+                  <td className={entry.unresolved ? 'cs-unresolved' : undefined}>
+                    <span className="cs-item-label">{entry.label}</span>
+                    {entry.omitted && <span className="cs-omitted-badge">Omitted</span>}
+                  </td>
                   <td>{KIND_LABELS[entry.kind]}</td>
                   <td className="num">{formatMinutes(entry.estimatedMinutes)}</td>
                 </tr>

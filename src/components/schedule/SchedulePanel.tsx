@@ -626,6 +626,29 @@ export const SchedulePanel: React.FC = () => {
       );
     }
 
+    // Scenes removed from the screenplay stay as explicit OMITTED strips
+    // until the user deletes them — they are never silently resurrected or
+    // dropped, and they print on call sheets as informational lines.
+    const omittedLabel = block.kind === 'scene' ? block.omittedLabel : undefined;
+    if (omittedLabel !== undefined) {
+      return (
+        <li key={block.id} draggable onDragStart={handleDragStart(block.id)} onDragEnd={handleDragEnd} onDragOver={allowDrop(targetKey)} onDrop={handleDrop(day ? day.id : null, indexInDay)} title="This scene was deleted from the screenplay. Delete this strip to remove it entirely." className={`group border border-dashed transition-all ${draggedBlockId === block.id ? 'opacity-40' : ''} ${isLight ? 'bg-slate-100 border-slate-300 text-slate-500' : 'bg-slate-900/60 border-slate-700 text-slate-400'}`}>
+          <div className={`grid items-center min-h-10 ${day ? 'grid-cols-[22px_42px_1fr_68px]' : 'grid-cols-[22px_42px_1fr_42px]'}`}>
+            <span className="flex justify-center cursor-grab"><GripVertical className={`w-3.5 h-3.5 ${mutedText}`} /></span>
+            <span className="font-mono text-[9px] font-black text-center opacity-70">OM.</span>
+            <div className="min-w-0 px-2 border-l border-inherit">
+              <div className="text-[10px] font-black truncate line-through decoration-1">{omittedLabel}</div>
+              <div className="text-[8px] uppercase font-bold tracking-wide opacity-70">Omitted from screenplay · {day ? 'kept for records' : 'unscheduled'}</div>
+            </div>
+            <span className="flex items-center justify-end gap-1 pr-1">
+              <button onClick={() => deleteBlock(block.id)} title="Delete this omitted strip" className={`${iconBtnClass} !min-w-6 !min-h-6 hover:!text-red-500`}><Trash2 className="w-3 h-3" /></button>
+              {!day && <button onClick={() => days[0] && placeBlock(block.id, days[0].id)} disabled={!days.length} title="Add to first shooting day" className={`${iconBtnClass} !min-w-5 !min-h-7 disabled:opacity-30`}><ChevronRight className="w-3.5 h-3.5" /></button>}
+            </span>
+          </div>
+        </li>
+      );
+    }
+
     return (
       <li key={block.id} draggable onDragStart={handleDragStart(block.id)} onDragEnd={handleDragEnd} onDragOver={allowDrop(targetKey)} onDrop={handleDrop(day ? day.id : null, indexInDay)} className={`group border transition-all ${draggedBlockId === block.id ? 'opacity-40' : ''} ${dropTarget === targetKey ? 'border-cyan-500 ring-1 ring-cyan-500' : stripTone}`}>
         <div className={`grid items-center min-h-12 ${day ? 'grid-cols-[22px_42px_minmax(170px,1fr)_54px_64px_58px_68px]' : 'grid-cols-[22px_42px_1fr_42px]'}`}>

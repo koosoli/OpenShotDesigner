@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { LightElement } from '../../types';
 import { getLightBeamPolygon, kelvinToRgb } from '../../utils/geometry';
 import { LIGHT_FIXTURES, LIGHT_ROLES } from '../../constants/presets';
@@ -181,7 +181,7 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
               if (light.dmxUniverse && light.dmxAddress) {
                 specsParts.push(`DMX U${light.dmxUniverse}:${String(light.dmxAddress).padStart(3, '0')}`);
               }
-              const specsStr = specsParts.join(' · ');
+              const specsStr = specsParts.join(' Â· ');
               const showSpecs = specsStr.length > 0;
 
               // If all label components are turned off, don't draw any badge
@@ -197,7 +197,7 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
 
               return (
                 <g
-                  transform={`rotate(${-light.rotation}) translate(0, ${isOmni ? 34 : 26}) scale(${displaySettings.labelScale})`}
+                  transform={`rotate(${-light.rotation}) translate(0, ${isOmni ? 34 : 26}) scale(${(displaySettings.labelScale ?? 1) * (displaySettings.labelCategoryScale?.lights ?? 1)})`}
                   opacity={(displaySettings.labelOpacity ?? 1) * (displaySettings.labelCategoryOpacity?.lights ?? 1)}
                   className="pointer-events-none"
                 >
@@ -347,7 +347,7 @@ export const LightingLayer: React.FC<LightingLayerProps> = ({
               >
                 <circle cx={0} cy={0} r={7.5} fill="#78350f" stroke="#f59e0b" strokeWidth={1} />
                 <text x={0} y={3} fill="#fef3c7" fontSize="8" fontWeight="bold" textAnchor="middle">
-                  🔒
+                  ðŸ”’
                 </text>
               </g>
             )}

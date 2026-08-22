@@ -34,6 +34,8 @@ export interface CallSheetEntry {
   scheduledStart?: string;
   /** True when the block referenced an entity we could not resolve. */
   unresolved?: boolean;
+  /** True for strips whose scene was omitted from the screenplay. */
+  omitted?: boolean;
 }
 
 export interface CallSheetPerson {
@@ -141,6 +143,12 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     if (runningMinutes !== null) runningMinutes = duration === undefined ? null : runningMinutes + duration;
     switch (block.kind) {
       case 'scene': {
+        // A scene removed from the screenplay stays as an explicit OMITTED
+        // strip: it prints as informational, needs no estimate and raises no
+        // "not found" warning.
+        if (block.omittedLabel !== undefined) {
+          return { label: `Omitted — ${block.omittedLabel}`, kind: block.kind, estimatedMinutes: 0, scheduledStart, omitted: true };
+        }
         const label = input.resolveSceneLabel?.(block.scriptSceneId);
         if (!label) warnings.push(`Scene ${block.scriptSceneId} not found.`);
         return { label: label ?? `Unresolved scene ${block.scriptSceneId}`, kind: block.kind, estimatedMinutes: block.estimatedMinutes, scheduledStart, unresolved: !label };

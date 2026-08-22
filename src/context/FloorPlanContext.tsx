@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActiveTool,
   AspectRatio,
@@ -30,6 +30,7 @@ import {
   Vector2D,
 } from '../types';
 import { createId } from '../domain/ids';
+import { deriveScriptBreakdown } from '../domain/script/logic';
 import {
   ACTOR_COLOR_PALETTE,
   CAMERA_COLOR_PALETTE,
@@ -73,7 +74,7 @@ import {
 } from '../domain/workspace';
 
 /** Sections available in the export / print studio. */
-export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'equipment' | 'combined';
+export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'equipment' | 'moodboard' | 'combined';
 
 /**
  * Collision-proof ids. `Date.now()` alone repeats when two shots are created
@@ -129,7 +130,7 @@ interface FloorPlanContextType {
   setQuickSearchOpen: (open: boolean) => void;
   activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'inspector';
   setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'inspector') => void;
-  /** Workspace profile of the open project (module visibility, plan §1.2). */
+  /** Workspace profile of the open project (module visibility, plan Â§1.2). */
   workspaceProfile: WorkspaceProfile;
   isModuleVisible: (moduleId: ModuleId) => boolean;
   setModuleVisible: (moduleId: ModuleId, visible: boolean) => void;
@@ -162,7 +163,7 @@ interface FloorPlanContextType {
   insertDoorInWall: (wallId: string) => string | null;
   insertWindowInWall: (wallId: string) => string | null;
 
-  // Plan groups (plan §6.4)
+  // Plan groups (plan Â§6.4)
   /** Group every selected element into one new plan group. */
   groupSelection: () => void;
   /** Dissolve every group whose membership exactly matches the selection. */
@@ -176,7 +177,7 @@ interface FloorPlanContextType {
   updateShot: (id: string, updates: Partial<Shot>) => void;
   deleteShot: (id: string) => void;
   reorderShots: (arg1: number | Shot[], arg2?: number) => void;
-  /** Order of the storyboard board only — the shot list keeps its own order. */
+  /** Order of the storyboard board only â€” the shot list keeps its own order. */
   setStoryboardOrder: (shotIds: string[]) => void;
   moveShot: (shotId: string, direction: 'up' | 'down') => void;
   moveShotToScene: (shotId: string, sourceSetupId: string, targetSetupId: string, targetIndex?: number) => void;
@@ -196,7 +197,7 @@ interface FloorPlanContextType {
     shotSize?: Shot['shotSize'];
     text?: string;
   }) => string;
-  /** The production's screenplay — shared by every scene / setup. */
+  /** The production's screenplay â€” shared by every scene / setup. */
   scriptLines: ScriptLine[];
   scriptTitle?: string;
   /** Linings from every scene, so one lined script shows the whole coverage. */
@@ -236,7 +237,7 @@ interface FloorPlanContextType {
   setShotCameraLetter: (shotId: string, letter: string) => void;
   /** Point a shot at an existing camera (no renaming, no new elements). */
   assignCameraToShot: (shotId: string, cameraId: string | null) => void;
-  /** Add a camera with the next free letter (B, C, …) and shoot this shot on it. */
+  /** Add a camera with the next free letter (B, C, â€¦) and shoot this shot on it. */
   addCameraForShot: (shotId: string) => string;
   setShootMode: (mode: 'single_cam' | 'multi_cam') => void;
 
@@ -262,7 +263,7 @@ interface FloorPlanContextType {
   updateSetupMeta: (updates: Partial<SceneSetup>) => void;
   updateProjectMeta: (updates: Partial<Project>) => void;
 
-  // Named revisions (plan §13.2): intentional milestones, distinct from undo.
+  // Named revisions (plan Â§13.2): intentional milestones, distinct from undo.
   /** Saved revisions of the open project (oldest first). */
   revisions: ProjectRevision[];
   /** Snapshot the current project as a named revision (capped at 20). */
@@ -374,6 +375,16 @@ export interface DisplaySettings {
   cableLabelColor: string | null;
   // Per-category label opacity overrides (0 - 1)
   labelCategoryOpacity: LabelCategoryOpacitySettings;
+  /** Per-category label size multipliers on top of the global labelScale (0.5–2). */
+  labelCategoryScale?: {
+    actors?: number;
+    cameras?: number;
+    lights?: number;
+    props?: number;
+    tracks?: number;
+    cables?: number;
+    measurements?: number;
+  };
   // Decluttering toggles
   showWaypoints: boolean;
   showWaypointCues: boolean; // toggle dialogue / action cues on floorplan waypoints (default true)
@@ -430,6 +441,15 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     doorWindows: 1.0,
     measurements: 1.0,
     cables: 1.0,
+  },
+  labelCategoryScale: {
+    actors: 1.0,
+    cameras: 1.0,
+    lights: 1.0,
+    props: 1.0,
+    tracks: 1.0,
+    cables: 1.0,
+    measurements: 1.0,
   },
   showWaypoints: true,
   showWaypointCues: false,
@@ -566,7 +586,7 @@ const MAX_REVISIONS = 20;
 const capRevisions = (list: ProjectRevision[]): ProjectRevision[] => {
   if (list.length <= MAX_REVISIONS) return list;
   console.warn(
-    `[revisions] Cap of ${MAX_REVISIONS} reached — dropping ${list.length - MAX_REVISIONS} oldest revision(s).`
+    `[revisions] Cap of ${MAX_REVISIONS} reached â€” dropping ${list.length - MAX_REVISIONS} oldest revision(s).`
   );
   return list.slice(list.length - MAX_REVISIONS);
 };
@@ -574,7 +594,7 @@ const capRevisions = (list: ProjectRevision[]): ProjectRevision[] => {
 /**
  * Build the restored project from a revision snapshot. Everything content-ish
  * (setups, script, collections) comes from the snapshot; identity (id/title),
- * schema version and the revision history stay with the current project — and
+ * schema version and the revision history stay with the current project â€” and
  * a safety revision of the pre-restore state is appended first.
  */
 const applyRevisionRestore = (base: Project, revision: ProjectRevision): Project => {
@@ -654,7 +674,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const activeSetup =
     project.setups.find((s) => s.id === project.activeSetupId) || project.setups[0];
 
-  // Workspace module visibility (plan §1.2): a local preference keyed by the
+  // Workspace module visibility (plan Â§1.2): a local preference keyed by the
   // project id. Projects without a stored preset show every module so legacy
   // behavior is preserved.
   const [workspaceProfile, setWorkspaceProfileState] = useState<WorkspaceProfile>(
@@ -761,7 +781,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [scriptLinkShotId, setScriptLinkShotId] = useState<string | null>(null);
 
   // If the open project's workspace hides the current tab's module, fall back
-  // to the always-available Inspector (plan §1.2: hidden module ≠ deleted data).
+  // to the always-available Inspector (plan Â§1.2: hidden module â‰  deleted data).
   useEffect(() => {
     const tabModules: Record<string, ModuleId> = {
       shots: 'shots',
@@ -789,12 +809,43 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isLooping, setIsLooping] = useState(true);
 
   // Undo / Redo history
-  const [history, setHistory] = useState<SceneSetup[]>([activeSetup]);
+  // Whole-project undo history. Every entry is an immutable project snapshot
+  // (structural sharing keeps memory flat), so Ctrl+Z spans the screenplay,
+  // schedule, mood boards, company info AND every scene's canvas â€” not just
+  // the currently open setup. Session-only UI prefs (displaySettings) stay
+  // outside by design (plan rule 38).
+  const [history, setHistory] = useState<Project[]>([project]);
   const [historyIndex, setHistoryIndex] = useState(0);
+  // Updaters run during React's render phase, so snapshots they want recorded
+  // are parked here and flushed once per committed render.
+  const pendingSnapshotsRef = useRef<Project[]>([]);
+  // Latest known project for code paths that commit WITHOUT a setProject
+  // (canvas gesture end), including live drag refs.
+  const liveProjectRef = useRef(project);
+
+  /** Push one immutable snapshot (dedupe by reference; cap length). */
+  const recordProjectSnapshot = (snapshot: Project, baseHistory: Project[], baseIndex: number) => {
+    const nextHistory = baseHistory.slice(0, baseIndex + 1);
+    if (nextHistory[nextHistory.length - 1] === snapshot) return;
+    nextHistory.push(snapshot);
+    if (nextHistory.length > 50) nextHistory.shift();
+    setHistory(nextHistory);
+    setHistoryIndex(nextHistory.length - 1);
+  };
+
+  // Flush snapshots produced by batched updaters exactly once per render.
+  useEffect(() => {
+    liveProjectRef.current = project;
+    if (pendingSnapshotsRef.current.length === 0) return;
+    const snapshot = pendingSnapshotsRef.current[pendingSnapshotsRef.current.length - 1];
+    pendingSnapshotsRef.current = [];
+    recordProjectSnapshot(snapshot, history, historyIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project]);
 
   // Auto-save to localStorage. If the project grows too large for the browser's
   // localStorage quota (most commonly because storyboards are embedded as
-  // base64 data URLs), surface a visible warning instead of failing silently —
+  // base64 data URLs), surface a visible warning instead of failing silently â€”
   // the user can still export the full project as a JSON file.
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
   useEffect(() => {
@@ -805,7 +856,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setStorageWarning(null);
     } catch {
       setStorageWarning(
-        'Autosave to this browser failed — the project (likely with embedded storyboards) ' +
+        'Autosave to this browser failed â€” the project (likely with embedded storyboards) ' +
           'exceeds the local storage limit. Use the download button in the top bar to save your project file.'
       );
     }
@@ -846,15 +897,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     if (prevSetupIdRef.current !== project.activeSetupId) {
       prevSetupIdRef.current = project.activeSetupId;
-      setHistory([activeSetup]);
-      setHistoryIndex(0);
+      // Undo history is project-wide now: switching scenes keeps it intact so
+      // Ctrl+Z can move an edit back across a scene switch.
       setSelectedElementIds([]);
       setSelectedShotId(null);
       setSelectedBackgroundId(null);
       setCurrentBeat(1);
       setIsPlaying(false);
     }
-  }, [project.activeSetupId, activeSetup]);
+  }, [project.activeSetupId]);
 
   // Animation Playback loop
   useEffect(() => {
@@ -876,54 +927,38 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, activeSetup.totalBeats, isLooping]);
 
-  // Helper to commit new setup state with history push
+  // Helper to commit new setup state with history push. The history entry is
+  // a whole-project snapshot so unrelated project edits stay undoable too.
   const commitSetupState = (newSetup: SceneSetup, recordHistory = true) => {
-    setProject((prev) => ({
-      ...prev,
-      setups: prev.setups.map((s) => (s.id === newSetup.id ? newSetup : s)),
-    }));
-
-    if (recordHistory) {
-      const nextHistory = history.slice(0, historyIndex + 1);
-      const last = nextHistory[nextHistory.length - 1];
-      // Skip identical consecutive states so one press of Ctrl+Z only ever
-      // steps back ONE logical operation (no stacked no-op entries).
-      if (!last || JSON.stringify(last) !== JSON.stringify(newSetup)) {
-        nextHistory.push(newSetup);
-        if (nextHistory.length > 50) nextHistory.shift();
-        setHistory(nextHistory);
-        setHistoryIndex(nextHistory.length - 1);
-      }
-    }
+    setProject((prev) => {
+      const next: Project = {
+        ...prev,
+        setups: prev.setups.map((s) => (s.id === newSetup.id ? newSetup : s)),
+      };
+      if (recordHistory) pendingSnapshotsRef.current.push(next);
+      return next;
+    });
   };
 
   const undo = () => {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
-      const targetState = history[newIndex];
       setHistoryIndex(newIndex);
-      setProject((prev) => ({
-        ...prev,
-        setups: prev.setups.map((s) => (s.id === targetState.id ? targetState : s)),
-      }));
+      setProject(history[newIndex]);
     }
   };
 
   const redo = () => {
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
-      const targetState = history[newIndex];
       setHistoryIndex(newIndex);
-      setProject((prev) => ({
-        ...prev,
-        setups: prev.setups.map((s) => (s.id === targetState.id ? targetState : s)),
-      }));
+      setProject(history[newIndex]);
     }
   };
 
   // Selection handlers
   /**
-   * Select an element. Locked elements stay unselectable — unless `force` is
+   * Select an element. Locked elements stay unselectable â€” unless `force` is
    * true, which is the deliberate escape hatch (double-click or the lock chip)
    * used to reach a locked element's inspector so it can be unlocked again.
    */
@@ -938,7 +973,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (el?.locked && !force) return;
     const isCamera = el?.type === 'camera';
 
-    // Selecting on the canvas opens the inspector — unless:
+    // Selecting on the canvas opens the inspector â€” unless:
     // 1. The user is reading the lined script, storyboard, or equipment list.
     // 2. The element is a camera, which only opens inspector on double-click unless inspector is already open.
     if (activeRightTab !== 'script' && activeRightTab !== 'storyboard' && activeRightTab !== 'equipment') {
@@ -991,7 +1026,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedBackgroundId(null);
   };
 
-  // Plan groups (plan §6.4). Groups live on the setup and are updated through
+  // Plan groups (plan Â§6.4). Groups live on the setup and are updated through
   // the existing setup-update path so history/undo keeps working.
   const groupSelection = () => {
     if (selectedElementIds.length < 2) return;
@@ -1143,7 +1178,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         linkedShotId: shotId,
       };
 
-      setProject((prev) => ({
+      setRecordedProject((prev) => ({
         ...prev,
         avScriptRows: [...(prev.avScriptRows || avScriptRows), newAVRow],
       }));
@@ -1352,7 +1387,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const sensor = (updates as Partial<CameraElement>).sensorFormat ?? cam.sensorFormat;
       extraUpdates = { fovAngle: calculateFovAngle(focal, sensor) };
 
-      // Sync the linked shot's lens in the SAME commit — a separate updateShot
+      // Sync the linked shot's lens in the SAME commit â€” a separate updateShot
       // call would be overwritten by this commit, because both rebuild the
       // setup from the same base state (last write wins per field).
       if ((updates as Partial<CameraElement>).focalLength !== undefined) {
@@ -1364,7 +1399,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
 
-      // A camera that gains its FIRST waypoint is now moving — its linked shot
+      // A camera that gains its FIRST waypoint is now moving â€” its linked shot
       // can't stay Static. Flip it to Tracking (only if the user hadn't already
       // picked a real movement).
       if ((updates as Partial<CameraElement>).path !== undefined) {
@@ -1418,7 +1453,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   /**
-   * Group cleanup after deletions (plan §6.4): removed ids are dropped from
+   * Group cleanup after deletions (plan Â§6.4): removed ids are dropped from
    * every group's childIds; a group that loses its last member dissolves.
    * Deleting a whole group's membership therefore removes the group too.
    */
@@ -1435,7 +1470,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteElementById = (id: string) => {
     const updatedElements = activeSetup.elements.filter((e) => e.id !== id);
-    // If it's a camera, its shots go with it — and so do their linings, so the
+    // If it's a camera, its shots go with it â€” and so do their linings, so the
     // lined script never keeps a stroke for a shot that no longer exists.
     const removedShotIds = new Set(
       activeSetup.shots.filter((s) => s.cameraId === id).map((s) => s.id)
@@ -1455,7 +1490,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setSelectedShotId(null);
     }
     if (removedShotIds.size > 0) {
-      setProject((prev) => ({
+      setRecordedProject((prev) => ({
         ...prev,
         avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
       }));
@@ -1488,7 +1523,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedElementIds([]);
     setSelectedShotId(null);
     if (removedShotIds.size > 0) {
-      setProject((prev) => ({
+      setRecordedProject((prev) => ({
         ...prev,
         avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
       }));
@@ -1527,7 +1562,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     // Duplicating a whole group duplicates the group itself, with childIds
-    // remapped to the cloned element ids (plan §6.4).
+    // remapped to the cloned element ids (plan Â§6.4).
     const duplicatedGroups: PlanGroup[] = (activeSetup.groups || [])
       .filter((g) => g.childIds.length > 0 && g.childIds.every((cid) => duplicateIdMap.has(cid)))
       .map((g) => ({
@@ -1556,7 +1591,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Holds the most recent LIVE setup produced by a no-history update (drag
   // moves, rotate, endpoint/waypoint drags). Updated synchronously by
   // updateElement / updateMultipleElements so that commitCurrentState (called
-  // on release) always pushes the EXACT state shown on the canvas — even if
+  // on release) always pushes the EXACT state shown on the canvas â€” even if
   // React hasn't re-rendered the pointerup handler with the final position yet.
   const liveSetupRef = useRef<SceneSetup | null>(null);
 
@@ -1627,17 +1662,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Push the current live canvas state into history. Drags update the project
   // live (recordHistory=false) and call this ONCE on release, so a single
-  // drag/move/rotate is exactly one undoable operation.
+  // drag/move/rotate is exactly one undoable operation. Uses the latest
+  // project ref so the snapshot includes every live drag update.
   const commitCurrentState = () => {
-    const nextHistory = history.slice(0, historyIndex + 1);
-    const last = nextHistory[nextHistory.length - 1];
     const targetSetup = liveSetupRef.current ?? activeSetup;
-    if (!last || JSON.stringify(last) !== JSON.stringify(targetSetup)) {
-      nextHistory.push(targetSetup);
-      if (nextHistory.length > 50) nextHistory.shift();
-      setHistory(nextHistory);
-      setHistoryIndex(nextHistory.length - 1);
-    }
+    const base = liveProjectRef.current ?? project;
+    const snapshot: Project = {
+      ...base,
+      setups: base.setups.map((s) => (s.id === targetSetup.id ? targetSetup : s)),
+    };
+    recordProjectSnapshot(snapshot, history, historyIndex);
   };
 
   const insertDoorInWall = (wallId: string): string | null => {
@@ -1965,7 +1999,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (project.scriptLines) return;
     const legacy = project.setups.find((setup) => (setup.scriptLines || []).length > 0);
     if (!legacy) return;
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       scriptTitle: prev.scriptTitle || legacy.scriptTitle,
       scriptText: prev.scriptText || legacy.scriptText,
@@ -1988,7 +2022,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       commitSetupState(updater(activeSetup));
       return;
     }
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       setups: prev.setups.map((setup) => (setup.id === setupId ? updater(setup) : setup)),
     }));
@@ -2064,7 +2098,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // The shot list's action column defaults to the highlighted screenplay text
     // so a fresh lining already reads like the moment it covers.
     const flattened = coveredText.replace(/\s+/g, ' ').trim();
-    const actionSummary = flattened.length > 90 ? `${flattened.slice(0, 90).trimEnd()}…` : flattened;
+    const actionSummary = flattened.length > 90 ? `${flattened.slice(0, 90).trimEnd()}â€¦` : flattened;
 
     const newShot: Shot = {
       id: shotId,
@@ -2120,7 +2154,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       linkedShotId: shotId,
     };
 
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       avScriptRows: [...(prev.avScriptRows || avScriptRows), newAVRow],
     }));
@@ -2172,7 +2206,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       })
       .join('\n');
     const flattened = coveredText.replace(/\s+/g, ' ').trim();
-    const actionSummary = flattened.length > 90 ? `${flattened.slice(0, 90).trimEnd()}…` : flattened;
+    const actionSummary = flattened.length > 90 ? `${flattened.slice(0, 90).trimEnd()}â€¦` : flattened;
     // An untouched auto-name ("Shot 1/2", "Shot 1/2 - Insert Coverage") is
     // replaced by the lined action; a name the user wrote is left alone.
     const autoName = !shot.name || /^Shot\s+\S+(\s+-\s+(Coverage|Insert Coverage))?$/i.test(shot.name);
@@ -2279,28 +2313,71 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * Replace the production's screenplay. It is stored once for the whole
    * project (every scene sees it) and linings that no longer resolve to a line
    * are dropped from each setup.
+   *
+   * The derived scene list is persisted here (scene ids are their source
+   * heading-line ids) so the scheduler can link strips to scenes. Scenes that
+   * disappear from the screenplay do NOT silently orphan their schedule
+   * strips: affected scene blocks are stamped with an `omittedLabel` and stay
+   * visible as OMITTED until the user deletes them.
    */
   const setScriptLines = (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string }) => {
     const numbered = lines.map((line, index) => ({ ...line, lineNumber: index + 1 }));
     const ids = new Set(numbered.map((line) => line.id));
-    setProject((prev) => ({
-      ...prev,
-      scriptTitle: meta?.scriptTitle ?? prev.scriptTitle,
-      scriptText: meta?.scriptText ?? prev.scriptText,
-      scriptLines: numbered,
-      setups: prev.setups.map((setup) => ({
-        ...setup,
-        // The legacy per-setup copy is cleared so there is one source of truth.
-        scriptLines: undefined,
-        scriptMarks: (setup.scriptMarks || []).filter(
-          (mark) => ids.has(mark.startLineId) && ids.has(mark.endLineId)
-        ),
-      })),
-    }));
+    setProject((prev) => {
+      // Derive old/new scene lists so removed headings can be detected.
+      const oldScenes = deriveScriptBreakdown(prev.scriptLines || [], [], []).scenes;
+      const newScenes = deriveScriptBreakdown(numbered, [], []).scenes;
+      const newSceneIds = new Set(newScenes.map((scene) => scene.id));
+      const omittedLabelById = new Map(
+        oldScenes
+          .filter((scene) => !newSceneIds.has(scene.id))
+          .map((scene) => [scene.id, `${scene.sceneNumber} Â· ${scene.heading}`] as const)
+      );
+
+      const next: Project = {
+        ...prev,
+        scriptTitle: meta?.scriptTitle ?? prev.scriptTitle,
+        scriptText: meta?.scriptText ?? prev.scriptText,
+        scriptLines: numbered,
+        scriptScenes: newScenes,
+        setups: prev.setups.map((setup) => ({
+          ...setup,
+          // The legacy per-setup copy is cleared so there is one source of truth.
+          scriptLines: undefined,
+          scriptMarks: (setup.scriptMarks || []).filter(
+            (mark) => ids.has(mark.startLineId) && ids.has(mark.endLineId)
+          ),
+        })),
+        scheduleBlocks: (prev.scheduleBlocks || []).map((block) => {
+          if (block.kind !== 'scene') return block;
+          if (newSceneIds.has(block.scriptSceneId)) {
+            // Scene exists again (or never vanished): clear a stale omission stamp.
+            if (block.omittedLabel === undefined) return block;
+            const next: typeof block = { id: block.id, kind: 'scene', scriptSceneId: block.scriptSceneId };
+            if (block.estimatedMinutes !== undefined) next.estimatedMinutes = block.estimatedMinutes;
+            return next;
+          }
+          const label = omittedLabelById.get(block.scriptSceneId);
+          if (!label && !block.omittedLabel) return block;
+          return label ? { ...block, omittedLabel: label } : block;
+        }),
+      };
+      // Screenplay edits (text, title, omissions) are undoable like any other
+      // project change.
+      pendingSnapshotsRef.current.push(next);
+      return next;
+    });
   };
 
-  const avScriptRows: AVScriptRow[] = project.avScriptRows || [
-    {
+  // Backfill the derived scene list for projects saved before it was
+  // persisted; absent-safe and idempotent.
+  useEffect(() => {
+    if (project.scriptScenes || !project.scriptLines?.length) return;
+    const scenes = deriveScriptBreakdown(project.scriptLines, [], []).scenes;
+    setProject((prev) => (prev.scriptScenes ? prev : { ...prev, scriptScenes: scenes }));
+  }, [project.scriptScenes, project.scriptLines]);
+
+  const avScriptRows: AVScriptRow[] = project.avScriptRows || [    {
       id: 'av-1',
       shotNumber: '1',
       shotName: 'WS - Master Establishing',
@@ -2332,18 +2409,18 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const scriptFormatMode: ScriptFormatMode = project.scriptFormatMode || 'lined_coverage';
 
   const setScriptFormatMode = (mode: ScriptFormatMode) => {
-    setProject((prev) => ({ ...prev, scriptFormatMode: mode }));
+    setRecordedProject((prev) => ({ ...prev, scriptFormatMode: mode }));
   };
 
   const setAVScriptRows = (rows: AVScriptRow[]) => {
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       avScriptRows: rows,
     }));
   };
 
   const updateAVScriptRow = (id: string, updates: Partial<AVScriptRow>) => {
-    setProject((prev) => {
+    setRecordedProject((prev) => {
       const current = prev.avScriptRows || avScriptRows;
       const target = current.find((r) => r.id === id);
       if (target?.linkedShotId) {
@@ -2444,7 +2521,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     commitSetupState(updatedSetup);
 
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       avScriptRows: [...(prev.avScriptRows || currentRows), newRow],
     }));
@@ -2460,7 +2537,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (row?.linkedShotId) {
       deleteShot(row.linkedShotId);
     }
-    setProject((prev) => {
+    setRecordedProject((prev) => {
       const rows = prev.avScriptRows || current;
       return {
         ...prev,
@@ -2594,7 +2671,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Create a new camera on the floor plan AND link an existing shot to it in
   // ONE commit. (Creating the camera and updating the shot in two separate
   // commits would lose the camera again, because each commit rebuilds the
-  // setup from the same base state — last write wins per field.)
+  // setup from the same base state â€” last write wins per field.)
   const createCameraForShot = (name: string, shotId: string, lensMm?: number, pos?: Vector2D): string => {
     const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
     const usedLetters = new Set(existingCams.map((c) => (c.cameraLabel || 'A').toUpperCase()));
@@ -2680,7 +2757,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         (element) => element.id === shot.cameraId && element.type === 'camera'
       ) as CameraElement | undefined;
 
-      // "— No Camera —": unlink, and drop the position if nothing else uses it.
+      // "â€” No Camera â€”": unlink, and drop the position if nothing else uses it.
       if (!cameraId) {
         const shots = setup.shots.map((item) =>
           item.id === shotId ? { ...item, cameraId: '', cameraLabel: 'A' } : item
@@ -2702,7 +2779,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const letter = (target.cameraLabel || 'A').toUpperCase();
 
-      // No camera blocked for this shot yet — link it to the picked one.
+      // No camera blocked for this shot yet â€” link it to the picked one.
       if (!current) {
         focusCameraId = target.id;
         return {
@@ -2890,7 +2967,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         e.id === currentCam.id ? ({ ...e, cameraLabel: clean, name: newName } as CameraElement) : e
       );
     } else {
-      // Shot has no camera element — link it to an existing camera carrying
+      // Shot has no camera element â€” link it to an existing camera carrying
       // this letter.
       const rep = activeSetup.elements.find(
         (e) => e.type === 'camera' && ((e as CameraElement).cameraLabel || 'A').toUpperCase() === clean
@@ -2925,7 +3002,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!shot) return setup;
 
       // If lens changed in shot, reflect in floor plan camera IN THE SAME
-      // COMMIT — a separate updateElement call would be overwritten by this
+      // COMMIT â€” a separate updateElement call would be overwritten by this
       // commit, because both rebuild the setup from the same base state.
       let updatedElements = setup.elements;
       if (shot.cameraId && updates.lensMm !== undefined) {
@@ -2949,7 +3026,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     });
 
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       avScriptRows: (prev.avScriptRows || []).map((r) => {
         if (r.linkedShotId !== id) return r;
@@ -2990,7 +3067,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     });
 
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       avScriptRows: (prev.avScriptRows || []).filter((r) => r.linkedShotId !== id),
     }));
@@ -3054,7 +3131,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (sourceSetupId === activeSetup.id) {
         commitSetupState({ ...activeSetup, shots: reindexed });
       } else {
-        setProject((prev) => ({
+        setRecordedProject((prev) => ({
           ...prev,
           setups: prev.setups.map((s) => (s.id === sourceSetupId ? { ...s, shots: reindexed } : s)),
         }));
@@ -3090,7 +3167,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ? [...targetSetup.elements, cameraEl]
       : targetSetup.elements;
 
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       setups: prev.setups.map((s) => {
         if (s.id === sourceSetupId) {
@@ -3249,7 +3326,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const nextNum = project.setups.length + 1;
     const newSetup = blankSetup(`${nextNum}`, name || `Coverage ${nextNum}`);
 
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       setups: [...prev.setups, newSetup],
       activeSetupId: newSetup.id,
@@ -3264,7 +3341,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       name: `${activeSetup.name} (Copy)`,
     };
 
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       setups: [...prev.setups, duplicatedSetup],
       activeSetupId: newId,
@@ -3274,7 +3351,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const deleteSetup = (setupId: string) => {
     if (project.setups.length <= 1) return; // Keep at least one setup
     const remaining = project.setups.filter((s) => s.id !== setupId);
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       setups: remaining,
       activeSetupId: remaining[0].id,
@@ -3293,6 +3370,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const loadProjectIntoWorkspace = (next: Project) => {
     setProject(next);
     setActiveProjectId(next.id);
+    // A fresh project starts a fresh undo timeline.
+    setHistory([next]);
+    setHistoryIndex(0);
+    liveProjectRef.current = next;
     setSelectedElementIds([]);
     setSelectedShotId(null);
     setSelectedBackgroundId(null);
@@ -3308,7 +3389,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const created = buildProject(options);
     writeProject(created);
     // The workspace preset is a local preference about module visibility,
-    // stored outside the project document (plan §1.2, §5.7).
+    // stored outside the project document (plan Â§1.2, Â§5.7).
     if (options?.workspacePreset) {
       persistWorkspaceProfile(created.id, createWorkspaceProfile(options.workspacePreset));
     }
@@ -3359,11 +3440,33 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  const updateProjectMeta = (updates: Partial<Project>) => {
-    setProject((prev) => ({ ...prev, ...updates }));
+  /**
+   * Project-level metadata update. Recorded in the undo history by default so
+   * schedule, mood-board, location and company edits are all Ctrl+Z-able.
+   * Pass `record: false` for bookkeeping that should stay outside history.
+   */
+  const updateProjectMeta = (updates: Partial<Project>, record = true) => {
+    setProject((prev) => {
+      const next: Project = { ...prev, ...updates };
+      if (record) pendingSnapshotsRef.current.push(next);
+      return next;
+    });
   };
 
-  // Named revisions (plan §13.2): user-created milestones, separate from the
+  /**
+   * Functional project mutation recorded in undo history. Used by every
+   * content mutation that builds its next state from `prev` directly
+   * (AV-script rows, setup add/duplicate/delete, cross-scene lining edits…).
+   */
+  const setRecordedProject = (updater: (prev: Project) => Project) => {
+    setProject((prev) => {
+      const next = updater(prev);
+      if (next !== prev) pendingSnapshotsRef.current.push(next);
+      return next;
+    });
+  };
+
+  // Named revisions (plan Â§13.2): user-created milestones, separate from the
   // per-setup undo history. Persisted on the project so autosave keeps them.
   const revisions: ProjectRevision[] = project.revisions || [];
 
@@ -3402,15 +3505,14 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const restored = applyRevisionRestore(project, revision);
 
     setProject(restored);
-    // The canvas content changed wholesale — reset selection and rebuild the
-    // undo history from the restored active setup.
+    // The workspace content changed wholesale â€” selection resets and the
+    // undo history restarts from the restored state.
     setSelectedElementIds([]);
     setSelectedShotId(null);
     setSelectedBackgroundId(null);
-    const restoredActive =
-      restored.setups.find((s) => s.id === restored.activeSetupId) || restored.setups[0];
-    setHistory([restoredActive]);
+    setHistory([restored]);
     setHistoryIndex(0);
+    liveProjectRef.current = restored;
   };
 
   /**
@@ -3457,7 +3559,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       shotIdMap.get(shotId)
     );
 
-    setProject((prev) => ({
+    setRecordedProject((prev) => ({
       ...prev,
       scriptTitle: hasScript ? prev.scriptTitle : 'Sample scene',
       scriptText: hasScript ? prev.scriptText : SAMPLE_SCREENPLAY,
@@ -3470,7 +3572,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const loadProjectFromJson = (newProject: Project) => {
     if (!newProject?.setups?.length) return;
     // Imports are staged through migration + structural validation before
-    // anything is committed to the library (plan §3.6): partially parsed or
+    // anything is committed to the library (plan Â§3.6): partially parsed or
     // corrupt files must never replace a valid saved project.
     let candidate: Project;
     try {
@@ -3486,9 +3588,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const errors = validateProject(candidate).filter((issue) => issue.severity === 'error');
     if (errors.length > 0) {
       alert(
-        `Import rejected — ${errors.length} structural problem${errors.length === 1 ? '' : 's'} found:\n\n` +
-          errors.slice(0, 5).map((issue) => `• ${issue.message}`).join('\n') +
-          (errors.length > 5 ? `\n… and ${errors.length - 5} more` : ''),
+        `Import rejected â€” ${errors.length} structural problem${errors.length === 1 ? '' : 's'} found:\n\n` +
+          errors.slice(0, 5).map((issue) => `â€¢ ${issue.message}`).join('\n') +
+          (errors.length > 5 ? `\nâ€¦ and ${errors.length - 5} more` : ''),
       );
       return;
     }

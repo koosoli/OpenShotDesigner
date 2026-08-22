@@ -1,21 +1,26 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
+  Copy,
   ImageOff,
   Images,
+  LayoutGrid,
   Link2,
+  Palette,
   Plus,
+  Printer,
+  Rows3,
   Trash2,
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { createIdbAssetStore } from '../../domain/storage/idbAssetStore';
 import type { MoodBoard, MoodBoardCard } from '../../domain/moodboard';
 import { addCard, addSection, createBoard, moveCard } from '../../domain/moodboard';
 import { createId } from '../../domain/ids';
-
-const assetStore = createIdbAssetStore();
+import { useMoodboardImageSrcs, moodboardAssetStore } from './moodboardAssets';
+import { CollageGrid } from './MoodboardCollage';
+import { extractBoardPalette } from './paletteClient';
 
 type LinkKind = NonNullable<MoodBoardCard['linkedEntity']>['kind'];
 
@@ -39,7 +44,7 @@ const useAssetObjectUrl = (assetId?: string): string | null => {
     }
     let objectUrl: string | null = null;
     let cancelled = false;
-    assetStore
+    moodboardAssetStore
       .get(assetId)
       .then((blob) => {
         if (!blob || cancelled) return;
@@ -123,7 +128,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
 
       <input
         value={card.caption ?? ''}
-        placeholder="Caption…"
+        placeholder="Captionâ€¦"
         onChange={(e) => onUpdate(card.id, { caption: e.target.value })}
         className={inputCls}
       />
@@ -184,25 +189,25 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
         <div className="space-y-1.5">
           <input
             value={card.colorNotes ?? ''}
-            placeholder="Color notes…"
+            placeholder="Color notesâ€¦"
             onChange={(e) => onUpdate(card.id, { colorNotes: e.target.value })}
             className={inputCls}
           />
           <input
             value={card.lensNotes ?? ''}
-            placeholder="Lens notes…"
+            placeholder="Lens notesâ€¦"
             onChange={(e) => onUpdate(card.id, { lensNotes: e.target.value })}
             className={inputCls}
           />
           <input
             value={card.lightingNotes ?? ''}
-            placeholder="Lighting notes…"
+            placeholder="Lighting notesâ€¦"
             onChange={(e) => onUpdate(card.id, { lightingNotes: e.target.value })}
             className={inputCls}
           />
           <textarea
             value={card.notes ?? ''}
-            placeholder="Notes…"
+            placeholder="Notesâ€¦"
             rows={2}
             onChange={(e) => onUpdate(card.id, { notes: e.target.value })}
             className={`${inputCls} resize-y`}
@@ -219,7 +224,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
                   : 'border-slate-700 bg-slate-950/60 text-slate-300'
               }`}
             >
-              <option value="">—</option>
+              <option value="">â€”</option>
               {LINK_KINDS.map((k) => (
                 <option key={k} value={k}>
                   {LINK_KIND_LABELS[k]}
@@ -228,7 +233,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
             </select>
             <input
               value={linkId}
-              placeholder="Entity id…"
+              placeholder="Entity idâ€¦"
               onChange={(e) => commitLink(linkKind, e.target.value)}
               className={`${inputCls} min-w-0 flex-1`}
             />
@@ -256,12 +261,16 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
 };
 
 export const MoodBoardPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta } = useFloorPlan();
+  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
   const isLight = theme === 'light';
 
   const boards = useMemo(() => project.moodBoards ?? [], [project.moodBoards]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const activeBoard = boards.find((b) => b.id === activeBoardId) ?? boards[0] ?? null;
+  /** Session-only view mode (rule 38): sections board vs full collage. */
+  const [view, setView] = useState<'sections' | 'collage'>('sections');
+  const [extracting, setExtracting] = useState(false);
+  const [copiedHex, setCopiedHex] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileTargetSectionRef = useRef<string | null>(null);
@@ -269,6 +278,13 @@ export const MoodBoardPanel: React.FC = () => {
   const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [urlInput, setUrlInput] = useState('');
+
+  // Collage needs every image source resolved (IDB blobs → object URLs).
+  const allCards = useMemo(
+    () => (activeBoard ? [...activeBoard.cards].sort((a, b) => a.order - b.order) : []),
+    [activeBoard]
+  );
+  const imageSrcs = useMoodboardImageSrcs(allCards);
 
   const setBoards = useCallback(
     (next: MoodBoard[]) => updateProjectMeta({ moodBoards: next }),
@@ -311,6 +327,34 @@ export const MoodBoardPanel: React.FC = () => {
     setActiveBoardId(remaining[0]?.id ?? null);
   };
 
+  /** Persist collage layout settings on the board (shared with print/export). */
+  const updateCollage = (updates: Partial<NonNullable<MoodBoard['collage']>>) => {
+    if (!activeBoard) return;
+    updateBoard({ ...activeBoard, collage: { ...(activeBoard.collage ?? {}), ...updates } });
+  };
+
+  /** Sample all board images and store the merged dominant-color palette. */
+  const handleExtractPalette = async () => {
+    if (!activeBoard || extracting) return;
+    setExtracting(true);
+    try {
+      const palette = await extractBoardPalette(allCards.map((card) => imageSrcs[card.id] ?? null), 8);
+      updateBoard({ ...activeBoard, palette });
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const copyHex = async (hex: string) => {
+    try {
+      await navigator.clipboard.writeText(hex.toUpperCase());
+      setCopiedHex(hex);
+      window.setTimeout(() => setCopiedHex((current) => (current === hex ? null : current)), 1200);
+    } catch {
+      // Clipboard blocked — the hex label is selectable anyway.
+    }
+  };
+
   const handleAddSection = () => {
     if (!activeBoard) return;
     updateBoard(addSection(activeBoard, newSectionTitle.trim() || `Section ${activeBoard.sections.length + 1}`));
@@ -324,7 +368,7 @@ export const MoodBoardPanel: React.FC = () => {
       for (const file of files) {
         if (!file.type.startsWith('image/')) continue;
         try {
-          const ref = await assetStore.put(file, { source: file.name });
+          const ref = await moodboardAssetStore.put(file, { source: file.name });
           board = addCard(board, {
             id: createId('card'),
             assetId: ref.id,
@@ -382,7 +426,7 @@ export const MoodBoardPanel: React.FC = () => {
         ...nextBoard.cards,
       ];
       if (card.assetId && !otherCards.some((c) => c.assetId === card.assetId)) {
-        void assetStore.delete(card.assetId).catch(() => {});
+        void moodboardAssetStore.delete(card.assetId).catch(() => {});
       }
       updateBoard(nextBoard);
     },
@@ -488,6 +532,29 @@ export const MoodBoardPanel: React.FC = () => {
               title="Board name"
               className={`${inputCls} w-40`}
             />
+            <div className={`flex p-0.5 rounded-md border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-950/60'}`}>
+              <button
+                onClick={() => setView('sections')}
+                title="Sections board view"
+                className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                  view === 'sections' ? (isLight ? 'bg-sky-600 text-white' : 'bg-sky-600 text-white') : mutedCls
+                }`}
+              >
+                <Rows3 className="w-3 h-3" /> Sections
+              </button>
+              <button
+                onClick={() => setView('collage')}
+                title="Collage of all images"
+                className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                  view === 'collage' ? 'bg-sky-600 text-white' : mutedCls
+                }`}
+              >
+                <LayoutGrid className="w-3 h-3" /> Collage
+              </button>
+            </div>
+            <button onClick={() => openExportModal('moodboard')} title="Print or export this mood board" className={btnCls}>
+              <Printer className="w-3.5 h-3.5" /> Print
+            </button>
             <button
               onClick={handleDeleteBoard}
               title="Delete this board"
@@ -505,6 +572,80 @@ export const MoodBoardPanel: React.FC = () => {
         <p className={`py-8 text-center text-xs ${mutedCls}`}>
           No mood boards yet — create one to collect visual references.
         </p>
+      ) : view === 'collage' ? (
+        <>
+          {/* Collage controls — persisted on the board so print/export match */}
+          <div className="flex items-end gap-2 flex-wrap">
+            <label className="flex flex-col gap-1">
+              <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Columns</span>
+              <input
+                type="range" min={1} max={6} step={1}
+                value={activeBoard.collage?.columns ?? 3}
+                onChange={(e) => updateCollage({ columns: Number(e.target.value) })}
+                className="w-24 accent-sky-600"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Gap</span>
+              <input
+                type="range" min={0} max={24} step={1}
+                value={activeBoard.collage?.gap ?? 8}
+                onChange={(e) => updateCollage({ gap: Number(e.target.value) })}
+                className="w-20 accent-sky-600"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Background</span>
+              <input
+                type="color"
+                value={activeBoard.collage?.background || '#ffffff'}
+                onChange={(e) => updateCollage({ background: e.target.value })}
+                className="w-10 h-8 p-0 border-0 bg-transparent cursor-pointer rounded"
+                aria-label="Collage background color"
+              />
+            </label>
+            <button
+              onClick={() => updateCollage({ showCaptions: !(activeBoard.collage?.showCaptions ?? true) })}
+              className={`${btnCls} ${!(activeBoard.collage?.showCaptions ?? true) ? 'opacity-50' : ''}`}
+              title="Toggle captions under each image"
+            >
+              Captions {activeBoard.collage?.showCaptions ?? true ? 'on' : 'off'}
+            </button>
+            <button onClick={handleExtractPalette} disabled={extracting || allCards.length === 0} className={`${btnCls} disabled:opacity-40`}>
+              <Palette className="w-3.5 h-3.5" /> {extracting ? 'Analyzing…' : 'Extract palette'}
+            </button>
+            <span className={`text-[10px] max-w-[220px] leading-snug ${mutedCls}`}>
+              Layout and palette are saved with the board and used by Print / Export.
+            </span>
+          </div>
+
+          {(activeBoard.palette?.length ?? 0) > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Dominant colors</span>
+              {activeBoard.palette!.map((hex) => (
+                <button
+                  key={hex}
+                  onClick={() => copyHex(hex)}
+                  title={`${hex.toUpperCase()}${copiedHex === hex ? ' — copied!' : ' — click to copy'}`}
+                  className="group relative w-12 h-8 rounded border border-slate-400/60 cursor-pointer"
+                  style={{ backgroundColor: hex }}
+                >
+                  {copiedHex === hex && (
+                    <Copy className="absolute inset-0 m-auto w-3 h-3 text-white drop-shadow" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className={`rounded-xl overflow-auto ${isLight ? 'bg-white' : 'bg-slate-950/40'}`} style={{ maxHeight: 'calc(100% - 4rem)' }}>
+            <CollageGrid
+              cards={allCards}
+              srcs={imageSrcs}
+              collage={activeBoard.collage ?? {}}
+            />
+          </div>
+        </>
       ) : (
         <>
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -514,7 +655,7 @@ export const MoodBoardPanel: React.FC = () => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAddUrl();
               }}
-              placeholder="Add by image URL (referenced, not downloaded — attribution preserved)"
+              placeholder="Add by image URL (referenced, not downloaded â€” attribution preserved)"
               className={`${inputCls} flex-1 min-w-[200px]`}
             />
             <button onClick={handleAddUrl} disabled={!urlInput.trim()} className={`${btnCls} disabled:opacity-40`}>
@@ -529,14 +670,14 @@ export const MoodBoardPanel: React.FC = () => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAddSection();
               }}
-              placeholder="New section name…"
+              placeholder="New section nameâ€¦"
               className={`${inputCls} w-44`}
             />
             <button onClick={handleAddSection} className={btnCls}>
               <Plus className="w-3.5 h-3.5" /> Add section
             </button>
             <span className={`text-[10px] ${mutedCls}`}>
-              Paste or drop images anywhere — they land in the highlighted section.
+              Paste or drop images anywhere â€” they land in the highlighted section.
             </span>
           </div>
 

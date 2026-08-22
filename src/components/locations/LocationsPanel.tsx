@@ -16,10 +16,10 @@ import {
   locationOsmLinkUrl,
   locationPoint,
   locationQuery,
-  osmEmbedUrl,
 } from '../../domain/locations';
 import type { GeoPoint } from '../../domain/locations';
 import type { LocationType } from '../../domain/locations';
+import { OsmMiniMap } from './OsmMiniMap';
 
 const LOCATION_TYPES: LocationType[] = ['location', 'studio', 'stage', 'venue', 'arena', 'outdoor', 'other'];
 
@@ -325,16 +325,24 @@ export const LocationsPanel: React.FC = () => {
                       )}
                     </div>
                     {point ? (
-                      <iframe
-                        title={`Map of ${loc.name}`}
-                        src={osmEmbedUrl(point)}
-                        loading="lazy"
-                        className="w-full h-36 rounded-md border-0"
-                      />
+                      <>
+                        <OsmMiniMap
+                          point={point}
+                          height={200}
+                          onPick={(picked) => {
+                            updateLocation(loc.id, { lat: picked.lat, lng: picked.lng });
+                            setGeocodeMessage({ id: loc.id, text: 'Pin moved.' });
+                          }}
+                        />
+                        <p className={`text-[9px] ${mutedText}`}>Drag to pan · click to move the pin · buttons zoom.</p>
+                      </>
                     ) : (
-                      <p className={`text-[9px] leading-snug ${mutedText}`}>
-                        Enter an address above, then “Find on map” places an OpenStreetMap pin. The pin and map links follow the location into the scheduler and call sheets.
-                      </p>
+                      <>
+                        <OsmMiniMap point={null} height={160} onPick={(picked) => { updateLocation(loc.id, { lat: picked.lat, lng: picked.lng }); setGeocodeMessage(null); }} />
+                        <p className={`text-[9px] leading-snug ${mutedText}`}>
+                          Click the map to drop a pin, or enter an address above and use “Find on map”. The pin follows the location into the scheduler and call sheets.
+                        </p>
+                      </>
                     )}
                     {geocodeMessage?.id === loc.id && (
                       <p className="text-[9px] italic text-sky-600 dark:text-sky-300">{geocodeMessage.text}</p>

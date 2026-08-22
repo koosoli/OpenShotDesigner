@@ -1,5 +1,6 @@
 import { CameraElement, CableElement, FloorPlanElement, LightElement, PropElement } from '../types';
 import { CABLE_TYPES } from '../constants/presets';
+import { fixtureProfileById } from '../domain/fixtures';
 
 export interface PowerSummary {
   totalWatts: number;
@@ -34,25 +35,17 @@ const WATTS_BY_FIXTURE: Record<string, number> = {
   overhead_diffusion: 0,
 };
 
-/** Try to read a wattage out of a fixture model string (e.g. "Aputure 600d" → 600W). */
-const wattsFromModel = (model: string | undefined): number | null => {
-  if (!model) return null;
-  const m = model.match(/(\d{3,4})\s*[Ww]/);
-  if (m) return Number(m[1]);
-  const n = model.match(/\b(\d{2,4})\b/);
-  if (n) {
-    const v = Number(n[1]);
-    // Only treat plausible fixture wattages as draws; ignore lens / size numbers.
-    if (v >= 40 && v <= 9000) return v;
-  }
-  return null;
-};
-
+/**
+ * Lighting draw for planning. Priority order:
+ * 1. Explicit power from the linked FixtureProfile (OFL/manual) — the only
+ *    manufacturer-accurate source.
+ * 2. Generic per-fixture-TYPE planning defaults (documented assumptions).
+ * Model names are NEVER parsed for wattages (plan rule 28).
+ */
 export const estimateLightWatts = (light: LightElement): number => {
+  const profile = fixtureProfileById(light.fixtureProfileId);
+  if (profile?.powerWatts !== undefined) return profile.powerWatts;
   if (light.beamAngle === 0 && light.intensity === 0) return 0;
-  const model = light.fixtureModel || light.brand || '';
-  const fromModel = wattsFromModel(model);
-  if (fromModel) return fromModel;
   return WATTS_BY_FIXTURE[light.fixtureType] ?? 0;
 };
 

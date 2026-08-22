@@ -39,4 +39,17 @@ export interface MoodBoard {
   title: string;
   sections: MoodBoardSection[];
   cards: MoodBoardCard[];
+  /**
+   * Collage presentation shared by the panel preview and the printed/exported
+   * collage document. Optional and absent-safe.
+   */
+  collage?: {
+    columns?: number;
+    gap?: number;
+    background?: string;
+    showCaptions?: boolean;
+    title?: string;
+  };
+  /** Dominant color palette extracted from the board's images (hex strings). */
+  palette?: string[];
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { CableElement } from '../../types';
 import { getDistance } from '../../utils/geometry';
 import { CABLE_TYPES } from '../../constants/presets';
@@ -63,7 +63,7 @@ export const CableLayer: React.FC<CableLayerProps> = ({
   onAddWaypoint,
 }) => {
   const showCableLabel = displaySettings.showLabels && displaySettings.showCableLabels !== false;
-  const labelScale = displaySettings.labelScale ?? 1;
+  const labelScale = (displaySettings.labelScale ?? 1) * (displaySettings.labelCategoryScale?.cables ?? 1);
   const masterLabelOpacity = displaySettings.labelOpacity ?? 1;
   const cableLabelOpacity = masterLabelOpacity * (displaySettings.labelCategoryOpacity?.cables ?? 1);
 
@@ -203,7 +203,7 @@ export const CableLayer: React.FC<CableLayerProps> = ({
                 );
               })}
 
-            {/* Cable label: shortLabel · length, with from → to */}
+            {/* Cable label: shortLabel Â· length, with from â†’ to */}
             {showCableLabel && cable.showLabel !== false && (
               <g transform={`translate(${labelX}, ${labelY}) rotate(${labelRot}) scale(${labelScale})`} opacity={cableLabelOpacity}>
                 <rect
@@ -226,10 +226,10 @@ export const CableLayer: React.FC<CableLayerProps> = ({
                   fontWeight="bold"
                   className="select-none font-mono"
                 >
-                  {cableInfo?.shortLabel || 'CABLE'} · {lengthM}m
+                  {cableInfo?.shortLabel || 'CABLE'} Â· {lengthM}m
                 </text>
                 <text x={0} y={10} fill="#cbd5e1" fontSize="8.5" textAnchor="middle" className="select-none">
-                  {cable.fromLabel && cable.toLabel ? `${cable.fromLabel} → ${cable.toLabel}` : ''}
+                  {cable.fromLabel && cable.toLabel ? `${cable.fromLabel} â†’ ${cable.toLabel}` : ''}
                 </text>
               </g>
             )}

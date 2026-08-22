@@ -42,7 +42,18 @@ export interface ProductionCalendarEvent {
 }
 
 export type ScheduleBlock =
-  | { id: string; kind: 'scene'; scriptSceneId: string; estimatedMinutes?: number }
+  | {
+      id: string;
+      kind: 'scene';
+      scriptSceneId: string;
+      estimatedMinutes?: number;
+      /**
+       * Set when the scene was removed from the screenplay while this strip
+       * still exists: the block stays visible as OMITTED until the user
+       * deletes it. Optional/absent-safe for legacy projects.
+       */
+      omittedLabel?: string;
+    }
   | { id: string; kind: 'setup'; setupId: string; estimatedMinutes?: number }
   | { id: string; kind: 'shots'; shotIds: string[]; estimatedMinutes?: number }
   | { id: string; kind: 'cue'; cueId: string; estimatedMinutes?: number }
