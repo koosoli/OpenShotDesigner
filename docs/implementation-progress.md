@@ -1,7 +1,7 @@
 # Implementation Progress
 
 Running record of what has landed, mapped to `docs/IMPLEMENTATION_PLAN.md` batches.
-Typecheck and Vitest are green at time of writing; test count: **591**. Production builds are verified separately before handoff.
+Typecheck and Vitest are green at time of writing; test count: **684**. Production builds are verified separately before handoff.
 
 ## Batch 1 — Foundation ✅
 - Central ID service (`src/domain/ids.ts`), deep-clone/remap (`src/domain/clone.ts`)
@@ -83,6 +83,14 @@ Schema v16 (`src/domain/migrations/v15-to-v16.ts`, no backfill — every new fie
 - **Inspector naming:** the no-selection view is "Plan & Scene Settings"; "Production Info" is marked project-wide.
 - **Audit fixes:** same-render setup writes no longer overwrite each other (`commitSetupUpdate`); geocoding and mood-board uploads patch from `prev` instead of a stale closure; `src/domain/power/types.ts` had a raw Latin-1 byte and `npm run check:encoding` now fails on invalid UTF-8, a class its mojibake patterns could not detect.
 - See `docs/codebase-audit-2026-08-22b.md` for what remains open.
+
+## Audit pass (2026-08-23) ✅
+Test count now **684**. See `docs/codebase-audit-2026-08-23.md` for the full report.
+- **Call-sheet cast:** days scheduled by setup or shot listed no cast at all — only screenplay `scene` blocks contributed characters, so the script-optional path (rule 1) printed "No cast scheduled" with actors on the plan. Derivation moved to `src/domain/reports/dayCast.ts` and extended to scenes, setups and shots (13 tests).
+- **First load halved:** the 1.23 MB generated fixture snapshot was statically imported into the entry chunk. It is a dynamic import now, started after mount; entry chunk 2,838 kB → 1,608 kB (gzip 498 → 415 kB).
+- **Stale catalog:** Gear and Power never subscribed to the fixture catalog, so an online refresh left stale wattages on screen. Both subscribe now.
+- **Referential integrity:** `removePerson` also clears task assignees and call-sheet pick-ups.
+- **IDs:** six waypoint sites minted `wp-${Date.now()}` (collides within a millisecond, breaks React keys and drag targeting); all use `createId('wp')` (rule 16).
 
 ## Remaining / deferred
 - Batch 3A collaboration spike — intentionally deferred (CRDT choice is a locked "do not decide silently" item)
