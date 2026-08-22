@@ -7,7 +7,7 @@
  * dozen props, because the prop list would otherwise just be a copy of the
  * context.
  */
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Compass, Database, Fingerprint, Lightbulb, Maximize, Sparkles, Sun, Tags, Zap } from 'lucide-react';
 import type { LightElement } from '../../../types';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
@@ -48,6 +48,11 @@ interface LightInspectorProps {
 }
 
 export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }) => {
+  // Prefix for pairing each caption with its control (`htmlFor`/`id`). From
+  // `useId` so two instances of this panel on screen cannot collide — the
+  // captions used to be plain siblings with no `htmlFor`, which meant screen
+  // readers announced every one of these inputs unlabelled.
+  const fieldId = useId();
   const { activeSetup, displaySettings, updateDisplaySettings, updateElement, updateSetupMeta } =
     useFloorPlan();
   const fixtureProfiles = useFixtureCatalog().profiles;
@@ -81,8 +86,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
       >
         {/* Light Function / Role */}
         <div>
-          <label className="opacity-60 block mb-1 font-semibold">Light Function / Role</label>
-          <select
+          <label htmlFor={`${fieldId}-light-function-role`} className="opacity-60 block mb-1 font-semibold">Light Function / Role</label>
+          <select id={`${fieldId}-light-function-role`}
             value={light.lightRole || 'unassigned'}
             onChange={(e) => updateElement(light.id, { lightRole: e.target.value as any })}
             className={`w-full border rounded-lg p-2 font-medium ${
@@ -149,6 +154,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                       title="Pick custom color for this role tag"
                     >
                       <input
+                        aria-label="Pick custom color for this role tag"
                         type="color"
                         value={ensureHexColor(activeRoleColor, '#f59e0b')}
                         onChange={(e) => updateElement(light.id, { roleColor: e.target.value })}
@@ -195,8 +201,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
         {/* Fixture Type */}
         <div>
-          <label className="opacity-60 block mb-1 font-semibold">Fixture Model / Type</label>
-          <select
+          <label htmlFor={`${fieldId}-fixture-model-type`} className="opacity-60 block mb-1 font-semibold">Fixture Model / Type</label>
+          <select id={`${fieldId}-fixture-model-type`}
             value={light.fixtureType}
             onChange={(e) => {
               const fix = LIGHT_FIXTURES.find((f) => f.type === e.target.value);
@@ -229,8 +235,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="opacity-60 block mb-1 font-semibold">Brand</label>
-              <select
+              <label htmlFor={`${fieldId}-brand`} className="opacity-60 block mb-1 font-semibold">Brand</label>
+              <select id={`${fieldId}-brand`}
                 value={light.brand || ''}
                 onChange={(e) => {
                   const brand = e.target.value;
@@ -269,7 +275,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
             </div>
 
             <div>
-              <label className="opacity-60 block mb-1 font-semibold">Model</label>
+              <span className="opacity-60 block mb-1 font-semibold">Model</span>
               {(() => {
                 const brandObj = LIGHTING_BRANDS.find((b) => b.brand === light.brand);
                 const models = brandObj?.models || [];
@@ -359,7 +365,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
             return (
               <div>
-                <label className="opacity-60 block mb-1 text-[11px]">Custom Model / Unit Name</label>                        <input
+                <label htmlFor={`${fieldId}-custom-model-unit-name`} className="opacity-60 block mb-1 text-[11px]">Custom Model / Unit Name</label>                        <input id={`${fieldId}-custom-model-unit-name`}
                   type="text"
                   value={light.fixtureModel || ''}
                   onChange={(e) => {
@@ -423,8 +429,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           /* ---------- C-STAND FLAG CONTROLS ---------- */
           <div className="space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
             <div>
-              <label className="opacity-60 block mb-1">Flag Fabric Size</label>
-              <div className="grid grid-cols-4 gap-1">
+              <span id={`${fieldId}-flag-fabric-size-group`} className="opacity-60 block mb-1">Flag Fabric Size</span>
+              <div role="group" aria-labelledby={`${fieldId}-flag-fabric-size-group`} className="grid grid-cols-4 gap-1">
                 {FLAG_SIZE_PRESETS.map((s) => (
                   <button
                     key={s.value}
@@ -450,8 +456,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
             {light.fixtureType === 'flag_net' && (
               <div>
-                <label className="opacity-60 block mb-1">Net Density (Light Cut)</label>
-                <div className="grid grid-cols-2 gap-1">
+                <span id={`${fieldId}-net-density-light-cut-group`} className="opacity-60 block mb-1">Net Density (Light Cut)</span>
+                <div role="group" aria-labelledby={`${fieldId}-net-density-light-cut-group`} className="grid grid-cols-2 gap-1">
                   <button
                     onClick={() => updateElement(light.id, { netValue: 'single' })}
                     className={`py-1.5 text-[10px] font-semibold rounded border transition-colors ${
@@ -543,8 +549,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           >
             {/* Color Mode Selector */}
             <div>
-              <label className="opacity-60 block mb-1 font-semibold">Color Mode</label>
-              <div className="grid grid-cols-2 gap-1.5 mb-2">
+              <span id={`${fieldId}-color-mode-group`} className="opacity-60 block mb-1 font-semibold">Color Mode</span>
+              <div role="group" aria-labelledby={`${fieldId}-color-mode-group`} className="grid grid-cols-2 gap-1.5 mb-2">
                 <button
                   type="button"
                   onClick={() => updateElement(light.id, { rgbColor: undefined, colorTemp: light.colorTemp || 5600 })}
@@ -925,6 +931,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     title="Pick custom label color"
                   >
                     <input
+                      aria-label="Pick custom label color"
                       type="color"
                       value={ensureHexColor(light.labelColor || beamHex, '#ffffff')}
                       onChange={(e) => updateElement(light.id, { labelColor: e.target.value })}
@@ -993,8 +1000,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           <>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="opacity-60 block mb-1">Universe</label>
-                <input
+                <label htmlFor={`${fieldId}-universe`} className="opacity-60 block mb-1">Universe</label>
+                <input id={`${fieldId}-universe`}
                   type="number"
                   min={1}
                   value={light.dmxUniverse ?? ''}
@@ -1008,8 +1015,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                 />
               </div>
               <div>
-                <label className="opacity-60 block mb-1">Start Address (1–512)</label>
-                <input
+                <label htmlFor={`${fieldId}-start-address-1-512`} className="opacity-60 block mb-1">Start Address (1–512)</label>
+                <input id={`${fieldId}-start-address-1-512`}
                   type="number"
                   min={1}
                   max={512}
@@ -1027,8 +1034,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="opacity-60 block mb-1">Fixture mode</label>
-                <input
+                <label htmlFor={`${fieldId}-fixture-mode`} className="opacity-60 block mb-1">Fixture mode</label>
+                <input id={`${fieldId}-fixture-mode`}
                   type="text"
                   value={light.dmxModeName ?? ''}
                   onChange={(e) => updateElement(light.id, { dmxModeName: e.target.value || undefined })}
@@ -1037,8 +1044,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                 />
               </div>
               <div>
-                <label className="opacity-60 block mb-1">Mode footprint (channels)</label>
-                <input
+                <label htmlFor={`${fieldId}-mode-footprint-channels`} className="opacity-60 block mb-1">Mode footprint (channels)</label>
+                <input id={`${fieldId}-mode-footprint-channels`}
                   type="number"
                   min={1}
                   max={512}

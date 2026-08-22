@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
@@ -97,6 +97,11 @@ const SHOT_COLUMNS: Array<{ key: ShotColumnKey; label: string }> = [
 const SHOT_COLUMNS_KEY = 'osd.shotlist.hiddenColumns';
 
 export const ShotListPanel: React.FC = () => {
+  // Prefix for pairing each caption with its control (`htmlFor`/`id`). From
+  // `useId` so two instances of this panel on screen cannot collide — the
+  // captions used to be plain siblings with no `htmlFor`, which meant screen
+  // readers announced every one of these inputs unlabelled.
+  const fieldId = useId();
   const {
     project,
     activeSetup,
@@ -1124,8 +1129,8 @@ export const ShotListPanel: React.FC = () => {
                   >
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">MOVEMENT</label>
-                        <select
+                        <label htmlFor={`${fieldId}-movement`} className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">MOVEMENT</label>
+                        <select id={`${fieldId}-movement`}
                           value={effectiveMovement(shot, linkedCamera)}
                           onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
                           title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
@@ -1140,8 +1145,8 @@ export const ShotListPanel: React.FC = () => {
                       </div>
 
                       <div>
-                        <label className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">CAMERA ANGLE</label>
-                        <select
+                        <label htmlFor={`${fieldId}-camera-angle`} className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">CAMERA ANGLE</label>
+                        <select id={`${fieldId}-camera-angle`}
                           value={shot.cameraAngle}
                           onChange={(e) => updateShot(shot.id, { cameraAngle: e.target.value as any })}
                           className={`w-full text-xs border rounded-lg p-1.5 ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'}`}
@@ -1157,8 +1162,8 @@ export const ShotListPanel: React.FC = () => {
 
                     {/* Framing & Action description */}
                     <div>
-                      <label className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">FRAMING & ACTION NOTES</label>
-                      <textarea
+                      <label htmlFor={`${fieldId}-framing-action-notes`} className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">FRAMING & ACTION NOTES</label>
+                      <textarea id={`${fieldId}-framing-action-notes`}
                         value={shot.framingDescription}
                         onChange={(e) => updateShot(shot.id, { framingDescription: e.target.value })}
                         placeholder="e.g. OTS John looking at Sarah. Camera dollies left as John stands up..."

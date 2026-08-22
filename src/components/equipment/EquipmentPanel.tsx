@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Anchor,
@@ -55,6 +55,11 @@ import { DmxUniverseView } from './DmxUniverseView';
 import { SignalFlowView } from './SignalFlowView';
 
 export const EquipmentPanel: React.FC = () => {
+  // Prefix for pairing each caption with its control (`htmlFor`/`id`). From
+  // `useId` so two instances of this panel on screen cannot collide — the
+  // captions used to be plain siblings with no `htmlFor`, which meant screen
+  // readers announced every one of these inputs unlabelled.
+  const fieldId = useId();
   const {
     activeSetup,
     project,
@@ -972,8 +977,8 @@ export const EquipmentPanel: React.FC = () => {
               <div className="p-3 space-y-3">
                 <div className="flex flex-wrap items-end gap-2">
                   <div>
-                    <label className="opacity-60 block mb-1 text-[10px]">Start universe</label>
-                    <input
+                    <label htmlFor={`${fieldId}-start-universe`} className="opacity-60 block mb-1 text-[10px]">Start universe</label>
+                    <input id={`${fieldId}-start-universe`}
                       type="number"
                       min={1}
                       value={dmxPatchStart.universe}
@@ -982,8 +987,8 @@ export const EquipmentPanel: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1 text-[10px]">Start address</label>
-                    <input
+                    <label htmlFor={`${fieldId}-start-address`} className="opacity-60 block mb-1 text-[10px]">Start address</label>
+                    <input id={`${fieldId}-start-address`}
                       type="number"
                       min={1}
                       max={512}
@@ -2178,10 +2183,10 @@ export const EquipmentPanel: React.FC = () => {
               {/* Optional: Target Package Selector */}
               {!editingItem && availableCameraPackages.length > 0 && (
                 <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-sky-50 border-sky-300' : 'bg-sky-500/10 border-sky-500/30'}`}>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-sky-950 dark:text-sky-400 mb-1">
+                  <label htmlFor={`${fieldId}-destination-package-optional`} className="block text-[11px] font-black uppercase tracking-wider text-sky-950 dark:text-sky-400 mb-1">
                     📦 Destination Package (Optional)
                   </label>
-                  <select
+                  <select id={`${fieldId}-destination-package-optional`}
                     value={formData.targetPackageId || ''}
                     onChange={(e) => setFormData({ ...formData, targetPackageId: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border font-bold ${
@@ -2202,10 +2207,10 @@ export const EquipmentPanel: React.FC = () => {
 
               {/* Category Rubric */}
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                <label htmlFor={`${fieldId}-department-category-rubric`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                   Department / Category Rubric
                 </label>
-                <select
+                <select id={`${fieldId}-department-category-rubric`}
                   value={formData.category}
                   onChange={(e) => {
                     const newCat = e.target.value as EquipmentCategory;
@@ -2236,12 +2241,13 @@ export const EquipmentPanel: React.FC = () => {
               <div className={`grid grid-cols-2 gap-2 p-2.5 rounded-xl border ${isLight ? 'bg-slate-100 border-slate-300' : 'bg-slate-950/60 border-slate-700'}`}>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-300">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-300">
                       Brand Template
-                    </label>
+                    </span>
                     <span className="text-[9px] font-bold opacity-70">Dropdown</span>
                   </div>
                   <select
+                    aria-label="Brand Template"
                     value={formData.brand}
                     onChange={(e) => {
                       const newBrand = e.target.value;
@@ -2269,12 +2275,13 @@ export const EquipmentPanel: React.FC = () => {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-300">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-300">
                       Model Template
-                    </label>
+                    </span>
                     <span className="text-[9px] font-bold opacity-70">Dropdown</span>
                   </div>
                   <select
+                    aria-label="Model Template"
                     value={formData.model}
                     onChange={(e) => {
                       const newModel = e.target.value;
@@ -2301,10 +2308,10 @@ export const EquipmentPanel: React.FC = () => {
               {/* Item Name & Quantity */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
-                  <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                  <label htmlFor={`${fieldId}-item-name`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                     Item Name *
                   </label>
-                  <input
+                  <input id={`${fieldId}-item-name`}
                     type="text"
                     required
                     placeholder="e.g. Camera A Package, ARRI SkyPanel S60-C, Sony FX6"
@@ -2316,10 +2323,10 @@ export const EquipmentPanel: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                  <label htmlFor={`${fieldId}-quantity`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                     Quantity
                   </label>
-                  <input
+                  <input id={`${fieldId}-quantity`}
                     type="number"
                     min={1}
                     value={formData.quantity}
@@ -2336,10 +2343,10 @@ export const EquipmentPanel: React.FC = () => {
               {/* Freehand Brand & Model Customization */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                  <label htmlFor={`${fieldId}-brand-manufacturer`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                     Brand / Manufacturer
                   </label>
-                  <input
+                  <input id={`${fieldId}-brand-manufacturer`}
                     type="text"
                     placeholder="e.g. ARRI, Aputure, Nanlite"
                     value={formData.brand}
@@ -2350,10 +2357,10 @@ export const EquipmentPanel: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                  <label htmlFor={`${fieldId}-model-variant`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                     Model / Variant
                   </label>
-                  <input
+                  <input id={`${fieldId}-model-variant`}
                     type="text"
                     placeholder="e.g. SkyPanel S60-C, LS 600d Pro"
                     value={formData.model}
@@ -2367,10 +2374,10 @@ export const EquipmentPanel: React.FC = () => {
 
               {/* Role / Function */}
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                <label htmlFor={`${fieldId}-production-role-function`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                   Production Role / Function
                 </label>
-                <input
+                <input id={`${fieldId}-production-role-function`}
                   type="text"
                   placeholder="e.g. Key Light, Backlight / Rim, A-Cam Main, Overhead Boom"
                   value={formData.roleOrFunction}
@@ -2383,10 +2390,10 @@ export const EquipmentPanel: React.FC = () => {
 
               {/* Technical Specs & Notes */}
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                <label htmlFor={`${fieldId}-technical-specs-notes`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                   Technical Specs & Notes
                 </label>
-                <textarea
+                <textarea id={`${fieldId}-technical-specs-notes`}
                   rows={2}
                   placeholder="e.g. 5600K · 100% · Barn Doors, V-Lock mount, 12G 4K60p rated"
                   value={formData.specs}
@@ -2454,10 +2461,10 @@ export const EquipmentPanel: React.FC = () => {
             <form onSubmit={handleSavePackageItemModal} className="mt-4 flex flex-col gap-3">
               {/* Preset Quick Loader */}
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-emerald-700 dark:text-emerald-400">
+                <label htmlFor={`${fieldId}-choose-preset-or-type-custom-below`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-emerald-700 dark:text-emerald-400">
                   ⚡ Choose Preset (Or type custom below)
                 </label>
-                <select
+                <select id={`${fieldId}-choose-preset-or-type-custom-below`}
                   onChange={(e) => {
                     const preset = CAMERA_PACKAGE_PRESETS.find((p) => p.name === e.target.value);
                     if (preset) {
@@ -2489,10 +2496,10 @@ export const EquipmentPanel: React.FC = () => {
 
               {/* Category */}
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                <label htmlFor={`${fieldId}-category-rubric`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                   Category Rubric
                 </label>
-                <select
+                <select id={`${fieldId}-category-rubric`}
                   value={packageFormData.category}
                   onChange={(e) =>
                     setPackageFormData({ ...packageFormData, category: e.target.value as EquipmentCategory })
@@ -2512,10 +2519,10 @@ export const EquipmentPanel: React.FC = () => {
               {/* Item Name & Quantity */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
-                  <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                  <label htmlFor={`${fieldId}-accessory-name`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                     Accessory Name *
                   </label>
-                  <input
+                  <input id={`${fieldId}-accessory-name`}
                     type="text"
                     required
                     placeholder="e.g. V-Mount Batteries, CFexpress Type B"
@@ -2527,10 +2534,10 @@ export const EquipmentPanel: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                  <label htmlFor={`${fieldId}-quantity-2`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                     Quantity
                   </label>
-                  <input
+                  <input id={`${fieldId}-quantity-2`}
                     type="number"
                     min={1}
                     value={packageFormData.quantity}
@@ -2547,10 +2554,10 @@ export const EquipmentPanel: React.FC = () => {
               {/* Brand & Model */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                  <label htmlFor={`${fieldId}-brand`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                     Brand
                   </label>
-                  <input
+                  <input id={`${fieldId}-brand`}
                     type="text"
                     placeholder="e.g. Anton Bauer, SanDisk, SmallHD"
                     value={packageFormData.brand}
@@ -2561,10 +2568,10 @@ export const EquipmentPanel: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                  <label htmlFor={`${fieldId}-model-variant-2`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                     Model / Variant
                   </label>
-                  <input
+                  <input id={`${fieldId}-model-variant-2`}
                     type="text"
                     placeholder="e.g. Titon 150, Cine 7"
                     value={packageFormData.model}
@@ -2578,10 +2585,10 @@ export const EquipmentPanel: React.FC = () => {
 
               {/* Role & Specs */}
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                <label htmlFor={`${fieldId}-role-function`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                   Role / Function
                 </label>
-                <input
+                <input id={`${fieldId}-role-function`}
                   type="text"
                   placeholder="e.g. Camera Power, Recording Media, Focus Peaking"
                   value={packageFormData.roleOrFunction}
@@ -2593,10 +2600,10 @@ export const EquipmentPanel: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
+                <label htmlFor={`${fieldId}-technical-specs`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
                   Technical Specs
                 </label>
-                <input
+                <input id={`${fieldId}-technical-specs`}
                   type="text"
                   placeholder="e.g. 14.4V High-Draw · 150Wh · USB-C"
                   value={packageFormData.specs}

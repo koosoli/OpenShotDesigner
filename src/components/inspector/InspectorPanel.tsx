@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
@@ -178,6 +178,11 @@ import {
 } from './shared/InspectorPrimitives';
 
 export const InspectorPanel: React.FC = () => {
+  // Prefix for pairing each caption with its control (`htmlFor`/`id`). From
+  // `useId` so two instances of this panel on screen cannot collide — the
+  // captions used to be plain siblings with no `htmlFor`, which meant screen
+  // readers announced every one of these inputs unlabelled.
+  const fieldId = useId();
   const logoInputRef = React.useRef<HTMLInputElement>(null);
   const [dmxUniverseFixtureId, setDmxUniverseFixtureId] = useState<string | null>(null);
   // Merged brand/model catalog: curated presets + bundled OFL snapshot + custom profiles.
@@ -405,10 +410,10 @@ export const InspectorPanel: React.FC = () => {
 
         {/* Name */}
         <div>
-          <label className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+          <label htmlFor={`${fieldId}-image-name`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             Image Name
           </label>
-          <input
+          <input id={`${fieldId}-image-name`}
             type="text"
             value={selectedBg.name || ''}
             onChange={(e) => updateBackgroundImage(selectedBg.id, { name: e.target.value })}
@@ -441,8 +446,8 @@ export const InspectorPanel: React.FC = () => {
         {/* Position & Size */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>X</label>
-            <input
+            <label htmlFor={`${fieldId}-x`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>X</label>
+            <input id={`${fieldId}-x`}
               type="number"
               value={Math.round(selectedBg.x)}
               onChange={(e) => updateBackgroundImage(selectedBg.id, { x: Number(e.target.value) })}
@@ -452,8 +457,8 @@ export const InspectorPanel: React.FC = () => {
             />
           </div>
           <div>
-            <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Y</label>
-            <input
+            <label htmlFor={`${fieldId}-y`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Y</label>
+            <input id={`${fieldId}-y`}
               type="number"
               value={Math.round(selectedBg.y)}
               onChange={(e) => updateBackgroundImage(selectedBg.id, { y: Number(e.target.value) })}
@@ -463,8 +468,8 @@ export const InspectorPanel: React.FC = () => {
             />
           </div>
           <div>
-            <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Width</label>
-            <input
+            <label htmlFor={`${fieldId}-width`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Width</label>
+            <input id={`${fieldId}-width`}
               type="number"
               value={Math.round(selectedBg.width)}
               onChange={(e) => updateBackgroundImage(selectedBg.id, { width: Number(e.target.value) })}
@@ -474,8 +479,8 @@ export const InspectorPanel: React.FC = () => {
             />
           </div>
           <div>
-            <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Height</label>
-            <input
+            <label htmlFor={`${fieldId}-height`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Height</label>
+            <input id={`${fieldId}-height`}
               type="number"
               value={Math.round(selectedBg.height)}
               onChange={(e) => updateBackgroundImage(selectedBg.id, { height: Number(e.target.value) })}
@@ -609,8 +614,8 @@ export const InspectorPanel: React.FC = () => {
             isLight={isLight}
           >
             <div>
-              <label className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene Setup Name</label>
-              <input
+              <label htmlFor={`${fieldId}-scene-setup-name`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene Setup Name</label>
+              <input id={`${fieldId}-scene-setup-name`}
                 type="text"
                 value={activeSetup.name}
                 onChange={(e) => updateSetupMeta({ name: e.target.value })}
@@ -622,8 +627,8 @@ export const InspectorPanel: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene / Setup Number</label>
-                <input
+                <label htmlFor={`${fieldId}-scene-setup-number`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene / Setup Number</label>
+                <input id={`${fieldId}-scene-setup-number`}
                   type="text"
                   value={activeSetup.sceneNumber}
                   onChange={(e) => updateSetupMeta({ sceneNumber: e.target.value })}
@@ -633,8 +638,8 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
               <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Script Page</label>
-                <input
+                <label htmlFor={`${fieldId}-script-page`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Script Page</label>
+                <input id={`${fieldId}-script-page`}
                   type="text"
                   value={activeSetup.scriptPage || ''}
                   onChange={(e) => updateSetupMeta({ scriptPage: e.target.value })}
@@ -647,8 +652,8 @@ export const InspectorPanel: React.FC = () => {
             </div>
 
             <div>
-              <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene Location / Slugline</label>
-              <input
+              <label htmlFor={`${fieldId}-scene-location-slugline`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene Location / Slugline</label>
+              <input id={`${fieldId}-scene-location-slugline`}
                 type="text"
                 value={activeSetup.location}
                 onChange={(e) => updateSetupMeta({ location: e.target.value })}
@@ -660,8 +665,8 @@ export const InspectorPanel: React.FC = () => {
             </div>
 
             <div>
-              <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Lighting / Time of Day</label>
-              <select
+              <label htmlFor={`${fieldId}-lighting-time-of-day`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Lighting / Time of Day</label>
+              <select id={`${fieldId}-lighting-time-of-day`}
                 value={activeSetup.timeOfDay}
                 onChange={(e) => updateSetupMeta({ timeOfDay: e.target.value as any })}
                 className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
@@ -677,10 +682,10 @@ export const InspectorPanel: React.FC = () => {
 
             {/* Project Aspect Ratio (also frames storyboards) */}
             <div>
-              <label className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              <label htmlFor={`${fieldId}-project-aspect-ratio`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 Project Aspect Ratio
               </label>
-              <select
+              <select id={`${fieldId}-project-aspect-ratio`}
                 value={activeSetup.aspectRatio || '16:9'}
                 onChange={(e) => updateSetupMeta({ aspectRatio: e.target.value as any })}
                 className={`w-full border rounded-lg p-2 focus:border-violet-500 ${
@@ -697,10 +702,10 @@ export const InspectorPanel: React.FC = () => {
 
             {/* Measurement / Grid Units */}
             <div>
-              <label className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              <span id={`${fieldId}-measurement-units-group`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 Measurement Units
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
+              </span>
+              <div role="group" aria-labelledby={`${fieldId}-measurement-units-group`} className="grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
                   onClick={() =>
@@ -758,9 +763,9 @@ export const InspectorPanel: React.FC = () => {
             isLight={isLight}
           >
             <div>
-              <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              <span className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 Linked location
-              </label>
+              </span>
               {(project.locations ?? []).length === 0 ? (
                 <p className={`text-[11px] italic mb-1 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
                   No locations defined yet — add some in the Loc tab.
@@ -873,8 +878,8 @@ export const InspectorPanel: React.FC = () => {
             isLight={isLight}
           >
             <div>
-              <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Project Title</label>
-              <input
+              <label htmlFor={`${fieldId}-project-title`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Project Title</label>
+              <input id={`${fieldId}-project-title`}
                 type="text"
                 value={project.title}
                 onChange={(e) => updateProjectMeta({ title: e.target.value })}
@@ -885,8 +890,8 @@ export const InspectorPanel: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Director</label>
-                <input
+                <label htmlFor={`${fieldId}-director`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Director</label>
+                <input id={`${fieldId}-director`}
                   type="text"
                   list="crew-name-options"
                   value={project.director}
@@ -898,8 +903,8 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
               <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Cinematographer / DP</label>
-                <input
+                <label htmlFor={`${fieldId}-cinematographer-dp`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Cinematographer / DP</label>
+                <input id={`${fieldId}-cinematographer-dp`}
                   type="text"
                   list="crew-name-options"
                   value={project.cinematographer}
@@ -923,8 +928,8 @@ export const InspectorPanel: React.FC = () => {
             </p>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Company</label>
-                <input
+                <label htmlFor={`${fieldId}-production-company`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Company</label>
+                <input id={`${fieldId}-production-company`}
                   type="text"
                   value={project.productionCompany || ''}
                   placeholder="e.g. Studio Films"
@@ -935,8 +940,8 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
               <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Date</label>
-                <input
+                <label htmlFor={`${fieldId}-date`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Date</label>
+                <input id={`${fieldId}-date`}
                   type="text"
                   value={project.date}
                   placeholder="YYYY-MM-DD"
@@ -949,8 +954,8 @@ export const InspectorPanel: React.FC = () => {
             </div>
             {/* Production logo (mirrored with Schedule → Call sheets) */}
             <div>
-              <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Logo</label>
-              <div className="flex items-center gap-2">
+              <span id={`${fieldId}-production-logo-group`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Logo</span>
+              <div role="group" aria-labelledby={`${fieldId}-production-logo-group`} className="flex items-center gap-2">
                 <div
                   className={`w-16 h-12 rounded-lg border flex items-center justify-center overflow-hidden flex-shrink-0 ${
                     isLight ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'
@@ -1005,8 +1010,8 @@ export const InspectorPanel: React.FC = () => {
             {/* Company contact block (same canonical fields as the call-sheet workspace) */}
             <div className="grid grid-cols-2 gap-2">
               <div className="col-span-2">
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Address</label>
-                <input
+                <label htmlFor={`${fieldId}-company-address`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Address</label>
+                <input id={`${fieldId}-company-address`}
                   type="text"
                   value={project.productionCompanyInfo?.address || ''}
                   placeholder="Street, city"
@@ -1021,8 +1026,8 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
               <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Phone</label>
-                <input
+                <label htmlFor={`${fieldId}-company-phone`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Phone</label>
+                <input id={`${fieldId}-company-phone`}
                   type="text"
                   value={project.productionCompanyInfo?.phone || ''}
                   placeholder="+49 …"
@@ -1037,8 +1042,8 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
               <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Email</label>
-                <input
+                <label htmlFor={`${fieldId}-company-email`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Email</label>
+                <input id={`${fieldId}-company-email`}
                   type="text"
                   value={project.productionCompanyInfo?.email || ''}
                   placeholder="office@studio.example"
@@ -1053,8 +1058,8 @@ export const InspectorPanel: React.FC = () => {
                 />
               </div>
               <div className="col-span-2">
-                <label className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Website</label>
-                <input
+                <label htmlFor={`${fieldId}-company-website`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Website</label>
+                <input id={`${fieldId}-company-website`}
                   type="text"
                   value={project.productionCompanyInfo?.website || ''}
                   placeholder="https://…"
@@ -1113,8 +1118,8 @@ export const InspectorPanel: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="opacity-60 block mb-1">Date</label>
-                    <input
+                    <label htmlFor={`${fieldId}-date-2`} className="opacity-60 block mb-1">Date</label>
+                    <input id={`${fieldId}-date-2`}
                       type="date"
                       value={activeSetup.sunSettings?.date ?? project.date ?? ''}
                       onChange={(e) => patchSunSettings({ date: e.target.value || undefined })}
@@ -1784,8 +1789,8 @@ export const InspectorPanel: React.FC = () => {
 
         {/* Multi rotate buttons */}
         <div className="space-y-1.5 pt-2">
-          <label className="text-[10px] font-bold uppercase opacity-60 block">Rotate Selection</label>
-          <div className="grid grid-cols-2 gap-2">
+          <span id={`${fieldId}-rotate-selection-group`} className="text-[10px] font-bold uppercase opacity-60 block">Rotate Selection</span>
+          <div role="group" aria-labelledby={`${fieldId}-rotate-selection-group`} className="grid grid-cols-2 gap-2">
             <button
               onClick={() => rotateMultiSelection(-45)}
               className={`py-2 px-3 border rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors ${
@@ -1927,8 +1932,8 @@ export const InspectorPanel: React.FC = () => {
         {/* Align & Distribute tools */}
         <div className="space-y-3 pt-2">
           <div>
-            <label className="text-[10px] font-bold uppercase opacity-60 block mb-1.5">Align Selection</label>
-            <div className="grid grid-cols-6 gap-1.5">
+            <span id={`${fieldId}-align-selection-group`} className="text-[10px] font-bold uppercase opacity-60 block mb-1.5">Align Selection</span>
+            <div role="group" aria-labelledby={`${fieldId}-align-selection-group`} className="grid grid-cols-6 gap-1.5">
               {(
                 [
                   { mode: 'left' as AlignMode, Icon: AlignLeft, title: 'Align Left Edges' },
@@ -1981,8 +1986,8 @@ export const InspectorPanel: React.FC = () => {
           </div>
 
           <div>
-            <label className="text-[10px] font-bold uppercase opacity-60 block mb-1.5">Distribute Spacing (3+ items)</label>
-            <div className="grid grid-cols-2 gap-1.5">
+            <span id={`${fieldId}-distribute-spacing-3-items-group`} className="text-[10px] font-bold uppercase opacity-60 block mb-1.5">Distribute Spacing (3+ items)</span>
+            <div role="group" aria-labelledby={`${fieldId}-distribute-spacing-3-items-group`} className="grid grid-cols-2 gap-1.5">
               <button
                 onClick={() => {
                   const els = activeSetup.elements.filter((e) => selectedElementIds.includes(e.id));
@@ -2129,8 +2134,8 @@ export const InspectorPanel: React.FC = () => {
       {/* 2. Common Properties (Name & Position Rubric) */}
       <div className="space-y-3">
         <div>
-          <label className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Element Name / Label</label>
-          <input
+          <label htmlFor={`${fieldId}-element-name-label`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Element Name / Label</label>
+          <input id={`${fieldId}-element-name-label`}
             type="text"
             value={el.name}
             onChange={(e) => updateElement(el.id, { name: e.target.value })}
@@ -2155,8 +2160,8 @@ export const InspectorPanel: React.FC = () => {
           {/* Position Controls */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="opacity-60 block text-[10px]">POS X (px)</label>
-              <input
+              <label htmlFor={`${fieldId}-pos-x-px`} className="opacity-60 block text-[10px]">POS X (px)</label>
+              <input id={`${fieldId}-pos-x-px`}
                 type="number"
                 value={Math.round(el.x)}
                 onChange={(e) => updateElement(el.id, { x: Number(e.target.value) })}
@@ -2166,8 +2171,8 @@ export const InspectorPanel: React.FC = () => {
               />
             </div>
             <div>
-              <label className="opacity-60 block text-[10px]">POS Y (px)</label>
-              <input
+              <label htmlFor={`${fieldId}-pos-y-px`} className="opacity-60 block text-[10px]">POS Y (px)</label>
+              <input id={`${fieldId}-pos-y-px`}
                 type="number"
                 value={Math.round(el.y)}
                 onChange={(e) => updateElement(el.id, { y: Number(e.target.value) })}
@@ -2339,8 +2344,8 @@ export const InspectorPanel: React.FC = () => {
                 {/* Camera Letter & Color */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="opacity-60 block mb-1">Camera ID</label>
-                    <input
+                    <label htmlFor={`${fieldId}-camera-id`} className="opacity-60 block mb-1">Camera ID</label>
+                    <input id={`${fieldId}-camera-id`}
                       type="text"
                       value={cam.cameraLabel}
                       maxLength={3}
@@ -2351,8 +2356,8 @@ export const InspectorPanel: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1">Color Marker</label>
-                    <div className="flex gap-1.5 pt-1">
+                    <span id={`${fieldId}-color-marker-group`} className="opacity-60 block mb-1">Color Marker</span>
+                    <div role="group" aria-labelledby={`${fieldId}-color-marker-group`} className="flex gap-1.5 pt-1">
                       {CAMERA_COLOR_PALETTE.map((c) => (
                         <button
                           key={c}
@@ -2370,7 +2375,7 @@ export const InspectorPanel: React.FC = () => {
                 {/* Camera Body Model & Brand Preset */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="opacity-75 block text-xs font-semibold">Camera Body & Model Preset</label>
+                    <span className="opacity-75 block text-xs font-semibold">Camera Body & Model Preset</span>
                     <span className="text-[10px] text-sky-400 font-mono font-bold">
                       {cam.cameraModel ? cam.cameraModel.split(' ')[0] : 'Custom'}
                     </span>
@@ -2457,8 +2462,8 @@ export const InspectorPanel: React.FC = () => {
                 {/* Camera Rig & Height */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="opacity-60 block mb-1">Camera Rig</label>
-                    <select
+                    <label htmlFor={`${fieldId}-camera-rig`} className="opacity-60 block mb-1">Camera Rig</label>
+                    <select id={`${fieldId}-camera-rig`}
                       value={cam.rigType}
                       onChange={(e) => updateElement(cam.id, { rigType: e.target.value as any })}
                       className={`w-full border rounded-lg p-1.5 text-xs ${
@@ -2473,8 +2478,8 @@ export const InspectorPanel: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1">Camera Height</label>
-                    <select
+                    <label htmlFor={`${fieldId}-camera-height`} className="opacity-60 block mb-1">Camera Height</label>
+                    <select id={`${fieldId}-camera-height`}
                       value={cam.cameraHeight}
                       onChange={(e) => updateElement(cam.id, { cameraHeight: e.target.value as any })}
                       className={`w-full border rounded-lg p-1.5 text-xs ${
@@ -2506,7 +2511,7 @@ export const InspectorPanel: React.FC = () => {
                 {/* Lens Focal Length */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-medium opacity-75">Lens Focal Length</label>
+                    <span className="font-medium opacity-75">Lens Focal Length</span>
                     <span className="font-mono text-sky-500 font-bold">{cam.focalLength}mm</span>
                   </div>
                   {/* Focal length preset buttons */}
@@ -2538,8 +2543,8 @@ export const InspectorPanel: React.FC = () => {
 
                 {/* Sensor Format */}
                 <div>
-                  <label className="opacity-60 block mb-1">Sensor Format</label>
-                  <select
+                  <label htmlFor={`${fieldId}-sensor-format`} className="opacity-60 block mb-1">Sensor Format</label>
+                  <select id={`${fieldId}-sensor-format`}
                     value={cam.sensorFormat}
                     onChange={(e) => updateElement(cam.id, { sensorFormat: e.target.value as any })}
                     className={`w-full border rounded-lg p-2 ${
@@ -2559,8 +2564,8 @@ export const InspectorPanel: React.FC = () => {
 
                 {/* Aspect Ratio */}
                 <div>
-                  <label className="opacity-60 block mb-1">Aspect Ratio</label>
-                  <select
+                  <label htmlFor={`${fieldId}-aspect-ratio`} className="opacity-60 block mb-1">Aspect Ratio</label>
+                  <select id={`${fieldId}-aspect-ratio`}
                     value={cam.aspectRatio}
                     onChange={(e) => updateElement(cam.id, { aspectRatio: e.target.value as any })}
                     className={`w-full border rounded-lg p-2 ${
@@ -2607,8 +2612,8 @@ export const InspectorPanel: React.FC = () => {
               >
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="opacity-60 block mb-1">Iris / T-stop</label>
-                    <select
+                    <label htmlFor={`${fieldId}-iris-t-stop`} className="opacity-60 block mb-1">Iris / T-stop</label>
+                    <select id={`${fieldId}-iris-t-stop`}
                       value={cam.aperture || 'f/2.8'}
                       onChange={(e) => updateElement(cam.id, { aperture: e.target.value })}
                       className={selectClass}
@@ -2619,8 +2624,8 @@ export const InspectorPanel: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1">ISO</label>
-                    <select
+                    <label htmlFor={`${fieldId}-iso`} className="opacity-60 block mb-1">ISO</label>
+                    <select id={`${fieldId}-iso`}
                       value={cam.iso ?? 800}
                       onChange={(e) => updateElement(cam.id, { iso: Number(e.target.value) })}
                       className={selectClass}
@@ -2631,8 +2636,8 @@ export const InspectorPanel: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1">Shutter Angle</label>
-                    <select
+                    <label htmlFor={`${fieldId}-shutter-angle`} className="opacity-60 block mb-1">Shutter Angle</label>
+                    <select id={`${fieldId}-shutter-angle`}
                       value={cam.shutterAngle ?? 180}
                       onChange={(e) => updateElement(cam.id, { shutterAngle: Number(e.target.value) })}
                       className={selectClass}
@@ -2643,8 +2648,8 @@ export const InspectorPanel: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1">ND Filter</label>
-                    <select
+                    <label htmlFor={`${fieldId}-nd-filter`} className="opacity-60 block mb-1">ND Filter</label>
+                    <select id={`${fieldId}-nd-filter`}
                       value={cam.ndFilter || 'None'}
                       onChange={(e) => updateElement(cam.id, { ndFilter: e.target.value })}
                       className={selectClass}
@@ -2853,9 +2858,10 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               >
                 <div>
-                  <label className="opacity-60 block mb-1">Script Character</label>
+                  <span className="opacity-60 block mb-1">Script Character</span>
                   {scriptCharacters.length > 0 ? (
                     <select
+                      aria-label="Script Character"
                       value={actor.characterId || ''}
                       onChange={(event) => {
                         const picked = scriptCharacters.find((c) => c.id === event.target.value);
@@ -2881,8 +2887,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Character Name / ID</label>
-                  <input
+                  <label htmlFor={`${fieldId}-character-name-id`} className="opacity-60 block mb-1">Character Name / ID</label>
+                  <input id={`${fieldId}-character-name-id`}
                     type="text"
                     value={actor.characterName || ''}
                     placeholder="e.g. SARAH (Lead Detective)"
@@ -2895,8 +2901,8 @@ export const InspectorPanel: React.FC = () => {
 
                 {/* Color Marker */}
                 <div>
-                  <label className="opacity-60 block mb-1">Avatar Color</label>
-                  <div className="flex gap-2">
+                  <span id={`${fieldId}-avatar-color-group`} className="opacity-60 block mb-1">Avatar Color</span>
+                  <div role="group" aria-labelledby={`${fieldId}-avatar-color-group`} className="flex gap-2">
                     {ACTOR_COLOR_PALETTE.map((c) => (
                       <button
                         key={c}
@@ -2936,8 +2942,8 @@ export const InspectorPanel: React.FC = () => {
 
                 {/* Blocking Action & Dialogue notes */}
                 <div>
-                  <label className="opacity-60 block mb-1">Actor Action / Dialogue Notes</label>
-                  <textarea
+                  <label htmlFor={`${fieldId}-actor-action-dialogue-notes`} className="opacity-60 block mb-1">Actor Action / Dialogue Notes</label>
+                  <textarea id={`${fieldId}-actor-action-dialogue-notes`}
                     value={actor.actionNotes || ''}
                     onChange={(e) => updateElement(actor.id, { actionNotes: e.target.value })}
                     placeholder="e.g. Enters through front door on Beat 1, confronts Sarah on Beat 2..."
@@ -3125,8 +3131,8 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               >
                 <div>
-                  <label className="opacity-60 block mb-1">Prop Type Preset</label>
-                  <select
+                  <label htmlFor={`${fieldId}-prop-type-preset`} className="opacity-60 block mb-1">Prop Type Preset</label>
+                  <select id={`${fieldId}-prop-type-preset`}
                     value={prop.propType}
                     onChange={(e) => {
                       const info = PROP_CATALOG.find((p) => p.type === e.target.value);
@@ -3192,8 +3198,8 @@ export const InspectorPanel: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="opacity-60 block mb-1">Width (px)</label>
-                    <input
+                    <label htmlFor={`${fieldId}-width-px`} className="opacity-60 block mb-1">Width (px)</label>
+                    <input id={`${fieldId}-width-px`}
                       type="number"
                       min={5}
                       max={3000}
@@ -3205,8 +3211,8 @@ export const InspectorPanel: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1">Height (px)</label>
-                    <input
+                    <label htmlFor={`${fieldId}-height-px`} className="opacity-60 block mb-1">Height (px)</label>
+                    <input id={`${fieldId}-height-px`}
                       type="number"
                       min={5}
                       max={3000}
@@ -3240,8 +3246,8 @@ export const InspectorPanel: React.FC = () => {
 
                 {/* Color / Material Tint */}
                 <div>
-                  <label className="opacity-60 block mb-1">Color / Material Tint</label>
-                  <div className="flex items-center gap-2">
+                  <span id={`${fieldId}-color-material-tint-group`} className="opacity-60 block mb-1">Color / Material Tint</span>
+                  <div role="group" aria-labelledby={`${fieldId}-color-material-tint-group`} className="flex items-center gap-2">
                     <input
                       type="color"
                       value={prop.color || '#475569'}
@@ -3362,8 +3368,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Thickness (px)</label>
-                  <input
+                  <label htmlFor={`${fieldId}-thickness-px`} className="opacity-60 block mb-1">Thickness (px)</label>
+                  <input id={`${fieldId}-thickness-px`}
                     type="number"
                     min={4}
                     max={40}
@@ -3428,8 +3434,8 @@ export const InspectorPanel: React.FC = () => {
 
                 {/* Straight / Curved toggle */}
                 <div>
-                  <label className="opacity-60 block mb-1">Track Shape</label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <span id={`${fieldId}-track-shape-group`} className="opacity-60 block mb-1">Track Shape</span>
+                  <div role="group" aria-labelledby={`${fieldId}-track-shape-group`} className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => updateElement(track.id, { isCurved: false })}
                       className={`py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
@@ -3562,8 +3568,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Surface</label>
-                  <div className="grid grid-cols-3 gap-1">
+                  <span id={`${fieldId}-surface-group`} className="opacity-60 block mb-1">Surface</span>
+                  <div role="group" aria-labelledby={`${fieldId}-surface-group`} className="grid grid-cols-3 gap-1">
                     {([
                       ['asphalt', 'Asphalt'],
                       ['concrete', 'Concrete'],
@@ -3584,8 +3590,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Centre marking</label>
-                  <div className="grid grid-cols-3 gap-1">
+                  <span id={`${fieldId}-centre-marking-group`} className="opacity-60 block mb-1">Centre marking</span>
+                  <div role="group" aria-labelledby={`${fieldId}-centre-marking-group`} className="grid grid-cols-3 gap-1">
                     {([
                       ['none', 'None'],
                       ['dashed', 'Dashed'],
@@ -3606,8 +3612,8 @@ export const InspectorPanel: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="opacity-60 block mb-1">Lanes</label>
-                    <input
+                    <label htmlFor={`${fieldId}-lanes`} className="opacity-60 block mb-1">Lanes</label>
+                    <input id={`${fieldId}-lanes`}
                       type="number"
                       min={1}
                       max={8}
@@ -3621,8 +3627,10 @@ export const InspectorPanel: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1">Pavements</label>
+                    <span className="opacity-60 block mb-1">Pavements</span>
                     <button
+                      aria-label="Pavements"
+                      aria-pressed={!!road.sidewalks}
                       onClick={() => updateElement(road.id, { sidewalks: !road.sidewalks })}
                       className={`w-full ${btn(!!road.sidewalks)}`}
                     >
@@ -3632,8 +3640,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Street name</label>
-                  <input
+                  <label htmlFor={`${fieldId}-street-name`} className="opacity-60 block mb-1">Street name</label>
+                  <input id={`${fieldId}-street-name`}
                     type="text"
                     value={road.label ?? ''}
                     onChange={(e) => updateElement(road.id, { label: e.target.value || undefined })}
@@ -3693,8 +3701,8 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               >
                 <div>
-                  <label className="opacity-60 block mb-1">Door Width (px)</label>
-                  <input
+                  <label htmlFor={`${fieldId}-door-width-px`} className="opacity-60 block mb-1">Door Width (px)</label>
+                  <input id={`${fieldId}-door-width-px`}
                     type="number"
                     min={30}
                     max={150}
@@ -3707,8 +3715,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Door Swing Angle</label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <span id={`${fieldId}-door-swing-angle-group`} className="opacity-60 block mb-1">Door Swing Angle</span>
+                  <div role="group" aria-labelledby={`${fieldId}-door-swing-angle-group`} className="grid grid-cols-3 gap-1.5">
                     {[45, 90, 180].map((deg) => (
                       <button
                         key={deg}
@@ -3762,8 +3770,8 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               >
                 <div>
-                  <label className="opacity-60 block mb-1">Window Width (px)</label>
-                  <input
+                  <label htmlFor={`${fieldId}-window-width-px`} className="opacity-60 block mb-1">Window Width (px)</label>
+                  <input id={`${fieldId}-window-width-px`}
                     type="number"
                     min={30}
                     max={250}
@@ -3774,8 +3782,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Depth / Frame (px)</label>
-                  <input
+                  <label htmlFor={`${fieldId}-depth-frame-px`} className="opacity-60 block mb-1">Depth / Frame (px)</label>
+                  <input id={`${fieldId}-depth-frame-px`}
                     type="number"
                     min={6}
                     max={30}
@@ -3804,7 +3812,7 @@ export const InspectorPanel: React.FC = () => {
                 {/* Window Orientation & Direction */}
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
                   <div className="flex justify-between items-center mb-1">
-                    <label className="opacity-60 text-xs">Window Facing Angle</label>
+                    <span className="opacity-60 text-xs">Window Facing Angle</span>
                     <span className="font-mono text-xs font-bold text-sky-500">
                       {Math.round(((win.rotation || 0) % 360 + 360) % 360)}°
                     </span>
@@ -3870,8 +3878,8 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               >
                 <div>
-                  <label className="opacity-60 block mb-1">Text Content</label>
-                  <textarea
+                  <label htmlFor={`${fieldId}-text-content`} className="opacity-60 block mb-1">Text Content</label>
+                  <textarea id={`${fieldId}-text-content`}
                     value={txt.text}
                     onChange={(e) => updateElement(txt.id, { text: e.target.value })}
                     rows={2}
@@ -3923,8 +3931,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Font Family</label>
-                  <select
+                  <label htmlFor={`${fieldId}-font-family`} className="opacity-60 block mb-1">Font Family</label>
+                  <select id={`${fieldId}-font-family`}
                     value={txt.fontFamily || 'sans-serif'}
                     onChange={(e) => updateElement(txt.id, { fontFamily: e.target.value })}
                     className={txtInputClass}
@@ -3939,8 +3947,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Text Alignment</label>
-                  <div className="grid grid-cols-3 gap-1">
+                  <span id={`${fieldId}-text-alignment-group`} className="opacity-60 block mb-1">Text Alignment</span>
+                  <div role="group" aria-labelledby={`${fieldId}-text-alignment-group`} className="grid grid-cols-3 gap-1">
                     {(['left', 'center', 'right'] as const).map((align) => (
                       <button
                         key={align}
@@ -4009,8 +4017,8 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               >
                 <div>
-                  <label className="opacity-60 block mb-1">Type</label>
-                  <select
+                  <label htmlFor={`${fieldId}-type`} className="opacity-60 block mb-1">Type</label>
+                  <select id={`${fieldId}-type`}
                     value={shape.shapeType}
                     onChange={(e) => updateElement(shape.id, { shapeType: e.target.value as ShapeType })}
                     className={selectClass}
@@ -4041,8 +4049,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Label (optional)</label>
-                  <input
+                  <label htmlFor={`${fieldId}-label-optional`} className="opacity-60 block mb-1">Label (optional)</label>
+                  <input id={`${fieldId}-label-optional`}
                     type="text"
                     value={shape.label || ''}
                     onChange={(e) => updateElement(shape.id, { label: e.target.value })}
@@ -4237,8 +4245,8 @@ export const InspectorPanel: React.FC = () => {
                 )}
 
                 <div>
-                  <label className="opacity-60 block mb-1">Outline Style</label>
-                  <div className="grid grid-cols-3 gap-1">
+                  <span id={`${fieldId}-outline-style-group`} className="opacity-60 block mb-1">Outline Style</span>
+                  <div role="group" aria-labelledby={`${fieldId}-outline-style-group`} className="grid grid-cols-3 gap-1">
                     {(['solid', 'dashed', 'dotted'] as const).map((style) => (
                       <button
                         key={style}
@@ -4297,8 +4305,8 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               >
                 <div>
-                  <label className="opacity-60 block mb-1">Label (optional)</label>
-                  <input
+                  <label htmlFor={`${fieldId}-label-optional-2`} className="opacity-60 block mb-1">Label (optional)</label>
+                  <input id={`${fieldId}-label-optional-2`}
                     type="text"
                     value={arr.label || ''}
                     onChange={(e) => updateElement(arr.id, { label: e.target.value })}
@@ -4337,8 +4345,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Arrowhead</label>
-                  <div className="grid grid-cols-3 gap-1">
+                  <span id={`${fieldId}-arrowhead-group`} className="opacity-60 block mb-1">Arrowhead</span>
+                  <div role="group" aria-labelledby={`${fieldId}-arrowhead-group`} className="grid grid-cols-3 gap-1">
                     {(['single', 'double', 'open'] as const).map((style) => (
                       <button
                         key={style}
@@ -4352,8 +4360,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Line Style</label>
-                  <div className="grid grid-cols-3 gap-1">
+                  <span id={`${fieldId}-line-style-group`} className="opacity-60 block mb-1">Line Style</span>
+                  <div role="group" aria-labelledby={`${fieldId}-line-style-group`} className="grid grid-cols-3 gap-1">
                     {(['solid', 'dashed', 'dotted'] as const).map((dash) => (
                       <button
                         key={dash}
@@ -4422,8 +4430,8 @@ export const InspectorPanel: React.FC = () => {
                 isLight={isLight}
               >
                 <div>
-                  <label className="opacity-60 block mb-1">Cable Type</label>
-                  <select
+                  <label htmlFor={`${fieldId}-cable-type`} className="opacity-60 block mb-1">Cable Type</label>
+                  <select id={`${fieldId}-cable-type`}
                     value={cable.cableType}
                     onChange={(e) => {
                       const next = CABLE_TYPES.find((c) => c.type === e.target.value) || CABLE_TYPES[0];
@@ -4451,8 +4459,8 @@ export const InspectorPanel: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="opacity-60 block mb-1">From (source)</label>
-                    <input
+                    <label htmlFor={`${fieldId}-from-source`} className="opacity-60 block mb-1">From (source)</label>
+                    <input id={`${fieldId}-from-source`}
                       type="text"
                       value={cable.fromLabel || ''}
                       onChange={(e) => updateElement(cable.id, { fromLabel: e.target.value })}
@@ -4461,8 +4469,8 @@ export const InspectorPanel: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="opacity-60 block mb-1">To (destination)</label>
-                    <input
+                    <label htmlFor={`${fieldId}-to-destination`} className="opacity-60 block mb-1">To (destination)</label>
+                    <input id={`${fieldId}-to-destination`}
                       type="text"
                       value={cable.toLabel || ''}
                       onChange={(e) => updateElement(cable.id, { toLabel: e.target.value })}
@@ -4473,10 +4481,10 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="opacity-60 block text-[11px] font-semibold uppercase tracking-wide">
+                  <span id={`${fieldId}-endpoint-link-group`} className="opacity-60 block text-[11px] font-semibold uppercase tracking-wide">
                     Endpoint link
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  </span>
+                  <div role="group" aria-labelledby={`${fieldId}-endpoint-link-group`} className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <select
                         value={cable.fromElementId || ''}
@@ -4549,14 +4557,15 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 {/* Per-cable label visibility (on top of the global label toggle) */}
-                <label
-                  className={`flex items-center justify-between rounded-lg px-2.5 py-2 border cursor-pointer ${
+                <div
+                  className={`flex items-center justify-between rounded-lg px-2.5 py-2 border ${
                     isLight ? 'bg-white border-slate-300' : 'bg-slate-900/40 border-slate-800'
                   }`}
                 >
                   <span className="text-[11px] opacity-70">Show label on plan</span>
                   <button
                     type="button"
+                    aria-label="Show label on plan"
                     role="switch"
                     aria-checked={cable.showLabel !== false}
                     onClick={() => updateElement(cable.id, { showLabel: cable.showLabel === false })}
@@ -4570,7 +4579,7 @@ export const InspectorPanel: React.FC = () => {
                       }`}
                     />
                   </button>
-                </label>
+                </div>
 
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1">
@@ -4618,8 +4627,8 @@ export const InspectorPanel: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="opacity-60 block mb-1">Notes</label>
-                  <textarea
+                  <label htmlFor={`${fieldId}-notes`} className="opacity-60 block mb-1">Notes</label>
+                  <textarea id={`${fieldId}-notes`}
                     value={cable.notes || ''}
                     onChange={(e) => updateElement(cable.id, { notes: e.target.value })}
                     placeholder="e.g. Route under stage, spare 10m, tie to truss…"

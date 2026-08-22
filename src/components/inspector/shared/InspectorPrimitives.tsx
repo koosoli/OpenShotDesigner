@@ -388,7 +388,9 @@ export const ColorField: React.FC<{
         }`}
         title={`Pick a color for ${label.toLowerCase()}`}
       >
+        {/* The swatch is the label; the input inside it needs its own name. */}
         <input
+          aria-label={`Pick a color for ${label.toLowerCase()}`}
           type="color"
           value={ensureHexColor(value, '#ffffff')}
           onChange={(e) => onChange(e.target.value)}
