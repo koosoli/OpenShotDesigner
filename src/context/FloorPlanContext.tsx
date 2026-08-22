@@ -61,6 +61,8 @@ import {
 } from '../utils/projectLibrary';
 import { deriveSceneEquipment } from '../utils/equipmentList';
 import { migrateProject } from '../domain/migrations';
+import { mergeSetupWrite } from '../domain/plan';
+import { cloneSetupWithNewIds } from '../domain/clone';
 import { validateProject } from '../domain/validation';
 import {
   createWorkspaceProfile,
@@ -993,12 +995,32 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Helper to commit new setup state with history push. The history entry is
   // a whole-project snapshot so unrelated project edits stay undoable too.
-  const commitSetupState = (newSetup: SceneSetup, recordHistory = true) => {
+  /**
+   * Commit a whole rebuilt setup.
+   *
+   * Callers build `newSetup` from the setup they read at render time, so two
+   * commits in the same render used to mean the second silently discarded the
+   * first. `mergeSetupWrite` applies only the keys this caller actually
+   * changed, measured against the state it read, on top of whatever is current
+   * — so an element write and a shot write in the same render both survive.
+   *
+   * `baseSetup` defaults to the render-time active setup, which is what every
+   * caller reads; pass it explicitly when writing to a different setup.
+   */
+  const commitSetupState = (
+    newSetup: SceneSetup,
+    recordHistory = true,
+    baseSetup: SceneSetup = activeSetup,
+  ) => {
     setProject((prev) => {
+      const current = prev.setups.find((s) => s.id === newSetup.id);
+      const merged = current ? mergeSetupWrite(current, baseSetup, newSetup) : newSetup;
+      if (current && merged === current) return prev;
       const next: Project = {
         ...prev,
-        setups: prev.setups.map((s) => (s.id === newSetup.id ? newSetup : s)),
+        setups: prev.setups.map((s) => (s.id === merged.id ? merged : s)),
       };
+      liveSetupRef.current = merged;
       if (recordHistory) pendingSnapshotsRef.current.push(next);
       return next;
     });
@@ -1171,7 +1193,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const addElement = (
     partial: Partial<FloorPlanElement> & { type: FloorPlanElement['type'] }
   ): string => {
-    const id = `el-${partial.type}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const id = createId(`el-${partial.type}`);
     let newElement: FloorPlanElement;
 
     const baseDefaults = {
@@ -1212,7 +1234,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const sensor = partial.sensorFormat || 'Super35';
 
       // Auto create a linked shot with format SceneNumber/ShotNumber (e.g. 1/1, 1/2)
-      const shotId = newShotId();
+      // A caller that needs the shot id back (createCameraAndShot) mints it and
+      // passes it in; otherwise one is created here.
+      const shotId = (partial as Partial<CameraElement>).associatedShotId || newShotId();
       const shotNumber = `${activeSetup.sceneNumber || '1'}/${activeSetup.shots.length + 1}`;
 
       const createdCamera: CameraElement = {
@@ -3418,16 +3442,18 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // the default 'A' label until the user picks another camera in the shot
     // list's CAM dropdown or renames it in the inspector.
     const spawnPos = pos ?? getNewCameraPosition();
+    // The shot id is minted HERE and handed to addElement. Looking the camera
+    // up in `activeSetup` afterwards could never work: the element is created
+    // in a state update, so the render-time setup will never contain it, and
+    // this always returned an empty shotId.
+    const shotId = newShotId();
     const camId = addElement({
       type: 'camera',
       x: spawnPos.x,
       y: spawnPos.y,
-    });
-    const createdCam = activeSetup.elements.find((e) => e.id === camId) as CameraElement;
-    return {
-      cameraId: camId,
-      shotId: createdCam?.associatedShotId || '',
-    };
+      associatedShotId: shotId,
+    } as Partial<FloorPlanElement> & { type: FloorPlanElement['type'] });
+    return { cameraId: camId, shotId };
   };
 
   // Setup / Project Management
@@ -3447,17 +3473,20 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const duplicateCurrentSetup = () => {
-    const newId = `setup-${Date.now()}`;
+    // A deep JSON copy kept every element, shot, waypoint and lining id from
+    // the original, so the duplicate shared ids with the setup it came from —
+    // exactly what rule 16 forbids, and what makes a later edit or export
+    // ambiguous about which setup it meant. cloneSetupWithNewIds remaps them
+    // all and rewrites the internal references.
     const duplicatedSetup: SceneSetup = {
-      ...JSON.parse(JSON.stringify(activeSetup)),
-      id: newId,
+      ...cloneSetupWithNewIds(activeSetup),
       name: `${activeSetup.name} (Copy)`,
     };
 
     setRecordedProject((prev) => ({
       ...prev,
       setups: [...prev.setups, duplicatedSetup],
-      activeSetupId: newId,
+      activeSetupId: duplicatedSetup.id,
     }));
   };
 
