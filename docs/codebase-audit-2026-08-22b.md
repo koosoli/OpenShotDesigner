@@ -66,6 +66,14 @@ every cell, renames and deletes rows, and prints through
 `CoverageMatrixPrintView` — and it now appears in the complete package too. One
 real wart remains, listed below.
 
+## Fixed in the follow-up batch
+
+| Severity | Finding | Fix |
+|---|---|---|
+| High | The **first-run project shipped no example data**. `FloorPlanContext` hand-rolled its starter project with only the sample scenes and screenplay, while `createProject({withSampleScenes:true})` from the dashboard built locations, crew, schedule, tasks and mood boards. The very first project a user ever opened therefore had an empty Schedule and Crew page | The starter goes through the same factory. `src/utils/__tests__/sampleProject.test.ts` now asserts every module has example data, so the two paths cannot diverge again |
+| Medium | **Group keyframes were invisible and uneditable on the canvas.** Playback worked, but nothing drew the path and the inspector exposed only beat and rotation, so there was no way to see or set where a group travelled. New keyframes also spawned on top of the previous one, resolving to identical positions — an animated group looked static | Dashed motion path with numbered, draggable keyframe dots; live pose preview while dragging; new keyframes spawn clear of the last one |
+| Medium | `RubricSection` rendered its `badge` / `headerRight` slots **inside** the collapse toggle `<button>`. Those slots are often buttons ("Add movement waypoint"), so the DOM was invalid and some clicks went to the outer control — pressing "Add waypoint" could collapse the section instead | Both slots moved outside the toggle; the header stays keyboard-accessible |
+
 ## Open findings (not addressed)
 
 1. **Coverage cells outlive their cue.** Deleting a run-of-show cue hides the
@@ -73,7 +81,11 @@ real wart remains, listed below.
    `coverageMatrix.cells` forever, and the print builder still emits them under
    a `Row abcdef` stub. Decide one behaviour — prune on cue delete, or keep and
    show them as orphaned — and apply it in both places.
-2. **Power consumers can point at a deleted truss.** Deleting a truss in
+2. **Referential integrity for the new links.** Power consumers can point at a
+   deleted truss, and a call-sheet pick-up can point at a deleted contact. Both
+   degrade honestly ("Truss no longer on the rig", "contact removed") rather
+   than vanishing, but the references should be cleared on delete the way
+   `removePerson` already clears its own. Deleting a truss in
    `RiggingPanel` leaves `PowerConsumer.trussElementId` dangling. The report
    degrades honestly ("Truss no longer on the rig") but the reference should be
    cleared on delete, the way `removePerson` already clears its references.
