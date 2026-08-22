@@ -36,6 +36,8 @@ import {
   usesProductionPhone,
 } from '../../domain/people';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
+import { PersonAvatar } from './PersonAvatar';
+import { HeadshotField } from './HeadshotField';
 import { createId } from '../../domain/ids';
 
 const KIND_TINT: Record<PersonKind, string> = {
@@ -117,6 +119,7 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
             {PRODUCTION_DEPARTMENTS.map((department) => <option key={department} value={department} />)}
           </datalist>
         </label>
+        <HeadshotField draft={draft} onChange={onChange} isLight={isLight} />
         {field('role', 'Role / position', 'Gaffer, 1st AD, Lead…')}
         {field('phone', 'Phone', '+1 555 0100', 'tel')}
         {/* A number issued for this job only — a rented handset, a department
@@ -471,9 +474,11 @@ export const ContactsPanel: React.FC = () => {
                     isLight ? 'border-slate-200 bg-white hover:border-sky-300' : 'border-slate-800 bg-slate-950/40 hover:border-sky-700'
                   }`}
                 >
-                  <span className={`w-8 h-8 rounded-full grid place-items-center text-[11px] font-black flex-shrink-0 ${KIND_TINT[person.kind ?? 'other']}`}>
-                    {personInitials(person)}
-                  </span>
+                  <PersonAvatar
+                    person={person}
+                    size={32}
+                    fallbackClassName={KIND_TINT[person.kind ?? 'other']}
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
                       <span className="text-sm font-semibold truncate">{person.displayName}</span>

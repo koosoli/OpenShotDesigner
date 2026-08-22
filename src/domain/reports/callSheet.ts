@@ -47,6 +47,8 @@ export interface CallSheetEntry {
 
 export interface CallSheetPerson {
   displayName: string;
+  /** Headshot asset id, so the sheet can show a face beside the name. */
+  headshotAssetId?: string;
   department?: string;
   role?: string;
   email?: string;
@@ -116,6 +118,8 @@ export interface CallSheetData {
    */
   pickups: CallSheetPickup[];
   locations: CallSheetLocation[];
+  /** Captured location map, when the sheet asks for one and it was fetched. */
+  mapAssetId?: string;
   schedule: CallSheetEntry[];
   cast: CallSheetPerson[];
   crew: CallSheetPerson[];
@@ -293,6 +297,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     .filter((p) => (p.kind === 'cast' || p.kind === 'talent') && (!castIdFilter || castIdFilter.has(p.id)))
     .map((p) => ({
       displayName: p.displayName,
+      ...(p.headshotAssetId ? { headshotAssetId: p.headshotAssetId } : {}),
       role: p.role,
       email: p.email,
       phone: callSheetPhone(p),
@@ -371,6 +376,9 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
       };
     }),
     locations: resolvedLocations,
+    ...(day.callSheet?.showLocationMap && day.callSheet.mapAssetId
+      ? { mapAssetId: day.callSheet.mapAssetId }
+      : {}),
     schedule,
     cast,
     crew,

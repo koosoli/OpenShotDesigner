@@ -9,3 +9,12 @@ export {
   geocodeLocation,
   reverseGeocode,
 } from './map';
+export {
+  OSM_ATTRIBUTION,
+  OSM_TILE_URL,
+  latToTileY,
+  lngToTileX,
+  tileGridFor,
+  tileUrl,
+} from './staticMap';
+export type { StaticMapOptions, StaticMapResult } from './staticMap';

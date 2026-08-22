@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CastAssignment, Person } from '../../domain/people';
 import { PERSON_KIND_LABELS, callSheetPhone, groupPeopleByDepartment, usesProductionPhone } from '../../domain/people';
+import { PersonAvatar } from '../contacts/PersonAvatar';
 import type { Character } from '../../domain/script';
 
 interface ContactListPrintViewProps {
@@ -67,9 +68,14 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
                 {group.people.map((person) => (
                   <tr key={person.id} className="break-inside-avoid">
                     <td className={`${cell} font-semibold`}>
+                      <span className="flex items-start gap-1.5">
+                        <PersonAvatar person={person} size={26} fallbackClassName="bg-slate-200 text-slate-600" />
+                        <span className="min-w-0">
                       {person.displayName}
                       {person.address && <div className="text-[9px] font-normal text-slate-500">{person.address}</div>}
                       {person.emergencyContact && <div className="text-[9px] font-normal text-slate-500">ICE: {person.emergencyContact}</div>}
+                        </span>
+                      </span>
                     </td>
                     <td className={cell}>{person.role ?? ''}</td>
                     <td className={cell}>{PERSON_KIND_LABELS[person.kind ?? 'other']}</td>

@@ -231,6 +231,7 @@ const CSV_HEADERS: Record<keyof Person, string> = {
   hotelCheckIn: 'Check-in',
   hotelCheckOut: 'Check-out',
   notes: 'Notes',
+  headshotAssetId: 'Headshot asset',
 };
 
 const csvEscape = (value: string): string =>

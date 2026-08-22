@@ -33,6 +33,13 @@ export interface Person {
    */
   productionPhone?: string;
   notes?: string;
+  /**
+   * Headshot in the asset store, referenced by id — never base64 in project
+   * state (rule 26). Project state is snapshotted for undo and copied whole on
+   * duplicate, so an inline photo is re-copied every time; the id is fifty
+   * bytes and the bytes are stored once, content-addressed.
+   */
+  headshotAssetId?: string;
   /** Optional contact-sheet fields (plan §4.5); absent = unknown, never blank-filled. */
   company?: string;
   address?: string;

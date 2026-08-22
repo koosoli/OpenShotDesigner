@@ -2,6 +2,8 @@ import React from 'react';
 import type { CallSheetData, CallSheetEntry, CallSheetPerson } from '../../domain/reports';
 import { locationMapLinkUrl } from '../../domain/locations';
 import { classifyDepartment, CREW_DEPARTMENTS } from '../../domain/reports/crewSheet';
+import { PersonAvatar } from '../contacts/PersonAvatar';
+import { CallSheetMap } from './CallSheetMap';
 
 interface CallSheetPrintViewProps {
   sheet: CallSheetData;
@@ -207,6 +209,11 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
           ) : (
             <p>No locations recorded for this day.</p>
           )}
+          {/* The map is a picture, not a link: a printed sheet cannot be
+              clicked, and the person reading it is usually the one standing
+              outside with no signal. Attribution is burned into the image, so
+              it survives being photographed. */}
+          {sheet.mapAssetId && <CallSheetMap assetId={sheet.mapAssetId} />}
         </section>
 
         <section>
@@ -255,8 +262,16 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                           already states — repeating it on every line is noise. */}
                       <td className="time">{p.callTime ?? ''}</td>
                       <td>
-                        <strong>{p.displayName}</strong>
-                        {p.callNote && <div style={{ fontSize: '8px', color: '#475569' }}>{p.callNote}</div>}
+                        {/* A face beside the name: on a unit of forty, the
+                            people most likely to need identifying at the gate
+                            are exactly the cast. */}
+                        <span style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5mm' }}>
+                          <PersonAvatar person={p} size={24} fallbackClassName="bg-slate-200 text-slate-600" />
+                          <span>
+                            <strong>{p.displayName}</strong>
+                            {p.callNote && <div style={{ fontSize: '8px', color: '#475569' }}>{p.callNote}</div>}
+                          </span>
+                        </span>
                       </td>
                       <td>{p.role ?? '—'}</td>
                       <td>{joinDefined([p.phone, p.email]) || '—'}</td>

@@ -36,6 +36,17 @@ export interface ProductionDay {
      */
     sunriseOverride?: string;
     sunsetOverride?: string;
+    /**
+     * Per-sheet toggle for the location map picture. Off by default: not every
+     * sheet wants one, and fetching tiles is a deliberate act rather than
+     * something every day does on open (rules 29–30).
+     */
+    showLocationMap?: boolean;
+    /**
+     * The composed OpenStreetMap picture in the asset store. Captured once and
+     * then printable offline; absent means it has not been captured yet.
+     */
+    mapAssetId?: string;
     safetyNotes?: string;
     generalNotes?: string;
     /** Transport arrangements for the day as free text (shuttles, drivers). */

@@ -8,6 +8,7 @@ import type { ProductionDay } from '../../domain/scheduling';
 import type { CallSheetData, StandingCallSheetField } from '../../domain/reports';
 import { resolveStandingCallSheet } from '../../domain/reports';
 import { StandingCallSheetEditor } from './StandingCallSheetEditor';
+import { LocationMapCapture } from './LocationMapCapture';
 
 interface CallSheetWorkspaceProps {
   days: ProductionDay[];
@@ -313,6 +314,13 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                 />
               </label>
             ))}
+
+            <LocationMapCapture
+              day={selectedDay}
+              locations={sheet.locations}
+              patchCallSheet={patchCallSheet}
+              isLight={isLight}
+            />
 
             {/* The production-level values every day above inherits. Edited in
                 the same column so the relationship is visible, rather than on a
