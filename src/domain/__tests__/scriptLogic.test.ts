@@ -9,6 +9,7 @@ import {
   parseSceneHeading,
   replaceSceneHeadingLocation,
   sceneHeadingLocationQuery,
+  scriptScenesHaveDriftedIds,
   suggestCharacters,
   suggestLocations,
 } from '../script/logic';
@@ -428,5 +429,51 @@ describe('collectCharacterDialogue', () => {
       'Line one.',
       'Line two.',
     ]);
+  });
+});
+
+describe('scriptScenesHaveDriftedIds', () => {
+  const characters = [
+    { id: 'char-a', canonicalName: 'ALEX', aliases: [] },
+    { id: 'char-s', canonicalName: 'SARAH', aliases: [] },
+  ];
+  const scene = (characterIds: string[]) => ({
+    id: 's1',
+    sceneNumber: '1',
+    heading: 'INT. ROOM - DAY',
+    characterIds,
+    breakdownItemIds: [],
+  });
+
+  it('spots scenes stamped with ids the project does not have', () => {
+    expect(scriptScenesHaveDriftedIds([scene(['char-ghost'])], characters)).toBe(true);
+  });
+
+  it('is false when the ids resolve', () => {
+    expect(scriptScenesHaveDriftedIds([scene(['char-a'])], characters)).toBe(false);
+  });
+
+  /**
+   * Partial overlap is not drift: one unresolved id is a character deleted from
+   * the catalog, which is a different situation and must not trigger a
+   * re-derivation that would discard the rest.
+   */
+  it('does not call a single stale reference drift', () => {
+    expect(scriptScenesHaveDriftedIds([scene(['char-a', 'char-ghost'])], characters)).toBe(false);
+  });
+
+  it('is false for a script with no cues at all, which is empty rather than broken', () => {
+    expect(scriptScenesHaveDriftedIds([scene([])], characters)).toBe(false);
+    expect(scriptScenesHaveDriftedIds([], characters)).toBe(false);
+    expect(scriptScenesHaveDriftedIds(undefined, characters)).toBe(false);
+  });
+
+  /**
+   * A project with no catalog cannot be judged: there is nothing to match
+   * against, and re-deriving on every load would be pointless work.
+   */
+  it('is false when the project has no characters to compare with', () => {
+    expect(scriptScenesHaveDriftedIds([scene(['char-ghost'])], [])).toBe(false);
+    expect(scriptScenesHaveDriftedIds([scene(['char-ghost'])], undefined)).toBe(false);
   });
 });

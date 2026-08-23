@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createProject } from '../projectLibrary';
 import { keyCrewMember } from '../../domain/people';
-import { castPersonIdsForDay } from '../../domain/reports';
+import { castFilterForDay, castPersonIdsForDay } from '../../domain/reports';
 import { attachBreakdownItemsToScenes, scenesForBreakdownItem } from '../../domain/script';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
 
@@ -234,5 +234,91 @@ describe('example breakdown elements reach the scenes they were tagged in', () =
     for (const scene of attached) {
       expect(scene.breakdownItemIds.length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * Reported against the classic two-person dialogue template: a scene with cast
+ * was scheduled on a shoot day and the call sheet showed no cast.
+ *
+ * The cause was id drift. `buildCharacterCatalog` mints a fresh id for every
+ * cue it finds, and only `mergeCharacterCatalogs` — given the persisted
+ * catalog — keeps a stable one. Both places that re-derived the scene list
+ * passed `[]` instead, so every scene ended up stamped with character ids that
+ * existed nowhere else, and `castAssignments`, which key on the persisted ids,
+ * matched nothing.
+ *
+ * It is asserted here rather than on the derivation alone because the whole
+ * point is that two independently-derived halves have to agree.
+ */
+describe('scene character ids stay in step with the cast list', () => {
+  const project = createProject({ title: 'Sample', withSampleScenes: true });
+  const lines = project.scriptLines ?? [];
+
+  it('derives scenes whose characters exist in the persisted catalog', () => {
+    const scenes = deriveScriptBreakdown(lines, project.characters ?? [], project.locations ?? []).scenes;
+    const known = new Set((project.characters ?? []).map((character) => character.id));
+    const referenced = scenes.flatMap((scene) => scene.characterIds);
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const id of referenced) expect(known.has(id)).toBe(true);
+  });
+
+  /** Deriving without the catalog is what produced the bug; pin the reason. */
+  it('drifts when derived without the catalog, which is why callers must pass it', () => {
+    const scenes = deriveScriptBreakdown(lines, [], []).scenes;
+    const known = new Set((project.characters ?? []).map((character) => character.id));
+    const referenced = scenes.flatMap((scene) => scene.characterIds);
+    expect(referenced.some((id) => known.has(id))).toBe(false);
+  });
+
+  it('resolves scheduled scenes to the cast actually assigned to them', () => {
+    const scenes = deriveScriptBreakdown(lines, project.characters ?? [], project.locations ?? []).scenes;
+    const scene = scenes.find((candidate) => candidate.characterIds.length > 0)!;
+    const block = { id: 'blk-test', kind: 'scene' as const, scriptSceneId: scene.id };
+    const ids = castFilterForDay(['blk-test'], [block], {
+      scriptScenes: scenes,
+      setups: project.setups,
+      castAssignments: project.castAssignments,
+    });
+    expect(ids && ids.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The invariant behind the reported bug, stated directly.
+ *
+ * `ContactsPanel` derives the character list to populate its cast pickers, and
+ * stores the chosen `characterId` in `castAssignments`. If deriving twice can
+ * produce different ids for the same character, then every assignment made
+ * before a reload dangles afterwards — the assignment is still in the file,
+ * pointing at a character that no longer exists under that id, and the call
+ * sheet simply shows no cast. Silent, and unrecoverable by the user.
+ */
+describe('character ids survive being re-derived', () => {
+  const project = createProject({ title: 'Sample', withSampleScenes: true });
+  const lines = project.scriptLines ?? [];
+
+  const derive = (catalog: typeof project.characters) =>
+    deriveScriptBreakdown(lines, catalog ?? [], project.locations ?? []).characters;
+
+  it('is stable when the persisted catalog is passed', () => {
+    const first = derive(project.characters);
+    const second = derive(project.characters);
+    expect(first.map((c) => c.id)).toEqual(second.map((c) => c.id));
+    expect(first.length).toBeGreaterThan(0);
+  });
+
+  it('is NOT stable without it, which is why the catalog has to be persisted', () => {
+    const first = derive([]);
+    const second = derive([]);
+    expect(first.map((c) => c.canonicalName)).toEqual(second.map((c) => c.canonicalName));
+    expect(first.map((c) => c.id)).not.toEqual(second.map((c) => c.id));
+  });
+
+  it('keeps a cast assignment resolvable across a re-derivation', () => {
+    const catalog = derive(project.characters);
+    const assignment = { id: 'ca-x', characterId: catalog[0].id, personId: 'p-1' };
+    const afterReload = derive(catalog);
+    expect(afterReload.some((c) => c.id === assignment.characterId)).toBe(true);
   });
 });

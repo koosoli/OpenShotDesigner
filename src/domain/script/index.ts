@@ -9,6 +9,7 @@ export {
 } from './omission';
 export type { OmittableLine } from './omission';
 export { reconcileScriptLineIds } from './reconcile';
+export { scriptScenesHaveDriftedIds } from './logic';
 export { buildScriptSides, sidesCharacterOptions, splitScenes } from './sides';
 export type { ScriptSides, SidesLine, SidesOptions, SidesScene } from './sides';
 export type { ReconcilableLine } from './reconcile';

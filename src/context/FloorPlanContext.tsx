@@ -31,7 +31,7 @@ import {
   Vector2D,
 } from '../types';
 import { createId } from '../domain/ids';
-import { deriveScriptBreakdown } from '../domain/script/logic';
+import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { applyMediaReplacements, migrateProjectMedia } from '../utils/projectMedia';
 import {
   ACTOR_COLOR_PALETTE,
@@ -2460,8 +2460,21 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const ids = new Set(numbered.map((line) => line.id));
     setProject((prev) => {
       // Derive old/new scene lists so removed headings can be detected.
-      const oldScenes = deriveScriptBreakdown(prev.scriptLines || [], [], []).scenes;
-      const newScenes = deriveScriptBreakdown(numbered, [], []).scenes;
+      //
+      // The persisted characters MUST be passed in. `buildCharacterCatalog`
+      // mints a fresh id for every cue it finds, and `mergeCharacterCatalogs`
+      // only preserves a stable id when it has the existing catalog to match
+      // against. Deriving with `[]` therefore stamped every scene with
+      // character ids that existed nowhere else — so `castAssignments`, which
+      // key on the persisted character ids, matched nothing and a scheduled
+      // scene produced a call sheet with an empty cast table.
+      const oldScenes = deriveScriptBreakdown(
+        prev.scriptLines || [],
+        prev.characters || [],
+        prev.locations || [],
+      ).scenes;
+      const derived = deriveScriptBreakdown(numbered, prev.characters || [], prev.locations || []);
+      const newScenes = derived.scenes;
       // A scene counts as "live" only when its heading exists AND is not
       // flagged OMITTED — omitted scenes keep their number but are not shootable.
       const newSceneIds = new Set(newScenes.filter((scene) => !scene.omitted).map((scene) => scene.id));
@@ -2477,6 +2490,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         scriptText: meta?.scriptText ?? prev.scriptText,
         scriptLines: numbered,
         scriptScenes: newScenes,
+        // Persist the merged catalog too: a character discovered by this edit
+        // has a fresh id, and it has to be the SAME id next time or the scenes
+        // and the cast list drift apart again.
+        characters: derived.characters,
         setups: prev.setups.map((setup) => ({
           ...setup,
           // The legacy per-setup copy is cleared so there is one source of truth.
@@ -2506,13 +2523,48 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  // Backfill the derived scene list for projects saved before it was
-  // persisted; absent-safe and idempotent.
+  /**
+   * Keep the persisted character catalog and the derived scene list in step.
+   *
+   * `buildCharacterCatalog` mints a fresh id for every cue it finds. Only
+   * `mergeCharacterCatalogs`, given the persisted catalog, keeps a stable one.
+   * So a project whose `characters` were never persisted regenerates every id
+   * each time anything re-derives — and a cast assignment made against one of
+   * those ids stops resolving the moment it does. That is silent data loss: the
+   * assignment is still in the file, pointing at a character that no longer
+   * exists under that id, and the call sheet simply shows no cast.
+   *
+   * This runs when the catalog is missing, when the scene list is missing, or
+   * when the scenes reference characters the project does not have. Projects
+   * already saved in that state cannot fix themselves — the old backfill only
+   * ran when the scene list was absent, and theirs is present and wrong.
+   */
   useEffect(() => {
-    if (project.scriptScenes || !project.scriptLines?.length) return;
-    const scenes = deriveScriptBreakdown(project.scriptLines, [], []).scenes;
-    setProject((prev) => (prev.scriptScenes ? prev : { ...prev, scriptScenes: scenes }));
-  }, [project.scriptScenes, project.scriptLines]);
+    if (!project.scriptLines?.length) return;
+    const catalogMissing = !project.characters?.length;
+    const needsRepair =
+      catalogMissing ||
+      !project.scriptScenes ||
+      scriptScenesHaveDriftedIds(project.scriptScenes, project.characters);
+    if (!needsRepair) return;
+
+    setProject((prev) => {
+      const stillNeeded =
+        !prev.characters?.length ||
+        !prev.scriptScenes ||
+        scriptScenesHaveDriftedIds(prev.scriptScenes, prev.characters);
+      if (!stillNeeded) return prev;
+      const derived = deriveScriptBreakdown(
+        prev.scriptLines || [],
+        prev.characters || [],
+        prev.locations || [],
+      );
+      // Nothing to persist for a screenplay with no cues in it; returning `prev`
+      // keeps this effect from looping on projects that will never have any.
+      if (derived.characters.length === 0) return prev;
+      return { ...prev, scriptScenes: derived.scenes, characters: derived.characters };
+    });
+  }, [project.scriptScenes, project.scriptLines, project.characters]);
 
   const avScriptRows: AVScriptRow[] = project.avScriptRows || [    {
       id: 'av-1',

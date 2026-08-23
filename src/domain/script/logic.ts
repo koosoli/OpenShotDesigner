@@ -569,3 +569,27 @@ export const mergeCharacters = (
     remap: (oldId: string) => (oldId === duplicateId ? primaryId : oldId),
   };
 };
+
+/**
+ * True when a stored scene list points at characters the project does not have.
+ *
+ * Scene lists persisted before the derivation was fixed were built without the
+ * character catalog, so every `characterIds` entry is an id that was minted on
+ * the spot and saved nowhere else. Those scenes look fine — they name the right
+ * number of characters — but nothing can resolve them, so a scheduled scene
+ * produced a call sheet with an empty cast table.
+ *
+ * Detected rather than assumed: a project whose scenes reference nobody at all
+ * (no cues in the script) is not drifted, it is simply empty, and re-deriving
+ * it every load would be pointless work.
+ */
+export const scriptScenesHaveDriftedIds = (
+  scenes: readonly ScriptScene[] | undefined,
+  characters: readonly Character[] | undefined,
+): boolean => {
+  const referenced = (scenes ?? []).flatMap((scene) => scene.characterIds ?? []);
+  if (referenced.length === 0) return false;
+  const known = new Set((characters ?? []).map((character) => character.id));
+  if (known.size === 0) return false;
+  return referenced.every((id) => !known.has(id));
+};
