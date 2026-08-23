@@ -247,7 +247,11 @@ export const ScriptPanel: React.FC = () => {
   }, [lines, project.locations]);
   const [suggest, setSuggest] = useState<{ lineId: string; kind: 'character' | 'location' } | null>(null);
   const activeSuggestions = useMemo(() => {
-    if (!suggest) return [];
+    // The list belongs to the line being edited. Without this it kept pointing
+    // at the line it was opened on: pressing Enter to start an action line left
+    // the location suggestions hanging under the scene heading above, with no
+    // way to dismiss them short of Escape on a field no longer focused.
+    if (!suggest || suggest.lineId !== activeEditingLineId) return [];
     const line = lines.find((l) => l.id === suggest.lineId);
     if (!line) return [];
     if (suggest.kind === 'character') {
@@ -257,7 +261,7 @@ export const ScriptPanel: React.FC = () => {
     return suggestLocations(locationCatalog, query).filter(
       (l) => l.name.toLowerCase() !== query.trim().toLowerCase()
     );
-  }, [suggest, lines, characterCatalog, locationCatalog]);
+  }, [suggest, activeEditingLineId, lines, characterCatalog, locationCatalog]);
 
   useEffect(() => {
     if (activeTab !== 'reports' && scriptFormatMode && scriptFormatMode !== activeTab) {
@@ -1154,6 +1158,10 @@ export const ScriptPanel: React.FC = () => {
                                     if (e.key === 'Escape') setSuggest(null);
                                     handleLineKeyDown(e, line, idx);
                                   }}
+                                  // The suggestion buttons keep focus with
+                                  // preventDefault on mousedown, so closing on
+                                  // blur never eats the click that picks one.
+                                  onBlur={() => setSuggest(null)}
                                   className="w-full bg-transparent outline-none uppercase font-bold text-amber-300 focus:bg-amber-950/20 px-1 rounded"
                                   placeholder="INT. LOCATION - TIME"
                                 />
@@ -1223,6 +1231,7 @@ export const ScriptPanel: React.FC = () => {
                                   if (e.key === 'Escape') setSuggest(null);
                                   handleLineKeyDown(e, line, idx);
                                 }}
+                                onBlur={() => setSuggest(null)}
                                 className="w-full bg-transparent outline-none uppercase font-bold text-emerald-300 focus:bg-emerald-950/20 px-1 rounded"
                                 placeholder="CHARACTER NAME"
                               />

@@ -7,6 +7,7 @@ import {
 import { parseScreenplay } from '../components/script/screenplayParser';
 import { createId } from '../domain/ids';
 import type { CastAssignment, Person } from '../domain/people';
+import type { ProjectBudget } from '../domain/budget';
 import { hasStandingContent } from '../domain/reports';
 import type { StandingCallSheet } from '../domain/reports';
 import type { BreakdownCategory, BreakdownItem, Character } from '../domain/script';
@@ -201,6 +202,7 @@ export interface SampleScheduleMeta {
     website?: string;
   };
   standingCallSheet?: StandingCallSheet;
+  budget?: ProjectBudget;
 }
 
 /** ISO date `offset` days from today, local time. */
@@ -217,16 +219,16 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
   // groups them, and the crew roles use the canonical KEY_CREW_ROLES titles so
   // the Key crew block on the Crew page resolves every head.
   const people: Person[] = [
-    { id: createId('person'), displayName: 'Mara Vogel', kind: 'crew', department: 'Direction', role: 'Director', phone: '+49 170 555 0101', email: 'mara@lanternsample.example' },
-    { id: createId('person'), displayName: 'Jonas Feld', kind: 'crew', department: 'Camera', role: 'Director of Photography', phone: '+49 170 555 0102', email: 'jonas@lanternsample.example' },
-    { id: createId('person'), displayName: 'Priya Anand', kind: 'crew', department: 'Direction', role: '1st Assistant Director', phone: '+49 170 555 0103', productionPhone: '+49 151 555 0011', email: 'priya@lanternsample.example' },
-    { id: createId('person'), displayName: 'Elif Kaya', kind: 'crew', department: 'Production', role: 'Producer', phone: '+49 170 555 0106', productionPhone: '+49 151 555 0012', email: 'elif@lanternsample.example' },
-    { id: createId('person'), displayName: 'Tom Reilly', kind: 'crew', department: 'Lighting / Electric', role: 'Gaffer', phone: '+49 170 555 0104' },
-    { id: createId('person'), displayName: 'Dana Osei', kind: 'crew', department: 'Grip', role: 'Key Grip', phone: '+49 170 555 0107' },
-    { id: createId('person'), displayName: 'Alex Kim', kind: 'crew', department: 'Sound', role: 'Production Sound Mixer', phone: '+49 170 555 0105' },
-    { id: createId('person'), displayName: 'Ruth Adeyemi', kind: 'crew', department: 'Direction', role: 'Script Supervisor', phone: '+49 170 555 0108' },
-    { id: createId('person'), displayName: 'Alex Hunter', kind: 'cast', department: 'Cast', role: 'Lead — "Sarah"', phone: '+49 171 555 0201', email: 'alex.hunter@casting.example' },
-    { id: createId('person'), displayName: 'Marco Lenz', kind: 'cast', department: 'Cast', role: 'Lead — "Alex"', phone: '+49 171 555 0203', email: 'marco.lenz@casting.example' },
+    { id: createId('person'), displayName: 'Mara Vogel', kind: 'crew', department: 'Direction', role: 'Director', phone: '+49 170 555 0101', email: 'mara@lanternsample.example', rateCard: { amount: 6500, basis: 'flat' } },
+    { id: createId('person'), displayName: 'Jonas Feld', kind: 'crew', department: 'Camera', role: 'Director of Photography', phone: '+49 170 555 0102', email: 'jonas@lanternsample.example', rateCard: { amount: 780, basis: 'day' }, rate: 'Kit fee €120/day on top' },
+    { id: createId('person'), displayName: 'Priya Anand', kind: 'crew', department: 'Direction', role: '1st Assistant Director', phone: '+49 170 555 0103', productionPhone: '+49 151 555 0011', email: 'priya@lanternsample.example', rateCard: { amount: 3100, basis: 'week' } },
+    { id: createId('person'), displayName: 'Elif Kaya', kind: 'crew', department: 'Production', role: 'Producer', phone: '+49 170 555 0106', productionPhone: '+49 151 555 0012', email: 'elif@lanternsample.example', rateCard: { amount: 9000, basis: 'flat', vatPercent: 0 } },
+    { id: createId('person'), displayName: 'Tom Reilly', kind: 'crew', department: 'Lighting / Electric', role: 'Gaffer', phone: '+49 170 555 0104', rateCard: { amount: 620, basis: 'day' } },
+    { id: createId('person'), displayName: 'Dana Osei', kind: 'crew', department: 'Grip', role: 'Key Grip', phone: '+49 170 555 0107', rateCard: { amount: 580, basis: 'day' } },
+    { id: createId('person'), displayName: 'Alex Kim', kind: 'crew', department: 'Sound', role: 'Production Sound Mixer', phone: '+49 170 555 0105', rateCard: { amount: 650, basis: 'day' } },
+    { id: createId('person'), displayName: 'Ruth Adeyemi', kind: 'crew', department: 'Direction', role: 'Script Supervisor', phone: '+49 170 555 0108', rateCard: { amount: 480, basis: 'day' } },
+    { id: createId('person'), displayName: 'Alex Hunter', kind: 'cast', department: 'Cast', role: 'Lead — "Sarah"', phone: '+49 171 555 0201', email: 'alex.hunter@casting.example', rateCard: { amount: 950, basis: 'day' } },
+    { id: createId('person'), displayName: 'Marco Lenz', kind: 'cast', department: 'Cast', role: 'Lead — "Alex"', phone: '+49 171 555 0203', email: 'marco.lenz@casting.example', rateCard: { amount: 900, basis: 'day' } },
     { id: createId('person'), displayName: 'Noah Brecht', kind: 'cast', department: 'Cast', role: 'Lead — "Suspect"', phone: '+49 171 555 0202', address: 'Hamburg (travelling in)', hotelName: 'Hotel Astoria', hotelAddress: 'Kohlfurter Strasse 8, Berlin', hotelCheckIn: isoFromToday(6), hotelCheckOut: isoFromToday(9) },
     { id: createId('person'), displayName: 'Yara Solis', kind: 'cast', department: 'Cast', role: 'Lead — "Detective"', phone: '+49 171 555 0204', address: 'Munich (travelling in)', hotelName: 'Hotel Astoria', hotelAddress: 'Kohlfurter Strasse 8, Berlin', hotelCheckIn: isoFromToday(6), hotelCheckOut: isoFromToday(9) },
   ];
@@ -342,6 +344,28 @@ export const sampleScheduleMeta = (): SampleScheduleMeta => {
       parking: 'Crew parking on Backlot Avenue; unit vehicles in the yard only.',
       nearestHospital: 'Charité Mitte, Charitéplatz 1 · +49 30 450 50',
       safetyNotes: 'Hi-vis in the yard. Cable ramps on every crossing. Medic on unit base.',
+    },
+    // A worked budget: the crew and cast above carry rate cards, so the only
+    // things stored here are the equipment rates (keyed the way the master
+    // equipment list groups gear) and the costs nothing else knows about.
+    // Two performers deliberately have no rate, so the "not yet priced" block
+    // demonstrates itself rather than rendering empty (plan §42).
+    budget: {
+      settings: { currency: 'EUR', defaultVatPercent: 17, weekDays: 5, contingencyPercent: 8 },
+      equipmentRates: [
+        { id: createId('rate'), key: 'camera:arri:arri alexa mini lf', label: 'ARRI Alexa Mini LF', amount: 420, basis: 'day' },
+        { id: createId('rate'), key: 'lighting:aputure / arri:aputure 600d + light dome ii', label: 'Aputure 600d + Light Dome II', amount: 85, basis: 'day' },
+        { id: createId('rate'), key: 'lighting:generic:astera titan tube', label: 'Astera Titan Tube', amount: 45, basis: 'day' },
+        { id: createId('rate'), key: 'grip:dana dolly:universal track kit & 6ft aluminum rails', label: 'Dana Dolly Universal Track Kit', amount: 95, basis: 'day' },
+        { id: createId('rate'), key: 'grip:sachtler / o’connor:o’connor 2575d / sachtler cine 30 fluid head', label: 'O’Connor 2575D fluid head', amount: 70, basis: 'day' },
+      ],
+      lines: [
+        { id: createId('budget'), category: 'location', label: 'Kreuzberg Studio, Stage 2 — hire', amount: 1450, basis: 'day' },
+        { id: createId('budget'), category: 'catering', label: 'Unit catering, per head', amount: 18, basis: 'day', quantity: 22, vatPercent: 3 },
+        { id: createId('budget'), category: 'travel', label: 'Hotel Astoria — two performers, three nights', amount: 660, basis: 'flat', vatPercent: 3 },
+        { id: createId('budget'), category: 'insurance', label: 'Production insurance & permits', amount: 1800, basis: 'flat', vatPercent: 0 },
+        { id: createId('budget'), category: 'post', label: 'Offline edit and grade', amount: 7500, basis: 'flat' },
+      ],
     },
   };
 };
