@@ -391,9 +391,23 @@ least footnoted on the printed sheet.
    `release` or passes an owner yet, so the reference counting protects a path
    that is not yet walked. Wiring mood-board and headshot deletion to it is the
    follow-up.
-10. **`mergeSetupWrite` is now dead in production** — the last caller went with
-    `commitSetupState`. It is still exported and tested; either wire it or
-    remove it.
+
+   **Still open, deliberately (2026-08-24).** Every `put` currently omits the
+   owner argument, so every record is marked `untrackedUser` and `release`
+   could not delete anything even if it were called — wiring the call alone
+   would achieve nothing. Doing it properly needs an owner-identity convention
+   (`moodboard:<cardId>`, `person:<id>`) applied at every put site, and getting
+   that wrong deletes images a user is still looking at. That is a product
+   decision with a destructive failure mode, so it was left rather than guessed
+   at. The `untrackedUser` guard means existing assets are safe in the
+   meantime; the cost of waiting is disk, which is the recoverable mistake.
+10. ~~**`mergeSetupWrite` is now dead in production.**~~ **Closed (2026-08-24):
+    removed.** It merged concurrent setup writes built from stale snapshots.
+    `commitSetupState` is gone entirely and `commitSetupUpdate` — a true
+    functional updater, now at 28 call sites — removes that class of loss at the
+    source rather than reconciling it afterwards. Keeping the helper meant dead
+    code carrying passing tests, which is worse than no code: the tests read as
+    coverage of a path nothing walks.
 11. ~~The production panels are still islands.~~ **Closed.** All six links were
     built: the load list packs from the equipment manifest (idempotently, by a
     source key, never touching hand-packed rows); suspended loads link to a
@@ -451,3 +465,80 @@ least footnoted on the printed sheet.
     equipment panels have none. There is still no end-to-end layer, so the
     money path (block → schedule → export) is guarded only by
     [`regression-checklist.md`](regression-checklist.md).
+
+---
+
+## Hardening pass, 2026-08-24
+
+Prompted by the defect distribution in the continuity module: of four bugs, one
+was in pure domain logic and three were at seams between the component, the
+domain and real project data. The unit suite was green throughout all three,
+correctly — the functions it covered were right. What follows is aimed at the
+gap that made that possible, and at making the `FloorPlanContext`
+decomposition safe to start.
+
+### Test layers added
+
+Documented in full in [`testing-layers.md`](testing-layers.md).
+
+| Layer | Catches |
+| --- | --- |
+| Provider-contract (`src/context/__tests__/*.contract.test.tsx`) | Behaviour changes in the context's public actions. Characterisation, so a refactor changes them deliberately. |
+| Cross-collection properties (`projectCollections.test.ts`) | A new `Project` collection that clone, migration or integrity never learned about. |
+| Panel smoke (all sixteen panels) | A panel that throws or logs an error on mount against real data. |
+| Panel behaviour (continuity, shot list) | What an interaction actually persisted, rather than that a callback fired. |
+| Golden workflow | The joins between layers: plan → schedule → shoot → export. |
+| Persistence & recovery | Work reaching durable storage, and the app still starting when storage has gone bad. |
+| Scale (720-shot project) | Accidental quadratics, with budgets ~50x measured time. |
+
+Suite: 1,558 tests. The contract layer proved itself immediately — the
+shot-builder extraction silently stopped creating a camera in single-camera
+mode, and the contract suite failed while every unit test stayed green.
+
+### Correctness fixes
+
+- **Duplicate camera letters.** Worse than this document previously recorded
+  (item 8): the letter reaches the `Camera #` column of the Resolve export.
+  Nine sites, three different rules between them.
+- **Duplicate actor letters.** The same counting bug, found by looking for it
+  after the camera one.
+- **`clone.ts` never remapped `takes`.** Duplicating a project left every take
+  pointing at the original's shots.
+- **`clone.ts` crashed on imported JSON** missing `character.aliases` or
+  `scriptScene.characterIds` — a TypeError that lost the duplicate entirely.
+- **Saves could land in the store that is read only once.** A write issued
+  before `initProjectLibrary` settled went to localStorage, which is imported
+  into IndexedDB exactly once; after that import, such a write is never read
+  again. Production never opened that window because `main.tsx` renders inside
+  init's `.finally()`, but that was a property of file ordering rather than of
+  the library.
+- **Two quadratics** in the continuity CSV and the day checklist, invisible on
+  the ten-shot example project and dominant on a feature.
+
+### Structural changes
+
+- `domain/shots/createShot.ts` is now the single way a shot (and its camera) is
+  built. `addShot`, `insertShotAfter` and `addElement`'s camera branch each had
+  their own copy of the rules; `insertShotAfter`'s copy was the only one that
+  could not see which numbers were taken, so inserting twice in the same place
+  handed out the same number twice. Called inside the state updater, so neither
+  the number nor the letter can be read from a stale render closure.
+- `domain/plan/elementGuards.ts` replaces 14 of `FloorPlanCanvas`'s 25 `any`
+  casts with guards that check values are usable rather than merely present.
+  Lint budget 149 → 133.
+
+### Still open
+
+- **Asset-store ownership** (item 9 above), for the reason recorded there.
+- **`FloorPlanContext` decomposition.** Started rather than done: shot creation
+  is extracted, the rest is not. The net above exists to make continuing it
+  safe. Worth restating what success is not — the file getting shorter. A
+  4,100-line context split into twelve interdependent 350-line contexts is the
+  same object wearing twelve hats. Success is that adding something like Camera
+  Reports stops requiring edits to six unrelated systems.
+- **`deriveSceneEquipment` does not propagate `fixtureProfileId`** (item 11's
+  surviving follow-up), so the load list matches catalogue weights by brand and
+  model rather than by id.
+- **No end-to-end layer.** Rendering, layout and the download path are
+  untested, and the Resolve import remains a manual gate. Playwright would
+  cover the first two; it is a real dependency and therefore a decision.
