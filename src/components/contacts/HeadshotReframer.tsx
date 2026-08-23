@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { RotateCcw, ZoomIn } from 'lucide-react';
 import {
   DEFAULT_HEADSHOT_FRAMING,
+  framingSlack,
   MAX_HEADSHOT_ZOOM,
   headshotImageStyle,
   isDefaultFraming,
@@ -40,7 +41,14 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
 }) => {
   const current = normaliseFraming(framing);
   const [dragging, setDragging] = useState(false);
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
   const last = useRef<{ x: number; y: number } | null>(null);
+
+  // `cover` only overflows the picture's longer axis, so a landscape headshot
+  // has nothing hidden above or below and dragging up and down does nothing.
+  // That reads as a broken control, so the panel says which way it can move and
+  // offers the zoom that frees the other axis.
+  const slack = framingSlack(natural?.width, natural?.height, current.zoom);
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -109,6 +117,12 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
           src={src}
           alt=""
           draggable={false}
+          onLoad={(event) =>
+            setNatural({
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            })
+          }
           style={{
             width: PREVIEW_SIZE,
             height: PREVIEW_SIZE,
@@ -144,9 +158,24 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
             </span>
           </button>
           <span className={`text-[9px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            Drag the circle to reframe
+            {slack.horizontal && slack.vertical
+              ? 'Drag the circle to reframe'
+              : slack.horizontal
+                ? 'Drag left and right to reframe'
+                : slack.vertical
+                  ? 'Drag up and down to reframe'
+                  : 'Zoom in to reframe'}
           </span>
         </div>
+        {slack.zoomToUnlock !== null && (
+          <button
+            type="button"
+            onClick={() => onChange(zoomFraming(current, slack.zoomToUnlock as number))}
+            className={`${button} w-full`}
+          >
+            {slack.vertical ? 'Zoom in to move it sideways' : 'Zoom in to move it up and down'}
+          </button>
+        )}
       </div>
     </div>
   );

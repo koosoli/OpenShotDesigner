@@ -24,6 +24,7 @@ import { TimelineCalendar } from './TimelineCalendar';
 import { CalendarEventEditor, MonthCalendar } from './MonthCalendar';
 import { createId } from '../../domain/ids';
 import { waitForImages } from '../../utils/image';
+import { parseSceneHeading } from '../../domain/script/logic';
 import {
   BLOCK_KIND_LABELS,
   MANUAL_TYPE_LABELS,
@@ -265,8 +266,21 @@ export const SchedulePanel: React.FC = () => {
         else if (setup?.location) pushName(setup.location);
       }
       if (block.kind === 'scene') {
-        const entity = (project.locations ?? []).find((candidate) => candidate.id === project.scriptScenes?.find((s) => s.id === block.scriptSceneId)?.locationId);
+        const scene = project.scriptScenes?.find((s) => s.id === block.scriptSceneId);
+        const entity = scene?.locationId
+          ? (project.locations ?? []).find((candidate) => candidate.id === scene.locationId)
+          : undefined;
         if (entity) pushEntity(entity);
+        else if (scene) {
+          // Fall back to the set named in the slugline, exactly as the setup and
+          // shots branches fall back to their own free text. Without this a
+          // scene contributed no location at all unless someone had linked it
+          // to a canonical Location by hand — so a day scheduled entirely by
+          // scene printed "No shooting location is linked to this day" while
+          // the slugline said INT. LIVING ROOM - NIGHT.
+          const parsed = parseSceneHeading(scene.heading);
+          if (parsed.location) pushName(parsed.location);
+        }
       }
       if (block.kind === 'shots') {
         for (const shotId of block.shotIds) {

@@ -8,6 +8,7 @@ import {
 } from './fixtures/scenarios';
 import { castFilterForDay, castPersonIdsForDay, deriveCallSheet, deriveDood } from '../reports';
 import { calculatePowerLoad } from '../power';
+import { parseSceneHeading } from '../script/logic';
 import { deriveAllScenesEquipment } from '../../utils/equipmentList';
 import type { Project } from '../../types';
 
@@ -211,5 +212,32 @@ describe('production phone reaches the call sheet', () => {
     const sheet = callSheetFor(withUnitHandsets());
     const foh = sheet.crew.find((c) => c.displayName === 'Dan Whitfield');
     expect(foh?.phone).toBe('+49 170 555 0105');
+  });
+});
+
+/**
+ * Reported: "it is not clear how I can associate a scene's location with the
+ * location so that it will show up on the call sheet."
+ *
+ * It was not a discoverability problem alone. A scene contributed a location to
+ * the call sheet ONLY when someone had linked it to a canonical `Location` by
+ * hand — the setup and shots paths both fall back to their own free text, and
+ * the scene path did not. So a day scheduled entirely by scene printed "No
+ * shooting location is linked to this day" while the slugline plainly said
+ * INT. LIVING ROOM - NIGHT.
+ */
+describe('a scene heading names the location on the call sheet', () => {
+  it('parses the set out of a slugline', () => {
+    expect(parseSceneHeading('INT. LIVING ROOM - NIGHT').location).toBe('LIVING ROOM');
+    expect(parseSceneHeading('EXT. BACKLOT AVENUE - DAY').location).toBe('BACKLOT AVENUE');
+  });
+
+  it('keeps the set name when there is no time of day', () => {
+    expect(parseSceneHeading('INT. STAIRWELL').location).toBe('STAIRWELL');
+  });
+
+  it('reads the interior/exterior marker, which a call sheet prints', () => {
+    expect(parseSceneHeading('EXT. BACKLOT AVENUE - DAY').intExt).toBe('EXT');
+    expect(parseSceneHeading('INT. LIVING ROOM - NIGHT').timeOfDay).toBe('NIGHT');
   });
 });

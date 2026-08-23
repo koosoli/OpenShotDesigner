@@ -1,6 +1,7 @@
 export type { Person, PersonKind, CastAssignment } from './types';
 export {
   DEFAULT_HEADSHOT_FRAMING,
+  framingSlack,
   MAX_HEADSHOT_ZOOM,
   headshotImageStyle,
   isDefaultFraming,
@@ -8,7 +9,7 @@ export {
   panFraming,
   zoomFraming,
 } from './headshot';
-export type { HeadshotFraming } from './headshot';
+export type { FramingSlack, HeadshotFraming } from './headshot';
 export {
   PERSON_KINDS,
   PERSON_KIND_LABELS,

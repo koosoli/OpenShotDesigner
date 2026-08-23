@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_HEADSHOT_FRAMING,
+  framingSlack,
   MAX_HEADSHOT_ZOOM,
   headshotImageStyle,
   isDefaultFraming,
@@ -118,5 +119,51 @@ describe('headshotImageStyle', () => {
   it('never emits NaN into a style string', () => {
     const style = headshotImageStyle({ x: NaN, y: NaN, zoom: NaN });
     expect(style.objectPosition).not.toMatch(/NaN/);
+  });
+});
+
+/**
+ * The reported bug: headshots panned left and right but not up and down.
+ *
+ * Not a broken drag — geometry. `object-fit: cover` scales the picture until it
+ * covers the circle, so only the LONGER axis overflows. A landscape headshot
+ * hides image to the left and right and nothing above or below, so dragging
+ * vertically has nothing to reveal.
+ */
+describe('framingSlack', () => {
+  it('gives a landscape headshot horizontal movement only', () => {
+    expect(framingSlack(1600, 900, 1)).toMatchObject({ horizontal: true, vertical: false });
+  });
+
+  it('gives a portrait headshot vertical movement only', () => {
+    expect(framingSlack(900, 1600, 1)).toMatchObject({ horizontal: false, vertical: true });
+  });
+
+  it('gives a square headshot neither until it is zoomed', () => {
+    expect(framingSlack(800, 800, 1)).toMatchObject({ horizontal: false, vertical: false });
+  });
+
+  /** Zooming is what creates the slack, which is why the control offers it. */
+  it('unlocks both axes once zoomed past 1', () => {
+    expect(framingSlack(1600, 900, 1.2)).toMatchObject({ horizontal: true, vertical: true });
+    expect(framingSlack(800, 800, 1.2)).toMatchObject({ horizontal: true, vertical: true });
+  });
+
+  it('offers a zoom only while an axis is locked', () => {
+    expect(framingSlack(1600, 900, 1).zoomToUnlock).toBe(1.2);
+    expect(framingSlack(1600, 900, 1.5).zoomToUnlock).toBeNull();
+  });
+
+  /**
+   * A drag that quietly does nothing is a smaller sin than telling the user a
+   * drag is impossible when it is not.
+   */
+  it('assumes both axes work when the dimensions are not known yet', () => {
+    expect(framingSlack(undefined, undefined, 1)).toMatchObject({ horizontal: true, vertical: true });
+    expect(framingSlack(0, 0, 1)).toMatchObject({ horizontal: true, vertical: true });
+  });
+
+  it('clamps a nonsense zoom like everything else', () => {
+    expect(framingSlack(1600, 900, 0.2)).toMatchObject({ horizontal: true, vertical: false });
   });
 });

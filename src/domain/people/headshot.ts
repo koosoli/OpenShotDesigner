@@ -121,3 +121,46 @@ export const headshotImageStyle = (
     ...(zoom === 1 ? {} : { transform: `scale(${zoom})` }),
   };
 };
+
+export interface FramingSlack {
+  /** True when there is hidden image to the left/right to bring into view. */
+  horizontal: boolean;
+  /** True when there is hidden image above/below. */
+  vertical: boolean;
+  /** Smallest zoom that unlocks the locked axis, or null when none is locked. */
+  zoomToUnlock: number | null;
+}
+
+/**
+ * Which axes can actually be panned.
+ *
+ * `object-fit: cover` scales the picture until it covers the circle, so only
+ * the LONGER axis overflows — a landscape headshot in a round crop hides image
+ * to the left and right and nothing above or below. Dragging up and down on one
+ * therefore does nothing at all, which reads as a broken control rather than as
+ * geometry, and there is no way to tell from looking at it.
+ *
+ * Zooming past 1 makes both axes overflow, so it is the answer — but only if
+ * the control says so. This is what lets it.
+ */
+export const framingSlack = (
+  naturalWidth: number | undefined,
+  naturalHeight: number | undefined,
+  zoom: number,
+): FramingSlack => {
+  const width = naturalWidth ?? 0;
+  const height = naturalHeight ?? 0;
+  // Unknown dimensions: assume both work rather than disabling a control that
+  // might be fine. A drag that does nothing is a smaller sin than a drag the
+  // user is wrongly told is impossible.
+  if (width <= 0 || height <= 0) return { horizontal: true, vertical: true, zoomToUnlock: null };
+
+  const safeZoom = normaliseFraming({ zoom }).zoom;
+  // Rendered size relative to the box, once `cover` has done its work.
+  const horizontal = safeZoom * Math.max(width / height, 1) > 1.0001;
+  const vertical = safeZoom * Math.max(height / width, 1) > 1.0001;
+
+  // Any zoom above 1 gives the constrained axis something to show.
+  const zoomToUnlock = horizontal && vertical ? null : 1.2;
+  return { horizontal, vertical, zoomToUnlock };
+};
