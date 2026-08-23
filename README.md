@@ -12,7 +12,7 @@
 
 A free, open-source production planning suite for directors, DPs, ADs and script supervisors: **lined script**, **floor plan**, **shot list**, **storyboard** and **equipment manifest**, plus **scheduling**, **call sheets**, **crew and cast**, **budget**, **locations**, **task board**, **mood boards**, **logistics**, **rigging**, **power** and an on-set **continuity log** — all in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, schedule the shoot, log the takes on the day, and export production-ready paperwork. No account, no backend — everything lives in your browser.
 
-It follows the production through the shoot, not just up to it. The continuity page is the script supervisor's take log and the AD's shooting-day checklist in one, and it exports a spreadsheet **DaVinci Resolve reads as clip metadata**: Resolve matches each row to a clip by file name and writes the rest of the row onto it, so the scene, shot, take, lens, ISO, filter and notes you already planned in the app arrive on the footage in your edit — nobody retypes them into the media pool. See [Straight into DaVinci Resolve](#straight-into-davinci-resolve).
+It follows the production through the shoot, not just up to it: the continuity page logs takes against the shots you planned and exports them as a spreadsheet **DaVinci Resolve reads as clip metadata**, so the scene, shot, lens and notes land on the footage in your edit ([details](#straight-into-davinci-resolve)).
 
 A screenplay is optional: nothing outside the script tools requires one, so concert, broadcast, event and pure technical floor plans work the same way. Nothing is entered twice either: the budget prices the crew list and the gear on the plan against the days on the schedule, every sheet that names a location gets its address from the same link, and the continuity log starts pre-filled from the plan.
 
@@ -515,6 +515,7 @@ src/
 │   ├── tasks/         # Task board
 │   ├── moodboard/     # Mood boards, collage, palette
 │   ├── logistics/     # Cases, containers, packed items
+│   ├── continuity/    # Take log, shooting-day checklist, Resolve metadata export
 │   ├── rigging/       # Truss runs, motors, suspended loads
 │   ├── power/         # Sources, circuits, per-truss load, phase balance
 │   ├── reports/       # Printable call sheets, budget, stripboard, sides, breakdown, contact list
@@ -534,6 +535,8 @@ src/
 │   ├── cable/         # Routed run length incl. device movement, signal flow
 │   ├── power/         # Load, headroom, grouping, phase balance
 │   ├── rigging/       # Truss loads
+│   ├── continuity/    # Takes, sticky columns, file-name reconciliation, Resolve CSV
+│   ├── shots/         # Shot numbering, incl. inserts that never renumber the plan
 │   ├── plan/          # Group animation, freehand, visibility, speech
 │   ├── migrations/    # Versioned, lossless project schema migrations
 │   └── …              # locations, logistics, moodboard, tasks, assets, storage
