@@ -43,6 +43,7 @@ import {
 } from '../../domain/script/logic';
 import { omittedSceneLabel, reconcileScriptLineIds, removeLineOrOmit, restoreScene } from '../../domain/script';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
+import { SetLocationLink } from '../locations/SetLocationLink';
 import { BreakdownTagControl } from './BreakdownTagControl';
 import { ProjectImage } from '../common/ProjectImage';
 import { keyFrameImage } from '../../utils/storyboardFrames';
@@ -1146,6 +1147,14 @@ export const ScriptPanel: React.FC = () => {
                                   </ul>
                                 )}
                               </div>
+                              {/* The set this heading names, linked to the project
+                                  location that holds its address — the link the call
+                                  sheet needs, offered where the set is written. */}
+                              {parseSceneHeading(line.text || '').location && (
+                                <span className="ml-2 shrink-0 font-normal normal-case tracking-normal">
+                                  <SetLocationLink setName={parseSceneHeading(line.text || '').location as string} isLight={isLight} compact />
+                                </span>
+                              )}
                               {line.sceneNumber && (
                                 <span className="text-[10px] text-amber-500 font-mono ml-2 opacity-70">
                                   #{line.sceneNumber}#

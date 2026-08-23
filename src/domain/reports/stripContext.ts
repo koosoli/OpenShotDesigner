@@ -24,6 +24,13 @@ export interface StripContext {
   sceneNumber?: string;
   /** A location name, canonical when one is linked, the set name otherwise. */
   location?: string;
+  /**
+   * The scene heading this strip shoots under — "INT. LIVING ROOM - DAY" —
+   * so the sheet can group consecutive strips under one slugline the way a
+   * shooting schedule does. Scenes print their own heading; a setup without a
+   * screenplay synthesises one from its INT/EXT, location and time of day.
+   */
+  slugline?: string;
 }
 
 /** The slices a strip-context lookup needs; keeps it pure and testable. */
@@ -35,9 +42,32 @@ export interface StripContextSources {
     sceneNumber?: string;
     location?: string;
     locationId?: string;
+    timeOfDay?: string;
     shots?: Array<{ id: string; sceneNumber?: string }>;
   }>;
 }
+
+/**
+ * "INT. KITCHEN - NIGHT" from a setup's own fields. A setup's time of day is
+ * stored as "Day INT" / "Night EXT"; anything else contributes no prefix or
+ * time rather than a guessed one (rule 13).
+ */
+export const synthesiseSlugline = (
+  setup: { location?: string; locationId?: string; timeOfDay?: string },
+  locationName?: string,
+): string | undefined => {
+  const place = (locationName || setup.location || '').trim();
+  if (!place) return undefined;
+  // Setups created from a screenplay carry the whole heading as their
+  // location text; that already is the slugline, so it is never re-wrapped
+  // into "INT. INT. LIVING ROOM - NIGHT - NIGHT".
+  if (/^(INT|EXT|I\/E|INT\.?\/EXT|EST)\b/i.test(place)) return place.toUpperCase();
+  const tod = (setup.timeOfDay || '').trim();
+  const match = /^(day|night|dawn|dusk|morning|evening)\s+(int|ext)$/i.exec(tod);
+  const prefix = match ? `${match[2].toUpperCase()}. ` : '';
+  const suffix = match ? ` - ${match[1].toUpperCase()}` : '';
+  return `${prefix}${place.toUpperCase()}${suffix}`;
+};
 
 const trimmed = (value: string | undefined): string | undefined => {
   const text = value?.trim();
@@ -65,15 +95,27 @@ export const buildStripContextResolver = (
     location:
       (scene.locationId && locationName.get(scene.locationId)) ||
       trimmed(parseSceneHeading(scene.heading).location),
+    slugline: trimmed(scene.heading.replace(/s*#[^#]*#s*$/, ''))?.toUpperCase(),
   });
 
-  const fromSetup = (setup: NonNullable<StripContextSources['setups']>[number]): StripContext => ({
-    sceneNumber: trimmed(setup.sceneNumber),
-    location: (setup.locationId && locationName.get(setup.locationId)) || trimmed(setup.location),
-  });
+  const fromSetup = (setup: NonNullable<StripContextSources['setups']>[number]): StripContext => {
+    const linked = setup.locationId ? locationName.get(setup.locationId) : undefined;
+    return {
+      sceneNumber: trimmed(setup.sceneNumber),
+      location: linked || trimmed(setup.location),
+      slugline: synthesiseSlugline(setup, linked),
+    };
+  };
 
-  const compact = (context: StripContext): StripContext | undefined =>
-    context.sceneNumber || context.location ? context : undefined;
+  const compact = (context: StripContext): StripContext | undefined => {
+    if (!context.sceneNumber && !context.location) return undefined;
+    // Never emit an explicit undefined: the sheet spreads this over its entry.
+    const out: StripContext = {};
+    if (context.sceneNumber) out.sceneNumber = context.sceneNumber;
+    if (context.location) out.location = context.location;
+    if (context.slugline) out.slugline = context.slugline;
+    return out;
+  };
 
   return (block) => {
     switch (block.kind) {
@@ -96,6 +138,7 @@ export const buildStripContextResolver = (
         if (owners.length === 1) return compact(fromSetup(owners[0]));
         const numbers = [...new Set(owners.map((o) => trimmed(o.sceneNumber)).filter(Boolean))] as string[];
         const places = [...new Set(owners.map((o) => fromSetup(o).location).filter(Boolean))] as string[];
+        // A mixed strip spans headings; it gets no single slugline to sit under.
         return compact({
           sceneNumber: numbers.length ? numbers.join(', ') : undefined,
           location: places.length ? places.join(' / ') : undefined,

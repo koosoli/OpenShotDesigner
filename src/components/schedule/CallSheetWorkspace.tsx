@@ -1,8 +1,7 @@
 import React, { useRef } from 'react';
-import { AlertTriangle, Building2, CheckCircle2, ImagePlus, MapPin, Printer, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle2, ImagePlus, MapPin, Printer } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { loadLogoFile } from '../../utils/image';
-import { locationMapLinkUrl } from '../../domain/locations';
 import { createId } from '../../domain/ids';
 import type { ProductionDay } from '../../domain/scheduling';
 import type { CallSheetData, StandingCallSheetField } from '../../domain/reports';
@@ -10,6 +9,7 @@ import { resolveStandingCallSheet } from '../../domain/reports';
 import { StandingCallSheetEditor } from './StandingCallSheetEditor';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { LocationMapCapture } from './LocationMapCapture';
+import { SetLocationLink } from '../locations/SetLocationLink';
 import { ProjectImage } from '../common/ProjectImage';
 
 interface CallSheetWorkspaceProps {
@@ -41,13 +41,6 @@ const STANDING_DAY_FIELDS: Array<{
   { key: 'generalNotes', label: 'General notes', placeholder: 'Department notes, special instructions', rows: 3 },
 ];
 
-const formatMinutes = (value: number | null): string => {
-  if (value === null) return 'Incomplete';
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
-};
-
 export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
   days,
   selectedDayId,
@@ -74,7 +67,14 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
     });
   };
   const addPickup = () => {
-    const first = people[0];
+    // Performers are the people most often collected, so a new row starts on
+    // the first cast member without a pick-up rather than on whoever is first
+    // in the contact list.
+    const collected = new Set(pickups.map((pickup) => pickup.personId));
+    const first =
+      people.find((person) => (person.kind === 'cast' || person.kind === 'talent') && !collected.has(person.id)) ??
+      people.find((person) => !collected.has(person.id)) ??
+      people[0];
     if (!first) return;
     setPickups([...pickups, { id: createId('pickup'), personId: first.id }]);
   };
@@ -338,6 +338,23 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               />
               Include cast contact numbers
             </label>
+
+            {/* Where the day shoots, and whether the sheet can print an
+                address for it. A set that came straight from a scene heading
+                has none until it is linked to a project location — which is
+                offered here, on the sheet that needs it, not on a report page. */}
+            <div className={`rounded-lg border p-2 space-y-1.5 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/60'}`}>
+              <div className="text-[9px] font-bold uppercase text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> Locations on this sheet</div>
+              {sheet.locations.length === 0 && <p className="text-[10px] text-amber-600">Nothing scheduled names a location yet. Scenes take theirs from the heading; setups from their location field.</p>}
+              {sheet.locations.map((location, index) => (
+                <div key={index} className="text-[10px] flex items-center gap-1.5 flex-wrap">
+                  <b className="truncate">{location.name}</b>
+                  {location.address
+                    ? <span className="text-slate-500 truncate">{location.address}</span>
+                    : <SetLocationLink setName={location.name} isLight={isLight} />}
+                </div>
+              ))}
+            </div>
 
             <LocationMapCapture
               day={selectedDay}

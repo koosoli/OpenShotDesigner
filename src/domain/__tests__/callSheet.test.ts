@@ -174,3 +174,51 @@ describe('overrides & publishing', () => {
     expect(typeof sheet.generatedAt).toBe('string');
   });
 });
+
+/**
+ * A pick-up belongs on the person's own row as well as in the transport table:
+ * a performer reads their own line, not a list at the foot of the sheet.
+ */
+describe('pick-ups on the cast and crew rows', () => {
+  const people: Person[] = [
+    { id: 'p-lead', displayName: 'Mara', kind: 'cast', role: 'SARAH' },
+    { id: 'p-dop', displayName: 'Ines', kind: 'crew', department: 'Camera', role: 'DoP' },
+    { id: 'p-extra', displayName: 'Ola', kind: 'cast', role: 'Extra' },
+  ];
+  const day: ProductionDay = {
+    id: 'd1',
+    name: 'Day 1',
+    date: '2026-09-01',
+    crewCall: '07:00',
+    scheduleBlockIds: [],
+    callSheet: {
+      pickups: [
+        { id: 'pu1', personId: 'p-lead', time: '05:45', location: 'Hotel lobby' },
+        { id: 'pu2', personId: 'p-dop', time: '06:10' },
+        { id: 'pu3', personId: 'p-lead', time: '09:00', location: 'Second trip' },
+      ],
+    },
+  };
+
+  it('puts the pick-up time and place on the person row', () => {
+    const sheet = deriveCallSheet({ day, blocks: [], productionTitle: 'T', people });
+    const lead = sheet.cast.find((p) => p.displayName === 'Mara');
+    expect(lead?.pickupTime).toBe('05:45');
+    expect(lead?.pickupLocation).toBe('Hotel lobby');
+    const dop = sheet.crew.find((p) => p.displayName === 'Ines');
+    expect(dop?.pickupTime).toBe('06:10');
+    expect(dop?.pickupLocation).toBeUndefined();
+    expect(sheet.cast.find((p) => p.displayName === 'Ola')?.pickupTime).toBeUndefined();
+  });
+
+  it('keeps the earliest row when a person is collected twice; the table still lists both', () => {
+    const sheet = deriveCallSheet({ day, blocks: [], productionTitle: 'T', people });
+    expect(sheet.cast.find((p) => p.displayName === 'Mara')?.pickupTime).toBe('05:45');
+    expect(sheet.pickups).toHaveLength(3);
+  });
+
+  it('a pick-up is an explicit call, so it overrides the derived cast filter', () => {
+    const sheet = deriveCallSheet({ day, blocks: [], productionTitle: 'T', people, castPersonIds: ['p-extra'] });
+    expect(sheet.cast.map((p) => p.displayName)).toEqual(['Mara', 'Ola']);
+  });
+});

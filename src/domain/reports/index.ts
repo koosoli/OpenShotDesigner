@@ -1,5 +1,6 @@
 export {
   deriveCallSheet,
+  sluglineHeaderBefore,
   applyOverrides,
   publishSheet,
 } from './callSheet';
@@ -46,7 +47,7 @@ export type {
   StandingCallSheet,
   StandingCallSheetField,
 } from './standingCallSheet';
-export { buildStripContextResolver } from './stripContext';
+export { buildStripContextResolver, synthesiseSlugline } from './stripContext';
 export type { StripContext, StripContextSources } from './stripContext';
 export { deriveDood } from './dood';
 export type {

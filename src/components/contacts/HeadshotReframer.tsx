@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { RotateCcw, ZoomIn } from 'lucide-react';
+import { RotateCcw, RotateCw, ZoomIn } from 'lucide-react';
 import {
   DEFAULT_HEADSHOT_FRAMING,
   framingSlack,
@@ -8,7 +8,10 @@ import {
   isDefaultFraming,
   normaliseFraming,
   panFraming,
+  rotateFraming,
+  rotateFramingBy,
   zoomFraming,
+  zoomToCoverRotation,
 } from '../../domain/people';
 import type { HeadshotFraming } from '../../domain/people';
 
@@ -49,6 +52,11 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
   // That reads as a broken control, so the panel says which way it can move and
   // offers the zoom that frees the other axis.
   const slack = framingSlack(natural?.width, natural?.height, current.zoom);
+  const rotation = current.rotation ?? 0;
+  // A tilted rectangle shows its background at the rim of a round window
+  // unless it is also enlarged; offer exactly the zoom that hides it.
+  const coverZoom = zoomToCoverRotation(rotation);
+  const needsCoverZoom = rotation !== 0 && current.zoom + 0.001 < coverZoom;
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -146,6 +154,37 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
             className="w-full accent-sky-500 cursor-pointer mt-0.5"
           />
         </label>
+        <div className="flex items-end gap-1.5">
+          <label className="block flex-1 text-[9px] font-bold uppercase text-slate-500">
+            <span className="flex items-center gap-1">
+              <RotateCw className="w-3 h-3" /> Tilt
+              <span className="ml-auto font-mono normal-case opacity-70">{rotation}°</span>
+            </span>
+            <input
+              type="range"
+              min={-45}
+              max={45}
+              step={1}
+              value={Math.max(-45, Math.min(45, rotation))}
+              onChange={(event) => onChange(rotateFraming(current, Number(event.target.value)))}
+              onDoubleClick={() => onChange(rotateFraming(current, 0))}
+              title="Tilt; double-click to straighten"
+              className="w-full accent-sky-500 cursor-pointer mt-0.5"
+            />
+          </label>
+          {/* Quarter turns for pictures that arrived on their side. */}
+          <button type="button" onClick={() => onChange(rotateFramingBy(current, -90))} className={button} title="Turn a quarter anticlockwise" aria-label="Turn a quarter anticlockwise">
+            <RotateCcw className="w-3 h-3" />
+          </button>
+          <button type="button" onClick={() => onChange(rotateFramingBy(current, 90))} className={button} title="Turn a quarter clockwise" aria-label="Turn a quarter clockwise">
+            <RotateCw className="w-3 h-3" />
+          </button>
+        </div>
+        {needsCoverZoom && (
+          <button type="button" onClick={() => onChange(zoomFraming(current, coverZoom))} className={`${button} w-full`}>
+            Zoom to {coverZoom.toFixed(2)}× to hide the tilted corners
+          </button>
+        )}
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -154,7 +193,7 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
             className={`${button} ${isDefaultFraming(current) ? 'opacity-40 cursor-not-allowed' : ''}`}
           >
             <span className="flex items-center gap-1">
-              <RotateCcw className="w-3 h-3" /> Recentre
+              <RotateCcw className="w-3 h-3" /> Reset
             </span>
           </button>
           <span className={`text-[9px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>

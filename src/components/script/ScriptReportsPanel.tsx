@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, CalendarDays, Clapperboard, MapPin, Plus, Tag, UserRound, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, Clapperboard, MapPin, Tag, UserRound, Users } from 'lucide-react';
 
 const DOOD_CELL: Record<DoodWorkStatus, { label: string; className: string; title: string }> = {
   start: { label: 'SW', className: 'bg-emerald-500 text-white', title: 'Start work' },
@@ -10,12 +10,12 @@ const DOOD_CELL: Record<DoodWorkStatus, { label: string; className: string; titl
 };
 import type { ScriptLine, SceneSetup } from '../../types';
 import type { ScriptScene } from '../../domain/script';
-import { createId } from '../../domain/ids';
 import { deriveCharacterReport, deriveDood } from '../../domain/reports';
 import type { DoodWorkStatus } from '../../domain/reports';
 import { deriveScriptBreakdown, parseSceneHeading } from '../../domain/script/logic';
 import { emptySetup } from '../../utils/projectLibrary';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { SetLocationLink } from '../locations/SetLocationLink';
 import { BreakdownElementsPanel } from './BreakdownElementsPanel';
 
 interface ScriptReportsPanelProps {
@@ -102,17 +102,6 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
     const setup = buildSetup(scene, locationId);
     updateProjectMeta({ setups: [...project.setups, setup], activeSetupId: setup.id });
     setActiveRightTab('shots');
-  };
-
-  const createLocation = (name: string) => {
-    const location = {
-      id: createId('loc'),
-      name,
-      type: 'location' as const,
-      referenceAssetIds: [],
-    };
-    updateProjectMeta({ locations: [...(project.locations || []), location] });
-    return location.id;
   };
 
   const createMissingSetups = (scenes: ScriptScene[], locationId?: string) => {
@@ -263,11 +252,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
                       </div>
                     </div>
                     <div className="flex gap-2 flex-wrap">
-                      {!location.locationId && (
-                        <button onClick={() => createLocation(location.name)} className="px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-400 text-xs font-semibold flex items-center gap-1.5 hover:bg-amber-500/10">
-                          <Plus className="w-3.5 h-3.5" /> Create location
-                        </button>
-                      )}
+                      <SetLocationLink setName={location.name} isLight={isLight} />
                       {location.locationId && (
                         <button onClick={() => setActiveRightTab('locations')} className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>Open location</button>
                       )}

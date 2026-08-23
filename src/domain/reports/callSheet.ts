@@ -41,6 +41,8 @@ export interface CallSheetEntry {
   sceneNumber?: string;
   /** Where this strip shoots; canonical name when linked, the set name otherwise. */
   location?: string;
+  /** "INT. LIVING ROOM - DAY": the heading the strip shoots under. */
+  slugline?: string;
   estimatedMinutes?: number;
   /** Derived clock time. Unknown after the first block without a duration. */
   scheduledStart?: string;
@@ -66,6 +68,13 @@ export interface CallSheetPerson {
   callTime?: string;
   /** What that call is for: make-up, pre-rig, travel. */
   callNote?: string;
+  /**
+   * This person's transport pick-up, when one is arranged. Lives on the row as
+   * well as in the pick-up table because that is where the person looks for
+   * it: a performer reads their own line, not a list at the foot of the sheet.
+   */
+  pickupTime?: string;
+  pickupLocation?: string;
 }
 
 /** One resolved transport pick-up on a call sheet. */
@@ -306,11 +315,21 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   const personCalls = new Map(
     (day.callSheet?.personCalls ?? []).map((entry) => [entry.personId, entry] as const),
   );
+  // Pick-ups, keyed the same way. A person collected twice keeps the earliest
+  // row; the full table below the cast list still shows every pick-up.
+  const personPickups = new Map<string, { time?: string; location?: string }>();
+  for (const pickup of day.callSheet?.pickups ?? []) {
+    if (!personPickups.has(pickup.personId)) personPickups.set(pickup.personId, pickup);
+  }
   const callFor = (personId: string) => {
     const entry = personCalls.get(personId);
-    return entry?.time || entry?.note
-      ? { ...(entry.time ? { callTime: entry.time } : {}), ...(entry.note ? { callNote: entry.note } : {}) }
-      : {};
+    const pickup = personPickups.get(personId);
+    return {
+      ...(entry?.time ? { callTime: entry.time } : {}),
+      ...(entry?.note ? { callNote: entry.note } : {}),
+      ...(pickup?.time ? { pickupTime: pickup.time } : {}),
+      ...(pickup?.location ? { pickupLocation: pickup.location } : {}),
+    };
   };
   // An individual call is an explicit statement that this person is wanted on
   // this day, so it overrides the derived cast filter. Without this, giving a
@@ -321,7 +340,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     .filter(
       (p) =>
         (p.kind === 'cast' || p.kind === 'talent') &&
-        (!castIdFilter || castIdFilter.has(p.id) || personCalls.has(p.id)),
+        (!castIdFilter || castIdFilter.has(p.id) || personCalls.has(p.id) || personPickups.has(p.id)),
     )
     .map((p) => ({
       displayName: p.displayName,
@@ -452,3 +471,23 @@ export const publishSheet = (derived: CallSheetData, overrides: SheetOverride[] 
   overrides,
   generatedAt: new Date().toISOString(),
 });
+
+/**
+ * The heading row to print above `entries[index]`, if it starts a new scene
+ * group. A shooting schedule is read by slugline: consecutive strips under the
+ * same "Sc 3 · INT. LIVING ROOM - DAY" share one header rather than each
+ * carrying it, and a strip with no heading of its own — lunch, a company move —
+ * never opens a group. The same slugline returning later (a split scene) opens
+ * a fresh group, because the reader's eye has moved on.
+ */
+export const sluglineHeaderBefore = (
+  entries: readonly Pick<CallSheetEntry, 'sceneNumber' | 'slugline'>[],
+  index: number,
+): string | undefined => {
+  const entry = entries[index];
+  if (!entry?.slugline) return undefined;
+  const previous = entries[index - 1];
+  const key = (e: Pick<CallSheetEntry, 'sceneNumber' | 'slugline'>) => `${e.sceneNumber ?? ''}|${e.slugline ?? ''}`;
+  if (previous?.slugline && key(previous) === key(entry)) return undefined;
+  return entry.sceneNumber ? `Sc ${entry.sceneNumber} · ${entry.slugline}` : entry.slugline;
+};

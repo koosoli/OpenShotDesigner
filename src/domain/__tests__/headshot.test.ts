@@ -8,6 +8,9 @@ import {
   normaliseFraming,
   panFraming,
   zoomFraming,
+  rotateFraming,
+  rotateFramingBy,
+  zoomToCoverRotation,
 } from '../people';
 
 describe('normaliseFraming', () => {
@@ -21,7 +24,7 @@ describe('normaliseFraming', () => {
   });
 
   it('keeps whichever parts were set', () => {
-    expect(normaliseFraming({ x: 20 })).toEqual({ x: 20, y: 50, zoom: 1 });
+    expect(normaliseFraming({ x: 20 })).toEqual({ x: 20, y: 50, zoom: 1, rotation: 0 });
   });
 
   it('clamps position to the edges of the picture', () => {
@@ -42,7 +45,7 @@ describe('normaliseFraming', () => {
   });
 
   it('treats nonsense as unset rather than propagating NaN into CSS', () => {
-    expect(normaliseFraming({ x: NaN, zoom: Infinity })).toEqual({ x: 0, y: 50, zoom: 1 });
+    expect(normaliseFraming({ x: NaN, zoom: Infinity })).toEqual({ x: 0, y: 50, zoom: 1, rotation: 0 });
   });
 });
 
@@ -68,13 +71,13 @@ describe('panFraming', () => {
   });
 
   it('works from an unset framing', () => {
-    expect(panFraming(undefined, 10, 10)).toEqual({ x: 40, y: 40, zoom: 1 });
+    expect(panFraming(undefined, 10, 10)).toEqual({ x: 40, y: 40, zoom: 1, rotation: 0 });
   });
 });
 
 describe('zoomFraming', () => {
   it('changes zoom and keeps the position', () => {
-    expect(zoomFraming({ x: 20, y: 80, zoom: 1 }, 2)).toEqual({ x: 20, y: 80, zoom: 2 });
+    expect(zoomFraming({ x: 20, y: 80, zoom: 1 }, 2)).toEqual({ x: 20, y: 80, zoom: 2, rotation: 0 });
   });
 
   it('clamps like everything else', () => {
@@ -165,5 +168,57 @@ describe('framingSlack', () => {
 
   it('clamps a nonsense zoom like everything else', () => {
     expect(framingSlack(1600, 900, 0.2)).toMatchObject({ horizontal: true, vertical: false });
+  });
+});
+
+/**
+ * Tilt. A phone picture taken sideways and a head cocked at twenty degrees both
+ * need straightening, and neither is a pan.
+ */
+describe('rotation', () => {
+  it('is absent-safe: no stored tilt reads as 0', () => {
+    expect(normaliseFraming({ x: 50, y: 50, zoom: 1 }).rotation).toBe(0);
+    expect(isDefaultFraming({ x: 50, y: 50, zoom: 1 })).toBe(true);
+  });
+
+  it('wraps any angle into a half turn each way', () => {
+    expect(rotateFraming(undefined, 370).rotation).toBe(10);
+    expect(rotateFraming(undefined, -190).rotation).toBe(170);
+    expect(rotateFraming(undefined, 180).rotation).toBe(180);
+    expect(rotateFraming(undefined, -180).rotation).toBe(180);
+    expect(rotateFraming(undefined, NaN).rotation).toBe(0);
+  });
+
+  it('quarter turns accumulate and a full turn is no tilt', () => {
+    const quarter = rotateFramingBy(undefined, 90);
+    expect(quarter.rotation).toBe(90);
+    expect(rotateFramingBy(rotateFramingBy(rotateFramingBy(quarter, 90), 90), 90).rotation).toBe(0);
+  });
+
+  it('keeps pan and zoom while tilting', () => {
+    expect(rotateFraming({ x: 20, y: 80, zoom: 2 }, 15)).toEqual({ x: 20, y: 80, zoom: 2, rotation: 15 });
+  });
+
+  it('a tilt is not the default, so the reset button shows', () => {
+    expect(isDefaultFraming({ ...DEFAULT_HEADSHOT_FRAMING, rotation: 5 })).toBe(false);
+  });
+
+  /** Right to left: scale first, then rotate the enlarged picture in place. */
+  it('emits rotate before scale in the transform', () => {
+    expect(headshotImageStyle({ x: 50, y: 50, zoom: 1.5, rotation: -12 }).transform).toBe('rotate(-12deg) scale(1.5)');
+    expect(headshotImageStyle({ x: 50, y: 50, zoom: 1, rotation: 90 }).transform).toBe('rotate(90deg)');
+  });
+
+  /**
+   * A rectangle turned inside a round window shows background at the rim
+   * unless enlarged by |cos θ| + |sin θ|; √2 at 45°, nothing at a quarter turn.
+   */
+  it('knows the zoom that hides the corners of a tilted picture', () => {
+    expect(zoomToCoverRotation(0)).toBe(1);
+    expect(zoomToCoverRotation(90)).toBe(1);
+    expect(zoomToCoverRotation(45)).toBeCloseTo(1.42, 2);
+    expect(zoomToCoverRotation(-45)).toBeCloseTo(1.42, 2);
+    expect(zoomToCoverRotation(20)).toBeCloseTo(1.29, 2);
+    expect(zoomToCoverRotation(45)).toBeLessThanOrEqual(MAX_HEADSHOT_ZOOM);
   });
 });

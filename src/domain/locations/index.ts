@@ -18,3 +18,4 @@ export {
   tileUrl,
 } from './staticMap';
 export type { StaticMapOptions, StaticMapResult } from './staticMap';
+export { linkSetNameToLocation, locationAnswersTo, locationForSetName, unlinkSetName } from './linking';

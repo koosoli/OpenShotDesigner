@@ -33,6 +33,13 @@ export interface HeadshotFraming {
   x: number;
   y: number;
   zoom: number;
+  /**
+   * Tilt in degrees, clockwise positive; absent means 0. A phone picture taken
+   * sideways and a head cocked at twenty degrees both need straightening, and
+   * neither is a pan. Applied about the centre of the circle, so the picture
+   * turns in place rather than swinging around.
+   */
+  rotation?: number;
 }
 
 /**
@@ -42,10 +49,20 @@ export interface HeadshotFraming {
  * looks identical to one who reset it, and no migration has to backfill
  * anything (rule 13).
  */
-export const DEFAULT_HEADSHOT_FRAMING: HeadshotFraming = { x: 50, y: 50, zoom: 1 };
+export const DEFAULT_HEADSHOT_FRAMING: HeadshotFraming = { x: 50, y: 50, zoom: 1, rotation: 0 };
 
 /** How far in the control allows; past this a headshot is a nostril. */
 export const MAX_HEADSHOT_ZOOM = 3;
+
+/** Tilt range: half a turn each way reaches every orientation a photo arrives in. */
+export const MAX_HEADSHOT_ROTATION = 180;
+
+/** Normalise any angle into (-180, 180]; a full turn is no tilt at all. */
+const wrapRotation = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  const wrapped = ((((value + 180) % 360) + 360) % 360) - 180;
+  return wrapped === -180 ? 180 : wrapped;
+};
 
 const clamp = (value: number, min: number, max: number): number =>
   Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
@@ -65,6 +82,7 @@ export const normaliseFraming = (
   x: clamp(framing?.x ?? DEFAULT_HEADSHOT_FRAMING.x, 0, 100),
   y: clamp(framing?.y ?? DEFAULT_HEADSHOT_FRAMING.y, 0, 100),
   zoom: clamp(framing?.zoom ?? DEFAULT_HEADSHOT_FRAMING.zoom, 1, MAX_HEADSHOT_ZOOM),
+  rotation: wrapRotation(framing?.rotation ?? 0),
 });
 
 /** True when this framing is the default, so the UI can hide a reset nobody needs. */
@@ -73,7 +91,8 @@ export const isDefaultFraming = (framing: Partial<HeadshotFraming> | undefined):
   return (
     normalised.x === DEFAULT_HEADSHOT_FRAMING.x &&
     normalised.y === DEFAULT_HEADSHOT_FRAMING.y &&
-    normalised.zoom === DEFAULT_HEADSHOT_FRAMING.zoom
+    normalised.zoom === DEFAULT_HEADSHOT_FRAMING.zoom &&
+    normalised.rotation === 0
   );
 };
 
@@ -95,6 +114,7 @@ export const panFraming = (
     x: current.x - deltaXPercent,
     y: current.y - deltaYPercent,
     zoom: current.zoom,
+    rotation: current.rotation,
   });
 };
 
@@ -103,6 +123,31 @@ export const zoomFraming = (
   framing: Partial<HeadshotFraming> | undefined,
   zoom: number,
 ): HeadshotFraming => normaliseFraming({ ...normaliseFraming(framing), zoom });
+
+/** Set the tilt in degrees, keeping position and zoom. */
+export const rotateFraming = (
+  framing: Partial<HeadshotFraming> | undefined,
+  rotation: number,
+): HeadshotFraming => normaliseFraming({ ...normaliseFraming(framing), rotation });
+
+/** Turn by a relative amount — the quarter-turn buttons. */
+export const rotateFramingBy = (
+  framing: Partial<HeadshotFraming> | undefined,
+  deltaDegrees: number,
+): HeadshotFraming => rotateFraming(framing, (normaliseFraming(framing).rotation ?? 0) + deltaDegrees);
+
+/**
+ * The zoom at which a picture tilted by `rotation` degrees still fills the
+ * circle. The picture is a rectangle turned inside a round window: at 45° its
+ * edges cut across the rim and the background shows through unless it is also
+ * enlarged by |cos θ| + |sin θ| — √2 at the worst case. At a quarter turn the
+ * edges are square to the window again and nothing extra is needed.
+ */
+export const zoomToCoverRotation = (rotation: number): number => {
+  const radians = (Math.abs(wrapRotation(rotation)) * Math.PI) / 180;
+  const needed = Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians));
+  return Math.min(MAX_HEADSHOT_ZOOM, Math.ceil(needed * 100) / 100);
+};
 
 /**
  * The CSS for an `<img>` filling a square avatar with this framing.
@@ -114,11 +159,18 @@ export const zoomFraming = (
 export const headshotImageStyle = (
   framing: Partial<HeadshotFraming> | undefined,
 ): { objectFit: 'cover'; objectPosition: string; transform?: string } => {
-  const { x, y, zoom } = normaliseFraming(framing);
+  const { x, y, zoom, rotation = 0 } = normaliseFraming(framing);
+  // CSS applies a transform list right to left, so this enlarges first and
+  // then turns the enlarged picture about the circle's centre — the picture
+  // tilts in place rather than swinging around the rim.
+  const transforms = [
+    ...(rotation === 0 ? [] : [`rotate(${rotation}deg)`]),
+    ...(zoom === 1 ? [] : [`scale(${zoom})`]),
+  ];
   return {
     objectFit: 'cover',
     objectPosition: `${x}% ${y}%`,
-    ...(zoom === 1 ? {} : { transform: `scale(${zoom})` }),
+    ...(transforms.length ? { transform: transforms.join(' ') } : {}),
   };
 };
 

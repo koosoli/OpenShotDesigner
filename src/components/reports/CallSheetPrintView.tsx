@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CallSheetData, CallSheetEntry, CallSheetPerson } from '../../domain/reports';
 import { locationMapLinkUrl } from '../../domain/locations';
+import { sluglineHeaderBefore } from '../../domain/reports';
 import { classifyDepartment, CREW_DEPARTMENTS } from '../../domain/reports/crewSheet';
 import { PersonAvatar } from '../contacts/PersonAvatar';
 import { CallSheetMap } from './CallSheetMap';
@@ -127,6 +128,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         .cs-section-title.ahead { background: #7c3aed; }
         .cs-table { width: 100%; border-collapse: collapse; font-size: 10px; }
         .cs-table th, .cs-table td { border: 1px solid #cbd5e1; padding: 3.5px 6px; text-align: left; vertical-align: top; }
+        .cs-slug td { background: #fef3c7; font-weight: 900; font-size: 9px; letter-spacing: 0.6px; text-transform: uppercase; color: #78350f; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .cs-table th { background: #f1f5f9; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; color: #475569; }
         .cs-table td.num, .cs-table th.num { text-align: right; white-space: nowrap; font-family: 'Courier New', monospace; }
         .cs-table td.time { font-family: 'Courier New', monospace; font-weight: 700; white-space: nowrap; }
@@ -257,7 +259,13 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             </thead>
             <tbody>
               {sheet.schedule.map((entry, i) => (
-                <tr key={`entry-${i}`} className={entry.omitted ? 'cs-omitted' : undefined}>
+                <React.Fragment key={`entry-${i}`}>
+                {/* Strips are read under their scene heading, the way a shooting
+                    schedule lays them out: one slugline row, then its strips. */}
+                {sluglineHeaderBefore(sheet.schedule, i) && (
+                  <tr className="cs-slug"><td colSpan={7}>{sluglineHeaderBefore(sheet.schedule, i)}</td></tr>
+                )}
+                <tr className={entry.omitted ? 'cs-omitted' : undefined}>
                   <td className="num">{i + 1}</td>
                   <td className="time">{entry.scheduledStart ?? '—'}</td>
                   {/* The scene number is the key a call sheet is read by, so it
@@ -271,9 +279,10 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                   <td><span className="cs-kind" style={{ '--tone': KIND_TONES[entry.kind] } as React.CSSProperties}>{KIND_LABELS[entry.kind]}</span></td>
                   <td className="num">{formatMinutes(entry.estimatedMinutes)}</td>
                 </tr>
+                </React.Fragment>
               ))}
               <tr className="cs-total-row">
-                <td colSpan={4}>Total estimated time</td>
+                <td colSpan={6}>Total estimated time</td>
                 <td className="num">{formatMinutes(sheet.totalEstimatedMinutes ?? undefined)}</td>
               </tr>
             </tbody>
@@ -285,10 +294,13 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             <h2 className="cs-section-title accent">Cast</h2>
             {sheet.cast.length > 0 ? (
               <table className="cs-table">
-                <thead><tr><th style={{ width: '16mm' }}>Call</th><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
+                <thead><tr><th style={{ width: '14mm' }}>P/U</th><th style={{ width: '14mm' }}>Call</th><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
                 <tbody>
                   {sheet.cast.map((p, i) => (
                     <tr key={`cast-${i}`}>
+                      {/* The performer's own pick-up, on their own line: that is
+                          where they look for it, not in the transport table. */}
+                      <td className="time" title={p.pickupLocation}>{p.pickupTime ?? ''}</td>
                       {/* Blank means "general crew call", which the masthead
                           already states — repeating it on every line is noise. */}
                       <td className="time">{p.callTime ?? ''}</td>
@@ -345,13 +357,14 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             <h2 className="cs-section-title">Crew</h2>
             {sheet.crew.length > 0 ? (
               <table className="cs-table">
-                <thead><tr><th style={{ width: '16mm' }}>Call</th><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
+                <thead><tr><th style={{ width: '14mm' }}>P/U</th><th style={{ width: '14mm' }}>Call</th><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
                 <tbody>
                   {crewGroups.map((group) => (
                     <React.Fragment key={group.department}>
-                      <tr className="cs-dept"><td colSpan={4}>{group.department}</td></tr>
+                      <tr className="cs-dept"><td colSpan={5}>{group.department}</td></tr>
                       {group.people.map((p, i) => (
                         <tr key={`${group.department}-${i}`}>
+                          <td className="time" title={p.pickupLocation}>{p.pickupTime ?? ''}</td>
                           <td className="time">{p.callTime ?? ''}</td>
                           <td>
                             <strong>{p.displayName}</strong>
