@@ -10,9 +10,11 @@
 
 </div>
 
-A free, open-source production planning suite for directors, DPs and ADs: **lined script**, **floor plan**, **shot list**, **storyboard** and **equipment manifest**, plus **scheduling**, **call sheets**, **crew and cast**, **budget**, **locations**, **task board**, **mood boards**, **logistics**, **rigging** and **power** — all in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, schedule the shoot, and export production-ready paperwork. No account, no backend — everything lives in your browser.
+A free, open-source production planning suite for directors, DPs, ADs and script supervisors: **lined script**, **floor plan**, **shot list**, **storyboard** and **equipment manifest**, plus **scheduling**, **call sheets**, **crew and cast**, **budget**, **locations**, **task board**, **mood boards**, **logistics**, **rigging**, **power** and an on-set **continuity log** — all in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, schedule the shoot, log the takes on the day, and export production-ready paperwork. No account, no backend — everything lives in your browser.
 
-A screenplay is optional: nothing outside the script tools requires one, so concert, broadcast, event and pure technical floor plans work the same way. Nothing is entered twice either: the budget prices the crew list and the gear on the plan against the days on the schedule, and every sheet that names a location gets its address from the same link.
+It follows the production through the shoot, not just up to it. The continuity page is the script supervisor's take log and the AD's shooting-day checklist in one, and it exports a spreadsheet **DaVinci Resolve reads as clip metadata**: Resolve matches each row to a clip by file name and writes the rest of the row onto it, so the scene, shot, take, lens, ISO, filter and notes you already planned in the app arrive on the footage in your edit — nobody retypes them into the media pool. See [Straight into DaVinci Resolve](#straight-into-davinci-resolve).
+
+A screenplay is optional: nothing outside the script tools requires one, so concert, broadcast, event and pure technical floor plans work the same way. Nothing is entered twice either: the budget prices the crew list and the gear on the plan against the days on the schedule, every sheet that names a location gets its address from the same link, and the continuity log starts pre-filled from the plan.
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
@@ -32,6 +34,7 @@ A shot exists in four places at once, and every view edits the same thing:
 | **Schedule** | Stripboard, calendar, call sheets, coverage | Scenes *and* setups are schedulable; call sheets derive from the day |
 | **Crew** | Crew, cast & contacts | Key roles feed the paperwork; cast link to script characters |
 | **Budget** | Rates, VAT, day needs | Crew rate cards, gear on the plan and the schedule price themselves |
+| **Continuity** | The take log and the day's checklist | Takes hang off the same shots; coverage is derived from them, and the log exports as Resolve clip metadata |
 
 Line a speech in the script and a camera lands on the floor plan, a row appears in the shot list, and a frame appears on the board. Delete that camera and all three go with it.
 
@@ -178,9 +181,37 @@ convention the scene already uses (`1/3` → `1/4`, or `1F` → `1G`), so nothin
 already on a slate is renumbered, and it is listed apart from the plan so the
 shot you actually missed stays visible.
 
-The whole log exports as a **DaVinci Resolve metadata CSV**. Resolve matches
-clips by file name and fields by header name, and fails silently at both, so the
-header is byte-identical to Resolve's own template and is tested that way.
+And the whole log leaves the app as clip metadata for your edit, which is the
+next section.
+
+### Straight into DaVinci Resolve
+
+The continuity log exports a CSV that DaVinci Resolve imports as **clip
+metadata** — not a report you read beside the edit, but data that lands *on* the
+footage. In Resolve: **Media Pool → right-click → Import Metadata…**, pick the
+file, and Resolve matches each row to a clip **by file name** and writes the
+remaining 28 columns onto that clip.
+
+So the scene, shot and take numbers, the good-take flag, the description,
+comments and keywords, and the camera settings — type, FPS, shutter, ISO, white
+point, lens, filter, aperture and notes — all arrive in your media pool, on the
+right clips, ready to sort, filter and smart-bin by. Most of it was already in
+the app from planning the shoot; the log just carries it across.
+
+Two things make or break that import, and both fail *silently* — Resolve reports
+success and attaches nothing:
+
+- **The header names.** Resolve maps columns by header text, exactly. The
+  header row this app writes is byte-identical to Resolve's own template
+  (vendored at [`docs/resolve-metadata-template.csv`](docs/resolve-metadata-template.csv))
+  and a test asserts it against that file, so a tidy-up can never quietly break
+  the import.
+- **The file names.** They are the join key, and they are the one thing nobody
+  on set knows while logging — clip counters restart per card and an aborted
+  take still burns a number. So they are filled *afterwards*, in a
+  reconciliation pass against the card's own listing, which shows you the drift
+  rather than hiding it. A log that slips by one clip would otherwise attach
+  every later row to the wrong shot.
 
 ### Print the whole package
 
