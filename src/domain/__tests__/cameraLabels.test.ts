@@ -1,13 +1,18 @@
 /**
- * Camera letters must be unique on a setup.
+ * Letters must be unique on a setup, for cameras and for actors.
  *
- * The letter reaches the shot list, the call sheet, the slate and the
+ * A camera's letter reaches the shot list, the call sheet, the slate and the
  * `Camera #` column of the Resolve metadata export, so two cameras sharing one
  * is not cosmetic — it makes two setups claim to be the same camera, and the
- * metadata import cannot tell them apart afterwards.
+ * metadata import cannot tell them apart afterwards. An actor's letter is what
+ * the floor plan uses to say which marker is which person, so a duplicate there
+ * defeats the plan's whole purpose.
+ *
+ * Both were computed by counting, which is correct only while nothing is ever
+ * deleted.
  */
 import { describe, expect, it } from 'vitest';
-import { nextCameraLabel, usedCameraLabels } from '../plan/cameraLabels';
+import { nextActorLetter, nextCameraLabel, usedCameraLabels } from '../plan/cameraLabels';
 
 const cams = (...labels: (string | undefined)[]) => labels.map((cameraLabel) => ({ cameraLabel }));
 
@@ -53,5 +58,37 @@ describe('nextCameraLabel', () => {
 
     const missingZ = all.filter((camera) => camera.cameraLabel !== 'Z');
     expect(nextCameraLabel(missingZ)).toBe('Z');
+  });
+});
+
+describe('nextActorLetter', () => {
+  const actors = (...letters: (string | undefined)[]) =>
+    letters.map((characterLetter) => ({ characterLetter }));
+
+  /** No shared default actor the way Camera A is the default camera. */
+  it('starts at A', () => {
+    expect(nextActorLetter([])).toBe('A');
+    expect(nextActorLetter(actors('A'))).toBe('B');
+  });
+
+  it('fills the gap left by a deleted actor instead of duplicating', () => {
+    expect(nextActorLetter(actors('A', 'C'))).toBe('B');
+  });
+
+  /**
+   * Actors can be named rather than lettered — "JOHN" is a valid character
+   * letter per the type. A name occupies no single letter, so it must not
+   * block one or be mistaken for one.
+   */
+  it('ignores named actors and blanks when choosing a letter', () => {
+    expect(nextActorLetter(actors('JOHN', 'A'))).toBe('B');
+    expect(nextActorLetter(actors(undefined, ''))).toBe('A');
+  });
+
+  it('never returns a letter already in use', () => {
+    for (const existing of [actors('A'), actors('A', 'B'), actors('B', 'D')]) {
+      const used = new Set(existing.map((actor) => actor.characterLetter));
+      expect(used.has(nextActorLetter(existing))).toBe(false);
+    }
   });
 });

@@ -5,6 +5,7 @@ import {
   BackgroundImage,
   IdentifiedBackgroundImage,
   CableElement,
+  ActorElement,
   CableType,
   CameraElement,
   CameraRigType,
@@ -32,7 +33,7 @@ import {
   Vector2D,
 } from '../types';
 import { createId } from '../domain/ids';
-import { nextCameraLabel } from '../domain/plan/cameraLabels';
+import { nextActorLetter, nextCameraLabel } from '../domain/plan/cameraLabels';
 import { buildShotForSetup } from '../domain/shots/createShot';
 import { insertedShotNumber, takenShotNumbers } from '../domain/shots/numbering';
 import { useStableContextValue } from './stableContextValue';
@@ -1251,8 +1252,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     if (partial.type === 'actor') {
-      const existingActors = activeSetup.elements.filter((e) => e.type === 'actor');
-      const letterCode = String.fromCharCode(65 + (existingActors.length % 26));
+      // First free letter, not a count: with actors A and C on the plan (B
+      // deleted) a count of 2 proposes C, and two markers claiming to be the
+      // same character defeats the point of lettering them.
+      const existingActors = activeSetup.elements.filter(
+        (element): element is ActorElement => element.type === 'actor',
+      );
+      const letterCode = nextActorLetter(existingActors);
       const color = ACTOR_COLOR_PALETTE[existingActors.length % ACTOR_COLOR_PALETTE.length];
 
       newElement = {
