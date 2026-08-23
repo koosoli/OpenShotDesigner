@@ -33,6 +33,7 @@ import {
 } from '../types';
 import { createId } from '../domain/ids';
 import { nextCameraLabel } from '../domain/plan/cameraLabels';
+import { buildShotForSetup } from '../domain/shots/createShot';
 import { useStableContextValue } from './stableContextValue';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
@@ -1941,127 +1942,38 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     commitSetupUpdate((prevSetup) => ({ ...prevSetup, shootMode: mode }));
   };
 
+  /**
+   * Create a shot on the active setup, with a camera when one is needed.
+   *
+   * Everything derived — the shot number, the camera letter, colour, position
+   * and lens — is computed by `buildShotForSetup` INSIDE the state updater,
+   * against the committed setup. That placement is the point: computed out
+   * here, from the render closure, two calls in the same batch both read the
+   * pre-batch setup and both claim the same number and the same letter. The
+   * number half of that was fixed once already; the letter half was not, and
+   * the letter reaches the Camera # column of the Resolve export.
+   *
+   * Ids are minted here so the action can return them synchronously.
+   */
   const addShot = (shotData?: Partial<Shot>): string => {
     const id = newShotId();
-    const nextOrder = activeSetup.shots.length + 1;
-    const isMultiCam = activeSetup.shootMode === 'multi_cam';
-    const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
-    
-    // Format: 1/1, 1/2, 1/3 (SceneNumber/ShotNumber)
-    const sceneNum = activeSetup.sceneNumber || '1';
-    const shotNumber = `${sceneNum}/${nextOrder}`;
-    
-    // In Single-Camera mode (default): Camera is 'A' across coverage setups.
-    // In Multi-Camera mode: Each concurrent camera gets sequential letter A, B, C...
-    const nextCamLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
-
-    let camId = shotData?.cameraId || '';
-    let camLabel = shotData?.cameraLabel || nextCamLetter;
-    let lens = shotData?.lensMm || 35;
-    // Only the elements this call ADDS. It used to be a copy of the
-    // render-time element list, which meant committing it discarded anything
-    // another handler had added in the same render.
-    const addedElements: FloorPlanElement[] = [];
-
-    // If no camera was explicitly specified in shotData, reuse the default camera
-    // (Camera A) in single-camera mode so we don't spawn a new camera element for
-    // every shot. Only create a new camera for multi-camera mode or a fresh project.
-    if (!camId) {
-      if (existingCameras.length > 0 && !isMultiCam) {
-        const defaultCam = existingCameras.find((c) => c.cameraLabel === 'A') || existingCameras[0];
-        camId = defaultCam.id;
-        camLabel = defaultCam.cameraLabel || 'A';
-        lens = defaultCam.focalLength || 35;
-      } else {
-        const newCamId = createId('cam');
-        const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
-
-        // Calculate smart position for new camera
-        const actors = activeSetup.elements.filter((e) => e.type === 'actor');
-        let posX = 320 + (existingCameras.length * 60);
-        let posY = 380 + (existingCameras.length * 40);
-        let rotation = 0;
-
-        if (actors.length > 0) {
-          const mainActor = actors[0];
-          const angleOffset = (existingCameras.length * 45) % 360;
-          const rad = ((225 + angleOffset) * Math.PI) / 180;
-          posX = Math.round(mainActor.x + Math.cos(rad) * 180);
-          posY = Math.round(mainActor.y + Math.sin(rad) * 180);
-          const deg = (Math.atan2(mainActor.y - posY, mainActor.x - posX) * 180) / Math.PI;
-          rotation = Math.round((deg + 360) % 360);
-        }
-
-        const camDisplayName = isMultiCam
-          ? `Camera ${nextCamLetter}`
-          : `Camera ${camLabel} (Shot ${shotData?.shotNumber || shotNumber})`;
-
-        const newCamera: CameraElement = {
-          id: newCamId,
-          type: 'camera',
-          name: camDisplayName,
-          cameraLabel: camLabel,
-          color: camColor,
-          x: posX,
-          y: posY,
-          rotation,
-          locked: false,
-          visible: true,
-          focalLength: lens,
-          sensorFormat: 'Super35',
-          fovAngle: calculateFovAngle(lens, 'Super35'),
-          aspectRatio: '16:9',
-          cameraHeight: 'Eye Level',
-          rigType: 'Tripod',
-          throwDistance: 320,
-          path: [],
-          associatedShotId: id,
-        };
-
-        addedElements.push(newCamera);
-        camId = newCamId;
-      }
-    }
-
-    const newShot: Shot = {
-      id,
-      sceneNumber: sceneNum,
-      shotNumber: shotData?.shotNumber || shotNumber,
-      name: shotData?.name || `Shot ${shotData?.shotNumber || shotNumber} - Coverage`,
-      cameraId: camId,
-      cameraLabel: camLabel,
-      shotSize: shotData?.shotSize || 'MS',
-      lensMm: lens,
-      cameraAngle: shotData?.cameraAngle || 'Eye Level',
-      movement: shotData?.movement || 'Static',
-      aspectRatio: '16:9',
-      frameRate: 24,
-      subjectActorIds: [],
-      framingDescription: shotData?.framingDescription || '',
-      status: 'planned',
-      takesCount: 0,
-      estDurationSeconds: 20,
-      order: nextOrder,
-      ...shotData,
-    };
+    const cameraId = createId('cam');
+    let createdCameraId = '';
 
     commitSetupUpdate((prevSetup) => {
-      // Numbered against the COMMITTED shot list, not the render-time one.
-      // Two `addShot` calls in the same batch both read "there are 3 shots"
-      // and both claimed 1/4 — and the shot number is what the stripboard,
-      // the call sheet and every department's paperwork refer to. A number
-      // the caller supplied explicitly still wins.
-      const order = shotData?.order ?? prevSetup.shots.length + 1;
-      const numbered: Shot = {
-        ...newShot,
-        order,
-        ...(shotData?.shotNumber ? null : { shotNumber: `${prevSetup.sceneNumber || '1'}/${order}` }),
-      };
+      const { shot, camera } = buildShotForSetup({
+        setup: prevSetup,
+        shotId: id,
+        cameraId,
+        shotData,
+        cameraColors: CAMERA_COLOR_PALETTE,
+      });
+      createdCameraId = shot.cameraId;
+
       return {
         ...prevSetup,
-        elements:
-          addedElements.length > 0 ? [...prevSetup.elements, ...addedElements] : prevSetup.elements,
-        shots: [...prevSetup.shots, numbered],
+        elements: camera ? [...prevSetup.elements, camera] : prevSetup.elements,
+        shots: [...prevSetup.shots, shot],
         scriptLines: shotData?.scriptLineId
           ? (prevSetup.scriptLines || []).map((line) =>
               line.id === shotData.scriptLineId ? { ...line, linkedShotId: id } : line,
@@ -2069,9 +1981,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           : prevSetup.scriptLines,
       };
     });
+
     setSelectedShotId(id);
-    if (camId) {
-      setSelectedElementIds([camId]);
+    if (createdCameraId) {
+      setSelectedElementIds([createdCameraId]);
     }
     return id;
   };
