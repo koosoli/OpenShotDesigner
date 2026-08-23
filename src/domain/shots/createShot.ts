@@ -50,6 +50,27 @@ export interface BuildShotOptions {
   cameraPosition?: { x: number; y: number; rotation?: number };
   /** Palette to pick the new camera's colour from, in order. */
   cameraColors: readonly string[];
+  /**
+   * Fields merged onto a newly created camera, applied last so a caller's
+   * explicit value wins. Exists so the floor-plan "add a camera" path — which
+   * carries its own rig type, model and any user-supplied fields — can share
+   * this builder instead of keeping a second copy of the letter and colour
+   * rules.
+   */
+  cameraOverrides?: Partial<CameraElement>;
+  /**
+   * Always mint a camera, even in single-camera mode with one already on the
+   * plan. Placing a camera on the floor plan, or inserting a shot, IS the act
+   * of adding one — those are new positions, not a second use of a neighbour's
+   * camera. Plain `addShot` leaves this off, so single-camera coverage keeps
+   * reusing the one camera it has.
+   */
+  forceNewCamera?: boolean;
+  /**
+   * Names the shot from the resolved number and camera. Defaults to
+   * "Shot 1/2 - Coverage"; the floor-plan path names it after the camera.
+   */
+  shotName?: (context: { shotNumber: string; cameraName?: string }) => string;
 }
 
 export interface BuiltShot {
@@ -100,6 +121,7 @@ export const nextShotNumberFor = (setup: ShotHostSetup, order: number): string =
  */
 export const buildShotForSetup = (options: BuildShotOptions): BuiltShot => {
   const { setup, shotId, cameraId, shotData, cameraPosition, cameraColors } = options;
+  const { cameraOverrides, shotName, forceNewCamera } = options;
 
   const existingCameras = setup.elements.filter(
     (element): element is CameraElement => element.type === 'camera',
@@ -114,7 +136,7 @@ export const buildShotForSetup = (options: BuildShotOptions): BuiltShot => {
   let camera: CameraElement | undefined;
 
   if (!resolvedCameraId) {
-    const reusable = !isMultiCam && existingCameras.length > 0;
+    const reusable = !forceNewCamera && !isMultiCam && existingCameras.length > 0;
     if (reusable) {
       const defaultCamera =
         existingCameras.find((candidate) => candidate.cameraLabel === 'A') ?? existingCameras[0];
@@ -126,10 +148,7 @@ export const buildShotForSetup = (options: BuildShotOptions): BuiltShot => {
         ? { rotation: 0, ...cameraPosition }
         : newCameraPlacement(setup, existingCameras.length);
       camera = {
-        id: cameraId,
-        type: 'camera',
         name: isMultiCam ? `Camera ${cameraLabel}` : `Camera ${cameraLabel} (Shot ${shotNumber})`,
-        cameraLabel,
         color: cameraColors[existingCameras.length % cameraColors.length],
         x: placement.x,
         y: placement.y,
@@ -144,6 +163,12 @@ export const buildShotForSetup = (options: BuildShotOptions): BuiltShot => {
         rigType: 'Tripod',
         throwDistance: 320,
         path: [],
+        ...cameraOverrides,
+        // After the overrides: identity and linkage are this function's to
+        // decide, or a caller could hand the new camera someone else's id.
+        id: cameraId,
+        type: 'camera',
+        cameraLabel,
         associatedShotId: shotId,
       };
       resolvedCameraId = cameraId;
@@ -152,7 +177,11 @@ export const buildShotForSetup = (options: BuildShotOptions): BuiltShot => {
 
   const shot: Shot = {
     sceneNumber: setup.sceneNumber || '1',
-    name: shotData?.name || `Shot ${shotNumber} - Coverage`,
+    name:
+      shotData?.name ||
+      (shotName
+        ? shotName({ shotNumber, cameraName: camera?.name })
+        : `Shot ${shotNumber} - Coverage`),
     shotSize: shotData?.shotSize || 'MS',
     cameraAngle: shotData?.cameraAngle || 'Eye Level',
     movement: shotData?.movement || 'Static',

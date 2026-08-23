@@ -139,6 +139,75 @@ describe('insertShotAfter', () => {
     expect(ids[ids.indexOf(first) + 1]).toBe(inserted);
   });
 
+  /**
+   * Inserting twice after the same shot must produce two different numbers.
+   * The old implementation derived the number from the neighbour alone and
+   * could not see what was already taken, so both inserts came out as the same
+   * number — and a shot number is what the stripboard, the call sheet and the
+   * Resolve export all key on.
+   */
+  it('never repeats a number when inserting twice in the same place', async () => {
+    const { result } = await mountProvider();
+    let anchorId = '';
+    await run(() => {
+      anchorId = result.current.addShot();
+    });
+
+    await run(() => {
+      result.current.insertShotAfter(anchorId);
+    });
+    await run(() => {
+      result.current.insertShotAfter(anchorId);
+    });
+
+    const numbers = shotsOf(result.current).map((shot) => shot.shotNumber);
+    expect(new Set(numbers).size).toBe(numbers.length);
+  });
+
+  /**
+   * Two shapes, both correct. After the LAST shot there is room to count on, so
+   * an insert becomes the next whole number. Between two shots there is not, so
+   * it letters the one it follows — the same algebra locked scene numbers use,
+   * and the reason nothing already on a slate has to move.
+   */
+  it('counts on after the last shot and letters an insert in the middle', async () => {
+    const { result } = await mountProvider();
+    let first = '';
+    await run(() => {
+      first = result.current.addShot();
+    });
+    await run(() => {
+      result.current.addShot();
+    });
+
+    const firstNumber = shotsOf(result.current).find((s) => s.id === first)?.shotNumber ?? '';
+    const lastId = shotsOf(result.current).at(-1)!.id;
+    const lastNumber = shotsOf(result.current).at(-1)!.shotNumber ?? '';
+
+    let middle = '';
+    await run(() => {
+      middle = result.current.insertShotAfter(first);
+    });
+    let trailing = '';
+    await run(() => {
+      trailing = result.current.insertShotAfter(lastId);
+    });
+
+    const numberOf = (id: string) =>
+      shotsOf(result.current).find((shot) => shot.id === id)?.shotNumber ?? '';
+
+    // Squeezed between two shots: a letter on the one it follows.
+    expect(numberOf(middle)).toMatch(/^1\/\d+[A-Z]+$/);
+    expect(numberOf(middle).startsWith(firstNumber)).toBe(true);
+    // Appended after the last: the next whole number, not a letter.
+    expect(numberOf(trailing)).toMatch(/^1\/\d+$/);
+    expect(numberOf(trailing)).not.toBe(lastNumber);
+
+    // And the shots it was inserted around kept their numbers.
+    expect(numberOf(first)).toBe(firstNumber);
+    expect(numberOf(lastId)).toBe(lastNumber);
+  });
+
   it('leaves existing numbers alone unless renumbering is asked for', async () => {
     const { result } = await mountProvider();
     let first = '';

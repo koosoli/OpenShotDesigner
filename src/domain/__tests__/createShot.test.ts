@@ -158,6 +158,37 @@ describe('buildShotForSetup — cameras', () => {
     expect(created?.cameraLabel).toBe('B');
   });
 
+  /**
+   * Placing a camera on the plan, or inserting a shot, is the act of adding a
+   * camera — those paths pass `forceNewCamera` so single-camera mode does not
+   * quietly hand them the existing one. Plain `addShot` leaves it off.
+   */
+  it('mints a camera even in single-camera mode when forced', () => {
+    const single = setup({ elements: [camera('cam-a', 'A')] });
+    expect(build({ setup: single }).camera).toBeUndefined();
+
+    const forced = build({ setup: single, forceNewCamera: true });
+    expect(forced.camera?.id).toBe('cam-new');
+    // Still labelled A: one physical camera, another position on the plan.
+    expect(forced.camera?.cameraLabel).toBe('A');
+  });
+
+  it('merges camera overrides but keeps identity and linkage its own', () => {
+    const { camera: created } = build({
+      cameraOverrides: {
+        id: 'someone-elses-id',
+        rigType: 'Steadicam',
+        cameraModel: 'Cinema Camera',
+        associatedShotId: 'someone-elses-shot',
+      },
+    });
+    expect(created?.rigType).toBe('Steadicam');
+    expect(created?.cameraModel).toBe('Cinema Camera');
+    // A caller cannot hand the new camera another element's id or shot.
+    expect(created?.id).toBe('cam-new');
+    expect(created?.associatedShotId).toBe('shot-new');
+  });
+
   it('adds no camera when the caller names one', () => {
     const { shot, camera: created } = build({ shotData: { cameraId: 'existing' } });
     expect(created).toBeUndefined();
