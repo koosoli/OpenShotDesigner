@@ -3,6 +3,8 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { ActorElement, CameraElement, PropElement } from '../../types';
 import { isPointInCameraFov } from '../../utils/geometry';
 import { loadStoryboardImageFile } from '../../utils/image';
+import { storeImageAsset } from '../../utils/assetImages';
+import { dataUrlToBlob } from '../../utils/projectMedia';
 import { setFramePatch, isSlotOmitted, slotsOf, START_SLOT, keyFrameImage } from '../../utils/storyboardFrames';
 import { renderSimulatedFrame, SimulatedSubject } from '../../utils/simulatedFrame';
 import {
@@ -453,11 +455,38 @@ export const ViewfinderModal: React.FC = () => {
    * yet, one is created for it in the same commit — capturing must never be a
    * dead end.
    */
-  const saveStoryboardImage = (image: string) => {
+  /**
+   * Put a captured or chosen image on the shot.
+   *
+   * Anything arriving as a data URL — a camera grab, a rasterised simulated
+   * frame — is moved into the asset store first. Storing it inline would put
+   * base64 straight into project state (rule 26), where it is re-copied into
+   * every undo snapshot and every duplicate; the media pass would move it on
+   * the next load anyway, so doing it here saves the round trip and keeps the
+   * project small in the session it was captured.
+   */
+  const storeCapturedFrame = async (image: string): Promise<string> => {
+    if (!image.startsWith('data:')) return image;
+    // Decoded by hand rather than via `fetch(dataUrl)`, which some content
+    // security policies block. Any failure keeps the inline image: a board the
+    // user just captured must never be lost to a storage problem, and the media
+    // pass will move it on the next load.
+    const blob = dataUrlToBlob(image);
+    if (!blob) return image;
+    try {
+      const stored = await storeImageAsset(blob, { maxSize: 1280, quality: 0.82, source: 'viewfinder' });
+      return stored.assetId;
+    } catch {
+      return image;
+    }
+  };
+
+  const saveStoryboardImage = async (image: string) => {
+    const ref = await storeCapturedFrame(image);
     const slotName = resolvedSlot?.label ? `${resolvedSlot.label.toLowerCase()} frame` : 'storyboard';
 
     if (targetShot) {
-      updateShot(targetShot.id, setFramePatch(targetShot, currentSlotKey, { image, fit: 'cover' }));
+      updateShot(targetShot.id, setFramePatch(targetShot, currentSlotKey, { image: ref, fit: 'cover' }));
       setSaveNote(
         currentSlotKey === START_SLOT
           ? `Saved as the storyboard of shot ${targetShot.shotNumber}.`
@@ -469,7 +498,7 @@ export const ViewfinderModal: React.FC = () => {
         cameraLabel: selectedCamera.cameraLabel,
         lensMm: focal,
         framingDescription: framingNotes(),
-        storyboardImage: image,
+        storyboardImage: ref,
         storyboardFit: 'cover',
       });
       setSaveNote(`Created a shot for Cam ${selectedCamera.cameraLabel} and saved the storyboard to it.`);
@@ -523,7 +552,15 @@ export const ViewfinderModal: React.FC = () => {
     // Phone photos are many megabytes — downscale before storing, otherwise the
     // project exceeds the browser's storage quota and nothing is kept.
     loadStoryboardImageFile(file)
-      .then((dataUrl) => saveStoryboardImage(dataUrl))
+      .then((ref) => {
+        // Release the camera first. The finder hides the board while a stream
+        // is running, so attaching a photo with the camera open saved it and
+        // then showed the live feed exactly as before — indistinguishable from
+        // the upload having failed. Choosing a photo is a decision about what
+        // the finder should show, so it takes over.
+        stopLiveCamera();
+        saveStoryboardImage(ref);
+      })
       .catch(() => setLiveError('That photo could not be read.'));
     event.target.value = '';
   };

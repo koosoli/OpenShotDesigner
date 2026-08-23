@@ -67,7 +67,7 @@ export const applyMediaReplacements = (
  * `fetch(dataUrl)` is the tidy way and is unavailable under some CSPs and in
  * some test environments, so this decodes by hand.
  */
-const dataUrlToBlob = (dataUrl: string): Blob | null => {
+export const dataUrlToBlob = (dataUrl: string): Blob | null => {
   const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(dataUrl);
   if (!match) return null;
   const [, mime = 'application/octet-stream', base64, payload] = match;
