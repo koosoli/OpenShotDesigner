@@ -188,7 +188,8 @@ board — in one print job, with your production logo on the paperwork.
   - **Tab cycling** — press <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to cycle across all 6 screenplay element types.
   - **Fountain mode** — toggle between WYSIWYG Page View and raw Fountain syntax markdown code.
 - **AV Script (2-Column Audio/Visual)** — dedicated production AV table for commercials, documentaries, and multicam setups. Synchronized bidirectionally with floor plan cameras and lined coverage.
-- **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or Final Draft scene attributes.
+- **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or Final Draft scene attributes — and printed in **both margins**, the way a numbered production draft is read.
+- **Title page** — the screenplay's cover with title, credit, author(s), source, draft, date, contact and copyright, edited beside a live preview. The fields are Fountain's standard title-page keys, so a script that arrives with a cover keeps it and an exported one carries it back out. Printing the cover is opt-in, and a **DRAFT** stamp is one toggle away (off by default).
 - **Cut a scene without losing its number** — deleting a scene heading first *omits* it: the slugline stays in place as **SCENE 12 — OMITTED**, its body is parked and restored verbatim by **Restore**, and deleting it again removes it for good. Scheduled strips for an omitted scene stay visible on the board rather than vanishing, and a new scene can be started directly after an omitted one.
 - **Lock the numbers when the script locks** — while you are still writing, scenes are numbered by position and renumber as you insert. One click makes them **production numbers**: a scene inserted between 3 and 4 becomes **3A** (and **3AA** between 3A and 3B), a cut scene stays in place as **OMITTED** with its number, a deleted one leaves a gap, and every other scene keeps the number the breakdown, stripboard and call sheets already quote. Numbers stay editable by hand while locked, and a script imported with production numbers already in it locks on arrival.
 - **Link a scene heading to a real location** — the set a heading names ("INT. **LIVING ROOM** - NIGHT") is linked to a project location from the heading itself, so the call sheet gets its address and map pin. One link covers every scene *and* setup that names the same set, and it is changed or undone from the same control — on the heading, on the call sheet, or in the script's location report.
@@ -364,7 +365,7 @@ New to it? **Templates → Fill empty modules with examples** loads a worked exa
 
 | Format | What you get |
 | --- | --- |
-| **Lined script** | The screenplay with every scene's linings, shot bubbles, and descriptions. Prints the **lined portions only** by default (with `⋯` where material is skipped) — switch to "Full screenplay" for the whole script |
+| **Lined script** | The screenplay with every scene's linings, shot bubbles, and descriptions, scene numbers in both margins and an optional title page. Prints the **lined portions only** by default (with `⋯` where material is skipped) — switch to "Full screenplay" for the whole script |
 | **Storyboard** | Contact sheet of the scene's frames in board order, with shot number, camera, description, and blank frames where there is no art yet |
 | **Equipment manifest** | Scene or all-scenes master truck package — print sheet (PDF) or CSV/Excel spreadsheet |
 | **PNG** | High-resolution blueprint render (1×/2×/3×) with a title block carrying your production logo |
