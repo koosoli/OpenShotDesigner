@@ -14,7 +14,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit && eslint . --max-warnings=133 && node scripts/check-encoding.mjs",
+    "lint": "tsc --noEmit && eslint . --max-warnings=120 && node scripts/check-encoding.mjs",
     "lint:fix": "eslint . --fix",
     "check:encoding": "node scripts/check-encoding.mjs",
     "typecheck": "tsc --noEmit",

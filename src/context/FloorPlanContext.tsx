@@ -34,6 +34,7 @@ import {
 } from '../types';
 import { createId } from '../domain/ids';
 import { nextActorLetter, nextCameraLabel } from '../domain/plan/cameraLabels';
+import { endpointsOf, hasEndpoints, hasSize } from '../domain/plan/elementGuards';
 import { buildShotForSetup } from '../domain/shots/createShot';
 import { insertedShotNumber, takenShotNumbers } from '../domain/shots/numbering';
 import { useStableContextValue } from './stableContextValue';
@@ -597,12 +598,15 @@ function findFreeSpawnPoint(
       }
     }
     for (const el of elements) {
-      const ex = (el as any).x ?? 0;
-      const ey = (el as any).y ?? 0;
-      let ex2 = (el as any).x2;
-      let ey2 = (el as any).y2;
-      if (ex2 === undefined) ex2 = ex + ((el as any).width ?? 80);
-      if (ey2 === undefined) ey2 = ey + ((el as any).height ?? 60);
+      // An element's far corner is its second endpoint when it has one, and
+      // its box otherwise. Guards rather than casts so a malformed x2 — null or
+      // NaN from an import — falls back to the box instead of producing NaN
+      // bounds, which compare false against everything and would silently
+      // report occupied space as free.
+      const ex = el.x ?? 0;
+      const ey = el.y ?? 0;
+      const ex2 = hasEndpoints(el) ? el.x2 : ex + (hasSize(el) ? el.width : 80);
+      const ey2 = hasEndpoints(el) ? el.y2 : ey + (hasSize(el) ? el.height : 60);
       if (
         x < Math.max(ex, ex2) + pad &&
         x + width + pad > Math.min(ex, ex2) &&
@@ -1528,10 +1532,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       y: pos.y,
     };
 
-    // Linear elements need a sensible default length when placed via search.
-    if ((partial.type === 'wall' || partial.type === 'track' || partial.type === 'road' || partial.type === 'measurement' || partial.type === 'arrow' || partial.type === 'cable') && (full as any).x2 === undefined) {
-      (full as any).x2 = pos.x + 240;
-      (full as any).y2 = pos.y;
+    // A two-point element placed from the search palette has no drag to give
+    // it a length, so it gets a default horizontal run. Typed as the partial
+    // shape rather than cast: `as any` here would also silence a typo in the
+    // field names, and a wall with no x2 renders as a zero-length nub.
+    const linear: ReadonlySet<FloorPlanElement['type']> = new Set([
+      'wall',
+      'track',
+      'road',
+      'measurement',
+      'arrow',
+      'cable',
+    ]);
+    const endpoints = full as Partial<{ x2: number; y2: number }>;
+    if (linear.has(partial.type) && endpoints.x2 === undefined) {
+      endpoints.x2 = pos.x + 240;
+      endpoints.y2 = pos.y;
     }
 
     const id = addElement(full);
@@ -1880,7 +1896,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!wall) return null;
 
     const w1 = { x: wall.x, y: wall.y };
-    const w2 = { x: (wall as any).x2 ?? wall.x + 200, y: (wall as any).y2 ?? wall.y };
+    // 200 is this path's own default run length for a wall with no endpoint.
+    const { x2: wallX2, y2: wallY2 } = endpointsOf(wall, 200);
+    const w2 = { x: wallX2, y: wallY2 };
     const midX = (w1.x + w2.x) / 2;
     const midY = (w1.y + w2.y) / 2;
     let angle = (Math.atan2(w2.y - w1.y, w2.x - w1.x) * 180) / Math.PI;
@@ -1907,7 +1925,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!wall) return null;
 
     const w1 = { x: wall.x, y: wall.y };
-    const w2 = { x: (wall as any).x2 ?? wall.x + 200, y: (wall as any).y2 ?? wall.y };
+    // 200 is this path's own default run length for a wall with no endpoint.
+    const { x2: wallX2, y2: wallY2 } = endpointsOf(wall, 200);
+    const w2 = { x: wallX2, y: wallY2 };
     const midX = (w1.x + w2.x) / 2;
     const midY = (w1.y + w2.y) / 2;
     let angle = (Math.atan2(w2.y - w1.y, w2.x - w1.x) * 180) / Math.PI;
