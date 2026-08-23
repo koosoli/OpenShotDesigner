@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
+  elementLength,
+  endpointsOf,
+  hasEndpoints,
+  hasPath,
+  hasSize,
+} from '../../domain/plan/elementGuards';
+import {
   ActorElement,
   CableElement,
   CameraElement,
@@ -491,16 +498,15 @@ export const FloorPlanCanvas: React.FC = () => {
 
     activeSetup.elements.forEach((el) => {
       includePoint(el.x, el.y);
-      const anyEl = el as any;
-      if (typeof anyEl.x2 === 'number') {
-        includePoint(anyEl.x2, anyEl.y2);
+      if (hasEndpoints(el)) {
+        includePoint(el.x2, el.y2);
       }
-      if (typeof anyEl.width === 'number' && typeof anyEl.height === 'number') {
-        includePoint(el.x - anyEl.width / 2, el.y - anyEl.height / 2);
-        includePoint(el.x + anyEl.width / 2, el.y + anyEl.height / 2);
+      if (hasSize(el)) {
+        includePoint(el.x - el.width / 2, el.y - el.height / 2);
+        includePoint(el.x + el.width / 2, el.y + el.height / 2);
       }
-      if (Array.isArray(anyEl.path)) {
-        anyEl.path.forEach((wp: any) => includePoint(wp.x, wp.y));
+      if (hasPath(el)) {
+        el.path.forEach((point) => includePoint(point.x, point.y));
       }
     });
 
@@ -2160,8 +2166,8 @@ export const FloorPlanCanvas: React.FC = () => {
       const orig = dragState.startElements.get(dragState.activeElementId);
 
       // Line basic shape endpoint drag
-      if (orig && orig.type === 'shape' && (orig as any).shapeType === 'line') {
-        const shape = orig as any;
+      if (orig && orig.type === 'shape' && orig.shapeType === 'line') {
+        const shape = orig;
         const rad = ((shape.rotation || 0) * Math.PI) / 180;
         const cos = Math.cos(rad);
         const sin = Math.sin(rad);
@@ -2209,10 +2215,7 @@ export const FloorPlanCanvas: React.FC = () => {
       const orig = dragState.startElements.get(dragState.activeElementId);
       if (!orig) return;
 
-      const x1 = orig.x;
-      const y1 = orig.y;
-      const x2 = (orig as any).x2 ?? orig.x + 240;
-      const y2 = (orig as any).y2 ?? orig.y;
+      const { x1, y1, x2, y2 } = endpointsOf(orig);
       const dist = Math.max(20, Math.hypot(x2 - x1, y2 - y1));
       const normalX = -(y2 - y1) / dist;
       const normalY = (x2 - x1) / dist;
@@ -2251,8 +2254,8 @@ export const FloorPlanCanvas: React.FC = () => {
       const localDx = deltaCanvasX * Math.cos(rotRad) - deltaCanvasY * Math.sin(rotRad);
       const localDy = deltaCanvasX * Math.sin(rotRad) + deltaCanvasY * Math.cos(rotRad);
 
-      const origW = (orig as any).width || 80;
-      const origH = (orig as any).height || 60;
+      const origW = hasSize(orig) ? orig.width : 80;
+      const origH = hasSize(orig) ? orig.height : 60;
 
       let newW = origW;
       let newH = origH;
@@ -2277,7 +2280,7 @@ export const FloorPlanCanvas: React.FC = () => {
         centerShiftY = -(newH - origH) / 2;
       }
 
-      if ((orig as any).shapeType === 'circle') {
+      if (orig.type === 'shape' && orig.shapeType === 'circle') {
         const sz = Math.max(newW, newH);
         newW = sz;
         newH = sz;
@@ -2368,8 +2371,8 @@ export const FloorPlanCanvas: React.FC = () => {
     if (dragState?.type === 'draw_measure') {
       // Finish measuring: if the tape is a zero-length click, give it a sensible default length
       const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
-      if (el && 'x2' in el) {
-        const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
+      if (hasEndpoints(el)) {
+        const length = elementLength(el);
         if (length < 5) {
           updateElement(el.id, { x2: el.x + 150, y2: el.y }, false);
         }
@@ -2379,8 +2382,8 @@ export const FloorPlanCanvas: React.FC = () => {
     if (dragState?.type === 'draw_arrow') {
       // Finish arrow: a zero-length click gets a sensible default 150px arrow to the right
       const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
-      if (el && 'x2' in el) {
-        const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
+      if (hasEndpoints(el)) {
+        const length = elementLength(el);
         if (length < 5) {
           updateElement(el.id, { x2: el.x + 150, y2: el.y }, false);
         }
@@ -2391,8 +2394,8 @@ export const FloorPlanCanvas: React.FC = () => {
       // First segment of a routed run: on release we start chaining from the
       // endpoint so the next CLICK adds a corner (exactly like connected walls).
       const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
-      if (el && 'x2' in el) {
-        const length = Math.hypot((el as any).x2 - el.x, (el as any).y2 - el.y);
+      if (hasEndpoints(el)) {
+        const length = elementLength(el);
         // Re-evaluate the from-end attachment wherever the start landed.
         if (el.type === 'cable') {
           const startDevice = findAttachableDeviceAt({ x: el.x, y: el.y }, activeSetup.elements);

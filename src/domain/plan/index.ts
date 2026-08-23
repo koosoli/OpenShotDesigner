@@ -4,6 +4,5 @@ export { hasWaypointPath, patchWaypoint, translatePath, translateStrokePoints } 
 export * from './groupAnimation';
 export * from './visibility';
 export { normalizeSpeechCues, speechCueAtBeat, wrapSpeechText } from './speech';
-export { changedSetupKeys, mergeSetupWrite } from './setupWrite';
 export { nextCameraLabel, usedCameraLabels } from './cameraLabels';
 export type { LabelledCamera } from './cameraLabels';
