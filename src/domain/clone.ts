@@ -274,7 +274,10 @@ const cloneProductionCollections = (
     result.characters = project.characters.map((c) => ({
       ...c,
       id: remapRequired(characterMap, c.id),
-      aliases: [...c.aliases],
+      // Absent-safe: clone also runs on imported JSON, where a hand-edited or
+      // older file can be missing a field the type says is required. Crashing
+      // mid-duplicate would leave the user with no copy and no explanation.
+      aliases: [...(c.aliases ?? [])],
     }));
   }
   if (project.scriptScenes) {
@@ -282,8 +285,11 @@ const cloneProductionCollections = (
       ...s,
       id: remapRequired(sceneMap, s.id),
       locationId: remap(locationMap, s.locationId),
-      characterIds: s.characterIds.map((id) => remapRequired(characterMap, id)),
-      breakdownItemIds: s.breakdownItemIds.map((id) => remapRequired(itemMap, id)),
+      // Absent-safe for the same reason as `aliases` below: an imported or
+      // hand-edited file can be missing an array the type says is required,
+      // and crashing mid-duplicate leaves the user with no copy at all.
+      characterIds: (s.characterIds ?? []).map((id) => remapRequired(characterMap, id)),
+      breakdownItemIds: (s.breakdownItemIds ?? []).map((id) => remapRequired(itemMap, id)),
     }));
   }
   if (project.breakdownItems) {
