@@ -92,7 +92,7 @@ import {
 } from '../domain/workspace';
 
 /** Sections available in the export / print studio. */
-export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'avscript' | 'sides' | 'scriptreports' | 'equipment' | 'dmx' | 'power' | 'rigging' | 'logistics' | 'runofshow' | 'moodboard' | 'crew' | 'combined';
+export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'avscript' | 'sides' | 'scriptreports' | 'equipment' | 'dmx' | 'power' | 'rigging' | 'logistics' | 'runofshow' | 'continuity' | 'moodboard' | 'crew' | 'combined';
 
 /**
  * Collision-proof ids. `Date.now()` alone repeats when two shots are created
@@ -146,8 +146,8 @@ interface FloorPlanContextType {
   setCableType: (cable: CableType) => void;
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
-  activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
-  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector') => void;
+  activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
+  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector') => void;
   /** Workspace profile of the open project (module visibility, plan §1.2). */
   workspaceProfile: WorkspaceProfile;
   isModuleVisible: (moduleId: ModuleId) => boolean;
@@ -289,7 +289,16 @@ interface FloorPlanContextType {
    * is already stale and a plain object patch would discard whatever the user
    * changed while the request was in flight.
    */
-  updateProjectMeta: (updates: Partial<Project> | ((prev: Project) => Partial<Project>)) => void;
+  /**
+   * `record` defaults to true. Pass false for the intermediate steps of a live
+   * gesture and true once on release, so a drag is one undo step rather than
+   * one per pointer move — the implementation has always taken this, but the
+   * type hid it, so callers could not use it.
+   */
+  updateProjectMeta: (
+    updates: Partial<Project> | ((prev: Project) => Partial<Project>),
+    record?: boolean,
+  ) => void;
   /**
    * Fill the modules that are still empty with the bundled example production.
    * Strictly additive — anything the user already has is untouched. Returns the
@@ -823,7 +832,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [exportSection, setExportSection] = useState<ExportSection>('floorplan');
 
   // Right Sidebar Tab State
-  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector'>('shots');
+  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector'>('shots');
   const [scriptLinkShotId, setScriptLinkShotId] = useState<string | null>(null);
 
   // If the open project's workspace hides the current tab's module, fall back
@@ -839,6 +848,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       rigging: 'rigging',
       logistics: 'logistics',
       run_of_show: 'run_of_show',
+      continuity: 'continuity',
       moodboard: 'moodboard',
       locations: 'locations',
       contacts: 'contacts',
@@ -1651,6 +1661,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             scheduleBlocks: prev.scheduleBlocks,
             productionDays: prev.productionDays,
             scriptLines: prev.scriptLines,
+            takes: prev.takes,
           },
           [...removedShotIds],
         );
@@ -1703,6 +1714,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             scheduleBlocks: prev.scheduleBlocks,
             productionDays: prev.productionDays,
             scriptLines: prev.scriptLines,
+            takes: prev.takes,
           },
           [...removedShotIds],
         );
@@ -3387,6 +3399,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           scheduleBlocks: prev.scheduleBlocks,
           productionDays: prev.productionDays,
           scriptLines: prev.scriptLines,
+          takes: prev.takes,
         },
         id,
       );
@@ -3759,6 +3772,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           scheduleBlocks: prev.scheduleBlocks,
           productionDays: prev.productionDays,
           scriptLines: prev.scriptLines,
+          takes: prev.takes,
         },
         setupId,
         shotIdsOnSetup,

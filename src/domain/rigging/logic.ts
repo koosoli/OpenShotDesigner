@@ -6,7 +6,14 @@
  * never fabricated zeros (rule 13). Canonical units kg (rule 14).
  */
 
-import type { RiggingItem, RiggingItemKind, SuspendedLoad, TrussElement, TrussProfile } from './types';
+import type {
+  RiggingAssumptions,
+  RiggingItem,
+  RiggingItemKind,
+  SuspendedLoad,
+  TrussElement,
+  TrussProfile,
+} from './types';
 
 export interface TrussLoadBreakdown {
   trussElementId: string;
@@ -21,6 +28,12 @@ export interface TrussLoadBreakdown {
    * option values × item counts (default undefined → 0 contribution).
    */
   clampsKg: number;
+  /** Clamps on this run — printed beside `clampsKg` so the sum can be checked. */
+  clampCount: number;
+  /** Safeties on this run, same reason. */
+  safetyCount: number;
+  /** The flat cable allowance applied to this run; undefined when none was set. */
+  cableAllowanceKg?: number;
   /**
    * selfWeight + loadsKg + clamps + safeties + cable allowance;
    * null when self-weight unknown — callers must surface "unknown",
@@ -37,6 +50,29 @@ export interface TrussLoadOptions {
   /** Flat cable/ancillary allowance in kg for this truss run. */
   cableAllowanceKg?: number;
 }
+
+/**
+ * What the panel assumed before these figures were stored on the project:
+ * a half-kilo clamp and a 150 g safety, with no cable allowance until someone
+ * decides on one. Keeping them as the fallback means an existing project's
+ * numbers do not move the first time it is opened after this change.
+ */
+export const DEFAULT_RIGGING_ASSUMPTIONS: RiggingAssumptions = {
+  clampWeightKg: 0.5,
+  safetyWeightKg: 0.15,
+};
+
+/**
+ * The load options for a project's stored assumptions.
+ *
+ * An absent object means the project predates the field (or has never been
+ * touched here), so the defaults apply. A stored object is taken literally,
+ * blanks included: clearing the clamp box is a statement that the clamp weight
+ * is unknown, and quietly restoring 0.5 kg would overrule it.
+ */
+export const riggingLoadOptions = (
+  assumptions: RiggingAssumptions | undefined,
+): TrussLoadOptions => assumptions ?? DEFAULT_RIGGING_ASSUMPTIONS;
 
 export const calculateTrussLoad = (
   truss: TrussElement,
@@ -79,6 +115,9 @@ export const calculateTrussLoad = (
     loadsKg,
     unknownLoadCount,
     clampsKg,
+    clampCount,
+    safetyCount,
+    cableAllowanceKg: options?.cableAllowanceKg,
     totalKg:
       trussSelfWeightKg === null
         ? null

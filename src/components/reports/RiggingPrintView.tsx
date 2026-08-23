@@ -4,8 +4,13 @@ import {
   SAFETY_DISCLAIMER,
   calculateTrussLoad,
   evaluateTrussCapacity,
+  resolveSuspendedLoadWeights,
+  riggingLoadOptions,
+  type RiggingAssumptions,
   type TrussCapacityVerdict,
 } from '../../domain/rigging';
+import { getFixtureCatalog } from '../../domain/fixtures';
+import type { FixtureProfile } from '../../domain/fixtures';
 import type { Project } from '../../types';
 
 export interface PrintableSuspendedLoad {
@@ -42,6 +47,12 @@ export interface PrintableTrussRun {
   selfWeightKg: number | null;
   loadsKg: number;
   unknownLoadCount: number;
+  /** Clamp + safety hardware at the project's assumed per-item weights. */
+  clampsKg: number;
+  clampCount: number;
+  safetyCount: number;
+  /** The flat cable allowance on this run; undefined when none is set. */
+  cableAllowanceKg?: number;
   totalKg: number | null;
   capacity: TrussCapacityVerdict;
   loads: PrintableSuspendedLoad[];
@@ -56,6 +67,12 @@ export interface RiggingPrintViewProps {
   runs: PrintableTrussRun[];
   /** Hardware attached to no truss run — it still has to be packed and hung. */
   unassignedHardware: PrintableRiggingHardware[];
+  /**
+   * The hardware weights the totals were built on. Printed in full: a rigger
+   * who disagrees with 0.5 kg a clamp has to be able to see that figure, not
+   * infer it from a total.
+   */
+  assumptions: RiggingAssumptions;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -76,7 +93,9 @@ const GEOMETRY_LABELS: Record<string, string> = {
 };
 
 const SOURCE_LABELS: Record<string, string> = {
-  profile: 'Profile',
+  // "Profile" was ambiguous next to the truss profile column; a weight that
+  // came out of the fixture database is a catalogue figure.
+  profile: 'Catalogue',
   manual: 'Manual',
   unknown: 'Unknown',
 };
@@ -122,6 +141,7 @@ export const RiggingPrintView: React.FC<RiggingPrintViewProps> = ({
   logo,
   runs,
   unassignedHardware,
+  assumptions,
 }) => {
   const generatedAt = new Date().toISOString().split('T')[0];
   const overCount = runs.filter((run) => run.capacity.verdict === 'over').length;
@@ -244,6 +264,18 @@ export const RiggingPrintView: React.FC<RiggingPrintViewProps> = ({
                   <td />
                 </tr>
                 <tr className="rg-total-row">
+                  <td colSpan={3}>
+                    Clamps ({run.clampCount}) + safeties ({run.safetyCount}) at assumed weights
+                  </td>
+                  <td className="num">{formatKg(run.clampsKg)}</td>
+                  <td />
+                </tr>
+                <tr className="rg-total-row">
+                  <td colSpan={3}>Cable allowance</td>
+                  <td className="num">{formatKg(run.cableAllowanceKg)}</td>
+                  <td />
+                </tr>
+                <tr className="rg-total-row">
                   <td colSpan={3}>Planned total on the run</td>
                   <td className="num">{formatKg(run.totalKg)}</td>
                   <td />
@@ -314,9 +346,17 @@ export const RiggingPrintView: React.FC<RiggingPrintViewProps> = ({
         <div className="rg-note">
           <p>{SAFETY_DISCLAIMER}</p>
           <p>
-            Totals cover truss self-weight and suspended loads only. Clamp, safety and cable
-            allowances are assumptions you set in the Rigging panel for the session; they are not
-            stored with the project and are therefore not included here.
+            <strong>What the planned total contains:</strong> truss self-weight, the suspended
+            loads listed above, the clamp and safety hardware on the run, and the cable allowance —
+            each shown as its own row so the sum can be checked. Earlier versions of this sheet
+            excluded the hardware and cable figures, so a total here reads higher than the same run
+            did before.
+          </p>
+          <p>
+            Hardware weights are assumptions set in the Rigging panel and stored with the project:
+            clamp {formatKg(assumptions.clampWeightKg)}, safety {formatKg(assumptions.safetyWeightKg)},
+            cable allowance {formatKg(assumptions.cableAllowanceKg)} per run. Verify them against
+            the actual hardware; a blank one counts nothing rather than guessing.
           </p>
           <p>
             Capacity verdicts compare the planned total against the combined rating of the motors
@@ -340,13 +380,27 @@ export const RiggingPrintView: React.FC<RiggingPrintViewProps> = ({
  *
  * The load figures come from `calculateTrussLoad` and `evaluateTrussCapacity`
  * rather than being recomputed here (rule 4), which is what keeps the paper
- * and the panel telling the same story.
+ * and the panel telling the same story. For the same reason the sheet reads
+ * the catalogue weight of a profile-linked load and the project's hardware
+ * assumptions: anything the panel counts, the paper counts.
+ *
+ * The fixture catalogue defaults to the live one so the single call site needs
+ * no plumbing; a test (or a future caller with its own snapshot) can pass one.
  */
-export const buildRiggingPrintModel = (project: Project): RiggingPrintViewProps => {
+export const buildRiggingPrintModel = (
+  project: Project,
+  options: { fixtureProfiles?: readonly FixtureProfile[] } = {},
+): RiggingPrintViewProps => {
   const profiles = project.trussProfiles ?? [];
   const elements = project.trussElements ?? [];
-  const loads = project.suspendedLoads ?? [];
   const items = project.riggingItems ?? [];
+  const assumptions = riggingLoadOptions(project.riggingAssumptions);
+
+  const fixtureProfiles = options.fixtureProfiles ?? getFixtureCatalog().profiles;
+  const fixtureById = new Map(fixtureProfiles.map((profile) => [profile.id, profile]));
+  const loads = resolveSuspendedLoadWeights(project.suspendedLoads ?? [], (id) =>
+    fixtureById.get(id),
+  );
 
   const profileLabel = (profileId: string | undefined): string => {
     const profile = profiles.find((p) => p.id === profileId);
@@ -365,7 +419,7 @@ export const buildRiggingPrintModel = (project: Project): RiggingPrintViewProps 
 
   const runs: PrintableTrussRun[] = elements.map((element) => {
     const profile = profiles.find((p) => p.id === element.profileId);
-    const breakdown = calculateTrussLoad(element, profile, loads, items);
+    const breakdown = calculateTrussLoad(element, profile, loads, items, assumptions);
     const capacity = evaluateTrussCapacity(breakdown, items);
     const lengthMm = element.lengthOverrideMm ?? profile?.lengthMm;
 
@@ -379,6 +433,10 @@ export const buildRiggingPrintModel = (project: Project): RiggingPrintViewProps 
       selfWeightKg: breakdown.trussSelfWeightKg,
       loadsKg: breakdown.loadsKg,
       unknownLoadCount: breakdown.unknownLoadCount,
+      clampsKg: breakdown.clampsKg,
+      clampCount: breakdown.clampCount,
+      safetyCount: breakdown.safetyCount,
+      cableAllowanceKg: breakdown.cableAllowanceKg,
       totalKg: breakdown.totalKg,
       capacity,
       loads: loads
@@ -409,5 +467,6 @@ export const buildRiggingPrintModel = (project: Project): RiggingPrintViewProps 
     logo: project.logo,
     runs,
     unassignedHardware,
+    assumptions,
   };
 };

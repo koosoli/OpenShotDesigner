@@ -18,12 +18,24 @@ import {
   Weight,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { createId } from '../../domain/ids';
 import { removeTrussElement } from '../../domain';
+import { searchFixtureProfiles } from '../../domain/fixtures';
+import type { LightElement } from '../../types';
 import {
   SAFETY_DISCLAIMER,
   calculateTrussLoad,
+  detachLoadFromProfile,
   evaluateTrussCapacity,
+  fixtureProfileLabel,
+  planLightIsOnRun,
+  planLightLoadLabel,
+  resolveSuspendedLoadWeights,
+  riggingLoadOptions,
+  suspendedLoadFromFixtureProfile,
+  suspendedLoadFromPlanLight,
+  type RiggingAssumptions,
   type RiggingItem,
   type RiggingItemKind,
   type SuspendedLoad,
@@ -60,7 +72,16 @@ const RIGGING_KIND_LABELS: Record<RiggingItemKind, string> = {
   note: 'Note',
 };
 
-const LOAD_SOURCE_ORDER = ['manual', 'profile', 'unknown'] as const;
+/**
+ * The two sources an operator can claim for a weight they typed. `'profile'`
+ * is deliberately absent: it means "read from the fixture catalogue", and the
+ * only way to earn it is to add the load from a fixture, not to tick a box
+ * beside a hand-typed figure.
+ */
+const LOAD_SOURCE_ORDER = ['manual', 'unknown'] as const;
+
+/** A long catalogue is filtered, not scrolled; the list says when it is truncated. */
+const CATALOGUE_OPTION_LIMIT = 40;
 
 /**
  * The kinds a rated capacity is quoted for. Everything else on a run is
@@ -117,13 +138,40 @@ const makeStarterProfiles = (): TrussProfile[] => [
 ];
 
 export const RiggingPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
+  const { project, theme, updateProjectMeta, openExportModal, activeSetup } = useFloorPlan();
+  // The bundled fixture snapshot arrives asynchronously and an online refresh
+  // can replace it; both change the weights resolved below, so the panel has
+  // to re-render when the catalogue does.
+  const catalog = useFixtureCatalog();
   const isLight = theme === 'light';
 
   const profiles = useMemo(() => project.trussProfiles ?? [], [project.trussProfiles]);
   const elements = useMemo(() => project.trussElements ?? [], [project.trussElements]);
-  const loads = useMemo(() => project.suspendedLoads ?? [], [project.suspendedLoads]);
   const items = useMemo(() => project.riggingItems ?? [], [project.riggingItems]);
+
+  /** Catalogue weight for a fixture profile — the whole point of a `'profile'` load. */
+  const fixtureLookup = useMemo(() => {
+    const byId = new Map(catalog.profiles.map((profile) => [profile.id, profile]));
+    return (profileId: string) => byId.get(profileId);
+  }, [catalog.profiles]);
+
+  const storedLoads = useMemo(() => project.suspendedLoads ?? [], [project.suspendedLoads]);
+  /**
+   * What the panel calculates on: the stored loads with every catalogue-linked
+   * weight filled in from the live catalogue. The figure is never written back
+   * — the project stores the link, the catalogue stores the kilograms, and a
+   * corrected profile reaches this page without anyone re-typing it.
+   */
+  const loads = useMemo(
+    () => resolveSuspendedLoadWeights(storedLoads, fixtureLookup),
+    [storedLoads, fixtureLookup],
+  );
+
+  /** Lights standing on the plan for the scene being planned — candidates to hang. */
+  const sceneLights = useMemo(
+    () => activeSetup.elements.filter((e): e is LightElement => e.type === 'light'),
+    [activeSetup.elements],
+  );
 
   // Seed the two generic starter profiles exactly once — only while the
   // collection has never existed. An explicitly emptied list is respected.
@@ -133,25 +181,37 @@ export const RiggingPanel: React.FC = () => {
     }
   }, [project.trussProfiles, updateProjectMeta]);
 
-  // Hardware weight assumptions (session-only UI state — rule 38). They feed
-  // calculateTrussLoad options and are labeled as assumptions in the UI.
-  const [clampWeightRaw, setClampWeightRaw] = useState('0.5');
-  const [safetyWeightRaw, setSafetyWeightRaw] = useState('0.15');
-  const [cableAllowanceRaw, setCableAllowanceRaw] = useState('');
-
+  /**
+   * Hardware weight assumptions, stored on the project.
+   *
+   * They used to be `useState`, which meant they vanished on reload and the
+   * printed sheet had to disown them in a footnote. They are assumptions, but
+   * they are this production's assumptions, so they are saved and they count
+   * towards every total on screen and on paper.
+   */
   const loadOptions = useMemo(
-    () => ({
-      clampWeightKg: parseOptionalNumber(clampWeightRaw),
-      safetyWeightKg: parseOptionalNumber(safetyWeightRaw),
-      cableAllowanceKg: parseOptionalNumber(cableAllowanceRaw),
-    }),
-    [clampWeightRaw, safetyWeightRaw, cableAllowanceRaw]
+    () => riggingLoadOptions(project.riggingAssumptions),
+    [project.riggingAssumptions],
   );
+
+  /**
+   * Write one assumption, materialising the defaults for the others on the
+   * first edit — so a project that inherits 0.5 kg a clamp keeps inheriting it
+   * after the operator changes only the cable allowance.
+   */
+  const setAssumption = (field: keyof RiggingAssumptions, raw: string) => {
+    updateProjectMeta({
+      riggingAssumptions: { ...loadOptions, [field]: parseOptionalNumber(raw) },
+    });
+  };
 
   // New-element form state
   const [newElementProfileId, setNewElementProfileId] = useState('');
   const [newElementLabel, setNewElementLabel] = useState('');
   const [newElementLength, setNewElementLength] = useState('');
+  // Catalogue filter per truss run: each run hangs different gear, so one
+  // shared search box would fight itself as the operator works down the rig.
+  const [catalogueQuery, setCatalogueQuery] = useState<Record<string, string>>({});
 
   // --- Mutations (all immutable via updateProjectMeta) ---
 
@@ -245,9 +305,37 @@ export const RiggingPanel: React.FC = () => {
     ]);
   };
 
+  /** Hang a light that is already standing on the plan (see `suspendedLoadFromPlanLight`). */
+  const addLoadFromPlanLight = (trussElementId: string, light: LightElement) => {
+    mutateLoads((prev) => [
+      ...prev,
+      suspendedLoadFromPlanLight(light, trussElementId, createId('load')),
+    ]);
+  };
+
+  /** Hang a catalogue fixture that nobody has drawn on the plan yet. */
+  const addLoadFromCatalogue = (trussElementId: string, profileId: string) => {
+    const profile = fixtureLookup(profileId);
+    if (!profile) return;
+    mutateLoads((prev) => [
+      ...prev,
+      suspendedLoadFromFixtureProfile(profile, trussElementId, createId('load')),
+    ]);
+  };
+
   const updateLoad = (loadId: string, updates: Partial<SuspendedLoad>) => {
     mutateLoads((prev) =>
       prev.map((l) => (l.id === loadId ? { ...l, ...updates } : l))
+    );
+  };
+
+  /**
+   * Take a load off the catalogue and let the operator type the weight — the
+   * yoke, the frame and the bag of sand the catalogue never heard about.
+   */
+  const overrideLoadWeight = (loadId: string) => {
+    mutateLoads((prev) =>
+      prev.map((l) => (l.id === loadId ? detachLoadFromProfile(l, fixtureLookup) : l)),
     );
   };
 
@@ -326,11 +414,6 @@ export const RiggingPanel: React.FC = () => {
     return bits.length > 0 ? bits.join(' ') : 'Unnamed profile';
   };
 
-  const clampCountFor = (trussElementId: string) =>
-    items.filter((i) => i.trussElementId === trussElementId && i.kind === 'clamp').length;
-  const safetyCountFor = (trussElementId: string) =>
-    items.filter((i) => i.trussElementId === trussElementId && i.kind === 'safety').length;
-
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-3">
       {/* Global safety disclaimer (rule 15) — rendered once here and under every load card */}
@@ -363,8 +446,8 @@ export const RiggingPanel: React.FC = () => {
               type="number"
               min={0}
               step="0.05"
-              value={clampWeightRaw}
-              onChange={(e) => setClampWeightRaw(e.target.value)}
+              value={loadOptions.clampWeightKg ?? ''}
+              onChange={(e) => setAssumption('clampWeightKg', e.target.value)}
               placeholder="—"
               aria-label="Assumed clamp weight in kg"
               className={inputClass}
@@ -376,8 +459,8 @@ export const RiggingPanel: React.FC = () => {
               type="number"
               min={0}
               step="0.05"
-              value={safetyWeightRaw}
-              onChange={(e) => setSafetyWeightRaw(e.target.value)}
+              value={loadOptions.safetyWeightKg ?? ''}
+              onChange={(e) => setAssumption('safetyWeightKg', e.target.value)}
               placeholder="—"
               aria-label="Assumed safety weight in kg"
               className={inputClass}
@@ -389,8 +472,8 @@ export const RiggingPanel: React.FC = () => {
               type="number"
               min={0}
               step="0.5"
-              value={cableAllowanceRaw}
-              onChange={(e) => setCableAllowanceRaw(e.target.value)}
+              value={loadOptions.cableAllowanceKg ?? ''}
+              onChange={(e) => setAssumption('cableAllowanceKg', e.target.value)}
               placeholder="—"
               aria-label="Cable allowance in kg per truss run"
               className={inputClass}
@@ -399,7 +482,9 @@ export const RiggingPanel: React.FC = () => {
         </div>
         <p className={`text-[10px] ${mutedText}`}>
           Per-clamp / per-safety weights are assumptions applied to the clamp and safety
-          item counts below — verify against actual hardware.
+          item counts below — verify against actual hardware. They are saved with the project
+          and counted in every planned total, here and on the printed plot; a box left blank
+          counts nothing rather than guessing.
         </p>
       </section>
 
@@ -577,6 +662,15 @@ export const RiggingPanel: React.FC = () => {
             const displayName =
               element.label?.trim() ||
               (profile ? profileLabel(profile) : 'Truss section');
+            const availableLights = sceneLights.filter(
+              (light) => !planLightIsOnRun(loads, light.id, element.id),
+            );
+            const catalogueHits = searchFixtureProfiles(
+              catalog.profiles,
+              catalogueQuery[element.id] ?? '',
+            );
+            const catalogueTotal = catalogueHits.length;
+            const catalogueMatches = catalogueHits.slice(0, CATALOGUE_OPTION_LIMIT);
             return (
               <li key={element.id} className={`rounded-lg border p-2 flex flex-col gap-2 ${cardClass}`}>
                 {/* Element header */}
@@ -639,13 +733,89 @@ export const RiggingPanel: React.FC = () => {
                       Load
                     </button>
                   </div>
+                  {/*
+                    Adding a load from a fixture the app already knows: the
+                    weight then comes from the catalogue instead of being
+                    re-typed from the same spec sheet the catalogue was built
+                    from. A light already hanging on this run is left out of
+                    the list rather than silently duplicated.
+                  */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const light = sceneLights.find((l) => l.id === e.target.value);
+                        if (light) addLoadFromPlanLight(element.id, light);
+                      }}
+                      disabled={availableLights.length === 0}
+                      aria-label={`Add a light from the plan as a load on ${displayName}`}
+                      className={`${inputClass} !w-auto flex-1 min-w-[150px]`}
+                    >
+                      <option value="">
+                        {sceneLights.length === 0
+                          ? 'No lights on this plan'
+                          : availableLights.length === 0
+                            ? 'Every plan light is already on this run'
+                            : `Add light from plan (${availableLights.length})`}
+                      </option>
+                      {availableLights.map((light) => (
+                        <option key={light.id} value={light.id}>
+                          {planLightLoadLabel(light)}
+                          {light.fixtureProfileId ? '' : ' — no catalogue fixture'}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={catalogueQuery[element.id] ?? ''}
+                      onChange={(e) =>
+                        setCatalogueQuery((prev) => ({ ...prev, [element.id]: e.target.value }))
+                      }
+                      placeholder="Filter catalogue"
+                      aria-label={`Filter the fixture catalogue for ${displayName}`}
+                      className={`${inputClass} !w-32 flex-shrink-0`}
+                    />
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) addLoadFromCatalogue(element.id, e.target.value);
+                      }}
+                      disabled={catalogueMatches.length === 0}
+                      aria-label={`Add a catalogue fixture as a load on ${displayName}`}
+                      className={`${inputClass} !w-auto flex-1 min-w-[150px]`}
+                    >
+                      <option value="">
+                        {catalogueMatches.length === 0
+                          ? 'No catalogue match'
+                          : `Add from catalogue (${catalogueTotal})`}
+                      </option>
+                      {catalogueMatches.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {fixtureProfileLabel(profile)}
+                          {profile.weightKg === undefined
+                            ? ' — no weight'
+                            : ` — ${profile.weightKg} kg`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {catalogueTotal > catalogueMatches.length && (
+                    <p className={`text-[10px] ${mutedText}`}>
+                      Showing the first {catalogueMatches.length} of {catalogueTotal} catalogue
+                      matches — narrow the filter to reach the rest.
+                    </p>
+                  )}
                   {elementLoads.length === 0 && (
                     <p className={`text-[10px] ${mutedText}`}>
                       No loads attached. Weight left blank counts as unknown.
                     </p>
                   )}
                   <ul className="flex flex-col gap-1.5">
-                    {elementLoads.map((load) => (
+                    {elementLoads.map((load) => {
+                      const fromCatalogue = load.source === 'profile' && !!load.fixtureProfileId;
+                      const catalogueProfile = load.fixtureProfileId
+                        ? fixtureLookup(load.fixtureProfileId)
+                        : undefined;
+                      return (
                       <li key={load.id} className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <input
@@ -668,18 +838,35 @@ export const RiggingPanel: React.FC = () => {
                             aria-label={`Quantity for load on ${displayName}`}
                             className={`${inputClass} !w-16`}
                           />
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.1"
-                            value={load.weightKg ?? ''}
-                            onChange={(e) =>
-                              updateLoad(load.id, { weightKg: parseOptionalNumber(e.target.value) })
-                            }
-                            placeholder="kg (blank = unknown)"
-                            aria-label={`Weight in kg for load on ${displayName}; blank means unknown`}
-                            className={`${inputClass} !w-36`}
-                          />
+                          {fromCatalogue ? (
+                            /*
+                              The catalogue owns this figure, so it is shown
+                              rather than offered for editing — overriding it is
+                              a deliberate act on the button below, which is
+                              what keeps "Catalogue" on the sheet truthful.
+                            */
+                            <span
+                              className={`min-h-[36px] px-2 py-1 !w-36 flex items-center justify-end font-mono text-xs ${
+                                load.weightKg === undefined ? 'text-amber-500' : ''
+                              }`}
+                              aria-label={`Catalogue weight for load on ${displayName}`}
+                            >
+                              {load.weightKg === undefined ? 'no catalogue kg' : formatKg(load.weightKg)}
+                            </span>
+                          ) : (
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.1"
+                              value={load.weightKg ?? ''}
+                              onChange={(e) =>
+                                updateLoad(load.id, { weightKg: parseOptionalNumber(e.target.value) })
+                              }
+                              placeholder="kg (blank = unknown)"
+                              aria-label={`Weight in kg for load on ${displayName}; blank means unknown`}
+                              className={`${inputClass} !w-36`}
+                            />
+                          )}
                           <button
                             onClick={() => removeLoad(load.id)}
                             title="Remove load"
@@ -689,31 +876,54 @@ export const RiggingPanel: React.FC = () => {
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        <div
-                          className="flex items-center gap-1 flex-wrap"
-                          role="radiogroup"
-                          aria-label={`Weight source for load on ${displayName}`}
-                        >
-                          {LOAD_SOURCE_ORDER.map((source) => (
-                            <label
-                              key={source}
-                              className={`flex items-center gap-1 min-h-[36px] px-1.5 rounded text-[10px] capitalize cursor-pointer ${
-                                isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/60'
-                              }`}
+                        {fromCatalogue ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={chipClass}>
+                              Catalogue ·{' '}
+                              {catalogueProfile
+                                ? fixtureProfileLabel(catalogueProfile)
+                                : 'profile no longer in the catalogue'}
+                            </span>
+                            {load.sourceElementId && (
+                              <span className={chipClass}>from the plan</span>
+                            )}
+                            <button
+                              onClick={() => overrideLoadWeight(load.id)}
+                              title="Stop reading the weight from the catalogue and enter it by hand"
+                              aria-label={`Enter the weight by hand for load on ${displayName}`}
+                              className={`${secondaryBtnClass} !min-h-[28px] !text-[10px] !px-2`}
                             >
-                              <input
-                                type="radio"
-                                name={`load-source-${load.id}`}
-                                checked={(load.source ?? 'manual') === source}
-                                onChange={() => updateLoad(load.id, { source })}
-                                className="accent-sky-500"
-                              />
-                              {source}
-                            </label>
-                          ))}
-                        </div>
+                              Enter by hand
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            className="flex items-center gap-1 flex-wrap"
+                            role="radiogroup"
+                            aria-label={`Weight source for load on ${displayName}`}
+                          >
+                            {LOAD_SOURCE_ORDER.map((source) => (
+                              <label
+                                key={source}
+                                className={`flex items-center gap-1 min-h-[36px] px-1.5 rounded text-[10px] capitalize cursor-pointer ${
+                                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/60'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`load-source-${load.id}`}
+                                  checked={(load.source ?? 'manual') === source}
+                                  onChange={() => updateLoad(load.id, { source })}
+                                  className="accent-sky-500"
+                                />
+                                {source}
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 </div>
 
@@ -830,7 +1040,7 @@ export const RiggingPanel: React.FC = () => {
                     )}
                     <div className="flex justify-between gap-2">
                       <dt className={mutedText}>
-                        Clamps ({clampCountFor(element.id)}) + safeties ({safetyCountFor(element.id)})
+                        Clamps ({breakdown.clampCount}) + safeties ({breakdown.safetyCount})
                       </dt>
                       <dd className="font-mono">{formatKg(breakdown.clampsKg)}</dd>
                     </div>
@@ -847,7 +1057,7 @@ export const RiggingPanel: React.FC = () => {
                         isLight ? 'border-slate-200' : 'border-slate-800'
                       }`}
                     >
-                      <dt className="font-bold">Total</dt>
+                      <dt className="font-bold">Total (incl. hardware + cable)</dt>
                       <dd className="font-mono font-bold">
                         {breakdown.totalKg !== null
                           ? formatKg(breakdown.totalKg)

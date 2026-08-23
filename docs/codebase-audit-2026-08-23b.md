@@ -386,7 +386,24 @@ least footnoted on the printed sheet.
 10. **`mergeSetupWrite` is now dead in production** — the last caller went with
     `commitSetupState`. It is still exported and tested; either wire it or
     remove it.
-11. **The production panels are still islands.** The load list should pack from
-    the equipment manifest, suspended loads should read fixture weights from the
-    catalogue, containers should belong to a shoot day, and a truss run should
-    be placeable on the floor plan. Each is listed in the section above.
+11. ~~The production panels are still islands.~~ **Closed.** All six links were
+    built: the load list packs from the equipment manifest (idempotently, by a
+    source key, never touching hand-packed rows); suspended loads link to a
+    catalogue fixture or a plan light and resolve their weight on read, so
+    `source: 'profile'` finally means what it says and is no longer hand-pickable;
+    containers carry a shoot day and destination, inherited from their parent
+    container, with a day filter on screen and on paper; truss runs are drawn on
+    the floor plan to scale from their profile and can be dragged and rotated
+    there (`TrussLayer`); rigging weight assumptions moved onto the project and
+    into the totals; and nested container weight rolls up, with unknowns
+    propagating so a truck holding one unweighed case reports unknown rather
+    than a total that reads light.
+
+    Two follow-ups fell out of that work, both reported rather than guessed at:
+    `deriveSceneEquipment` does not propagate `fixtureProfileId`, so the load
+    list matches catalogue weights by brand and model rather than by id; and
+    `clone.ts` does not carry `riggingAssumptions`, so a cloned scenario falls
+    back to the defaults.
+
+12. **Continuity reports and the shooting-day checklist** are specified and not
+    started — see [`handover-continuity-reports.md`](handover-continuity-reports.md).

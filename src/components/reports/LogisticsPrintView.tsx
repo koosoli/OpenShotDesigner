@@ -3,6 +3,8 @@ import { ProjectImage } from '../common/ProjectImage';
 import {
   SAFETY_NOTE,
   calculateContainerLoad,
+  containerBelongsToDay,
+  resolveContainerAssignments,
   type ContainerLoadResult,
   type LogisticsContainer,
 } from '../../domain/logistics';
@@ -35,6 +37,12 @@ export interface PrintableContainer {
   notes?: string;
   load: ContainerLoadResult;
   items: PrintablePackedItem[];
+  /** Shoot day this container travels on; absent when nothing routes it yet. */
+  dayLabel?: string;
+  /** Where it is going. */
+  locationLabel?: string;
+  /** True when the day or location was inherited from the container it sits in. */
+  routingInherited: boolean;
 }
 
 /** One top-level container and everything nested inside it — a load list per vehicle or case. */
@@ -52,9 +60,21 @@ export interface LogisticsPrintViewProps {
   groups: PrintableLoadGroup[];
   /** Gear packed into nothing yet — it still has to get on a vehicle. */
   unassignedItems: PrintablePackedItem[];
+  /**
+   * Set when the sheet covers a single shoot day, e.g. "Day 3 · Warehouse".
+   * Absent means the whole production is on the paper.
+   */
+  scopeLabel?: string;
   fleet: {
     containerCount: number;
     itemCount: number;
+    /**
+     * Rolled-up weight of the top-level containers on the sheet — vehicles and
+     * everything nested inside them. Containers whose rolled-up weight is
+     * unknown are left out entirely and counted in
+     * `topLevelWithUnknownWeight`, so this figure is never a partial sum
+     * dressed up as a fleet weight.
+     */
     knownWeightKg: number;
     topLevelWithUnknownWeight: number;
     unknownWeightItemCount: number;
@@ -96,12 +116,19 @@ export const LogisticsPrintView: React.FC<LogisticsPrintViewProps> = ({
   logo,
   groups,
   unassignedItems,
+  scopeLabel,
   fleet,
 }) => {
   const generatedAt = new Date().toISOString().split('T')[0];
+  // Judged on the rolled-up weight: a truck goes over its payload because of
+  // what is in the cases, not because of what was thrown in loose beside them.
   const overloaded = groups
     .flatMap((group) => group.containers)
-    .filter((container) => container.load.payloadUtilization !== null && container.load.payloadUtilization > 1);
+    .filter(
+      (container) =>
+        container.load.rolledUpPayloadUtilization !== null &&
+        container.load.rolledUpPayloadUtilization > 1,
+    );
 
   return (
     <>
@@ -136,6 +163,7 @@ export const LogisticsPrintView: React.FC<LogisticsPrintViewProps> = ({
         .lg-container-head { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1.5px solid #0f172a; padding-bottom: 2px; margin-bottom: 3px; page-break-after: avoid; break-after: avoid; }
         .lg-container-name { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.6px; }
         .lg-container-specs { font-size: 9px; color: #475569; font-family: 'Courier New', monospace; }
+        .lg-routing { font-size: 9px; color: #334155; margin: 0 0 3px; }
         .lg-table { width: 100%; border-collapse: collapse; font-size: 10px; }
         .lg-table th, .lg-table td { border: 1px solid #cbd5e1; padding: 3.5px 6px; text-align: left; vertical-align: top; }
         .lg-table th { background: #f1f5f9; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; color: #475569; }
@@ -155,15 +183,19 @@ export const LogisticsPrintView: React.FC<LogisticsPrintViewProps> = ({
       <div className="lg-doc">
         <header className="lg-masthead">
           <div>
-            <p className="lg-kicker">{company ? `${company} · ` : ''}Logistics · Load list</p>
+            <p className="lg-kicker">
+              {company ? `${company} · ` : ''}Logistics · Load list
+              {scopeLabel ? ` · ${scopeLabel}` : ''}
+            </p>
             <h1 className="lg-title">{productionTitle}</h1>
             <p className="lg-company">
+              {scopeLabel ? `${scopeLabel} · ` : ''}
               {fleet.containerCount} container{fleet.containerCount === 1 ? '' : 's'} ·{' '}
               {fleet.itemCount} packed item{fleet.itemCount === 1 ? '' : 's'} · generated {generatedAt}
             </p>
             <div className="lg-summary">
               <span>
-                Known weight (top level) <b>{formatKg(fleet.knownWeightKg)}</b>
+                Known weight incl. nested (top level) <b>{formatKg(fleet.knownWeightKg)}</b>
               </span>
               <span>
                 Items without a weight <b>{fleet.unknownWeightItemCount}</b>
@@ -209,6 +241,14 @@ export const LogisticsPrintView: React.FC<LogisticsPrintViewProps> = ({
                     {container.dimensionsLabel ? ` · ${container.dimensionsLabel}` : ''}
                   </span>
                 </div>
+                {/* Where this box is going — the two facts a driver reads first. */}
+                <p className="lg-routing">
+                  Day: <b>{container.dayLabel ?? 'not routed'}</b> · To:{' '}
+                  <b>{container.locationLabel ?? 'not set'}</b>
+                  {container.routingInherited && container.parentName
+                    ? ` (travels with ${container.parentName})`
+                    : ''}
+                </p>
                 <table className="lg-table">
                   <thead>
                     <tr>
@@ -261,22 +301,42 @@ export const LogisticsPrintView: React.FC<LogisticsPrintViewProps> = ({
                         )}
                       </td>
                     </tr>
+                    {/* Only worth a line when something is actually nested inside. */}
+                    {container.load.nestedContainerCount > 0 && (
+                      <tr className="lg-total-row">
+                        <td className="tick" />
+                        <td colSpan={3}>
+                          Total incl. {container.load.nestedContainerCount} nested container
+                          {container.load.nestedContainerCount === 1 ? '' : 's'}
+                          {container.load.rolledUpTareUnknown ? ' (a tare is unknown)' : ''}
+                          {container.load.rolledUpUnknownItemCount > 0
+                            ? ` · ${container.load.rolledUpUnknownItemCount} item${
+                                container.load.rolledUpUnknownItemCount === 1 ? '' : 's'
+                              } without a weight`
+                            : ''}
+                        </td>
+                        <td className="num">{formatKg(container.load.rolledUpWeightKg)}</td>
+                        <td className="num">—</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
                 <p
                   className={`lg-verdict ${
-                    container.load.payloadUtilization === null
+                    container.load.rolledUpPayloadUtilization === null
                       ? 'unknown'
-                      : container.load.payloadUtilization > 1
+                      : container.load.rolledUpPayloadUtilization > 1
                         ? 'over'
                         : ''
                   }`}
                 >
-                  {container.load.payloadUtilization === null
+                  {container.load.rolledUpPayloadUtilization === null
                     ? 'Payload not checked — weight or payload limit unknown'
-                    : `${container.load.payloadUtilization > 1 ? 'OVER PAYLOAD' : 'Within payload'} — ${formatPercent(
-                        container.load.payloadUtilization,
-                      )} of ${formatKg(container.maxPayloadKg)}`}
+                    : `${
+                        container.load.rolledUpPayloadUtilization > 1 ? 'OVER PAYLOAD' : 'Within payload'
+                      } — ${formatPercent(container.load.rolledUpPayloadUtilization)} of ${formatKg(
+                        container.maxPayloadKg,
+                      )}${container.load.nestedContainerCount > 0 ? ' incl. nested' : ''}`}
                   {' · Volume '}
                   {container.load.volumeUtilization === null
                     ? 'not checked'
@@ -329,9 +389,10 @@ export const LogisticsPrintView: React.FC<LogisticsPrintViewProps> = ({
             known; anything else prints as "not checked" rather than as a pass.
           </p>
           <p>
-            Each total covers what is packed directly into that container. A case inside a truck is
-            listed under the truck but its weight is not rolled up into the truck's line — add the
-            nested totals yourself before quoting an axle load.
+            Where a container holds others, the first total is what is packed directly into it and
+            the second is that plus everything nested inside, at any depth. The payload verdict uses
+            the second. One unweighed item anywhere in a vehicle leaves its rolled-up total unknown
+            rather than short.
           </p>
         </div>
 
@@ -362,9 +423,34 @@ const dimensionsLabel = (container: LogisticsContainer): string | undefined => {
  * recomputed here (rule 4), which is what keeps the paper and the panel
  * telling the same story.
  */
-export const buildLogisticsPrintModel = (project: Project): LogisticsPrintViewProps => {
-  const containers = project.logisticsContainers ?? [];
+export const buildLogisticsPrintModel = (
+  project: Project,
+  options: { productionDayId?: string } = {},
+): LogisticsPrintViewProps => {
+  const allContainers = project.logisticsContainers ?? [];
   const items = project.packedItems ?? [];
+  const assignments = resolveContainerAssignments(allContainers);
+
+  // The day comes from the caller when one is given, otherwise from the scope
+  // the user set in the panel — printing what is on screen is the whole point.
+  const dayId = options.productionDayId ?? project.logisticsDayFilterId;
+  const day = dayId ? project.productionDays?.find((candidate) => candidate.id === dayId) : undefined;
+  // A filter pointing at a day that has since been deleted must not silently
+  // print the whole production as if it were that day; with no day found the
+  // scope falls away and the sheet says so by carrying no scope label.
+  const scopeDayId = day ? day.id : undefined;
+
+  const containers = allContainers.filter((container) =>
+    containerBelongsToDay(assignments.get(container.id), scopeDayId),
+  );
+
+  const dayName = (id: string | undefined): string | undefined => {
+    const found = id ? project.productionDays?.find((candidate) => candidate.id === id) : undefined;
+    if (!found) return undefined;
+    return found.date ? `${found.name} · ${found.date}` : found.name;
+  };
+  const locationName = (id: string | undefined): string | undefined =>
+    id ? project.locations?.find((candidate) => candidate.id === id)?.name : undefined;
 
   const toItem = (item: (typeof items)[number]): PrintablePackedItem => ({
     label: item.label,
@@ -380,7 +466,8 @@ export const buildLogisticsPrintModel = (project: Project): LogisticsPrintViewPr
   });
 
   const toContainer = (container: LogisticsContainer, depth: number): PrintableContainer => {
-    const parent = containers.find((c) => c.id === container.parentContainerId);
+    const parent = allContainers.find((c) => c.id === container.parentContainerId);
+    const assignment = assignments.get(container.id);
     return {
       id: container.id,
       name: container.name,
@@ -392,8 +479,14 @@ export const buildLogisticsPrintModel = (project: Project): LogisticsPrintViewPr
       maxPayloadKg: container.maxPayloadKg,
       dimensionsLabel: dimensionsLabel(container),
       notes: container.notes,
-      load: calculateContainerLoad(container, items),
+      // Rolled up over every container in the project, not just the ones on
+      // this sheet: a day filter changes what is printed, never what a truck
+      // physically weighs.
+      load: calculateContainerLoad(container, items, allContainers),
       items: items.filter((item) => item.containerId === container.id).map(toItem),
+      dayLabel: dayName(assignment?.productionDayId),
+      locationLabel: locationName(assignment?.locationId),
+      routingInherited: (assignment?.dayInherited ?? false) || (assignment?.locationInherited ?? false),
     };
   };
 
@@ -428,10 +521,35 @@ export const buildLogisticsPrintModel = (project: Project): LogisticsPrintViewPr
     containers: flatten(root, 0, new Set([root.id])),
   }));
 
-  const knownWeightKg = roots.reduce((sum, root) => {
-    const total = calculateContainerLoad(root, items).totalWeightKg;
-    return total === null ? sum : sum + total;
-  }, 0);
+  const rootLoads = roots.map((root) => calculateContainerLoad(root, items, allContainers));
+  const knownWeightKg = rootLoads.reduce(
+    (sum, load) => (load.rolledUpWeightKg === null ? sum : sum + load.rolledUpWeightKg),
+    0,
+  );
+
+  // Items on this sheet: everything when unscoped, otherwise only what sits in
+  // a container that made the cut, plus the gear in no container at all.
+  const printedItems = items.filter(
+    (item) => !allContainers.some((c) => c.id === item.containerId) || containers.some((c) => c.id === item.containerId),
+  );
+
+  // Name the destination in the masthead when the day has one; several
+  // destinations get counted rather than listed, so the line stays readable.
+  const scopeLocations = [
+    ...new Set(
+      containers
+        .map((container) => locationName(assignments.get(container.id)?.locationId))
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ];
+  const scopeLabel = day
+    ? [
+        dayName(day.id),
+        scopeLocations.length > 2 ? `${scopeLocations.length} locations` : scopeLocations.join(' · '),
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : undefined;
 
   return {
     productionTitle: project.title,
@@ -439,16 +557,15 @@ export const buildLogisticsPrintModel = (project: Project): LogisticsPrintViewPr
     logo: project.logo,
     groups,
     unassignedItems: items
-      .filter((item) => !containers.some((c) => c.id === item.containerId))
+      .filter((item) => !allContainers.some((c) => c.id === item.containerId))
       .map(toItem),
+    scopeLabel,
     fleet: {
       containerCount: containers.length,
-      itemCount: items.length,
+      itemCount: printedItems.length,
       knownWeightKg,
-      topLevelWithUnknownWeight: roots.filter(
-        (root) => calculateContainerLoad(root, items).totalWeightKg === null,
-      ).length,
-      unknownWeightItemCount: items.filter(
+      topLevelWithUnknownWeight: rootLoads.filter((load) => load.rolledUpWeightKg === null).length,
+      unknownWeightItemCount: printedItems.filter(
         (item) => item.unitWeightKg === undefined || item.unitWeightKg === null,
       ).length,
     },

@@ -23,6 +23,7 @@ import type { BreakdownItem, ScriptScene } from './script/types';
 import type { PowerPlan } from './power';
 import type { ProductionDay, ScheduleBlock } from './scheduling';
 import type { RiggingItem, SuspendedLoad, TrussElement } from './rigging';
+import type { Take } from './continuity';
 
 export interface TrussReferences {
   trussElements: TrussElement[];
@@ -191,6 +192,8 @@ export interface ScheduleReferences {
 export interface ShotReferences extends ScheduleReferences {
   /** Script lines carry the shot they were lined for. */
   scriptLines?: Array<{ id: string; linkedShotId?: string }>;
+  /** Continuity takes carry the shot they cover. */
+  takes?: Take[];
 }
 
 /**
@@ -220,6 +223,25 @@ const dropBlocks = <R extends ScheduleReferences>(refs: R, removedIds: Set<strin
         : day,
     ),
   };
+};
+
+/**
+ * Delete the continuity takes logged against shots that are going.
+ *
+ * Takes go with their shot rather than being orphaned. `orphanedTakes` exists
+ * for takes whose shot vanished some other way — a project edited by an older
+ * build, an import — and surfacing a growing pile of them after every ordinary
+ * delete would train the user to ignore the warning that matters.
+ *
+ * Folded into `removeShotReferences`, so deleting a camera, a shot or a whole
+ * setup all clean up the same way.
+ */
+const dropTakes = <R extends ShotReferences>(refs: R, removedShotIds: Set<string>): R => {
+  // Same rule as `dropBlocks`: a caller that keeps no take list must not be
+  // handed an empty one, which would read as "nothing was ever shot".
+  if (refs.takes === undefined) return refs;
+  if (!refs.takes.some((take) => removedShotIds.has(take.shotId))) return refs;
+  return { ...refs, takes: refs.takes.filter((take) => !removedShotIds.has(take.shotId)) };
 };
 
 /**
@@ -267,17 +289,38 @@ export const removeShotReferences = <R extends ShotReferences>(
       ? refs
       : dropBlocks({ ...refs, scheduleBlocks: nextBlocks }, emptied);
 
-  if (withBlocks.scriptLines === undefined) return withBlocks;
+  const withTakes = dropTakes(withBlocks, removed);
+
+  if (withTakes.scriptLines === undefined) return withTakes;
 
   return {
-    ...withBlocks,
-    scriptLines: withBlocks.scriptLines.map((line) =>
+    ...withTakes,
+    scriptLines: withTakes.scriptLines.map((line) =>
       line.linkedShotId && removed.has(line.linkedShotId)
         ? { ...line, linkedShotId: undefined }
         : line,
     ),
   };
 };
+
+/**
+ * Unhook takes from a production day that is being deleted.
+ *
+ * The takes themselves survive. A day is a planning container; the footage it
+ * refers to physically exists on a card, and deleting the day does not unshoot
+ * it. This is the same call `removeTrussElement` makes about power consumers —
+ * the fixture still draws current, it just is not on a truss any more.
+ *
+ * A take with no day still exports to Resolve; only its `Date Recorded` column
+ * goes blank, which is the honest state.
+ */
+export const removeProductionDayFromTakes = <T extends { productionDayId?: string }>(
+  takes: readonly T[],
+  productionDayId: string,
+): T[] =>
+  takes.map((take) =>
+    take.productionDayId === productionDayId ? { ...take, productionDayId: undefined } : take,
+  );
 
 /**
  * Delete a setup's references: its own strip, and the strips covering the shots

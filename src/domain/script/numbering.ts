@@ -40,7 +40,7 @@ export const parseSceneNumber = (
   return { prefix: match[1], base: Number(match[2]), suffix: match[3] };
 };
 
-const nextSuffix = (suffix: string): string => {
+export const nextSuffix = (suffix: string): string => {
   // "" → A, A → B … Z → ZA. Double letters are the convention for a scene
   // squeezed between 3A and 3B (3AA), and they sort between them.
   if (!suffix) return 'A';
@@ -59,7 +59,7 @@ const nextSuffix = (suffix: string): string => {
  * directions — `nextSuffix` is strictly increasing, so the search either
  * passes `limit` and stops, or runs out of `taken`, which is finite.
  */
-const squeezeLetters = (
+export const squeezeLetters = (
   previous: string,
   limit: string | null,
   free: (letters: string) => boolean,

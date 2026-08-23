@@ -64,8 +64,49 @@ export interface SuspendedLoad {
   id: string;
   trussElementId: string;
   label: string;
-  /** Unknown stays undefined — NEVER 0 (rule 13). */
+  /**
+   * Unknown stays undefined — NEVER 0 (rule 13). On a `'profile'` load this
+   * field is not stored: the catalogue owns the figure and
+   * `resolveSuspendedLoadWeights` fills it in on read.
+   */
   weightKg?: number;
   quantity: number;
+  /**
+   * Where the weight comes from. `'profile'` is set only by the code paths in
+   * `fixtureLoads.ts` that actually link a catalogue profile — it is not a word
+   * the operator can pick over a hand-typed number.
+   */
   source?: 'profile' | 'manual' | 'unknown';
+  /**
+   * The floor-plan light this load stands for, when it was added from the
+   * plan. Absent on hand-added loads and on loads picked straight out of the
+   * catalogue.
+   */
+  sourceElementId?: string;
+  /** The catalogue profile the weight is read from; set with `source: 'profile'`. */
+  fixtureProfileId?: string;
+}
+
+/**
+ * The hardware weights a rigging plan assumes but does not measure: what one
+ * clamp weighs, what one safety weighs, and a flat allowance for the cable and
+ * ancillaries riding on a run.
+ *
+ * These are assumptions, not catalogue data, which is why they live on the
+ * project rather than in a fixture profile — but they are the operator's
+ * assumptions for this production, so they belong in the save file and on the
+ * printed sheet rather than evaporating with the browser tab.
+ *
+ * Absent-safe in two layers: an absent object means "never set", and the
+ * caller applies `DEFAULT_RIGGING_ASSUMPTIONS`; an object with an individual
+ * field cleared means the operator deliberately emptied that box, and the
+ * figure stays unknown rather than reverting to a default they just removed.
+ */
+export interface RiggingAssumptions {
+  /** Weight of a single clamp in kg, applied to the clamp count on each run. */
+  clampWeightKg?: number;
+  /** Weight of a single safety in kg, applied to the safety count on each run. */
+  safetyWeightKg?: number;
+  /** Flat cable/ancillary allowance in kg, applied once per truss run. */
+  cableAllowanceKg?: number;
 }

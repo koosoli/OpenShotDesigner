@@ -37,6 +37,7 @@ const WORKSPACE_TAB_MODULES: Array<{ id: ModuleId; label: string }> = [
   { id: 'tasks', label: 'Task board' },
   { id: 'budget', label: 'Budget' },
   { id: 'run_of_show', label: 'Run of show' },
+  { id: 'continuity', label: 'Continuity' },
   { id: 'equipment', label: 'Gear & DMX' },
   { id: 'logistics', label: 'Logistics' },
   { id: 'power', label: 'Power' },

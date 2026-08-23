@@ -22,6 +22,21 @@ export interface LogisticsContainer {
   usableVolumeLiters?: number;
   maxPayloadKg?: number;
   notes?: string;
+  /**
+   * The shoot day this container travels on (`ProductionDay.id`). Optional and
+   * absent-safe: gear gets packed long before the schedule is locked, and a
+   * project saved before this field existed simply has no day on any
+   * container, which reads as "not routed yet" rather than as an error.
+   * A nested container inherits its parent's day — a case inside the truck
+   * goes wherever the truck goes.
+   */
+  productionDayId?: string;
+  /**
+   * Where the container is going (`Location.id`). Optional on the same terms
+   * as `productionDayId`, and inherited from the parent container in the same
+   * way.
+   */
+  locationId?: string;
 }
 
 export interface PackedItem {
@@ -38,6 +53,14 @@ export interface PackedItem {
   packedVolumeLiters?: number;
   /** True when derived from physical dims rather than packed dims. */
   volumeIsEstimate?: boolean;
+  /**
+   * The equipment-manifest row this item was generated from, as
+   * `equipmentKey` writes it (category:brand:model). Present only on items the
+   * "pack equipment" action created; absent on everything a user typed. That
+   * is what lets the action be re-run after the manifest changes — it rewrites
+   * its own rows and leaves hand-packed gear alone.
+   */
+  sourceEquipmentKey?: string;
 }
 
 export interface ContainerLoadResult {
@@ -48,10 +71,34 @@ export interface ContainerLoadResult {
   totalWeightKg: number | null;
   tareUnknown: boolean;
   unknownItemCount: number;
+  /**
+   * Tare plus everything packed in this container AND in every container
+   * nested inside it, at any depth — the figure a driver needs before quoting
+   * an axle load. null as soon as a single weight anywhere in that tree is
+   * unknown, because a partial sum of a truck is more dangerous than no sum.
+   * Equal to `totalWeightKg` when nothing is nested inside.
+   */
+  rolledUpWeightKg: number | null;
+  /** Items without a weight in the whole nested tree, this container included. */
+  rolledUpUnknownItemCount: number;
+  /** True when this container's tare or any nested container's tare is unknown. */
+  rolledUpTareUnknown: boolean;
+  /** Containers nested inside this one, at any depth. */
+  nestedContainerCount: number;
+  /**
+   * `rolledUpWeightKg` against `maxPayloadKg`. This is the utilization that
+   * decides whether a vehicle is overloaded; `payloadUtilization` only ever
+   * describes what was thrown in loose.
+   */
+  rolledUpPayloadUtilization: number | null;
   /** null when any packed volume unknown. */
   usedVolumeLiters: number | null;
   volumeIsEstimate: boolean;
-  /** Fraction 0..1; null when maxPayloadKg unknown. */
+  /**
+   * `totalWeightKg` against `maxPayloadKg`, so it covers the direct contents
+   * only; null when either side is unknown. Use `rolledUpPayloadUtilization`
+   * to judge a vehicle.
+   */
   payloadUtilization: number | null;
   /** null when usableVolumeLiters unknown. */
   volumeUtilization: number | null;

@@ -3,22 +3,29 @@
  *
  * Pure planning aid — all calculations come from `src/domain/logistics`
  * (rule 4); missing data stays explicitly "unknown", never 0 (rule 13);
- * canonical units kg / liters (rule 14). The "pack day equipment" helper
- * (schedule → packing list linkage) is OUT OF SCOPE here — it lands with the
- * schedule workstream later.
+ * canonical units kg / liters (rule 14). "Pack equipment" fills the list from
+ * the derived equipment manifest rather than asking anyone to type the gear a
+ * second time; the weights come from the fixture catalogue where it has them.
  */
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Box, Package, Plus, Printer, Trash2, Truck } from 'lucide-react';
+import { AlertTriangle, Box, Package, Plus, Printer, Trash2, Truck, Wand2 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import {
   SAFETY_NOTE,
   calculateContainerLoad,
+  catalogueUnitWeightKg,
+  containerBelongsToDay,
   listContainerContents,
+  packEquipmentIntoContainer,
+  resolveContainerAssignments,
   type LogisticsContainer,
   type LogisticsContainerKind,
+  type PackableEquipment,
   type PackedItem,
 } from '../../domain/logistics';
+import { deriveAllScenesEquipment, deriveSceneEquipment } from '../../utils/equipmentList';
+import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 
 const CONTAINER_KINDS: LogisticsContainerKind[] = ['case', 'rack', 'cart', 'pallet', 'van', 'truck'];
 const KIND_LABELS: Record<LogisticsContainerKind, string> = {
@@ -63,15 +70,39 @@ const EMPTY_ITEM_DRAFT: ItemDraft = {
   volumeIsEstimate: false,
 };
 
+/** Scope the "pack equipment" action works over. */
+type PackScope = 'scene' | 'production';
+
 export const LogisticsPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
+  const { project, activeSetup, theme, updateProjectMeta, openExportModal } = useFloorPlan();
   const isLight = theme === 'light';
+  const catalog = useFixtureCatalog();
 
   const containers = useMemo(
     () => project.logisticsContainers ?? [],
     [project.logisticsContainers]
   );
   const items = useMemo(() => project.packedItems ?? [], [project.packedItems]);
+  const productionDays = useMemo(() => project.productionDays ?? [], [project.productionDays]);
+  const locations = useMemo(() => project.locations ?? [], [project.locations]);
+
+  /** Day / destination per container, inherited from parents (domain — rule 4). */
+  const assignments = useMemo(() => resolveContainerAssignments(containers), [containers]);
+
+  // The day scope lives on the project so the printed sheet can be built from
+  // the project alone; a filter pointing at a deleted day means "everything".
+  const dayFilterId =
+    project.logisticsDayFilterId && productionDays.some((d) => d.id === project.logisticsDayFilterId)
+      ? project.logisticsDayFilterId
+      : undefined;
+
+  const dayLabel = (id: string | undefined): string | undefined => {
+    const day = id ? productionDays.find((candidate) => candidate.id === id) : undefined;
+    if (!day) return undefined;
+    return day.date ? `${day.name} · ${day.date}` : day.name;
+  };
+  const locationLabel = (id: string | undefined): string | undefined =>
+    id ? locations.find((candidate) => candidate.id === id)?.name : undefined;
 
   // --- Mutations (all immutable via updateProjectMeta) ---
 
@@ -140,11 +171,12 @@ export const LogisticsPanel: React.FC = () => {
   /** containerId → load result, computed once per render pass. */
   const loadByContainer = useMemo(() => {
     const map = new Map<string, ReturnType<typeof calculateContainerLoad>>();
-    for (const c of containers) map.set(c.id, calculateContainerLoad(c, items));
+    for (const c of containers) map.set(c.id, calculateContainerLoad(c, items, containers));
     return map;
   }, [containers, items]);
 
-  // Fleet summary across TOP-LEVEL containers (no parent).
+  // Fleet summary across TOP-LEVEL containers (no parent), on the rolled-up
+  // figures: what a vehicle weighs includes the cases inside it.
   const fleet = useMemo(() => {
     const topLevel = containers.filter((c) => !c.parentContainerId);
     let knownWeightKg = 0;
@@ -152,7 +184,7 @@ export const LogisticsPanel: React.FC = () => {
     for (const c of topLevel) {
       const load = loadByContainer.get(c.id);
       if (!load) continue;
-      if (load.totalWeightKg !== null) knownWeightKg += load.totalWeightKg;
+      if (load.rolledUpWeightKg !== null) knownWeightKg += load.rolledUpWeightKg;
       else topLevelWithUnknownWeight += 1;
     }
     const unknownWeightItemCount = items.filter(
@@ -180,6 +212,44 @@ export const LogisticsPanel: React.FC = () => {
   const [newKind, setNewKind] = useState<LogisticsContainerKind>('case');
   const [newName, setNewName] = useState('');
   const [newParentId, setNewParentId] = useState('');
+
+  // --- Pack equipment (manifest → load list) ---
+
+  const [packScope, setPackScope] = useState<PackScope>('scene');
+  const [packTargetId, setPackTargetId] = useState('');
+  /** What the last run did, so the user can see the unknown weights it left. */
+  const [packReport, setPackReport] = useState<string | null>(null);
+
+  /**
+   * The manifest rows for the chosen scope. A whole production is packed at
+   * its PEAK concurrent quantity: three scenes each needing one SkyPanel need
+   * one SkyPanel on the truck, not three.
+   */
+  const packSource = useMemo((): PackableEquipment[] => {
+    if (packScope === 'scene') return deriveSceneEquipment(activeSetup);
+    return deriveAllScenesEquipment(project.setups).map((item) => ({
+      category: item.category,
+      name: item.name,
+      brand: item.brand,
+      model: item.model,
+      quantity: item.maxConcurrentQuantity,
+    }));
+  }, [packScope, activeSetup, project.setups]);
+
+  const packEquipment = () => {
+    const target = packTargetId || UNASSIGNED_CONTAINER_ID;
+    const result = packEquipmentIntoContainer({
+      equipment: packSource,
+      containerId: target,
+      existingItems: items,
+      unitWeightKg: (item) => catalogueUnitWeightKg(catalog.profiles, item),
+      newId: () => createId('packed'),
+    });
+    updateProjectMeta({ packedItems: result.items });
+    setPackReport(
+      `${result.added} added, ${result.updated} updated · ${result.unknownWeightCount} without a known weight`,
+    );
+  };
 
   // --- Shared styles (PowerPanel/RiggingPanel conventions) ---
 
@@ -426,6 +496,29 @@ export const LogisticsPanel: React.FC = () => {
               )}
             </dd>
           </div>
+          {/* Only meaningful once something is nested inside — otherwise it
+              repeats the line above. */}
+          {load.nestedContainerCount > 0 && (
+            <div className="flex justify-between gap-2">
+              <dt className={mutedText}>
+                Incl. {load.nestedContainerCount} nested{' '}
+                {load.nestedContainerCount === 1 ? 'container' : 'containers'}
+              </dt>
+              <dd className="font-mono">
+                {load.rolledUpWeightKg !== null ? (
+                  <>
+                    {formatKg(load.rolledUpWeightKg)}
+                    {load.rolledUpTareUnknown && <span className={mutedText}> (a tare unknown)</span>}
+                  </>
+                ) : (
+                  <span className={unknownText}>
+                    unknown — {load.rolledUpUnknownItemCount}{' '}
+                    {load.rolledUpUnknownItemCount === 1 ? 'item' : 'items'} without weight in here
+                  </span>
+                )}
+              </dd>
+            </div>
+          )}
           <div className="flex justify-between gap-2">
             <dt className={mutedText}>Used volume</dt>
             <dd className="font-mono flex items-center gap-1">
@@ -437,13 +530,17 @@ export const LogisticsPanel: React.FC = () => {
             </dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt className={mutedText}>Payload utilization</dt>
+            {/* Judged on the rolled-up weight: a truck goes over its payload
+                because of what is in the cases. */}
+            <dt className={mutedText}>
+              Payload utilization{load.nestedContainerCount > 0 ? ' (incl. nested)' : ''}
+            </dt>
             <dd className="font-mono">
-              {load.payloadUtilization !== null ? (
-                formatPercent(load.payloadUtilization)
+              {load.rolledUpPayloadUtilization !== null ? (
+                formatPercent(load.rolledUpPayloadUtilization)
               ) : (
                 <span className={unknownText}>
-                  {container.maxPayloadKg !== undefined && load.totalWeightKg === null
+                  {container.maxPayloadKg !== undefined && load.rolledUpWeightKg === null
                     ? 'total weight unknown'
                     : 'payload limit unknown'}
                 </span>
@@ -478,6 +575,13 @@ export const LogisticsPanel: React.FC = () => {
     const { childContainers } = listContainerContents(container.id, items, containers);
     const ownItems = directItems(container.id);
     const ownerLabel = containerLabel(container);
+    // Shown in the empty option so "blank" reads as what it actually means
+    // here: this box travels with the one it is packed inside.
+    const assignment = assignments.get(container.id);
+    const inheritedDay = assignment?.dayInherited ? dayLabel(assignment.productionDayId) : undefined;
+    const inheritedLocation = assignment?.locationInherited
+      ? locationLabel(assignment.locationId)
+      : undefined;
     return (
       <div key={container.id} className="flex flex-col gap-2" style={{ marginLeft: depth > 0 ? 12 : 0 }}>
         <div className={`rounded-lg border p-2 flex flex-col gap-2 ${cardClass}`}>
@@ -532,6 +636,51 @@ export const LogisticsPanel: React.FC = () => {
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
+          </div>
+
+          {/* Routing — which shoot day it travels on and where it is going.
+              Both optional; blank inherits from the container it sits in. */}
+          <div className="grid grid-cols-2 gap-1.5">
+            <label className="flex flex-col gap-0.5">
+              <span className={`text-[10px] ${mutedText}`}>Shoot day</span>
+              <select
+                value={container.productionDayId ?? ''}
+                onChange={(e) =>
+                  updateContainer(container.id, { productionDayId: e.target.value || undefined })
+                }
+                aria-label={`Shoot day for ${container.name}`}
+                className={inputClass}
+              >
+                <option value="">
+                  {inheritedDay ? `Inherited: ${inheritedDay}` : 'Not routed'}
+                </option>
+                {productionDays.map((day) => (
+                  <option key={day.id} value={day.id}>
+                    {dayLabel(day.id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className={`text-[10px] ${mutedText}`}>Going to</span>
+              <select
+                value={container.locationId ?? ''}
+                onChange={(e) =>
+                  updateContainer(container.id, { locationId: e.target.value || undefined })
+                }
+                aria-label={`Destination location for ${container.name}`}
+                className={inputClass}
+              >
+                <option value="">
+                  {inheritedLocation ? `Inherited: ${inheritedLocation}` : 'Not set'}
+                </option>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           {/* Specs grid — all optional; blank stays unknown (rule 13) */}
@@ -619,16 +768,40 @@ export const LogisticsPanel: React.FC = () => {
     );
   };
 
-  // Roots: no parent, or parent reference missing (orphans stay visible).
+  // Roots: no parent, or parent reference missing (orphans stay visible),
+  // then narrowed to the chosen shoot day. Containers routed to no day at all
+  // stay on every day's list — unrouted gear must not vanish.
   const rootContainers = containers.filter(
-    (c) => !c.parentContainerId || !containers.some((p) => p.id === c.parentContainerId)
+    (c) =>
+      (!c.parentContainerId || !containers.some((p) => p.id === c.parentContainerId)) &&
+      containerBelongsToDay(assignments.get(c.id), dayFilterId)
   );
+  const hiddenByDayFilter = dayFilterId
+    ? containers.filter((c) => !containerBelongsToDay(assignments.get(c.id), dayFilterId)).length
+    : 0;
 
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-3">
       {/* Fleet summary strip — totals across top-level containers */}
       <section className={`rounded-xl border p-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 ${surfaceClass}`}>
         {sectionHeading(<Truck className="w-3.5 h-3.5" />, 'Fleet')}
+        {/* Day scope: what the panel shows and what the print button prints. */}
+        <label className="flex items-center gap-1.5">
+          <span className={`text-[11px] ${mutedText}`}>Day</span>
+          <select
+            value={dayFilterId ?? ''}
+            onChange={(e) => updateProjectMeta({ logisticsDayFilterId: e.target.value || undefined })}
+            aria-label="Show the load for one shoot day"
+            className={`${inputClass} !w-auto max-w-[180px]`}
+          >
+            <option value="">Whole production</option>
+            {productionDays.map((day) => (
+              <option key={day.id} value={day.id}>
+                {dayLabel(day.id)}
+              </option>
+            ))}
+          </select>
+        </label>
         {/* The load list is worked from paper at the truck. */}
         <button
           onClick={() => openExportModal('logistics')}
@@ -641,7 +814,7 @@ export const LogisticsPanel: React.FC = () => {
           Containers <span className={`font-mono ${headingText}`}>{fleet.containerCount}</span>
         </span>
         <span className={`text-[11px] ${mutedText}`}>
-          Known weight (top level){' '}
+          Known weight incl. nested (top level){' '}
           <span className={`font-mono ${headingText}`}>{formatKg(fleet.knownWeightKg)}</span>
           {fleet.topLevelWithUnknownWeight > 0 && (
             <span className={`${unknownText}`}>
@@ -655,6 +828,52 @@ export const LogisticsPanel: React.FC = () => {
           Items without weight{' '}
           <span className={`font-mono ${headingText}`}>{fleet.unknownWeightItemCount}</span>
         </span>
+      </section>
+
+      {/* Pack equipment — the manifest is already derived; nobody types it twice */}
+      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
+        {sectionHeading(<Wand2 className="w-3.5 h-3.5" />, 'Pack equipment', packSource.length)}
+        <p className={`text-[10px] ${mutedText}`}>
+          Creates a packed item per line of the equipment list, with the weight the fixture
+          catalogue knows. Gear it has no weight for is packed with none, so the container total
+          says "unknown" instead of quietly reading light. Re-run it after the scene changes: it
+          rewrites the rows it made and never touches anything you packed by hand.
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <select
+            value={packScope}
+            onChange={(e) => setPackScope(e.target.value as PackScope)}
+            aria-label="Equipment scope to pack"
+            className={`${inputClass} !w-auto`}
+          >
+            <option value="scene">This scene ({activeSetup.name})</option>
+            <option value="production">Whole production (peak quantities)</option>
+          </select>
+          <select
+            value={packTargetId}
+            onChange={(e) => setPackTargetId(e.target.value)}
+            aria-label="Container the packed equipment goes into"
+            className={`${inputClass} !w-auto max-w-[180px]`}
+          >
+            <option value="">Into: Unassigned</option>
+            {containers.map((c) => (
+              <option key={c.id} value={c.id}>
+                Into: {containerLabel(c)}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={packEquipment}
+            disabled={packSource.length === 0}
+            title="Create packed items from the derived equipment list"
+            aria-label="Pack equipment from the derived equipment list"
+            className={primaryBtnClass}
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            Pack
+          </button>
+        </div>
+        {packReport && <p className={`text-[10px] ${mutedText}`}>{packReport}</p>}
       </section>
 
       {/* Containers */}
@@ -717,6 +936,13 @@ export const LogisticsPanel: React.FC = () => {
         {containers.length === 0 && (
           <p className={`text-[11px] ${mutedText}`}>
             No containers yet — add cases, carts or vehicles above.
+          </p>
+        )}
+        {hiddenByDayFilter > 0 && (
+          <p className={`text-[10px] ${mutedText}`}>
+            Showing {dayLabel(dayFilterId)} — {hiddenByDayFilter}{' '}
+            {hiddenByDayFilter === 1 ? 'container is' : 'containers are'} routed to another day and
+            hidden. Containers with no day set stay listed.
           </p>
         )}
         <div className="flex flex-col gap-2">

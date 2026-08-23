@@ -56,6 +56,7 @@ import { RoadLayer } from './RoadLayer';
 import { SunOverlay } from './SunOverlay';
 import { sunPosition } from '../../domain/sun';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
+import { TrussLayer, type TrussRunOnPlan } from './TrussLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
 import { Move, ZoomIn, ZoomOut, Check, X, Keyboard, Scan, Grid } from 'lucide-react';
@@ -125,6 +126,7 @@ export const FloorPlanCanvas: React.FC = () => {
     deleteSelectedElements,
     updateBackgroundImage,
     removeBackgroundImage,
+    updateProjectMeta,
     backgroundImages,
     selectedBackgroundId,
     setSelectedBackgroundId,
@@ -768,6 +770,86 @@ export const FloorPlanCanvas: React.FC = () => {
     },
     [nearestCameraTo, getShotForCamera, updateShot],
   );
+
+  /**
+   * Truss runs, positioned on the plan in scene units.
+   *
+   * Rigging measures in millimetres and the plan is drawn in scene units, so
+   * the conversion goes through the same grid scale the ruler uses — a 3 m bay
+   * has to be 3 m against the room, or the drawing is decoration rather than a
+   * plan.
+   */
+  const trussUnitsPerMm = useMemo(() => {
+    const perUnit = gridSettings.pixelsPerUnit || 30;
+    const mmPerUnit = gridSettings.unit === 'ft' ? 304.8 : 1000;
+    return perUnit / mmPerUnit;
+  }, [gridSettings.pixelsPerUnit, gridSettings.unit]);
+
+  const trussRuns: TrussRunOnPlan[] = useMemo(() => {
+    const profiles = project.trussProfiles ?? [];
+    const items = project.riggingItems ?? [];
+    return (project.trussElements ?? []).map((run, index) => {
+      const profile = profiles.find((entry) => entry.id === run.profileId);
+      // A run that has never been placed sits at 0,0 — which for every run in
+      // the rig means one illegible stack in the corner. Unplaced runs are laid
+      // out down the plan instead, far enough apart to grab. The first drag
+      // writes the real position, so this only ever describes a run nobody has
+      // positioned yet.
+      const unplaced = run.x === 0 && run.y === 0;
+      return {
+        id: run.id,
+        label: run.label?.trim() || `Truss ${index + 1}`,
+        x: unplaced ? 140 : run.x,
+        y: unplaced ? 140 + index * 70 : run.y,
+        rotation: run.rotation,
+        lengthMm: run.lengthOverrideMm ?? profile?.lengthMm,
+        widthMm: profile?.widthMm,
+        hangPointsMm: items
+          .filter(
+            (item) =>
+              item.trussElementId === run.id &&
+              (item.kind === 'motor' || item.kind === 'hang_point') &&
+              item.positionMm !== undefined,
+          )
+          .map((item) => item.positionMm as number),
+      };
+    });
+  }, [project.trussElements, project.trussProfiles, project.riggingItems]);
+
+  /**
+   * `record` is false while the pointer is down and true once on release, so a
+   * drag across the room is ONE undo step rather than one per pointer move —
+   * the same bargain every element drag on this canvas makes.
+   */
+  const moveTrussRun = useCallback(
+    (id: string, position: { x: number; y: number }, record: boolean) => {
+      updateProjectMeta(
+        (prev) => ({
+          trussElements: (prev.trussElements ?? []).map((run) =>
+            run.id === id ? { ...run, ...position } : run,
+          ),
+        }),
+        record,
+      );
+    },
+    [updateProjectMeta],
+  );
+
+  const rotateTrussRun = useCallback(
+    (id: string, rotation: number, record: boolean) => {
+      updateProjectMeta(
+        (prev) => ({
+          trussElements: (prev.trussElements ?? []).map((run) =>
+            run.id === id ? { ...run, rotation } : run,
+          ),
+        }),
+        record,
+      );
+    },
+    [updateProjectMeta],
+  );
+
+  const [selectedTrussId, setSelectedTrussId] = useState<string | null>(null);
 
   // Collect all wall corner vertices for magnetic snapping. Memoised so the
   // snap lookup below keeps a stable identity between renders that did not
@@ -2811,6 +2893,23 @@ export const FloorPlanCanvas: React.FC = () => {
             pixelsPerUnit={gridSettings.pixelsPerUnit}
             displaySettings={displaySettings}
           />
+
+          {/* 3b. Truss runs. Above the room and the cable runs, below the
+              fixtures — a truss is overhead structure, and the lamps hanging
+              off it have to read on top of it. */}
+          {trussRuns.length > 0 && (
+            <TrussLayer
+              runs={trussRuns}
+              unitsPerMm={trussUnitsPerMm}
+              selectedId={selectedTrussId}
+              isInteractive={activeTool === 'select'}
+              onSelect={setSelectedTrussId}
+              onMove={moveTrussRun}
+              onRotate={rotateTrussRun}
+              canvasScale={canvasScale}
+              isLight={isLightMode}
+            />
+          )}
 
           {/* 4. Lighting Beams & Fixtures */}
           <LightingLayer

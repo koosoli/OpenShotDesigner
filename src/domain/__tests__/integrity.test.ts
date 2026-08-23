@@ -8,6 +8,7 @@ import {
   removeTrussElement,
   removeSetupReferences,
   removeShotReferences,
+  removeProductionDayFromTakes,
 } from '../integrity';
 import type { PowerPlan } from '../power';
 import type { ScriptScene } from '../script';
@@ -156,6 +157,45 @@ describe('removePowerSource', () => {
     const next = removePowerSource({ powerPlan: powerPlan() }, 'ghost');
     expect(next.powerPlan.sources).toHaveLength(2);
     expect(next.powerPlan.circuits).toHaveLength(2);
+  });
+});
+
+describe('take cleanup', () => {
+  const takes = [
+    { id: 't1', shotId: 's1', takeNumber: 1, productionDayId: 'd1' },
+    { id: 't2', shotId: 's1', takeNumber: 2, productionDayId: 'd1' },
+    { id: 't3', shotId: 's2', takeNumber: 1, productionDayId: 'd2' },
+  ];
+
+  it('takes the continuity takes of a deleted shot with it', () => {
+    const next = removeShotReferences({ takes: [...takes] }, 's1');
+    expect(next.takes.map((take) => take.id)).toEqual(['t3']);
+  });
+
+  /**
+   * A caller that keeps no take list must not be handed an empty one: spread
+   * into project state, `[]` reads as "nothing was ever shot" rather than as
+   * "takes are none of this caller's business".
+   */
+  it('does not invent a take list for a caller that has none', () => {
+    const next = removeShotReferences({ scriptLines: [{ id: 'l1' }] }, 's1');
+    expect('takes' in next).toBe(false);
+  });
+
+  it('cleans up takes when a whole setup goes', () => {
+    const next = removeSetupReferences({ takes: [...takes] }, 'setup-1', ['s1', 's2']);
+    expect(next.takes).toEqual([]);
+  });
+
+  /**
+   * Deleting a day does not unshoot the footage: the clips exist on a card,
+   * so the takes survive and only lose the day they pointed at.
+   */
+  it('unhooks takes from a deleted production day without deleting them', () => {
+    const next = removeProductionDayFromTakes(takes, 'd1');
+    expect(next).toHaveLength(3);
+    expect(next[0].productionDayId).toBeUndefined();
+    expect(next[2].productionDayId).toBe('d2');
   });
 });
 

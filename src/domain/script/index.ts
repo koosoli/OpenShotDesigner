@@ -58,8 +58,10 @@ export {
   assignMissingSceneNumbers,
   hasProductionSceneNumbers,
   insertedSceneNumber,
+  nextSuffix,
   normaliseSceneNumbers,
   parseSceneNumber,
+  squeezeLetters,
   propagateSceneNumbers,
   renumberScenes,
 } from './numbering';

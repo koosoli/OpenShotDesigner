@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { removeProductionDayFromTakes } from '../../domain/integrity';
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
@@ -315,8 +316,15 @@ export const SchedulePanel: React.FC = () => {
 
   const deleteDay = (dayId: string) => {
     // Blocks are never deleted with a day — they return to the pool because
-    // they simply stop being referenced.
-    updateProjectMeta({ productionDays: days.filter((d) => d.id !== dayId) });
+    // they simply stop being referenced. Continuity takes behave the same way
+    // for a stronger reason: the clips exist on a card, so deleting the day
+    // does not unshoot them. They keep everything except the day they pointed
+    // at, and still export — only `Date Recorded` goes blank.
+    updateProjectMeta((prev) => ({
+      productionDays: (prev.productionDays ?? []).filter((d) => d.id !== dayId),
+      ...(prev.takes ? { takes: removeProductionDayFromTakes(prev.takes, dayId) } : {}),
+      ...(prev.continuityDayFilterId === dayId ? { continuityDayFilterId: undefined } : {}),
+    }));
   };
 
   const addManualBlock = () => {

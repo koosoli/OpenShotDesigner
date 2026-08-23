@@ -95,6 +95,7 @@ import { StripboardPrintView } from '../reports/StripboardPrintView';
 import { PowerPrintView, buildPowerPrintModel } from '../reports/PowerPrintView';
 import { RiggingPrintView, buildRiggingPrintModel } from '../reports/RiggingPrintView';
 import { LogisticsPrintView, buildLogisticsPrintModel } from '../reports/LogisticsPrintView';
+import { ContinuityPrintView, buildContinuityPrintModel } from '../reports/ContinuityPrintView';
 import { RunOfShowPrintView, buildRunOfShowPrintModel } from '../reports/RunOfShowPrintView';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { CoverageMatrixPrintView } from '../reports/CoverageMatrixPrintView';
@@ -794,6 +795,16 @@ export const PrintableShotPlan: React.FC = () => {
               Load List
             </button>
             <button
+              onClick={() => setExportSection('continuity')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'continuity'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Continuity
+            </button>
+            <button
               onClick={() => setExportSection('runofshow')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'runofshow'
@@ -1380,6 +1391,10 @@ export const PrintableShotPlan: React.FC = () => {
 
           {exportSection === 'logistics' && (
             <LogisticsPrintView {...buildLogisticsPrintModel(project)} />
+          )}
+
+          {exportSection === 'continuity' && (
+            <ContinuityPrintView {...buildContinuityPrintModel(project)} />
           )}
 
           {exportSection === 'runofshow' && (

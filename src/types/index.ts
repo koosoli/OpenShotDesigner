@@ -650,7 +650,23 @@ export interface Shot {
   framingDescription: string;
   actionScriptNotes?: string;
   status: ShotStatus;
+  /**
+   * Legacy stored take count. Superseded by the continuity log: the truth is
+   * `takesCountFor(project.takes, shot.id)`. Kept on the type so projects
+   * written before the log existed still load; nothing writes it any more, and
+   * two counters that can disagree means one of them is a lie.
+   *
+   * @deprecated Derive from `project.takes` instead.
+   */
   takesCount: number;
+  /**
+   * Shot on the day without having been planned — the pickup, the safety, the
+   * insert. It is a real shot with a real number (see
+   * `domain/shots/numbering.ts`), and it never joins the plan retroactively:
+   * the checklist compares planned against actual, and a pickup silently
+   * becoming "planned" would hide the shot that was actually missed.
+   */
+  unplanned?: boolean;
   estDurationSeconds: number;
   order: number;
   /** Optional link back to the imported/created lined script row. */
@@ -1003,6 +1019,14 @@ export interface Project {
   powerPlan?: import('../domain/power').PowerPlan;
   logisticsContainers?: import('../domain/logistics').LogisticsContainer[];
   packedItems?: import('../domain/logistics').PackedItem[];
+  /**
+   * Which shoot day the load list is scoped to (`ProductionDay.id`); absent
+   * means the whole production, which is what every project stored before this
+   * existed, so nothing needs migrating. It lives on the project rather than in
+   * panel state because the printed sheet is built from the project alone — a
+   * driver has to be able to print the day they are looking at.
+   */
+  logisticsDayFilterId?: string;
   moodBoards?: import('../domain/moodboard').MoodBoard[];
   /** Production task board (v13). Optional and absent-safe. */
   taskBoards?: import('../domain/tasks').TaskBoard[];
@@ -1016,11 +1040,40 @@ export interface Project {
   trussElements?: import('../domain/rigging').TrussElement[];
   suspendedLoads?: import('../domain/rigging').SuspendedLoad[];
   riggingItems?: import('../domain/rigging').RiggingItem[];
+  /**
+   * Hardware weight assumptions for the rigging plot — per clamp, per safety,
+   * and a flat cable allowance per run. Optional and absent-safe: a project
+   * that has never set them is planned with `DEFAULT_RIGGING_ASSUMPTIONS`, the
+   * same figures the panel used while these lived in session state.
+   */
+  riggingAssumptions?: import('../domain/rigging').RiggingAssumptions;
   /** Named revisions (milestone snapshots, plan §13.2). Optional and absent-safe
    *  legacy projects without them load unchanged; formalized/backfilled in the
    *  next migration wave.
    */
   revisions?: ProjectRevision[];
+  /**
+   * Names typed on the continuity page for the two crew roles that have no
+   * project field of their own. A fallback only: anyone assigned the role on
+   * the crew list wins, so building the crew list later takes over instead of
+   * leaving a stale name on the paperwork. Optional and absent-safe.
+   */
+  continuityCrew?: import('../domain/continuity').ContinuityCrewDefaults;
+  /**
+   * Which shoot day the continuity page is scoped to (`ProductionDay.id`);
+   * absent means the whole production. It lives on the project rather than in
+   * panel state for the same reason the load list's does — the printed report
+   * is built from the project alone, and the script supervisor has to be able
+   * to print the day they are looking at.
+   */
+  continuityDayFilterId?: string;
+  /**
+   * Continuity log (v24): one record per take actually shot. The source of the
+   * shooting-day checklist and of the DaVinci Resolve metadata export.
+   * Optional and absent-safe — a project that has never shot anything has no
+   * takes, which is not the same as an empty day.
+   */
+  takes?: import('../domain/continuity').Take[];
   /** Multi-camera coverage plan (plan §15.3). Optional and absent-safe. */
   coverageMatrix?: import('../domain/scheduling').CoverageMatrix;
   /**
