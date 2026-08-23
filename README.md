@@ -12,7 +12,7 @@
 
 A free, open-source production planning suite for directors, DPs and ADs: **lined script**, **floor plan**, **shot list**, **storyboard** and **equipment manifest**, plus **scheduling**, **call sheets**, **crew and cast**, **budget**, **locations**, **task board**, **mood boards**, **logistics**, **rigging** and **power** — all in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, schedule the shoot, and export production-ready paperwork. No account, no backend — everything lives in your browser.
 
-A screenplay is optional: nothing outside the script tools requires one, so concert, broadcast, event and pure technical floor plans work the same way.
+A screenplay is optional: nothing outside the script tools requires one, so concert, broadcast, event and pure technical floor plans work the same way. Nothing is entered twice either: the budget prices the crew list and the gear on the plan against the days on the schedule, and every sheet that names a location gets its address from the same link.
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
@@ -87,9 +87,13 @@ project with no screenplay schedules just as well.
 
 ![Call sheet](docs/screenshots/call-sheet.png)
 
-A live paper preview with readiness warnings: crew call, locations with map
-links, scheduled cast, weather, parking, nearest hospital, safety bulletin,
-transport and per-person pick-ups, and a next-day look-ahead.
+A live paper preview with readiness warnings: crew call, locations, scheduled
+cast, weather, parking, nearest hospital, safety bulletin, transport and
+per-person pick-ups, and a next-day look-ahead. The shooting schedule is grouped
+under scene headings the way an AD reads it — **Sc 3 · INT. LIVING ROOM - DAY** —
+with each strip's scene number and location in their own columns, and each
+person's pick-up on their own row. A day that moves between two places gets a
+captured map per location, each labelled with the place it shows.
 
 And this is what comes out of the printer — the same data, laid out for paper:
 
@@ -102,17 +106,34 @@ And this is what comes out of the printer — the same data, laid out for paper:
 Assign Director, DP, 1st AD, Gaffer and the rest by role — the same fields the
 scene inspector and every export read, so they cannot drift apart. Cast link to
 screenplay characters, which are detected from the script automatically.
+Headshots are repositioned by dragging the picture itself, and each person
+carries the rate the budget prices them by.
 
-### Budget and day needs
+### The budget prices itself from the schedule
 
-Every crew or cast member carries a rate — per day, per week (pro-rated over the
-paid week) or a flat fee — with VAT on top at the rate's own percentage or the
-production default (Luxembourg's 17 %, with the neighbouring countries' rates a
-pick away). Gear on the plans is priced by rates keyed to the master equipment
-list, manual lines cover locations, catering and the rest, and the whole thing
-recomputes as the schedule changes: a person costs the days they are needed, a
-light the days its setup is on. The day-needs view answers the other question —
-who and what has to be available on which shooting day. Export as CSV.
+![Budget](docs/screenshots/budget.png)
+
+Every crew and cast member is a row with their rate on it — **per day**, **per
+week** (pro-rated over the paid week) or a **flat fee** — and VAT on top at the
+rate's own percentage or the production default. Luxembourg's 17 % is the
+default, with its reduced rates and the neighbours' a pick away, and a
+reverse-charged supplier or a salaried employee is simply 0 %.
+
+Nothing is typed twice: gear on the plans is priced by rates keyed to the master
+equipment list, and the numbers follow the schedule — a person costs the days
+they are actually needed, a light the days its setup is on. Producers, director,
+writers and principal cast sit **above the line** by role, overridable per
+person. Anyone without a rate is listed and flagged, never quietly priced at
+zero. Print it or export the CSV.
+
+### Who and what each day needs
+
+![Day needs](docs/screenshots/day-needs.png)
+
+The production manager's morning question, answered from the schedule: per
+shooting day, the scenes, the cast the day's strips resolve to, the crew, and
+the gear its setups put on the plan — as cards, and as people × days and
+gear × days grids.
 
 ### Power, per truss and per phase
 
@@ -168,6 +189,8 @@ board — in one print job, with your production logo on the paperwork.
   - **Fountain mode** — toggle between WYSIWYG Page View and raw Fountain syntax markdown code.
 - **AV Script (2-Column Audio/Visual)** — dedicated production AV table for commercials, documentaries, and multicam setups. Synchronized bidirectionally with floor plan cameras and lined coverage.
 - **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or Final Draft scene attributes.
+- **Lock the numbers when the script locks** — while you are still writing, scenes are numbered by position and renumber as you insert. One click makes them **production numbers**: a scene inserted between 3 and 4 becomes **3A** (and **3AA** between 3A and 3B), a cut scene stays in place as **OMITTED** with its number, a deleted one leaves a gap, and every other scene keeps the number the breakdown, stripboard and call sheets already quote. Numbers stay editable by hand while locked, and a script imported with production numbers already in it locks on arrival.
+- **Link a scene heading to a real location** — the set a heading names ("INT. **LIVING ROOM** - NIGHT") is linked to a project location from the heading itself, so the call sheet gets its address and map pin. One link covers every scene *and* setup that names the same set, and it is changed or undone from the same control — on the heading, on the call sheet, or in the script's location report.
 - **Highlight anything to make a shot** — select as little as a single word or multiple speeches; the selection creates a shot on the floor plan with classic vertical lining lines.
 - **Persistent text selection** — text highlights remain active and preserved across panel interactions.
 - **Adjustable coverage** — drag round handles on a selected lining to extend or shorten it, or grow it to the current selection.
@@ -227,20 +250,38 @@ board — in one print job, with your production logo on the paperwork.
 - **Stripboard** — an AD's strip board with shooting days, drag-or-tap placement from a searchable unscheduled pool, editable time estimates, day breaks, meal/move/rehearsal banners, per-day totals and conflict warnings.
 - **Schedule what you actually have** — screenplay scenes *and* floor-plan setups are both schedulable, and so are individual shots or multi-selected shot groups, so a project with no script schedules just as well.
 - **Production calendar** — a ranged timeline of prep, shoot, post and delivery, plus a month grid with event categories, status and assignees.
-- **Call sheets** — a day picker with a live paper preview and readiness warnings: crew call, locations with map links, scheduled cast, weather, parking, nearest hospital, safety bulletin, **transport and per-person pick-ups** (time, who, from where), general notes and a next-day look-ahead.
+- **Call sheets** — a day picker with a live paper preview and readiness warnings: crew call, locations, scheduled cast, weather, parking, nearest hospital, safety bulletin, **transport and per-person pick-ups** (time, who, from where), general notes and a next-day look-ahead.
+- **Read by scene, like a shooting schedule** — strips are grouped under their scene heading (**Sc 3 · INT. LIVING ROOM - DAY**), with the scene number and location in their own columns. Scenes print their real slugline; a production with no screenplay gets one built from the setup's INT/EXT, location and time of day.
+- **Everyone's own line answers their own questions** — an individual call time and a transport pick-up both appear on that person's row in the cast and crew tables, not only in a block at the foot of the sheet. Giving someone a call or a pick-up also puts them on the sheet, whatever the day's scenes resolved to.
+- **A map per location** — a day that moves between two places gets one captured OpenStreetMap picture per pinned location, each captioned with the place and address and carrying the name and attribution burned into the image itself, so it survives being photographed. Fetched once on an explicit press and stored with the project, so it prints and travels offline.
+- **Draft until you say otherwise** — an unfinished sheet carries a DRAFT watermark on **every** printed page until the day is marked final, and cast contact numbers can be withheld from the copies left on a table.
 - **Coverage matrix** — plan what every camera is responsible for at each moment. Rows follow the run-of-show cue list or are added freely; columns are discovered from the cameras on the plan.
 - **Printable** — stripboard, calendar, coverage and each day's call sheet all print, with the production logo and strip colours.
 
 ### Crew, cast & contacts
 
-- **Crew tab** — people with department, role, phone, email, company, rate, address, emergency contact and **hotel booking** (name, address, check-in/out), grouped by department.
+- **Crew tab** — people with department, role, three phone numbers (work, private, production-issued), email, company, rate, address, emergency contact and **hotel booking** (name, address, check-in/out), grouped by department.
+- **Headshots** — attach a photo and frame it by dragging the picture itself in any direction, with a zoom; the framing is stored beside the image rather than baked into it, so it is reversible and two people can share one photo. Faces appear on the crew list, the contact sheet and the call sheet's cast table.
+- **Rates that feed the budget** — an amount, whether it is per day, per week or a flat fee, and the VAT on top, plus a free-text note for what a number cannot say ("kit fee €120/day on top").
 - **Key crew** — assign Director, DP, Producer, 1st AD, Gaffer, Key Grip, Sound Mixer and more by role. Director and DP are the same fields the scene inspector and every export use, so the two can never drift apart.
 - **Cast ↔ characters** — link a performer to a screenplay character; characters are auto-detected from the attached script, and casting works with no script at all.
 - **CSV in and out**, plus a printable contact list with a cast list and an accommodation table.
 
+### Budget, rates & day needs
+
+- **Derived, not typed twice** — the crew list, the plans and the schedule are the inputs; only rates and the costs nothing else knows about are stored. Change a shooting day and the budget follows.
+- **Three ways to be paid** — per day, per week (pro-rated across the paid week, which is configurable) or a flat fee, per person and per piece of gear.
+- **VAT that matches where you shoot** — a production default with Luxembourg's 17 / 14 / 8 / 3 % first and Germany, France, Belgium, the Netherlands, Austria, Switzerland, Italy, Spain, Ireland and the UK a pick away; any percentage can be typed, any single rate can override the default, and 0 % covers reverse charge and salaried crew. VAT is totalled **per rate**, the way a VAT return wants it.
+- **Above and below the line** — producers, director, writers and principal cast are above the line by role, and any person can be moved either way.
+- **Equipment prices itself from the plan** — a rate keyed to the master equipment list covers every day a setup using that gear is scheduled, at the peak quantity any single setup needs.
+- **Hand lines for the rest** — locations, catering, travel, art, post, insurance, with quantities and their own day counts, plus a contingency percentage on the net.
+- **Nothing is silently free** — a person or item with no rate is listed as unpriced rather than counted as zero, and a rate whose gear has left the plan says so instead of vanishing.
+- **Day needs** — per shooting day: scenes, cast (resolved from the day's scenes, setups *and* shots), crew, and the gear its setups require, as summary cards plus people × days and gear × days grids.
+- **Print or export** — a paper budget with the split, every category, VAT by rate and the unpriced list, or a CSV that opens in Excel.
+
 ### Locations, tasks, mood boards & logistics
 
-- **Locations** — sites with type, address, notes and contacts; drop a pin on a keyless OpenStreetMap and the address fills itself in (or geocode from the address), with link-outs to OSM and Google Maps.
+- **Locations** — sites with type, address, notes and contacts; drop a pin on a keyless OpenStreetMap and the address fills itself in (or geocode from the address), with link-outs to OSM and Google Maps. Scene headings and floor-plan setups link to them by the set name they use, so one link puts the address on every sheet that names it.
 - **Task board** — a kanban with due dates, priorities, labels, checklists and **crew assignees grouped by department**, with drag and touch moves.
 - **Mood boards** — boards, sections and cards from local files or URLs, a free-form collage you arrange by dragging, dominant-colour palette extraction, and printing.
 - **Logistics** — cases and containers with tare weight, payload and volume, packed items, and utilisation that propagates unknowns instead of inventing zeros.
@@ -286,7 +327,8 @@ board — in one print job, with your production logo on the paperwork.
 8. **Fill the board** — drop artwork on the frames, or open the viewfinder and shoot them with your camera on the recce.
 9. **Build the crew** — add people on the Crew tab and assign the key roles; Director and DP flow straight into every export.
 10. **Schedule it** — drag scenes, setups or shots onto shooting days in the Schedule tab, then fill in each day's call sheet.
-11. **Polish & present** — tweak display settings, then export the lined script, storyboard, blueprint PNG, PDF, CSV, or the complete package for your crew.
+11. **Price it** — give people their rates on the Crew tab and the gear its rates on the Budget tab; the days come from the schedule you just built.
+12. **Polish & present** — tweak display settings, then export the lined script, storyboard, blueprint PNG, PDF, CSV, or the complete package for your crew.
 
 New to it? **Templates → Fill empty modules with examples** loads a worked example production into whatever the current project is still missing — crew, shooting days, call sheets, locations, tasks, mood board, rigging and power. It only fills what is empty and never touches anything you have already made.
 
@@ -327,7 +369,8 @@ New to it? **Templates → Fill empty modules with examples** loads a worked exa
 | **PNG** | High-resolution blueprint render (1×/2×/3×) with a title block carrying your production logo |
 | **Print view (PDF)** | Page-ready layout — print or "Save as PDF" from your browser |
 | **CSV** | Shot list spreadsheet (per scene, or all scenes in one file) |
-| **Call sheet** | Per-day sheet with crew call, locations, cast, transport & pick-ups, weather, safety and a next-day look-ahead |
+| **Call sheet** | Per-day sheet with crew call, locations and their maps, the schedule grouped by scene heading, cast, transport & pick-ups, weather, safety and a next-day look-ahead |
+| **Budget** | Print sheet with above/below-the-line totals, every category, VAT by rate and the unpriced list — or a CSV spreadsheet |
 | **Stripboard / calendar / coverage** | The schedule as an AD board, a calendar, or the multi-camera coverage grid |
 | **Script reports** | Breakdown by scene, character and location, plus a day-out-of-days |
 | **Sides** | Per-day or per-selection sides in Courier, filterable by character |
@@ -393,6 +436,7 @@ src/
 │   ├── equipment/     # Equipment manifest (spreadsheet + cards, presets, packages)
 │   ├── schedule/      # Stripboard, calendar, call sheets, coverage matrix
 │   ├── contacts/      # Crew, cast & contacts with key-role assignment
+│   ├── budget/        # Budget, rate cards, day needs
 │   ├── locations/     # Locations with a keyless OpenStreetMap picker
 │   ├── tasks/         # Task board
 │   ├── moodboard/     # Mood boards, collage, palette
@@ -410,7 +454,8 @@ src/
 │   ├── people/        # Crew, cast, key production roles
 │   ├── script/        # Breakdown, sides, omission, line reconciliation
 │   ├── scheduling/    # Days, blocks, calendar, coverage, printable stripboard
-│   ├── reports/       # Call sheet, crew sheet, day-out-of-days derivation
+│   ├── budget/        # Rate cards, VAT, derived budget totals
+│   ├── reports/       # Call sheet, day locations, day needs, day-out-of-days
 │   ├── fixtures/      # Fixture catalog, OFL adapter, custom profiles
 │   ├── cable/         # Routed run length incl. device movement, signal flow
 │   ├── power/         # Load, headroom, grouping, phase balance

@@ -120,3 +120,23 @@ describe('hasProductionSceneNumbers', () => {
     expect(hasProductionSceneNumbers([h('s1', '1'), h('s2', '3')])).toBe(true);
   });
 });
+
+/**
+ * A scene added straight after an omitted one. The omitted heading is still a
+ * heading and still owns its number, so the newcomer is lettered off it rather
+ * than taking it or shifting everything below.
+ */
+describe('inserting after an omitted scene', () => {
+  it('letters the new scene off the omitted number and leaves the rest alone', () => {
+    const lines = [h('s1', '1'), h('s2', '2', true), h('new'), h('s3', '3')];
+    expect(numbers(assignMissingSceneNumbers(lines))).toEqual(['1', '2', '2A', '3']);
+  });
+
+  it('numbers on past the omitted scene when it is the last one', () => {
+    expect(numbers(assignMissingSceneNumbers([h('s1', '1'), h('s2', '2', true), h('new')]))).toEqual(['1', '2', '3']);
+  });
+
+  it('an omitted scene still takes a slot when numbering by position', () => {
+    expect(numbers(renumberScenes([h('s1'), h('s2', undefined, true), h('new')]))).toEqual(['1', '2', '3']);
+  });
+});

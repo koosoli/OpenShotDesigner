@@ -651,6 +651,33 @@ export const ScriptPanel: React.FC = () => {
     }
   };
 
+  /**
+   * Insert a new line directly after `afterLineId`.
+   *
+   * Enter inside a line's input does this for every editable line, but an
+   * OMITTED scene heading has no input — it is a struck-through label with a
+   * Restore button — so there was no way to start a scene directly after one.
+   * With the omitted scene last in the script, "Add Scene" at the foot was the
+   * only route; with one mid-script there was none at all.
+   */
+  const insertLineAfter = (afterLineId: string, type: ScriptElementType = 'scene') => {
+    const index = lines.findIndex((line) => line.id === afterLineId);
+    if (index === -1) return;
+    const newLineId = `sl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const newLine: ScriptLine = {
+      id: newLineId,
+      lineNumber: index + 2,
+      text: type === 'scene' ? 'INT. LOCATION - DAY' : '',
+      type,
+      // Headings arrive unnumbered so the regime numbers them; other lines
+      // inherit the scene they now sit in.
+      sceneNumber: type === 'scene' ? undefined : lines[index]?.sceneNumber,
+      isSceneHeading: type === 'scene',
+    };
+    setScriptLines([...lines.slice(0, index + 1), newLine, ...lines.slice(index + 1)]);
+    setActiveEditingLineId(newLineId);
+  };
+
   const addBlankLineAtBottom = (type: ScriptElementType = 'scene') => {
     const newLineId = `sl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const last = lines[lines.length - 1];
@@ -1133,16 +1160,31 @@ export const ScriptPanel: React.FC = () => {
                               <span className="text-[10px] font-normal normal-case tracking-normal text-slate-500 truncate" title={line.text}>
                                 was: {line.text}{line.omittedBody?.length ? ` · ${line.omittedBody.length} lines parked` : ''}
                               </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setScriptLines(restoreScene(lines, line.id));
-                                }}
-                                className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/40 normal-case tracking-normal flex-shrink-0"
-                                title={`Restore this scene with its ${line.omittedBody?.length ?? 0} parked line(s)`}
-                              >
-                                Restore
-                              </button>
+                              <span className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setScriptLines(restoreScene(lines, line.id));
+                                  }}
+                                  className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/40 normal-case tracking-normal"
+                                  title={`Restore this scene with its ${line.omittedBody?.length ?? 0} parked line(s)`}
+                                >
+                                  Restore
+                                </button>
+                                {/* An omitted heading has no input to press Enter
+                                    in, so it carries its own way to start the
+                                    next scene. */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    insertLineAfter(line.id, 'scene');
+                                  }}
+                                  className="text-[10px] px-1.5 py-0.5 rounded border border-amber-600/50 text-amber-300 hover:bg-amber-900/40 normal-case tracking-normal"
+                                  title="Add a new scene directly after this omitted one"
+                                >
+                                  + Scene
+                                </button>
+                              </span>
                             </div>
                           ) : line.type === 'scene' ? (
                             <div className="flex items-center justify-between font-bold text-amber-300">

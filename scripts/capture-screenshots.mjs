@@ -282,6 +282,35 @@ const SHOTS = [
     })()`,
   },
   {
+    slug: 'budget',
+    title: 'Budget: rates, VAT and totals',
+    prepare: `(async () => {
+      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      menu && menu.click();
+      await new Promise(r => setTimeout(r, 250));
+      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Budget');
+      tab && tab.click();
+      await new Promise(r => setTimeout(r, 900));
+      return 'ok';
+    })()`,
+  },
+  {
+    slug: 'day-needs',
+    title: 'Who and what each shooting day needs',
+    prepare: `(async () => {
+      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      menu && menu.click();
+      await new Promise(r => setTimeout(r, 250));
+      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Budget');
+      tab && tab.click();
+      await new Promise(r => setTimeout(r, 700));
+      const needs = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Day needs');
+      needs && needs.click();
+      await new Promise(r => setTimeout(r, 700));
+      return 'ok';
+    })()`,
+  },
+  {
     slug: 'sun',
     title: 'Sun & time of day on the plan',
     prepare: `(async () => {
