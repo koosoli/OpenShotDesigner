@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import type { Person } from '../../domain/people';
-import { forgetAssetUrl, storeImageAsset } from '../../utils/assetImages';
+import { forgetAssetUrl, storeImageAsset, useAssetImageSrc } from '../../utils/assetImages';
 import { PersonAvatar } from './PersonAvatar';
+import { HeadshotReframer } from './HeadshotReframer';
 
 interface HeadshotFieldProps {
   draft: Person;
@@ -28,6 +29,7 @@ export const HeadshotField: React.FC<HeadshotFieldProps> = ({ draft, onChange, i
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const src = useAssetImageSrc(draft.headshotAssetId);
 
   const pick = async (file: File) => {
     setBusy(true);
@@ -38,7 +40,8 @@ export const HeadshotField: React.FC<HeadshotFieldProps> = ({ draft, onChange, i
         quality: 0.85,
         source: `headshot:${file.name}`,
       });
-      onChange({ ...draft, headshotAssetId: assetId });
+      // A new photo starts centred rather than inheriting the last one's crop.
+      onChange({ ...draft, headshotAssetId: assetId, headshotFraming: undefined });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'That image could not be read.');
     } finally {
@@ -48,7 +51,9 @@ export const HeadshotField: React.FC<HeadshotFieldProps> = ({ draft, onChange, i
 
   const remove = () => {
     if (draft.headshotAssetId) forgetAssetUrl(draft.headshotAssetId);
-    onChange({ ...draft, headshotAssetId: undefined });
+    // Framing goes with the picture it framed: keeping it would silently apply
+    // one photo's crop to the next one uploaded.
+    onChange({ ...draft, headshotAssetId: undefined, headshotFraming: undefined });
   };
 
   const button = `text-[10px] font-semibold px-2 py-1 rounded-lg border ${
@@ -56,7 +61,8 @@ export const HeadshotField: React.FC<HeadshotFieldProps> = ({ draft, onChange, i
   }`;
 
   return (
-    <div className="col-span-2 flex items-center gap-3">
+    <div className="col-span-2 space-y-2">
+      <div className="flex items-center gap-3">
       <PersonAvatar person={draft} size={56} />
       <input
         ref={inputRef}
@@ -87,6 +93,19 @@ export const HeadshotField: React.FC<HeadshotFieldProps> = ({ draft, onChange, i
           {error ?? 'Shown on the crew list, contact sheet and call sheet.'}
         </p>
       </div>
+      </div>
+
+      {/* Reframing needs the picture on screen to be any use, so it appears
+          only once there is one — and only when it has actually resolved, since
+          a project can arrive without its assets. */}
+      {src && (
+        <HeadshotReframer
+          src={src}
+          framing={draft.headshotFraming}
+          onChange={(headshotFraming) => onChange({ ...draft, headshotFraming })}
+          isLight={isLight}
+        />
+      )}
     </div>
   );
 };

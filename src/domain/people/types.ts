@@ -40,6 +40,13 @@ export interface Person {
    * bytes and the bytes are stored once, content-addressed.
    */
   headshotAssetId?: string;
+  /**
+   * How that headshot is cropped into its circle. Absent = centred and
+   * unzoomed, which is what `object-fit: cover` does anyway, so nothing needs
+   * backfilling (rule 13). Stored beside the image rather than baked into it —
+   * see `domain/people/headshot.ts` for why.
+   */
+  headshotFraming?: import('./headshot').HeadshotFraming;
   /** Optional contact-sheet fields (plan §4.5); absent = unknown, never blank-filled. */
   company?: string;
   address?: string;

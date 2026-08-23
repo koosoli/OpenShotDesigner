@@ -1,10 +1,10 @@
 import React from 'react';
-import { personInitials } from '../../domain/people';
+import { headshotImageStyle, personInitials } from '../../domain/people';
 import type { Person } from '../../domain/people';
 import { useAssetImageSrc } from '../../utils/assetImages';
 
 interface PersonAvatarProps {
-  person: Pick<Person, 'displayName' | 'headshotAssetId'>;
+  person: Pick<Person, 'displayName' | 'headshotAssetId' | 'headshotFraming'>;
   /** Rendered size in pixels; the image is cropped square to fill it. */
   size?: number;
   /** Tailwind classes for the initials fallback, so callers keep their tints. */
@@ -33,13 +33,20 @@ export const PersonAvatar: React.FC<PersonAvatarProps> = ({
   const dimension = { width: size, height: size };
 
   if (src) {
+    // `overflow-hidden` on the wrapper rather than the image: a zoomed headshot
+    // scales past the circle, and the circle is what the layout reserved space
+    // for — scaling the box instead would shove the row it sits in.
     return (
-      <img
-        src={src}
-        alt={person.displayName}
+      <span
         style={dimension}
-        className={`rounded-full object-cover flex-shrink-0 ${className}`}
-      />
+        className={`rounded-full overflow-hidden flex-shrink-0 inline-block ${className}`}
+      >
+        <img
+          src={src}
+          alt={person.displayName}
+          style={{ ...dimension, ...headshotImageStyle(person.headshotFraming) }}
+        />
+      </span>
     );
   }
 

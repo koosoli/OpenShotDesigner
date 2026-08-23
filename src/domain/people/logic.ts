@@ -194,7 +194,7 @@ export const groupPeopleByDepartment = (people: readonly Person[]): DepartmentGr
 // CSV round-trip
 // ---------------------------------------------------------------------------
 
-const CSV_COLUMNS: Array<keyof Person> = [
+const CSV_COLUMNS: Array<PersonTextField> = [
   'displayName',
   'kind',
   'department',
@@ -213,7 +213,18 @@ const CSV_COLUMNS: Array<keyof Person> = [
   'notes',
 ];
 
-const CSV_HEADERS: Record<keyof Person, string> = {
+/**
+ * Fields a CSV can carry: the ones whose value is a string.
+ *
+ * `Record<keyof Person, string>` was fine while every field was text. It stopped
+ * being true when framing arrived as an object, and the map is the right place
+ * to say so — a spreadsheet column holds text, and a crop rectangle is not text.
+ */
+type PersonTextField = {
+  [K in keyof Person]-?: NonNullable<Person[K]> extends string ? K : never;
+}[keyof Person];
+
+const CSV_HEADERS: Record<PersonTextField, string> = {
   id: 'Id',
   displayName: 'Name',
   kind: 'Type',
@@ -298,7 +309,7 @@ export const parsePeopleCsv = (text: string): Person[] => {
   const rows = parseCsvRows(text);
   if (rows.length < 2) return [];
   const header = rows[0].map((cell) => cell.trim().toLowerCase());
-  const columnFor = (cell: string): keyof Person | undefined => {
+  const columnFor = (cell: string): PersonTextField | undefined => {
     for (const column of CSV_COLUMNS) {
       if (cell === column.toLowerCase() || cell === CSV_HEADERS[column].toLowerCase()) return column;
     }
