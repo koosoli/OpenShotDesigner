@@ -32,6 +32,11 @@ export interface PackableEquipment {
   model?: string;
   /** How many units travel — for a whole production that is the peak a single setup needs, not the sum over the shoot. */
   quantity: number;
+  /**
+   * The catalogue fixture this row came from, when the plan named one.
+   * Preferred over the brand/model strings for the weight lookup.
+   */
+  fixtureProfileId?: string;
 }
 
 export interface PackEquipmentOptions {
@@ -68,15 +73,29 @@ export const packedLabelFor = (item: PackableEquipment): string => {
 /**
  * Per-unit weight for a manifest row, from the fixture catalogue.
  *
- * `findProfileForModel` is deliberately conservative — an uncertain name match
- * returns nothing — and a row with no brand is never matched at all, because
- * "Custom Lighting Fixture" must not inherit the weight of whatever profile
- * happens to share a word with it. Anything unmatched stays unknown.
+ * By id when the row carries one: the plan element that produced it already
+ * knew exactly which profile it was, and matching on brand-and-model strings
+ * throws that away — it fails when two profiles share a model name, when a
+ * user renames a custom profile, and whenever the manifest's display name
+ * drifts from the catalogue's.
+ *
+ * Falling back to the name match keeps rows that predate the id, and rows the
+ * user typed by hand. That match is deliberately conservative —
+ * `findProfileForModel` returns nothing for an uncertain name — and a row with
+ * no brand is never matched at all, because "Custom Lighting Fixture" must not
+ * inherit the weight of whatever profile happens to share a word with it.
+ * Anything unmatched stays unknown rather than becoming zero.
  */
 export const catalogueUnitWeightKg = (
   profiles: readonly FixtureProfile[],
   item: PackableEquipment,
 ): number | undefined => {
+  if (item.fixtureProfileId) {
+    const byId = profiles.find((profile) => profile.id === item.fixtureProfileId);
+    // An id that matches nothing means the profile was deleted; fall through to
+    // the name match rather than reporting the fixture as weightless.
+    if (byId?.weightKg !== undefined) return byId.weightKg;
+  }
   if (!item.brand?.trim()) return undefined;
   return findProfileForModel(profiles, item.brand, item.model || item.name)?.weightKg;
 };

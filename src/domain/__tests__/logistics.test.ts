@@ -458,6 +458,55 @@ describe('catalogueUnitWeightKg', () => {
     ).toBe(12.5);
   });
 
+  /**
+   * The plan element that produced this row already knew exactly which profile
+   * it was. Matching by brand-and-model strings throws that away, and fails as
+   * soon as two profiles share a model name or a user renames one.
+   */
+  it('prefers the profile id over the brand and model strings', () => {
+    const renamed = [profile('ARRI', 'SkyPanel S60-C', 12.5)];
+    expect(
+      catalogueUnitWeightKg(renamed, {
+        category: 'lighting',
+        // Display name has drifted from the catalogue's, as a renamed custom
+        // profile or an edited manifest row would.
+        name: 'Key light (big panel)',
+        brand: 'Something else',
+        model: 'Not the catalogue name',
+        fixtureProfileId: 'ARRI-SkyPanel S60-C',
+        quantity: 1,
+      }),
+    ).toBe(12.5);
+  });
+
+  /** A deleted profile must not report the fixture as weightless. */
+  it('falls back to the name match when the id matches nothing', () => {
+    expect(
+      catalogueUnitWeightKg(profiles, {
+        category: 'lighting',
+        name: 'SkyPanel S60-C',
+        brand: 'ARRI',
+        model: 'SkyPanel S60-C',
+        fixtureProfileId: 'a-profile-that-was-deleted',
+        quantity: 1,
+      }),
+    ).toBe(12.5);
+  });
+
+  it('falls back to the name match when the id has no weight recorded', () => {
+    const weightless = [profile('ARRI', 'Orbiter'), profile('ARRI', 'SkyPanel S60-C', 12.5)];
+    expect(
+      catalogueUnitWeightKg(weightless, {
+        category: 'lighting',
+        name: 'SkyPanel S60-C',
+        brand: 'ARRI',
+        model: 'SkyPanel S60-C',
+        fixtureProfileId: 'ARRI-Orbiter',
+        quantity: 1,
+      }),
+    ).toBe(12.5);
+  });
+
   it('stays unknown for gear with no brand, or with no profile to match', () => {
     expect(
       catalogueUnitWeightKg(profiles, { category: 'grip', name: 'Sandbag 20lb', quantity: 1 }),

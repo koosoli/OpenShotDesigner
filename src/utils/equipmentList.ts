@@ -1492,6 +1492,9 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
       autoItems.push({
         id: `auto-light-${light.id}`,
         elementId: light.id,
+        // Carried so the load list can match this row to its catalogue entry by
+        // id rather than by brand-and-model strings.
+        ...(light.fixtureProfileId ? { fixtureProfileId: light.fixtureProfileId } : {}),
         category: isFlagOrNet ? 'grip' : 'lighting',
         name: light.fixtureModel || parsed.model,
         brand: light.brand || parsed.brand || 'Aputure / ARRI',

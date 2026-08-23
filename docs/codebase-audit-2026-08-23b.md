@@ -536,9 +536,13 @@ mode, and the contract suite failed while every unit test stayed green.
   4,100-line context split into twelve interdependent 350-line contexts is the
   same object wearing twelve hats. Success is that adding something like Camera
   Reports stops requiring edits to six unrelated systems.
-- **`deriveSceneEquipment` does not propagate `fixtureProfileId`** (item 11's
-  surviving follow-up), so the load list matches catalogue weights by brand and
-  model rather than by id.
+- ~~**`deriveSceneEquipment` does not propagate `fixtureProfileId`**~~
+  **Closed (2026-08-24).** `EquipmentItem` carries the profile id when the plan
+  element named one, and `catalogueUnitWeightKg` matches on it before falling
+  back to brand-and-model strings. The strings fail as soon as two profiles
+  share a model name, a custom profile is renamed, or a manifest row's display
+  name drifts. An id that matches nothing — a deleted profile — falls through
+  to the name match rather than reporting the fixture as weightless.
 - **No end-to-end layer.** Rendering, layout and the download path are
   untested, and the Resolve import remains a manual gate. Playwright would
   cover the first two; it is a real dependency and therefore a decision.

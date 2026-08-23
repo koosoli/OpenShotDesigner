@@ -869,6 +869,15 @@ export interface EquipmentItem {
   notes?: string;
   isCustom?: boolean;
   elementId?: string; // Links to canvas element if overridden
+  /**
+   * The catalogue fixture this row came from, when the plan element named one.
+   *
+   * Downstream consumers (the load list's weight lookup) otherwise have only
+   * brand and model strings to match on, which fails as soon as two profiles
+   * share a model name or a user renames one. An id is the fact; the strings
+   * are a description of it.
+   */
+  fixtureProfileId?: string;
   isPackage?: boolean; // Whether this item is an expandable kit/package
   packageItems?: EquipmentPackageItem[]; // Nested accessories (batteries, cards, monitors, follow focus, etc.)
 }

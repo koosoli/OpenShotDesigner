@@ -232,6 +232,9 @@ export const LogisticsPanel: React.FC = () => {
       name: item.name,
       brand: item.brand,
       model: item.model,
+      // Carried through: the weight lookup matches by catalogue id first, and
+      // dropping it here would silently send it back to string matching.
+      fixtureProfileId: item.fixtureProfileId,
       quantity: item.maxConcurrentQuantity,
     }));
   }, [packScope, activeSetup, project.setups]);
