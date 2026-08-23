@@ -81,7 +81,15 @@ export const subscribeSaveState = (
 type Backend = 'indexeddb' | 'localstorage';
 
 let backend: Backend = 'localstorage';
-let initialized = false;
+/**
+ * Resolves once {@link initProjectLibrary} has decided which backend to use.
+ * Null until it is first called — a caller that never initialises the library
+ * keeps the localStorage default, which is the historical behaviour and what
+ * makes this safe to add.
+ */
+let backendChosen: Promise<void> | null = null;
+let announceBackendChosen: (() => void) | null = null;
+let backendDecided = false;
 
 /** In-memory mirror — the synchronous source of truth for reads. */
 const memory = new Map<string, Project>();
@@ -131,7 +139,26 @@ const lsReadJson = <T,>(key: string): T | null => {
   }
 };
 
+/**
+ * Write a project to whichever backend is in use.
+ *
+ * Deferred while initialisation is still deciding. Writing before then would
+ * land in localStorage even on a browser that has IndexedDB — and the
+ * localStorage library is imported into IndexedDB exactly once, guarded by
+ * `lsImportedV1`, so anything written there after that import has run is never
+ * read again. Today `main.tsx` renders inside init's `.finally()`, so the
+ * window does not exist in production; this makes that a property of the
+ * library rather than of the order two files happen to run in.
+ */
 const persistProject = (project: Project): void => {
+  if (!backendDecided && backendChosen) {
+    trackWrite(backendChosen.then(() => persistProjectNow(project)));
+    return;
+  }
+  persistProjectNow(project);
+};
+
+const persistProjectNow = (project: Project): void => {
   if (backend === 'indexeddb') {
     trackWrite(idbPut(STORE_PROJECTS, project.id, project));
   } else {
@@ -145,6 +172,14 @@ const persistProject = (project: Project): void => {
 };
 
 const persistDelete = (id: string): void => {
+  if (!backendDecided && backendChosen) {
+    trackWrite(backendChosen.then(() => persistDeleteNow(id)));
+    return;
+  }
+  persistDeleteNow(id);
+};
+
+const persistDeleteNow = (id: string): void => {
   if (backend === 'indexeddb') {
     trackWrite(idbDelete(STORE_PROJECTS, id));
   } else {
@@ -258,10 +293,32 @@ export const newProjectId = () => createId('proj');
  * localStorage fallback), importing any pre-existing localStorage library
  * exactly once. Must be awaited once at application startup.
  */
-export const initProjectLibrary = async (): Promise<void> => {
-  if (initialized) return;
-  initialized = true;
+let initPromise: Promise<void> | null = null;
 
+export const initProjectLibrary = async (): Promise<void> => {
+  if (initPromise) return initPromise;
+  backendChosen = new Promise<void>((resolve) => {
+    announceBackendChosen = resolve;
+  });
+  initPromise = decideBackendAndHydrate();
+  return initPromise;
+};
+
+/**
+ * Announce the backend the moment it is known — before hydration and the
+ * one-time legacy import, not after.
+ *
+ * Deferred writes wait on this, and hydration itself awaits
+ * `flushPendingWrites()`. Releasing them only at the end would mean init
+ * waiting on writes that are waiting on init: a deadlock that hangs every save
+ * issued during startup.
+ */
+const markBackendDecided = () => {
+  backendDecided = true;
+  announceBackendChosen?.();
+};
+
+const decideBackendAndHydrate = async (): Promise<void> => {
   const useIdb =
     isIndexedDbAvailable() &&
     await openWorkspaceDb()
@@ -270,6 +327,7 @@ export const initProjectLibrary = async (): Promise<void> => {
 
   if (useIdb) {
     backend = 'indexeddb';
+    markBackendDecided();
     try {
       const stored = await idbGetAllValues<Project>(STORE_PROJECTS);
       stored.forEach((project) => {
@@ -299,6 +357,8 @@ export const initProjectLibrary = async (): Promise<void> => {
       backend = 'localstorage';
     }
   }
+
+  markBackendDecided();
 
   // localStorage fallback hydration.
   const summaries = lsReadJson<ProjectSummary[]>(LIBRARY_KEY) || [];
