@@ -1,4 +1,6 @@
 import { ScriptElementType, ScriptLine } from '../../types';
+import { parseFountainTitlePage, serializeFountainTitlePage } from '../../domain/script';
+import type { ScreenplayTitlePage } from '../../domain/script';
 
 /**
  * Screenplay import + classification.
@@ -73,6 +75,16 @@ const isUpper = (text: string) => {
   const letters = text.replace(/[^A-Za-z]/g, '');
   return letters.length > 0 && text === text.toUpperCase();
 };
+
+/**
+ * The cover of an imported screenplay, when it has one.
+ *
+ * The block used to be stripped and thrown away, so a script that arrived with
+ * its title, author and draft on the front lost all three at the door — and the
+ * export invented "Author: CinePlan" in their place.
+ */
+export const parseScreenplayTitlePage = (raw: string): ScreenplayTitlePage | null =>
+  parseFountainTitlePage(raw);
 
 /** Drop the fountain/plain-text title page block so it doesn't pollute the body. */
 const stripTitlePage = (rawLines: string[]): string[] => {
@@ -300,11 +312,17 @@ export const formatParenthetical = (text: string): string => {
 /**
  * Serialize typed script lines to clean Fountain plain text format.
  */
-export const serializeToFountain = (lines: ScriptLine[], title?: string): string => {
+export const serializeToFountain = (
+  lines: ScriptLine[],
+  title?: string,
+  titlePage?: ScreenplayTitlePage,
+): string => {
   const out: string[] = [];
-  if (title) {
-    out.push(`Title: ${title}\nCredit: Written by\nAuthor: CinePlan\n\n===\n\n`);
-  }
+  // The production's own cover when it has one. Failing that the title alone —
+  // never an invented author, which is what this used to write.
+  const cover = serializeFountainTitlePage(titlePage, title);
+  if (cover) out.push(cover);
+  else if (title) out.push(`Title: ${title}\n\n===\n\n`);
 
   let prevType: ScriptElementType | undefined;
 

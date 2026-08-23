@@ -21,6 +21,16 @@ const LAYOUT: Record<ScriptElementType, { left: number; width: number; className
 };
 
 export const LANE_WIDTH = 26;
+
+/**
+ * The gap between the text column and the first lining lane, in ems.
+ *
+ * It is the page's right margin, and the scene number that prints on that side
+ * lives in it — a numbered production draft carries the number in both margins.
+ * Without the gap the number landed on top of lane one, because the lanes hang
+ * off exactly the edge the number is measured from.
+ */
+export const RIGHT_MARGIN_EM = 2.2;
 export const PAGE_COLUMNS = 62; // 60 text columns + a little breathing room
 
 /** Zigzag (squiggle) used where a subject drops out of frame during the shot. */
@@ -307,7 +317,11 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
         maxWidth: print ? '100%' : `${PAGE_COLUMNS * 0.65 + (Math.max(laneCount, 1) * LANE_WIDTH / Math.max(fontSize, 10)) + 4}em`,
         padding: `${fontSize}px`,
         paddingLeft: `${fontSize * 2.2}px`,
-        paddingRight: `${fontSize * 0.8 + Math.max(laneCount, 1) * LANE_WIDTH}px`,
+        // A right margin the mirror of the left one, so the scene number that
+        // prints on that side has somewhere to sit. Without it the number
+        // landed on the first lining lane whenever the panel was narrower
+        // than the 60-column page.
+        paddingRight: `${fontSize * RIGHT_MARGIN_EM + Math.max(laneCount, 1) * LANE_WIDTH}px`,
         paddingBottom: `${fontSize * 3}px`,
       }}
     >
@@ -363,10 +377,19 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                 maxWidth: `${layout.width}ch`,
               }}
             >
+              {/* A numbered production draft carries the scene number in BOTH
+                  margins — that is how a shooting script is read, from either
+                  side of the page. The right-hand one sits between the 60-column
+                  text block and the lining lanes. */}
               {line.isSceneHeading && line.sceneNumber && (
-                <span className="absolute font-bold opacity-70" style={{ left: '-2.6ch', fontSize: '0.85em' }}>
-                  {line.sceneNumber}
-                </span>
+                <>
+                  <span className="absolute font-bold opacity-70" style={{ left: '-2.6ch', fontSize: '0.85em' }}>
+                    {line.sceneNumber}
+                  </span>
+                  <span aria-hidden className="absolute font-bold opacity-70" style={{ right: '-2.6ch', fontSize: '0.85em' }}>
+                    {line.sceneNumber}
+                  </span>
+                </>
               )}
               <span
                 data-line-text
@@ -449,7 +472,13 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
               <div
                 key={mark.id}
                 className={`absolute group ${print ? '' : 'pointer-events-auto'}`}
-                style={{ top, height, right: -(lane + 1) * LANE_WIDTH, width: LANE_WIDTH }}
+                style={{
+                  top,
+                  height,
+                  // Pushed out past the right margin so the scene number has it.
+                  right: -(lane + 1) * LANE_WIDTH - fontSize * RIGHT_MARGIN_EM,
+                  width: LANE_WIDTH,
+                }}
               >
                 {/* Slanted description, the way it is written on a lined script */}
                 {description && (

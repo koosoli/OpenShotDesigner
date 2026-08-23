@@ -30,6 +30,13 @@ export {
 } from './breakdownTags';
 export type { BreakdownCategoryGroup, BreakdownSourceLine } from './breakdownTags';
 export {
+  hasTitlePageContent,
+  parseFountainTitlePage,
+  resolveTitlePage,
+  serializeFountainTitlePage,
+} from './titlePage';
+export type { ResolvedTitlePage, ScreenplayTitlePage } from './titlePage';
+export {
   assignMissingSceneNumbers,
   hasProductionSceneNumbers,
   insertedSceneNumber,

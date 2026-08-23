@@ -39,6 +39,8 @@ import { RoadLayer } from '../canvas/RoadLayer';
 import { WallLayer } from '../canvas/WallLayer';
 import { StoryboardThumbLayer } from '../canvas/StoryboardThumbLayer';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
+import { TitlePageView } from '../script/TitlePageView';
+import { hasTitlePageContent } from '../../domain/script';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
 import { slotsOf, boardedFrames, visibleStoryboardSlots } from '../../utils/storyboardFrames';
 import { effectiveMovement } from '../../utils/cameraMovement';
@@ -1988,6 +1990,11 @@ export const PrintableShotPlan: React.FC = () => {
                     </p>
                   ) : (
                     <div className="border border-slate-300 rounded-lg p-3 bg-white">
+                      {/* The cover, when the production has asked for one. It is
+                          a page of its own, so it breaks before the script. */}
+                      {project.titlePage?.enabled && hasTitlePageContent(project.titlePage, project.scriptTitle) && (
+                        <TitlePageView page={project.titlePage} fallbackTitle={project.scriptTitle} fontSize={11} print isLight />
+                      )}
                       {printedScriptLines.length === 0 ? (
                         <p className="text-xs text-slate-500 p-3">
                           Nothing is lined yet — line a shot in the Script panel, or switch to “Full screenplay”.

@@ -922,6 +922,12 @@ export interface Project {
   scriptText?: string;
   scriptLines?: ScriptLine[];
   /**
+   * The screenplay's cover: title, credit, author, draft and contact block,
+   * using Fountain's standard title-page keys so an import and an export
+   * round-trip. Absent = no cover is printed.
+   */
+  titlePage?: import('../domain/script').ScreenplayTitlePage;
+  /**
    * Scene numbers are production numbers. Absent or false: headings are
    * numbered by position and renumbered on every edit. True: every heading
    * keeps its number, inserts become 3A/3B, removals leave gaps — the state a

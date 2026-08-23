@@ -33,6 +33,7 @@ import {
 import { createId } from '../domain/ids';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
+import type { ScreenplayTitlePage } from '../domain/script';
 import { removeSetupReferences, removeShotReferences } from '../domain/integrity';
 import { applyMediaReplacements, migrateProjectMedia } from '../utils/projectMedia';
 import {
@@ -230,7 +231,9 @@ interface FloorPlanContextType {
   /** Write a lining's description onto both the mark and its shot in one step. */
   setLiningDescription: (markId: string, text: string) => void;
   deleteScriptMark: (markId: string, options?: { deleteShot?: boolean }) => void;
-  setScriptLines: (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string }) => void;
+  setScriptLines: (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string; titlePage?: ScreenplayTitlePage }) => void;
+  /** Edit the screenplay's cover; merges, so one field at a time is fine. */
+  setTitlePage: (updates: Partial<ScreenplayTitlePage>) => void;
   /** Lock the current numbers as production numbers, or return to numbering by position. */
   setSceneNumbersLocked: (locked: boolean) => void;
   /** Audio-Visual (AV) 2-column commercial / documentary script rows. */
@@ -2487,7 +2490,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * strips: affected scene blocks are stamped with an `omittedLabel` and stay
    * visible as OMITTED until the user deletes them.
    */
-  const setScriptLines = (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string }) => {
+  const setScriptLines = (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string; titlePage?: ScreenplayTitlePage }) => {
     const ids = new Set(lines.map((line) => line.id));
     setProject((prev) => {
       // Scene numbers follow the project's regime (domain/script/numbering.ts).
@@ -2528,6 +2531,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...prev,
         scriptTitle: meta?.scriptTitle ?? prev.scriptTitle,
         scriptText: meta?.scriptText ?? prev.scriptText,
+        // An imported cover belongs to the draft that just arrived; when the
+        // file carries none the existing one is kept rather than blanked.
+        titlePage: meta?.titlePage ?? prev.titlePage,
         scriptLines: numbered,
         sceneNumbersLocked: locked,
         scriptScenes: newScenes,
@@ -2564,9 +2570,14 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  /** The screenplay's cover. Merged, so the editor can write one field at a time. */
+  const setTitlePage = (updates: Partial<ScreenplayTitlePage>) => {
+    updateProjectMeta((prev) => ({ titlePage: { ...(prev.titlePage ?? {}), ...updates } }));
+  };
+
   /**
+   * Locking stamps every heading with its current number so nothing shifts
    * again; unlocking renumbers by position. Both go through `setScriptLines`
-   * again; unlocking renumbers by position. Both go through 
    * so the derived scene list, strips and omission labels follow.
    */
   const setSceneNumbersLocked = (locked: boolean) => {
@@ -4223,6 +4234,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         deleteScriptMark,
         setScriptLines,
         setSceneNumbersLocked,
+        setTitlePage,
         avScriptRows,
         setAVScriptRows,
         updateAVScriptRow,

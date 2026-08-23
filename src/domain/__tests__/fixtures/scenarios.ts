@@ -58,7 +58,7 @@ const BASE_PROJECT: Omit<Project, 'id' | 'title' | 'setups' | 'activeSetupId'> =
   director: '',
   cinematographer: '',
   date: '2026-09-01',
-  schemaVersion: 21,
+  schemaVersion: 22,
   avScriptRows: [],
 };
 
