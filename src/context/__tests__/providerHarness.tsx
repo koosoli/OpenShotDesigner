@@ -50,8 +50,17 @@ export const resetStorage = async () => {
  * The provider restores from storage asynchronously; `waitFor` lets that
  * finish so a test never races the first paint.
  */
-export const mountProvider = async () => {
-  await resetStorage();
+export interface MountOptions {
+  /**
+   * Keep whatever is already in storage instead of wiping it. Used by the
+   * autosave/recovery tests, which need a second mount to see what the first
+   * one persisted — the equivalent of the user closing the tab and coming back.
+   */
+  preserveStorage?: boolean;
+}
+
+export const mountProvider = async ({ preserveStorage = false }: MountOptions = {}) => {
+  if (!preserveStorage) await resetStorage();
   // A fresh module registry per test. `projectLibrary` keeps the open project
   // in a module-level Map behind an `initialized` flag, and `idb` memoises its
   // connection promise, so wiping IndexedDB alone leaves the previous test's
