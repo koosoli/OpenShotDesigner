@@ -46,7 +46,7 @@ import type {
 } from '../../domain/reports';
 import type { Location } from '../../domain/locations';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
-import { castFilterForDay, deriveCallSheet } from '../../domain/reports';
+import { buildStripContextResolver, castFilterForDay, deriveCallSheet } from '../../domain/reports';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { StripboardPrintView } from '../reports/StripboardPrintView';
 import type { PrintableStripboardDay } from '../reports/StripboardPrintView';
@@ -119,6 +119,15 @@ export const SchedulePanel: React.FC = () => {
   // Scene / setup / segment / shot display names, derived once in the domain
   // so the workspace and the exporter label strips identically.
   const labelCtx = useMemo(() => buildStripboardLabelContext(project), [project]);
+  // Scene number and location per strip, so the sheet can be read by scene.
+  const stripContext = useMemo(
+    () => buildStripContextResolver({
+      scriptScenes: project.scriptScenes,
+      locations: project.locations,
+      setups: project.setups,
+    }),
+    [project.scriptScenes, project.locations, project.setups],
+  );
 
   // Mount the hidden print document, let the browser paint it, print, then
   // unmount. Covers the per-day call sheet and the whole-view printouts.
@@ -336,6 +345,7 @@ export const SchedulePanel: React.FC = () => {
       resolveSetupLabel: (id) => labelCtx.setupNames.get(id),
       resolveSegmentLabel: (id) => labelCtx.segmentNames.get(id),
       resolveShotLabel: (ids) => ids.map((id) => labelCtx.shotNames.get(id)).filter((label): label is string => Boolean(label)).join(' + ') || undefined,
+      resolveStripContext: stripContext,
     });
   };
 

@@ -11,6 +11,7 @@ import type { CallSheetDaylight } from './callSheetSun';
 import { deriveDepartmentHeads } from './departmentHeads';
 import { resolveStandingCallSheet } from './standingCallSheet';
 import type { StandingCallSheet } from './standingCallSheet';
+import type { StripContext } from './stripContext';
 import type { CallSheetDepartmentHead } from './departmentHeads';
 import type { Person } from '../people';
 import type { ProductionDay, ScheduleBlock } from '../scheduling';
@@ -36,6 +37,10 @@ export interface CallSheetCompanyInfo {
 export interface CallSheetEntry {
   label: string;
   kind: ScheduleBlock['kind'];
+  /** Scene number this strip belongs to — the key the whole sheet is read by. */
+  sceneNumber?: string;
+  /** Where this strip shoots; canonical name when linked, the set name otherwise. */
+  location?: string;
   estimatedMinutes?: number;
   /** Derived clock time. Unknown after the first block without a duration. */
   scheduledStart?: string;
@@ -171,6 +176,8 @@ export interface DeriveCallSheetInput {
   resolveSegmentLabel?: (segmentId: string) => string | undefined;
   resolveCueLabel?: (cueId: string) => string | undefined;
   resolveShotLabel?: (shotIds: string[]) => string | undefined;
+  /** Scene number and location per strip — see `stripContext.ts`. */
+  resolveStripContext?: (block: ScheduleBlock) => StripContext | undefined;
   /** The following shooting day, for the look-ahead block. */
   nextDay?: {
     day: ProductionDay;
@@ -237,6 +244,13 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
 
   let runningMinutes = parseClockMinutes(day.crewCall);
   const schedule: CallSheetEntry[] = scheduled.map((block) => {
+    const entry = entryFor(block);
+    // Scene and location ride alongside the label, never inside it, so the
+    // sheet can give them their own columns.
+    return { ...entry, ...(input.resolveStripContext?.(block) ?? {}) };
+  });
+
+  function entryFor(block: ScheduleBlock): CallSheetEntry {
     const scheduledStart = runningMinutes === null ? undefined : formatClockMinutes(runningMinutes);
     const duration = minutesOf(block);
     if (runningMinutes !== null) runningMinutes = duration === undefined ? null : runningMinutes + duration;
@@ -275,7 +289,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
       case 'manual':
         return { label: block.label, kind: block.kind, estimatedMinutes: block.estimatedMinutes, scheduledStart };
     }
-  });
+  }
 
   for (const entry of schedule) {
     if (entry.estimatedMinutes === undefined) {

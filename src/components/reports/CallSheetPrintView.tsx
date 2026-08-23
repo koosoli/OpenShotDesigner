@@ -248,7 +248,9 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
               <tr>
                 <th className="num">#</th>
                 <th style={{ width: '14mm' }}>Start</th>
+                <th className="num" style={{ width: '10mm' }}>Sc.</th>
                 <th>Item</th>
+                <th style={{ width: '32mm' }}>Location</th>
                 <th style={{ width: '18mm' }}>Type</th>
                 <th className="num">Est.</th>
               </tr>
@@ -258,10 +260,14 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                 <tr key={`entry-${i}`} className={entry.omitted ? 'cs-omitted' : undefined}>
                   <td className="num">{i + 1}</td>
                   <td className="time">{entry.scheduledStart ?? '—'}</td>
+                  {/* The scene number is the key a call sheet is read by, so it
+                      gets its own column rather than living inside the label. */}
+                  <td className="num">{entry.sceneNumber ?? ''}</td>
                   <td className={entry.unresolved ? 'cs-unresolved' : undefined}>
                     <span className="cs-item-label">{entry.label}</span>
                     {entry.omitted && <span className="cs-badge">Omitted</span>}
                   </td>
+                  <td>{entry.location ?? ''}</td>
                   <td><span className="cs-kind" style={{ '--tone': KIND_TONES[entry.kind] } as React.CSSProperties}>{KIND_LABELS[entry.kind]}</span></td>
                   <td className="num">{formatMinutes(entry.estimatedMinutes)}</td>
                 </tr>

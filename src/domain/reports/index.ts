@@ -46,6 +46,8 @@ export type {
   StandingCallSheet,
   StandingCallSheetField,
 } from './standingCallSheet';
+export { buildStripContextResolver } from './stripContext';
+export type { StripContext, StripContextSources } from './stripContext';
 export { deriveDood } from './dood';
 export type {
   DoodCell,
