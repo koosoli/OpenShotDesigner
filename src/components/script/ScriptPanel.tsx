@@ -10,6 +10,8 @@ import {
   FileText,
   ImagePlus,
   Layers,
+  Lock,
+  LockOpen,
   Minus,
   PenTool,
   Plus,
@@ -157,6 +159,7 @@ export const ScriptPanel: React.FC = () => {
     setLiningDescription,
     deleteScriptMark,
     setScriptLines,
+    setSceneNumbersLocked,
     avScriptRows,
     setAVScriptRows,
     updateAVScriptRow,
@@ -173,6 +176,7 @@ export const ScriptPanel: React.FC = () => {
 
   const isLight = theme === 'light';
   const lines = scriptLines;
+  const sceneNumbersLocked = project.sceneNumbersLocked === true;
   const marks = allScriptMarks;
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -620,9 +624,9 @@ export const ScriptPanel: React.FC = () => {
         lineNumber: index + 2,
         text: '',
         type: nextType,
-        sceneNumber: nextType === 'scene'
-          ? String((parseInt(line.sceneNumber || '1', 10) || 1) + 1)
-          : line.sceneNumber,
+        // A new heading arrives unnumbered: the numbering regime gives it 3A
+        // when locked, or its position when not (domain/script/numbering.ts).
+        sceneNumber: nextType === 'scene' ? undefined : line.sceneNumber,
         isSceneHeading: nextType === 'scene',
       };
 
@@ -652,7 +656,7 @@ export const ScriptPanel: React.FC = () => {
       lineNumber: lines.length + 1,
       text: defaultText,
       type,
-      sceneNumber: last?.sceneNumber || '1',
+      sceneNumber: type === 'scene' ? undefined : last?.sceneNumber,
       isSceneHeading: type === 'scene',
     };
     setScriptLines([...lines, newLine]);
@@ -908,6 +912,32 @@ export const ScriptPanel: React.FC = () => {
               </button>
             )}
 
+            {/* The numbering regime (domain/script/numbering.ts). Locking is the
+                moment a script's numbers become the ones every department
+                refers to; unlocking renumbers, so it asks first. */}
+            {activeTab === 'screenplay' && lines.length > 0 && (
+              <button
+                onClick={() => {
+                  if (
+                    sceneNumbersLocked &&
+                    !window.confirm('Unlock scene numbers? Every scene is renumbered by position (1, 2, 3 …), so any breakdown, strip or call sheet that quotes a number may no longer match.')
+                  ) return;
+                  setSceneNumbersLocked(!sceneNumbersLocked);
+                }}
+                title={sceneNumbersLocked
+                  ? 'Scene numbers are LOCKED production numbers: a scene added between 3 and 4 becomes 3A, an omitted scene keeps its number, a removed one leaves a gap. Click to unlock and renumber by position.'
+                  : 'Scene numbers follow position and shift when scenes are added or removed. Lock them before breakdown and scheduling so every department refers to the same numbers.'}
+                className={`h-7 px-2 rounded-lg border text-[10px] font-semibold flex items-center gap-1 ${
+                  sceneNumbersLocked
+                    ? isLight ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-amber-600/60 bg-amber-950/40 text-amber-300'
+                    : isLight ? 'border-slate-300 bg-white text-slate-600' : 'border-slate-700 bg-slate-900 text-slate-300'
+                }`}
+              >
+                {sceneNumbersLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+                {sceneNumbersLocked ? 'Numbers locked' : 'Lock scene numbers'}
+              </button>
+            )}
+
             {activeTab !== 'reports' && <div className={`flex items-center rounded-lg border ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
               <button onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))} className="px-1.5 py-1.5" title="Smaller font">
                 <Minus className="w-3 h-3" />
@@ -1155,11 +1185,19 @@ export const ScriptPanel: React.FC = () => {
                                   <SetLocationLink setName={parseSceneHeading(line.text || '').location as string} isLight={isLight} compact />
                                 </span>
                               )}
-                              {line.sceneNumber && (
-                                <span className="text-[10px] text-amber-500 font-mono ml-2 opacity-70">
+                              {sceneNumbersLocked ? (
+                                <input
+                                  value={line.sceneNumber ?? ''}
+                                  onChange={(e) => setScriptLines(lines.map((l) => (l.id === line.id ? { ...l, sceneNumber: e.target.value.toUpperCase() } : l)))}
+                                  aria-label="Production scene number"
+                                  title="Production scene number — locked, so it never shifts; edit it by hand here"
+                                  className={`w-12 ml-2 text-[10px] text-center font-mono rounded border outline-none ${isLight ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-amber-700/60 bg-amber-950/40 text-amber-300'}`}
+                                />
+                              ) : line.sceneNumber ? (
+                                <span className="text-[10px] text-amber-500 font-mono ml-2 opacity-70" title="Numbered by position; lock the numbers before scheduling">
                                   #{line.sceneNumber}#
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           ) : line.type === 'parenthetical' ? (
                             <div className="text-sky-300 italic flex items-center">

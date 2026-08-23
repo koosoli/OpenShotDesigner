@@ -29,3 +29,13 @@ export {
   updateBreakdownItem,
 } from './breakdownTags';
 export type { BreakdownCategoryGroup, BreakdownSourceLine } from './breakdownTags';
+export {
+  assignMissingSceneNumbers,
+  hasProductionSceneNumbers,
+  insertedSceneNumber,
+  normaliseSceneNumbers,
+  parseSceneNumber,
+  propagateSceneNumbers,
+  renumberScenes,
+} from './numbering';
+export type { NumberableLine } from './numbering';

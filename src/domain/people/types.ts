@@ -61,8 +61,15 @@ export interface Person {
   /** Optional contact-sheet fields (plan §4.5); absent = unknown, never blank-filled. */
   company?: string;
   address?: string;
-  /** Free text such as "€450/day" — never parsed into money math. */
+  /** Free text such as "€450/day" — never parsed into money math; kept for notes like "+ overtime after 10h". */
   rate?: string;
+  /**
+   * The structured rate the budget prices this person by: amount, whether it
+   * is per day, per week or a flat fee, and the VAT on top (absent = the
+   * production's default). Absent means unpriced, which the budget reports
+   * rather than reading as free (rule 13).
+   */
+  rateCard?: import('../budget/types').RateCard;
   emergencyContact?: string;
   /**
    * Lodging for an away shoot. All optional and independent: a production may

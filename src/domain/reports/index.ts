@@ -59,3 +59,5 @@ export type {
 } from './dood';
 export { castFilterForDay, castPersonIdsForDay, charactersScheduledOn } from './dayCast';
 export type { DayCastSources } from './dayCast';
+export { countNeedDays, deriveDayNeeds, equipmentKey, equipmentLabel, setupIdsScheduledOn } from './dayNeeds';
+export type { DayNeeds, DayNeedsEquipment, DeriveDayNeedsInput } from './dayNeeds';

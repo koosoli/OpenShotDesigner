@@ -32,6 +32,7 @@ import {
 } from '../types';
 import { createId } from '../domain/ids';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
+import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
 import { removeSetupReferences, removeShotReferences } from '../domain/integrity';
 import { applyMediaReplacements, migrateProjectMedia } from '../utils/projectMedia';
 import {
@@ -230,6 +231,8 @@ interface FloorPlanContextType {
   setLiningDescription: (markId: string, text: string) => void;
   deleteScriptMark: (markId: string, options?: { deleteShot?: boolean }) => void;
   setScriptLines: (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string }) => void;
+  /** Lock the current numbers as production numbers, or return to numbering by position. */
+  setSceneNumbersLocked: (locked: boolean) => void;
   /** Audio-Visual (AV) 2-column commercial / documentary script rows. */
   avScriptRows: AVScriptRow[];
   setAVScriptRows: (rows: AVScriptRow[]) => void;
@@ -2484,9 +2487,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * visible as OMITTED until the user deletes them.
    */
   const setScriptLines = (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string }) => {
-    const numbered = lines.map((line, index) => ({ ...line, lineNumber: index + 1 }));
-    const ids = new Set(numbered.map((line) => line.id));
+    const ids = new Set(lines.map((line) => line.id));
     setProject((prev) => {
+      // Scene numbers follow the project's regime (domain/script/numbering.ts).
+      // A project that has never chosen one is decided by its script: numbers
+      // that are not simply positional — an imported production draft with a
+      // 12A in it — are kept, anything else is numbered by position.
+      const locked = prev.sceneNumbersLocked ?? hasProductionSceneNumbers(lines);
+      const numbered = normaliseSceneNumbers(
+        lines.map((line, index) => ({ ...line, lineNumber: index + 1 })),
+        locked,
+      );
       // Derive old/new scene lists so removed headings can be detected.
       //
       // The persisted characters MUST be passed in. `buildCharacterCatalog`
@@ -2517,6 +2528,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         scriptTitle: meta?.scriptTitle ?? prev.scriptTitle,
         scriptText: meta?.scriptText ?? prev.scriptText,
         scriptLines: numbered,
+        sceneNumbersLocked: locked,
         scriptScenes: newScenes,
         // Persist the merged catalog too: a character discovered by this edit
         // has a fresh id, and it has to be the SAME id next time or the scenes
@@ -2549,6 +2561,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       pendingSnapshotsRef.current.push(next);
       return next;
     });
+  };
+
+  /**
+   * again; unlocking renumbers by position. Both go through `setScriptLines`
+   * again; unlocking renumbers by position. Both go through 
+   * so the derived scene list, strips and omission labels follow.
+   */
+  const setSceneNumbersLocked = (locked: boolean) => {
+    setProject((prev) => {
+      const next = { ...prev, sceneNumbersLocked: locked };
+      pendingSnapshotsRef.current.push(next);
+      return next;
+    });
+    // Runs after the flag write above (state updates apply in order), so the
+    // regime `setScriptLines` reads from `prev` is already the new one.
+    setScriptLines(normaliseSceneNumbers(project.scriptLines || [], locked));
   };
 
   /**
@@ -4193,6 +4221,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setLiningDescription,
         deleteScriptMark,
         setScriptLines,
+        setSceneNumbersLocked,
         avScriptRows,
         setAVScriptRows,
         updateAVScriptRow,

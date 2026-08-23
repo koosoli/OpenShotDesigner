@@ -921,6 +921,14 @@ export interface Project {
   scriptTitle?: string;
   scriptText?: string;
   scriptLines?: ScriptLine[];
+  /**
+   * Scene numbers are production numbers. Absent or false: headings are
+   * numbered by position and renumbered on every edit. True: every heading
+   * keeps its number, inserts become 3A/3B, removals leave gaps — the state a
+   * script enters once breakdowns and schedules refer to its numbers. See
+   * domain/script/numbering.ts.
+   */
+  sceneNumbersLocked?: boolean;
   avScriptRows?: AVScriptRow[];
   scriptFormatMode?: ScriptFormatMode;
   director: string;
@@ -990,6 +998,12 @@ export interface Project {
   revisions?: ProjectRevision[];
   /** Multi-camera coverage plan (plan §15.3). Optional and absent-safe. */
   coverageMatrix?: import('../domain/scheduling').CoverageMatrix;
+  /**
+   * Budget inputs (v21): currency and VAT settings, equipment rates keyed by
+   * the master-list grouping, and hand-entered lines. People carry their own
+   * rate card. The budget itself is derived, never stored (rule 37).
+   */
+  budget?: import('../domain/budget').ProjectBudget;
 }
 
 export type ActiveTool =
