@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CameraElement, Shot, Vector2D } from '../../types';
 import { slotsOf } from '../../utils/storyboardFrames';
+import { useImageRefSrcs } from '../../utils/assetImages';
 
 interface StoryboardThumbProps {
   items: { camera: CameraElement; shot: Shot }[];
@@ -51,6 +52,10 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
           { x: slot.anchor.x + 110, y: slot.anchor.y - 60 + index * 20 },
       }))
   );
+
+  // Resolved once for every thumb on the plan; a data URL passes straight
+  // through, an asset id is fetched from the store.
+  const frameSrcs = useImageRefSrcs(thumbs.map(({ slot }) => slot.frame?.image));
 
   return (
     <g className="storyboard-thumb-layer">
@@ -162,8 +167,11 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
                 stroke={accent}
                 strokeWidth={1.5 / canvasScale}
               />
+              {/* SVG `<image>`, which is why the sweep that moved every `<img>`
+                  onto ProjectImage missed it: an asset id is not a URL, so a
+                  boarded thumb vanished from the plan on the next reload. */}
               <image
-                href={slot.frame!.image}
+                href={frameSrcs[slot.frame!.image] ?? undefined}
                 x={-thumbW / 2}
                 y={-thumbH / 2}
                 width={thumbW}

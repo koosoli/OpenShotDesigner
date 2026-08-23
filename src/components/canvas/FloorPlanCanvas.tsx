@@ -23,7 +23,7 @@ import {
 } from '../../types';
 import { boundsCenterOfPoints, boundsHalfExtentsOfPoints, findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
 import { ASPECT_RATIOS, CABLE_TYPES } from '../../constants/presets';
-import { boardedFrames, setFramePatch, START_SLOT } from '../../utils/storyboardFrames';
+import { boardedFrames, keyFrame, keyFrameImage, setFramePatch, START_SLOT } from '../../utils/storyboardFrames';
 import { ActorElementView } from './ActorElementView';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CameraElementView } from './CameraElementView';
@@ -2546,7 +2546,12 @@ export const FloorPlanCanvas: React.FC = () => {
                 .sort((a, b) => a.distance - b.distance)[0];
               if (!target || target.distance > 110) return;
               const shot = getShotForCamera(target.camera);
-              if (shot) updateShot(shot.id, { storyboardImage: image.url, storyboardFit: 'cover' });
+              // Through setFramePatch, not the retired `storyboardImage`
+              // field: writing that directly leaves `storyboardFrames` — which
+              // is what the thumb layer and the exports read — untouched.
+              if (shot) {
+                updateShot(shot.id, setFramePatch(shot, START_SLOT, { image: image.url, fit: 'cover' }));
+              }
             }}
           />
 
@@ -2925,12 +2930,17 @@ export const FloorPlanCanvas: React.FC = () => {
                 .sort((a, b) => a.distance - b.distance)[0];
               if (!target || target.distance > 110) return;
               const targetShot = getShotForCamera(target.camera);
-              if (targetShot && targetShot.id !== sourceShot.id && sourceShot.storyboardImage) {
+              // `keyFrameImage` rather than the retired field, which is now
+              // cleared on every frame write — so dragging a board between
+              // cameras had silently stopped working for any recently
+              // boarded shot.
+              const sourceImage = keyFrameImage(sourceShot);
+              if (targetShot && targetShot.id !== sourceShot.id && sourceImage) {
                 updateShot(
                   targetShot.id,
                   setFramePatch(targetShot, START_SLOT, {
-                    image: sourceShot.storyboardImage,
-                    fit: sourceShot.storyboardFit || 'cover',
+                    image: sourceImage,
+                    fit: keyFrame(sourceShot)?.fit || 'cover',
                   })
                 );
               }

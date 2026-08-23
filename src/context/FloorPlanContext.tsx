@@ -32,6 +32,7 @@ import {
 } from '../types';
 import { createId } from '../domain/ids';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
+import { removeSetupReferences, removeShotReferences } from '../domain/integrity';
 import { applyMediaReplacements, migrateProjectMedia } from '../utils/projectMedia';
 import {
   ACTOR_COLOR_PALETTE,
@@ -3258,10 +3259,25 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     });
 
-    setRecordedProject((prev) => ({
-      ...prev,
-      avScriptRows: (prev.avScriptRows || []).filter((r) => r.linkedShotId !== id),
-    }));
+    setRecordedProject((prev) => {
+      // Everything outside the owning setup that pointed at this shot: its
+      // schedule strip, and the script line it was lined for. Left behind,
+      // those rendered as an empty strip on the board and on every call sheet
+      // for that day, with nothing the user could do about it.
+      const cleaned = removeShotReferences(
+        {
+          scheduleBlocks: prev.scheduleBlocks,
+          productionDays: prev.productionDays,
+          scriptLines: prev.scriptLines,
+        },
+        id,
+      );
+      return {
+        ...prev,
+        ...cleaned,
+        avScriptRows: (prev.avScriptRows || []).filter((r) => r.linkedShotId !== id),
+      };
+    });
   };
 
   const reorderShots = (arg1: number | Shot[], arg2?: number) => {
@@ -3547,11 +3563,24 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const deleteSetup = (setupId: string) => {
     if (project.setups.length <= 1) return; // Keep at least one setup
     const remaining = project.setups.filter((s) => s.id !== setupId);
-    setRecordedProject((prev) => ({
-      ...prev,
-      setups: remaining,
-      activeSetupId: remaining[0].id,
-    }));
+    const shotIdsOnSetup = (project.setups.find((s) => s.id === setupId)?.shots ?? []).map((shot) => shot.id);
+    setRecordedProject((prev) => {
+      // Deleting a setup used to leave its schedule strip and the strips
+      // covering its shots behind, reading "Unresolved setup 8f3c…" on the
+      // board and on every call sheet for that day — permanently, and with no
+      // way to tell which strips were affected.
+      const cleaned = removeSetupReferences(
+        { scheduleBlocks: prev.scheduleBlocks, productionDays: prev.productionDays },
+        setupId,
+        shotIdsOnSetup,
+      );
+      return {
+        ...prev,
+        ...cleaned,
+        setups: remaining,
+        activeSetupId: remaining[0].id,
+      };
+    });
   };
 
   /**

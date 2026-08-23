@@ -18,6 +18,8 @@ export {
   removePowerCircuit,
   removePowerSource,
   removeRunOfShowCue,
+  removeSetupReferences,
+  removeShotReferences,
   removeTrussElement,
 } from './integrity';
 export type { CircuitReferences, CueReferences, TrussReferences } from './integrity';
