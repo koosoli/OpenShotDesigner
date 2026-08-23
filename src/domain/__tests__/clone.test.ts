@@ -228,6 +228,77 @@ describe('cloneProjectWithNewIds', () => {
     expect(clone.productionCalendarEvents?.[1].dependencyIds).toEqual([clone.productionCalendarEvents?.[0].id]);
   });
 
+  /**
+   * A take points at a shot and a production day. Left un-remapped it would
+   * reference the ORIGINAL project after a duplicate, so every take in the
+   * copy would read as orphaned — a record of footage belonging to no shot.
+   */
+  it('repoints continuity takes at the cloned shots and days', () => {
+    const project = buildProject();
+    const shotId = project.setups[0].shots[0].id;
+    project.productionDays = [
+      { id: 'day-orig', name: 'Day 1', date: '2026-09-01', scheduleBlockIds: [] },
+    ];
+    project.takes = [
+      {
+        id: 'take-orig',
+        shotId,
+        productionDayId: 'day-orig',
+        takeNumber: 1,
+        fileName: 'A001C001.mov',
+        keywords: ['Laptop'],
+        cameraOverrides: { iso: 800 },
+      },
+    ];
+
+    const clone = cloneProjectWithNewIds(project);
+    const take = clone.takes?.[0];
+
+    expect(take?.id).not.toBe('take-orig');
+    expect(take?.shotId).toBe(clone.setups[0].shots[0].id);
+    expect(take?.shotId).not.toBe(shotId);
+    expect(take?.productionDayId).toBe(clone.productionDays?.[0].id);
+    expect(take?.productionDayId).not.toBe('day-orig');
+    // Everything the user typed survives the copy.
+    expect(take?.fileName).toBe('A001C001.mov');
+    expect(take?.takeNumber).toBe(1);
+  });
+
+  it('copies take sub-objects rather than sharing them with the original', () => {
+    const project = buildProject();
+    project.takes = [
+      {
+        id: 'take-orig',
+        shotId: project.setups[0].shots[0].id,
+        takeNumber: 1,
+        keywords: ['Laptop'],
+        cameraOverrides: { iso: 800 },
+        slateOverrides: { location: 'OFFICE' },
+      },
+    ];
+    const clone = cloneProjectWithNewIds(project);
+
+    clone.takes?.[0].keywords?.push('John');
+    clone.takes![0].cameraOverrides!.iso = 1600;
+    clone.takes![0].slateOverrides!.location = 'COURT';
+
+    expect(project.takes[0].keywords).toEqual(['Laptop']);
+    expect(project.takes[0].cameraOverrides).toEqual({ iso: 800 });
+    expect(project.takes[0].slateOverrides).toEqual({ location: 'OFFICE' });
+  });
+
+  /**
+   * Audit item 11 recorded that `clone.ts` drops `riggingAssumptions`. It does
+   * not: the top-level spread carries it. Pinned so the claim is settled and
+   * cannot regress quietly.
+   */
+  it('carries the rigging assumptions onto the duplicate', () => {
+    const project = buildProject();
+    project.riggingAssumptions = { clampWeightKg: 1.2, safetyWeightKg: 0.4, cableAllowanceKg: 3 };
+    const clone = cloneProjectWithNewIds(project);
+    expect(clone.riggingAssumptions).toEqual(project.riggingAssumptions);
+  });
+
   it('two successive clones yield mutually disjoint ids', () => {
     const project = buildProject();
     const c1 = cloneProjectWithNewIds(project);

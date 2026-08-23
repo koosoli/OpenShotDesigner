@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { nextCameraLabel } from '../../domain/plan/cameraLabels';
 import { createPortal } from 'react-dom';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
@@ -233,14 +234,11 @@ export const ShotListPanel: React.FC = () => {
   };
 
   /** Letter the next new camera would take (A is the default first camera). */
-  const nextCameraLetter = (() => {
-    const used = new Set(cameras.map((c: any) => (c.cameraLabel || 'A').toUpperCase()));
-    for (let i = 0; i < 26; i += 1) {
-      const letter = String.fromCharCode(65 + i);
-      if (!used.has(letter)) return letter;
-    }
-    return 'Z';
-  })();
+  // The same rule the context uses when it actually creates the camera. This
+  // had its own loop that started at A rather than reserving it, so the letter
+  // offered in the dropdown could differ from the one you got — the label
+  // promising "A" while the new camera arrived as "C".
+  const nextCameraLetter = nextCameraLabel(cameras);
 
   const camPickerOptions: CamPickerOption[] = Array.from(camerasByLabel.values()).map((c: any) => ({
     id: c.id,

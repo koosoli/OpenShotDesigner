@@ -375,10 +375,18 @@ least footnoted on the printed sheet.
 7. **Revision snapshots still embed a whole project each.** Much less costly now
    that images are asset ids rather than base64, but a project with many named
    revisions is still heavy.
-8. **`addShot` can still mint a duplicate camera *letter*** in multi-camera mode
-   when two shots are added in the same batch. The shot number — which the
-   paperwork keys on — is fixed; the letter is cosmetic and would need the
-   camera element built inside the updater.
+8. ~~**`addShot` can still mint a duplicate camera *letter***~~ **Closed
+   (2026-08-24).** It was worse than "cosmetic": the letter reaches the
+   `Camera #` column of the Resolve metadata export, so two cameras sharing one
+   makes two setups claim to be the same camera in the media pool. The cause
+   was counting rather than reading — `String.fromCharCode(65 + cameras.length)`
+   is correct only while nothing is ever deleted, and with A and C on the plan
+   it proposes C again. Six call sites did that; two others had grown their own
+   correct loop, and `ShotListPanel` had a third variant that started at A
+   instead of reserving it, so the letter *offered* in the dropdown could differ
+   from the one you got. All nine now call `nextCameraLabel` in
+   `domain/plan/cameraLabels.ts`, which is unit-tested including the
+   deleted-in-the-middle case.
 9. **Asset-store ownership is capability, not cure.** Nothing in the app calls
    `release` or passes an owner yet, so the reference counting protects a path
    that is not yet walked. Wiring mood-board and headshot deletion to it is the
@@ -405,5 +413,41 @@ least footnoted on the printed sheet.
     `clone.ts` does not carry `riggingAssumptions`, so a cloned scenario falls
     back to the defaults.
 
-12. **Continuity reports and the shooting-day checklist** are specified and not
-    started — see [`handover-continuity-reports.md`](handover-continuity-reports.md).
+    **Correction (2026-08-24):** the second claim was wrong. `clone.ts` does
+    carry `riggingAssumptions` — the top-level spread in
+    `cloneProjectWithNewIds` covers it, and a regression test now pins that so
+    the question is settled rather than re-reported. The `fixtureProfileId`
+    item stands.
+
+12. ~~**Continuity reports and the shooting-day checklist** are specified and
+    not started.~~ **Built (2026-08-24), schema v24.** `domain/continuity/`
+    holds the take log, the derived shooting-day checklist and the DaVinci
+    Resolve metadata export; `ContinuityPanel` and `ContinuityPrintView` are
+    its screen and paper. The CSV header is asserted byte-for-byte against the
+    vendored template, and — the part tests cannot prove — **the import was
+    verified against a real Resolve media pool**, now a standing item in
+    [`regression-checklist.md`](regression-checklist.md).
+
+    Two decisions in [`handover-continuity-reports.md`](handover-continuity-reports.md)
+    were revised while building and the document records both, including the
+    reasoning that was wrong the first time.
+
+    Four defects were found during the build, and their distribution is the
+    useful finding: only one (the filename increment rule) was in pure domain
+    logic, where the unit tests caught it immediately. The other three lived at
+    the seam between component, domain and real project data — a crew column
+    exporting a job title because it read a legacy free-text field instead of
+    the crew list; a pickup silently joining the plan because a scheduled setup
+    expands to all its shots; and a controlled input that ate the comma you
+    typed. All three were found by driving the real app, not by the suite.
+
+13. **Component and end-to-end coverage** (opened 2026-08-24). The seam defects
+    above were the direct evidence: 1,400+ unit tests were green throughout,
+    because the domain functions they cover were correct. A first React Testing
+    Library layer now exists (`src/components/__tests__/`), behaviour-only by
+    rule so it survives the planned `FloorPlanContext` split, and each case
+    was mutation-tested — reintroducing the bug turns exactly one test red.
+    It covers the continuity seams only; the shot list, script lining and
+    equipment panels have none. There is still no end-to-end layer, so the
+    money path (block → schedule → export) is guarded only by
+    [`regression-checklist.md`](regression-checklist.md).

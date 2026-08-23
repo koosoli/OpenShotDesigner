@@ -82,6 +82,32 @@
 - [ ] Shot-list export; equipment CSV
 - [ ] Project JSON export/import round-trip
 
+## Continuity & DaVinci Resolve metadata
+
+The CSV's header row is asserted byte-for-byte against
+[`resolve-metadata-template.csv`](resolve-metadata-template.csv) in the unit
+tests, so a header regression fails CI. What the tests **cannot** prove is the
+other half of the contract: Resolve matching rows to clips. Both halves fail
+silently — Resolve reports a successful import and attaches nothing — so the
+round-trip stays a manual gate.
+
+Verified working against a real media pool on 2026-08-23 (first end-to-end
+confirmation; before that the import path was untested).
+
+- [ ] Log takes for a day, then fill file names via **Reconcile file names**
+      against the card's own listing
+- [ ] Export **Resolve CSV**, import in Resolve via
+      **Media Pool → right-click → Import Metadata…**
+- [ ] Open an individual clip's metadata and confirm Scene, Shot, Take and
+      Keywords are populated — do not trust the import dialog, it reports
+      success either way
+- [ ] Nothing populated anywhere → header mismatch. Populated but on the wrong
+      clips → file-name drift, not the CSV
+- [ ] Checklist ticks itself off from good takes; wrap gaps list shots never
+      shot and shots with no good take
+- [ ] A pickup logged on the day takes the next free number in the scene's own
+      convention and does not renumber anything already planned
+
 ## Build / deployment
 
 - [ ] `npm run build` succeeds at base `/`

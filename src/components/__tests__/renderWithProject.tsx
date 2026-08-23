@@ -1,0 +1,117 @@
+/**
+ * Harness for component tests.
+ *
+ * Renders a panel over a real, stateful stub of the floor-plan context rather
+ * than the whole `FloorPlanProvider`. The provider owns IndexedDB, sample
+ * content, history and 4k lines of unrelated state; none of that is under test
+ * here, and pulling it in would make these tests slow and make them fail for
+ * reasons that have nothing to do with the component.
+ *
+ * What the stub reproduces exactly is the part components actually depend on:
+ * `updateProjectMeta` merging a patch — or the result of a `(prev) => patch`
+ * updater — into the project. Getting that wrong caused a real bug (two
+ * mutations in one tick, the first silently dropped), so the stub uses the same
+ * functional-update semantics as the real provider.
+ *
+ * These tests are deliberately BEHAVIOUR-ONLY: render, interact through the DOM
+ * the way a user does, assert what is visible or what was persisted. Nothing
+ * here may assert props, callback shapes or context internals — those would be
+ * invalidated by the planned `FloorPlanContext` split and would make a safe
+ * refactor look dangerous, which is the opposite of what a test net is for.
+ */
+import React, { useMemo, useState } from 'react';
+import { render } from '@testing-library/react';
+import type { Project } from '../../types';
+
+type UpdateProjectMeta = (
+  updates: Partial<Project> | ((prev: Project) => Partial<Project>),
+) => void;
+
+interface FloorPlanDeps {
+  project: Project;
+  updateProjectMeta: UpdateProjectMeta;
+  theme: string;
+  openExportModal: (section?: string) => void;
+  activeSetup?: unknown;
+}
+
+/**
+ * The live stub, read by the mocked `useFloorPlan`. A module-level holder
+ * rather than a React context because the mock factory has to reach it from
+ * outside the tree.
+ */
+const holder: { deps: FloorPlanDeps | null; latest: Project | null; exportsOpened: string[] } = {
+  deps: null,
+  latest: null,
+  exportsOpened: [],
+};
+
+/** What the mocked `useFloorPlan` returns. */
+export const currentDeps = (): FloorPlanDeps => {
+  if (!holder.deps) throw new Error('renderWithProject has not run yet');
+  return holder.deps;
+};
+
+/** The project as it stands after the interactions so far. */
+export const currentProject = (): Project => {
+  if (!holder.latest) throw new Error('renderWithProject has not run yet');
+  return holder.latest;
+};
+
+/** Export sections the component asked to open. */
+export const exportsOpened = (): string[] => holder.exportsOpened;
+
+/**
+ * A minimal but honest project. Only the fields under test are set; every
+ * optional collection stays absent rather than empty, which is what a real
+ * project that has never used a feature looks like.
+ */
+export const projectFixture = (overrides: Partial<Project> = {}): Project =>
+  ({
+    title: 'Test Production',
+    director: '',
+    cinematographer: '',
+    date: '2026-08-23',
+    setups: [],
+    activeSetupId: '',
+    ...overrides,
+  }) as Project;
+
+/** Render a panel with a stateful project behind it. */
+export const renderWithProject = (element: React.ReactElement, initial: Project) => {
+  holder.latest = initial;
+  holder.exportsOpened = [];
+
+  const Host: React.FC = () => {
+    const [project, setProject] = useState<Project>(initial);
+    const deps = useMemo<FloorPlanDeps>(
+      () => ({
+        project,
+        // Same merge semantics as the real provider, functional form included.
+        updateProjectMeta: (updates) =>
+          setProject((prev) => {
+            const patch = typeof updates === 'function' ? updates(prev) : updates;
+            const next = { ...prev, ...patch };
+            holder.latest = next;
+            return next;
+          }),
+        theme: 'dark',
+        openExportModal: (section?: string) => {
+          holder.exportsOpened.push(section ?? '');
+        },
+        activeSetup: project.setups[0],
+      }),
+      [project],
+    );
+    // Assigned during the parent's render, so the child sees it on its own
+    // first render — React renders parent before child, synchronously.
+    holder.deps = deps;
+    // Cloned rather than returned as-is: React bails out of re-rendering a
+    // child whose element is referentially identical to the previous render,
+    // so handing back the same object would freeze the panel on its first
+    // paint and every interaction would silently do nothing on screen.
+    return React.cloneElement(element);
+  };
+
+  return render(<Host />);
+};

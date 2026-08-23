@@ -32,6 +32,7 @@ import {
   Vector2D,
 } from '../types';
 import { createId } from '../domain/ids';
+import { nextCameraLabel } from '../domain/plan/cameraLabels';
 import { useStableContextValue } from './stableContextValue';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
@@ -1270,7 +1271,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // keeps the default 'A' label (single-cam workflow: one physical camera,
       // many positions). Letters B, C, ... are only used in multi-cam mode or
       // when the user actively picks/creates another camera.
-      const camLetter = isMultiCam ? String.fromCharCode(65 + (existingCams.length % 26)) : 'A';
+      const camLetter = isMultiCam ? nextCameraLabel(existingCams) : 'A';
       const camColor = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
       const focal = partial.focalLength || 35;
       const sensor = partial.sensorFormat || 'Super35';
@@ -1952,9 +1953,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // In Single-Camera mode (default): Camera is 'A' across coverage setups.
     // In Multi-Camera mode: Each concurrent camera gets sequential letter A, B, C...
-    const nextCamLetter = isMultiCam 
-      ? String.fromCharCode(65 + (existingCameras.length % 26))
-      : 'A';
+    const nextCamLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
 
     let camId = shotData?.cameraId || '';
     let camLabel = shotData?.cameraLabel || nextCamLetter;
@@ -2081,7 +2080,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const shotIdx = activeSetup.shots.findIndex((s) => s.id === afterShotId);
     const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
     const isMultiCam = activeSetup.shootMode === 'multi_cam';
-    const nextCamLetter = isMultiCam ? String.fromCharCode(65 + (existingCameras.length % 26)) : 'A';
+    const nextCamLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
 
     const sceneNum = activeSetup.sceneNumber || '1';
     let targetShotNumber = `${sceneNum}/1B`;
@@ -2295,7 +2294,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
     const isMultiCam = activeSetup.shootMode === 'multi_cam';
-    const camLetter = isMultiCam ? String.fromCharCode(65 + (existingCameras.length % 26)) : 'A';
+    const camLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
     const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
     const spawnPos = getNewCameraPosition();
 
@@ -2768,7 +2767,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const shotId = newShotId();
     const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
     const isMultiCam = activeSetup.shootMode === 'multi_cam';
-    const camLetter = isMultiCam ? String.fromCharCode(65 + (existingCameras.length % 26)) : 'A';
+    const camLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
     const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
     const spawnPos = getNewCameraPosition();
     const camId = `cam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -2875,7 +2874,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
     const isMultiCam = activeSetup.shootMode === 'multi_cam';
-    const camLetter = isMultiCam ? String.fromCharCode(65 + (existingCameras.length % 26)) : 'A';
+    const camLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
     const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
     const spawnPos = getNewCameraPosition();
 
@@ -2941,18 +2940,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const createCameraOnly = (name: string, pos?: Vector2D): string => {
     const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
-    // Assign the first camera letter not currently in use (A is the shared
-    // default, so user-created cameras get B, C, ...) regardless of how many
-    // Camera A positions exist on the floor plan.
-    const usedLetters = new Set(existingCams.map((c) => (c.cameraLabel || 'A').toUpperCase()));
-    let camLetter = 'B';
-    for (let i = 0; i < 26; i++) {
-      const letter = String.fromCharCode(65 + i);
-      if (!usedLetters.has(letter)) {
-        camLetter = letter;
-        break;
-      }
-    }
+    // First letter not currently in use — A is the shared default, so
+    // user-created cameras get B, C, … however many Camera A positions exist.
+    const camLetter = nextCameraLabel(existingCams);
     const camColor = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
     const focal = 35;
     const sensor = 'Super35';
@@ -3178,15 +3168,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!owner) return '';
 
     const existingCams = owner.elements.filter((e) => e.type === 'camera') as CameraElement[];
-    const used = new Set(existingCams.map((cam) => (cam.cameraLabel || 'A').toUpperCase()));
-    let letter = 'B';
-    for (let i = 0; i < 26; i += 1) {
-      const candidate = String.fromCharCode(65 + i);
-      if (!used.has(candidate)) {
-        letter = candidate;
-        break;
-      }
-    }
+    const letter = nextCameraLabel(existingCams);
 
     const color = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
     const shot = owner.shots.find((item) => item.id === shotId);

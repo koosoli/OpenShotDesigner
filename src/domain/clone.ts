@@ -453,6 +453,34 @@ export const cloneProjectWithNewIds = (
     }
   }
 
+  // Continuity takes point at a shot and at a production day, both of which
+  // were just reissued. Carried through by the spread untouched they would
+  // reference the ORIGINAL project, so every take in the duplicate would read
+  // as orphaned — a log of footage that appears to belong to no shot.
+  if (project.takes) {
+    // Same-order zip, the idiom used for characters above: the collections are
+    // cloned positionally, so index i in one is index i in the other.
+    const dayIdMap = new Map<string, string>();
+    project.productionDays?.forEach((day, index) => {
+      const cloned = next.productionDays?.[index];
+      if (cloned) dayIdMap.set(day.id, cloned.id);
+    });
+
+    next.takes = project.takes.map((take) => ({
+      ...take,
+      id: createId('take'),
+      shotId: remapRequired(shotIdMap, take.shotId),
+      ...(take.productionDayId
+        ? { productionDayId: remap(dayIdMap, take.productionDayId) }
+        : {}),
+      // Copied, not shared: an edit in the duplicate must not reach back into
+      // the original's take.
+      ...(take.keywords ? { keywords: [...take.keywords] } : {}),
+      ...(take.cameraOverrides ? { cameraOverrides: { ...take.cameraOverrides } } : {}),
+      ...(take.slateOverrides ? { slateOverrides: { ...take.slateOverrides } } : {}),
+    }));
+  }
+
   // Named revisions capture the ORIGINAL project's state — they must not leak
   // into the duplicate (their snapshots reference foreign entity ids). Same
   // for the coverage matrix, which is keyed by cue ids that were just remapped.
