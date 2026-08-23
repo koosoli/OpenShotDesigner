@@ -8,3 +8,8 @@ coverage/
 *.local
 *.tsbuildinfo
 .claude/
+.opencode/
+.cursor/
+AGENTS.md
+CLAUDE.md
+GEMINI.md

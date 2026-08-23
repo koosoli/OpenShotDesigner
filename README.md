@@ -474,8 +474,7 @@ src/
 
 Business logic lives in `src/domain/` rather than in components, every persisted
 schema change ships a versioned migration with a fixture test, and missing
-technical data stays `unknown` instead of being substituted with `0`. See
-[`AGENTS.md`](AGENTS.md) for the full architectural rules.
+technical data stays `unknown` instead of being substituted with `0`.
 
 ## License
 
