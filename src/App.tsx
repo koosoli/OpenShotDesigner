@@ -57,6 +57,9 @@ const RiggingPanel = React.lazy(() =>
 const ContactsPanel = React.lazy(() =>
   import('./components/contacts/ContactsPanel').then((m) => ({ default: m.ContactsPanel })),
 );
+const BudgetPanel = React.lazy(() =>
+  import('./components/budget/BudgetPanel').then((module) => ({ default: module.BudgetPanel })),
+);
 const TaskBoardPanel = React.lazy(() =>
   import('./components/tasks/TaskBoardPanel').then((m) => ({ default: m.TaskBoardPanel })),
 );
@@ -67,11 +70,11 @@ const PanelFallback: React.FC = () => (
 );
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { useBreakpoint } from './utils/useMediaQuery';
-import { AlertTriangle, Zap, Package, ListOrdered, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, KanbanSquare, MapPin, Maximize2, Minimize2, Users } from 'lucide-react';
+import { AlertTriangle, Zap, Package, ListOrdered, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, KanbanSquare, Coins, MapPin, Maximize2, Minimize2, Users } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { deriveSceneEquipment } from './utils/equipmentList';
 
-type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'inspector';
+type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
 type WorkspaceGroup = 'creative' | 'production' | 'technical';
 
 const MainLayout: React.FC = () => {
@@ -143,6 +146,7 @@ const MainLayout: React.FC = () => {
     { id: 'run_of_show', group: 'production', label: 'Run of show', icon: ListOrdered, visible: isModuleVisible('run_of_show') },
     { id: 'contacts', group: 'production', label: 'Crew', icon: Users, count: project.people?.length || undefined, visible: isModuleVisible('contacts') },
     { id: 'tasks', group: 'production', label: 'Tasks', icon: KanbanSquare, count: project.tasks?.length || undefined, visible: isModuleVisible('tasks') },
+    { id: 'budget', group: 'production', label: 'Budget', icon: Coins, visible: isModuleVisible('budget') },
     { id: 'power', group: 'technical', label: 'Power', icon: Zap, visible: isModuleVisible('power') },
     { id: 'rigging', group: 'technical', label: 'Rigging', icon: Anchor, visible: isModuleVisible('rigging') },
     { id: 'inspector', group: 'technical', label: 'Inspector', icon: Sliders, visible: true },
@@ -195,7 +199,7 @@ const MainLayout: React.FC = () => {
   };
 
   const primaryModuleIds: WorkspaceModule[] = ['shots', 'storyboard', 'script', 'equipment', 'inspector'];
-  const productionToolIds: WorkspaceModule[] = ['schedule', 'locations', 'moodboard', 'contacts', 'tasks', 'logistics', 'run_of_show', 'power', 'rigging'];
+  const productionToolIds: WorkspaceModule[] = ['schedule', 'locations', 'moodboard', 'contacts', 'tasks', 'budget', 'logistics', 'run_of_show', 'power', 'rigging'];
   const activeProductionTool = workspaceModules.find((module) => module.id === activeRightTab && productionToolIds.includes(module.id));
 
   return (
@@ -287,7 +291,7 @@ const MainLayout: React.FC = () => {
                     {isProductionMenuOpen && <div className={`absolute top-10 right-0 z-50 w-64 rounded-xl border shadow-2xl p-2 ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700'}`}>
                       {([
                         ['Planning', ['schedule', 'locations', 'moodboard']],
-                        ['People & tasks', ['contacts', 'tasks']],
+                        ['People & money', ['contacts', 'tasks', 'budget']],
                         ['Operations', ['logistics', 'run_of_show']],
                         ['Technical', ['power', 'rigging']],
                       ] as Array<[string, WorkspaceModule[]]>).map(([label, ids]) => <section key={label} className="mb-2 last:mb-0"><div className={`px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>{ids.map((id) => workspaceModules.find((module) => module.id === id)).filter((module): module is NonNullable<typeof module> => Boolean(module?.visible)).map((module) => { const Icon = module.icon; return <button key={module.id} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} className={`w-full h-9 px-2 rounded-lg flex items-center gap-2 text-[11px] font-semibold ${activeRightTab === module.id ? 'bg-sky-600 text-white' : isLight ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-200 hover:bg-slate-800'}`}><Icon className="w-4 h-4" />{module.label}</button>; })}</section>)}
@@ -392,6 +396,8 @@ const MainLayout: React.FC = () => {
                 <ContactsPanel />
               ) : activeRightTab === 'tasks' ? (
                 <TaskBoardPanel />
+              ) : activeRightTab === 'budget' ? (
+                <BudgetPanel />
               ) : (
                 <InspectorPanel />
               )}

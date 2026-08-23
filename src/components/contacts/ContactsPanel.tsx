@@ -38,6 +38,8 @@ import {
 import { deriveScriptBreakdown } from '../../domain/script/logic';
 import { PersonAvatar } from './PersonAvatar';
 import { HeadshotField } from './HeadshotField';
+import { RateCardFields } from '../budget/RateCardFields';
+import { DEFAULT_BUDGET_SETTINGS } from '../../domain/budget';
 import { createId } from '../../domain/ids';
 
 const KIND_TINT: Record<PersonKind, string> = {
@@ -62,6 +64,8 @@ interface PersonFormProps {
 }
 
 const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCancel, onDelete, isLight }) => {
+  const { project } = useFloorPlan();
+  const budgetSettings = project.budget?.settings ?? DEFAULT_BUDGET_SETTINGS;
   const inputCls = `min-h-[34px] w-full rounded-md border px-2 py-1 text-xs outline-none ${
     isLight ? 'border-slate-300 bg-white text-slate-800 focus:border-sky-400' : 'border-slate-700 bg-slate-950 text-slate-200 focus:border-sky-500'
   }`;
@@ -131,7 +135,17 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
         {field('productionPhone', 'Production phone', 'Unit handset / SIM', 'tel')}
         {field('email', 'Email', 'name@example.com', 'email')}
         {field('company', 'Company / agency')}
-        {field('rate', 'Rate', '€450/day')}
+        {/* The structured rate the budget prices by; the free-text note beside
+            it keeps whatever a number cannot say ("+ overtime after 10h"). */}
+        <RateCardFields
+          value={draft.rateCard}
+          onChange={(rateCard) => onChange({ ...draft, rateCard })}
+          currency={budgetSettings.currency}
+          defaultVatPercent={budgetSettings.defaultVatPercent}
+          inputCls={inputCls}
+          labelCls={labelCls}
+        />
+        {field('rate', 'Rate notes', 'Overtime, kit fee, buy-out…')}
         <div className="col-span-2">{field('address', 'Address', 'Street, postcode, city')}</div>
         <div className="col-span-2">{field('emergencyContact', 'Emergency contact', 'Name · phone')}</div>
         {/* Lodging for away shoots — every part optional on its own, because a

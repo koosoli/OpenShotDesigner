@@ -75,8 +75,13 @@ export interface DeriveDayNeedsInput {
 export const equipmentKey = (item: { category: string; name: string; brand?: string; model?: string }): string =>
   `${item.category}:${(item.brand || '').trim().toLowerCase()}:${(item.model || item.name).trim().toLowerCase()}`;
 
-export const equipmentLabel = (item: { name: string; brand?: string; model?: string }): string =>
-  [item.brand, item.model || item.name].filter(Boolean).join(' ').trim() || item.name;
+export const equipmentLabel = (item: { name: string; brand?: string; model?: string }): string => {
+  const model = (item.model || item.name).trim();
+  const brand = (item.brand || '').trim();
+  // "ARRI ARRI Alexa" when the model already names its maker; "Generic" says nothing.
+  if (!brand || /^generic$/i.test(brand) || model.toLowerCase().startsWith(brand.toLowerCase())) return model || item.name;
+  return `${brand} ${model}`;
+};
 
 const isShootingDay = (day: ProductionDay): boolean => (day.callSheet?.type ?? 'shoot') === 'shoot';
 

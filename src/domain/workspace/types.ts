@@ -35,6 +35,7 @@ export type ModuleId =
   // People & management family
   | 'contacts'
   | 'tasks'
+  | 'budget'
   // Collaborate family
   | 'comments';
 

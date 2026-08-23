@@ -10,7 +10,7 @@
 
 </div>
 
-A free, open-source production planning suite for directors, DPs and ADs: **lined script**, **floor plan**, **shot list**, **storyboard** and **equipment manifest**, plus **scheduling**, **call sheets**, **crew and cast**, **locations**, **task board**, **mood boards**, **logistics**, **rigging** and **power** — all in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, schedule the shoot, and export production-ready paperwork. No account, no backend — everything lives in your browser.
+A free, open-source production planning suite for directors, DPs and ADs: **lined script**, **floor plan**, **shot list**, **storyboard** and **equipment manifest**, plus **scheduling**, **call sheets**, **crew and cast**, **budget**, **locations**, **task board**, **mood boards**, **logistics**, **rigging** and **power** — all in one browser tab. Import a screenplay, line it for coverage, block the scene, plan the camera moves, shoot storyboard frames with your own camera, schedule the shoot, and export production-ready paperwork. No account, no backend — everything lives in your browser.
 
 A screenplay is optional: nothing outside the script tools requires one, so concert, broadcast, event and pure technical floor plans work the same way.
 
@@ -31,6 +31,7 @@ A shot exists in four places at once, and every view edits the same thing:
 | **Equipment** | Production gear manifest | Cameras, lights, props & track on the plan become line items |
 | **Schedule** | Stripboard, calendar, call sheets, coverage | Scenes *and* setups are schedulable; call sheets derive from the day |
 | **Crew** | Crew, cast & contacts | Key roles feed the paperwork; cast link to script characters |
+| **Budget** | Rates, VAT, day needs | Crew rate cards, gear on the plan and the schedule price themselves |
 
 Line a speech in the script and a camera lands on the floor plan, a row appears in the shot list, and a frame appears on the board. Delete that camera and all three go with it.
 
@@ -101,6 +102,17 @@ And this is what comes out of the printer — the same data, laid out for paper:
 Assign Director, DP, 1st AD, Gaffer and the rest by role — the same fields the
 scene inspector and every export read, so they cannot drift apart. Cast link to
 screenplay characters, which are detected from the script automatically.
+
+### Budget and day needs
+
+Every crew or cast member carries a rate — per day, per week (pro-rated over the
+paid week) or a flat fee — with VAT on top at the rate's own percentage or the
+production default (Luxembourg's 17 %, with the neighbouring countries' rates a
+pick away). Gear on the plans is priced by rates keyed to the master equipment
+list, manual lines cover locations, catering and the rest, and the whole thing
+recomputes as the schedule changes: a person costs the days they are needed, a
+light the days its setup is on. The day-needs view answers the other question —
+who and what has to be available on which shooting day. Export as CSV.
 
 ### Power, per truss and per phase
 

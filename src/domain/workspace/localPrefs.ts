@@ -11,6 +11,17 @@ import type { WorkspaceProfile } from './types';
 
 const KEY_PREFIX = 'workspace_profile_';
 
+/**
+ * Modules added after a profile was stored would otherwise stay hidden for
+ * ever on that device. A profile that shows the crew list predates the budget
+ * module (which prices that list), so it gets the budget too.
+ */
+export const withLaterModules = (profile: WorkspaceProfile): WorkspaceProfile => {
+  const modules = Array.isArray(profile.enabledModules) ? profile.enabledModules : [];
+  if (modules.includes('budget') || !modules.includes('contacts')) return profile;
+  return { ...profile, enabledModules: [...modules, 'budget'] };
+};
+
 export const getWorkspaceProfile = (projectId: string): WorkspaceProfile | null => {
   try {
     const raw = localStorage.getItem(`${KEY_PREFIX}${projectId}`);

@@ -14,6 +14,7 @@ export {
   VAT_PRESETS,
   budgetToCsv,
   deriveBudget,
+  describeRateCard,
   emptyBudget,
   formatMoney,
   isBudgetLine,

@@ -61,3 +61,5 @@ export { castFilterForDay, castPersonIdsForDay, charactersScheduledOn } from './
 export type { DayCastSources } from './dayCast';
 export { countNeedDays, deriveDayNeeds, equipmentKey, equipmentLabel, setupIdsScheduledOn } from './dayNeeds';
 export type { DayNeeds, DayNeedsEquipment, DeriveDayNeedsInput } from './dayNeeds';
+export { locationForText, resolveDayLocations, setNameFromLocationText } from './dayLocations';
+export type { DayLocationSources } from './dayLocations';

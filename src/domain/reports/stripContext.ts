@@ -18,6 +18,7 @@
 import type { ScheduleBlock } from '../scheduling';
 import type { ScriptScene } from '../script/types';
 import { parseSceneHeading } from '../script/logic';
+import { locationForSetName } from '../locations/linking';
 
 export interface StripContext {
   /** "1", "2A" — as printed on the slugline. */
@@ -36,7 +37,7 @@ export interface StripContext {
 /** The slices a strip-context lookup needs; keeps it pure and testable. */
 export interface StripContextSources {
   scriptScenes?: ScriptScene[];
-  locations?: Array<{ id: string; name: string }>;
+  locations?: Array<{ id: string; name: string; aliases?: string[] }>;
   setups?: Array<{
     id: string;
     sceneNumber?: string;
@@ -90,20 +91,33 @@ export const buildStripContextResolver = (
     for (const shot of setup.shots ?? []) setupOfShot.set(shot.id, setup);
   }
 
+  const asLocations = (sources.locations ?? []).map((l) => ({ ...l, type: 'location' as const, referenceAssetIds: [] }));
+  // Free text resolves by name and alias, the same rule the breakdown uses, so
+  // one link made on a heading reaches the setups that name the same set.
+  const byText = (text: string | undefined): string | undefined => {
+    const raw = trimmed(text);
+    if (!raw) return undefined;
+    const setName = trimmed(parseSceneHeading(raw).location) ?? raw;
+    return (locationForSetName(asLocations, setName) ?? locationForSetName(asLocations, raw))?.name;
+  };
   const fromScene = (scene: ScriptScene): StripContext => ({
     sceneNumber: trimmed(scene.sceneNumber),
     location:
       (scene.locationId && locationName.get(scene.locationId)) ||
+      byText(scene.heading) ||
       trimmed(parseSceneHeading(scene.heading).location),
-    slugline: trimmed(scene.heading.replace(/s*#[^#]*#s*$/, ''))?.toUpperCase(),
+    slugline: trimmed(scene.heading.replace(/\s*#[^#]*#\s*$/, ''))?.toUpperCase(),
   });
 
   const fromSetup = (setup: NonNullable<StripContextSources['setups']>[number]): StripContext => {
-    const linked = setup.locationId ? locationName.get(setup.locationId) : undefined;
+    const linked = (setup.locationId ? locationName.get(setup.locationId) : undefined) ?? byText(setup.location);
     return {
       sceneNumber: trimmed(setup.sceneNumber),
       location: linked || trimmed(setup.location),
-      slugline: synthesiseSlugline(setup, linked),
+      // The slugline keeps the set as the SCRIPT names it — "INT. LIVING ROOM" —
+      // while the location column carries the real place. Only a setup with
+      // no set text of its own borrows the linked location's name.
+      slugline: synthesiseSlugline(setup, trimmed(setup.location) ? undefined : linked),
     };
   };
 

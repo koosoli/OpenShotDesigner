@@ -397,3 +397,10 @@ export const isEquipmentRate = (value: unknown): value is EquipmentRate =>
 
 export const isBudgetLine = (value: unknown): value is BudgetLine =>
   !!value && typeof value === 'object' && typeof (value as BudgetLine).id === 'string' && normaliseRateCard(value as BudgetLine) !== undefined;
+
+/** "€450 per day · VAT 17%" — a rate card in words, for lists and printouts. */
+export const describeRateCard = (card: RateCard | undefined, currency: string): string => {
+  if (!card) return '';
+  const vat = card.vatPercent === undefined ? '' : card.vatPercent === 0 ? ' · no VAT' : ` · VAT ${card.vatPercent}%`;
+  return `${formatMoney(card.amount, currency)} ${RATE_BASIS_LABELS[card.basis]}${vat}`;
+};

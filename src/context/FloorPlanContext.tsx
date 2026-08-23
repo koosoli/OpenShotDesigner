@@ -136,8 +136,8 @@ interface FloorPlanContextType {
   setCableType: (cable: CableType) => void;
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
-  activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'inspector';
-  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'inspector') => void;
+  activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
+  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector') => void;
   /** Workspace profile of the open project (module visibility, plan §1.2). */
   workspaceProfile: WorkspaceProfile;
   isModuleVisible: (moduleId: ModuleId) => boolean;
@@ -799,7 +799,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [exportSection, setExportSection] = useState<ExportSection>('floorplan');
 
   // Right Sidebar Tab State
-  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'inspector'>('shots');
+  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector'>('shots');
   const [scriptLinkShotId, setScriptLinkShotId] = useState<string | null>(null);
 
   // If the open project's workspace hides the current tab's module, fall back
@@ -819,6 +819,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       locations: 'locations',
       contacts: 'contacts',
       tasks: 'tasks',
+      budget: 'budget',
     };
     const mod = tabModules[activeRightTab];
     if (mod && !isModuleEnabledIn(workspaceProfile, mod)) {

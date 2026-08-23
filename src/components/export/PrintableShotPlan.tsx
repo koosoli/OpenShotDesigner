@@ -1244,6 +1244,7 @@ export const PrintableShotPlan: React.FC = () => {
                 characters={crewCharacters}
                 castAssignments={project.castAssignments ?? []}
                 showRates={crewShowRates}
+                currency={project.budget?.settings.currency}
                 logo={project.logo}
               />
             )

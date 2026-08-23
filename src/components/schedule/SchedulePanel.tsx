@@ -24,7 +24,6 @@ import { TimelineCalendar } from './TimelineCalendar';
 import { CalendarEventEditor, MonthCalendar } from './MonthCalendar';
 import { createId } from '../../domain/ids';
 import { waitForImages } from '../../utils/image';
-import { parseSceneHeading } from '../../domain/script/logic';
 import {
   BLOCK_KIND_LABELS,
   MANUAL_TYPE_LABELS,
@@ -44,9 +43,8 @@ import type {
   CallSheetLocation,
   CallSheetData,
 } from '../../domain/reports';
-import type { Location } from '../../domain/locations';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
-import { buildStripContextResolver, castFilterForDay, deriveCallSheet } from '../../domain/reports';
+import { buildStripContextResolver, castFilterForDay, deriveCallSheet, resolveDayLocations as resolveDayLocationsForBlocks } from '../../domain/reports';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { StripboardPrintView } from '../reports/StripboardPrintView';
 import type { PrintableStripboardDay } from '../reports/StripboardPrintView';
@@ -244,66 +242,13 @@ export const SchedulePanel: React.FC = () => {
    * address/map data flows into call sheets; legacy free-text setup
    * locations still work and are matched to an entity by name when possible.
    */
-  const resolveDayLocations = (day: ProductionDay): CallSheetLocation[] => {
-    const out: CallSheetLocation[] = [];
-    const seenIds = new Set<string>();
-    const seenNames = new Set<string>();
-    const pushEntity = (entity: Location) => {
-      if (seenIds.has(entity.id)) return;
-      seenIds.add(entity.id);
-      seenNames.add(entity.name.toLocaleLowerCase());
-      out.push({ name: entity.name, address: entity.address, lat: entity.lat, lng: entity.lng });
-    };
-    const pushName = (name: string) => {
-      if (!name || seenNames.has(name.toLocaleLowerCase())) return;
-      seenNames.add(name.toLocaleLowerCase());
-      const entity = (project.locations ?? []).find(
-        (candidate) => candidate.name.toLocaleLowerCase() === name.toLocaleLowerCase()
-      );
-      if (entity) pushEntity(entity);
-      else out.push({ name });
-    };
-    for (const id of day.scheduleBlockIds) {
-      const block = blocks.find((b) => b.id === id);
-      if (!block) continue;
-      if (block.kind === 'setup') {
-        const setup = project.setups.find((s) => s.id === block.setupId);
-        const entity = setup?.locationId
-          ? (project.locations ?? []).find((candidate) => candidate.id === setup.locationId)
-          : undefined;
-        if (entity) pushEntity(entity);
-        else if (setup?.location) pushName(setup.location);
-      }
-      if (block.kind === 'scene') {
-        const scene = project.scriptScenes?.find((s) => s.id === block.scriptSceneId);
-        const entity = scene?.locationId
-          ? (project.locations ?? []).find((candidate) => candidate.id === scene.locationId)
-          : undefined;
-        if (entity) pushEntity(entity);
-        else if (scene) {
-          // Fall back to the set named in the slugline, exactly as the setup and
-          // shots branches fall back to their own free text. Without this a
-          // scene contributed no location at all unless someone had linked it
-          // to a canonical Location by hand — so a day scheduled entirely by
-          // scene printed "No shooting location is linked to this day" while
-          // the slugline said INT. LIVING ROOM - NIGHT.
-          const parsed = parseSceneHeading(scene.heading);
-          if (parsed.location) pushName(parsed.location);
-        }
-      }
-      if (block.kind === 'shots') {
-        for (const shotId of block.shotIds) {
-          const owner = shotEntries.find((entry) => entry.shot.id === shotId)?.setup;
-          const entity = owner?.locationId
-            ? (project.locations ?? []).find((candidate) => candidate.id === owner.locationId)
-            : undefined;
-          if (entity) pushEntity(entity);
-          else if (owner?.location) pushName(owner.location);
-        }
-      }
-    }
-    return out;
-  };
+  /** Where the day shoots; every strip kind resolves through the domain (dayLocations.ts). */
+  const resolveDayLocations = (day: ProductionDay): CallSheetLocation[] =>
+    resolveDayLocationsForBlocks(day.scheduleBlockIds, blocks, {
+      locations: project.locations,
+      scriptScenes: project.scriptScenes,
+      setups: project.setups,
+    });
 
   /** Performers assigned to characters that appear in a day's scheduled scenes. */
   /**

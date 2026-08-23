@@ -17,6 +17,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     enabledModules: [
       'contacts',
       'tasks',
+      'budget',
       ...CORE_MODULES,
       'annotations',
       'shots',
@@ -31,6 +32,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     enabledModules: [
       'contacts',
       'tasks',
+      'budget',
       ...CORE_MODULES,
       'locations',
       'script',
@@ -50,6 +52,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     enabledModules: [
       'contacts',
       'tasks',
+      'budget',
       ...CORE_MODULES,
       'locations',
       'shots',
@@ -67,6 +70,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     enabledModules: [
       'contacts',
       'tasks',
+      'budget',
       ...CORE_MODULES,
       'av_script',
       'shots',
@@ -91,6 +95,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     enabledModules: [
       'contacts',
       'tasks',
+      'budget',
       ...CORE_MODULES,
       'locations',
       'shots',
@@ -111,6 +116,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     enabledModules: [
       'contacts',
       'tasks',
+      'budget',
       ...CORE_MODULES,
       'locations',
       'shots',
@@ -130,6 +136,7 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
     enabledModules: [
       'contacts',
       'tasks',
+      'budget',
       ...CORE_MODULES,
       'locations',
       'shots',
@@ -209,6 +216,7 @@ export const ALL_MODULES_PROFILE: WorkspaceProfile = {
     'logistics',
     'contacts',
     'tasks',
+    'budget',
     'comments',
   ],
 };

@@ -4,6 +4,7 @@ import { PERSON_KIND_LABELS, allPhonesFor, callSheetPhone, groupPeopleByDepartme
 import { PersonAvatar } from '../contacts/PersonAvatar';
 import type { Character } from '../../domain/script';
 import { ProjectImage } from '../common/ProjectImage';
+import { DEFAULT_BUDGET_SETTINGS, describeRateCard } from '../../domain/budget';
 
 interface ContactListPrintViewProps {
   people: Person[];
@@ -11,6 +12,8 @@ interface ContactListPrintViewProps {
   castAssignments?: CastAssignment[];
   /** Hide rates on copies handed to the whole crew. */
   showRates?: boolean;
+  /** Currency the rate cards are quoted in; the project's budget setting. */
+  currency?: string;
   /** Production logo (data URL) shown top-right above the tables. */
   logo?: string;
 }
@@ -20,7 +23,7 @@ interface ContactListPrintViewProps {
  * cast list with character ↔ performer links. Derived on demand from
  * canonical project data (plan rule 37) — nothing is stored.
  */
-export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ people, characters = [], castAssignments = [], showRates = false, logo }) => {
+export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ people, characters = [], castAssignments = [], showRates = false, currency = DEFAULT_BUDGET_SETTINGS.currency, logo }) => {
   const groups = groupPeopleByDepartment(people);
   const castRows = characters
     .map((character) => {
@@ -97,7 +100,7 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
                     </td>
                     <td className={cell}>{person.email ?? ''}</td>
                     <td className={cell}>{person.company ?? ''}</td>
-                    {showRates && <td className={`${cell} font-mono`}>{person.rate ?? ''}</td>}
+                    {showRates && <td className={`${cell} font-mono`}>{[describeRateCard(person.rateCard, currency), person.rate].filter(Boolean).join(' — ')}</td>}
                   </tr>
                 ))}
               </React.Fragment>
