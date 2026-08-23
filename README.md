@@ -160,6 +160,28 @@ Boards from local files or URLs with a free-form collage and dominant-colour
 palette extraction; and a kanban with due dates, priorities, checklists and crew
 assignees grouped by department.
 
+### Log the day, and tick it off
+
+On the day the script supervisor's log and the AD's "what did we miss?" list are
+the same document, so they are one page here. Log a take against a shot and the
+checklist ticks itself off from the takes — nothing stores "this shot is done"
+separately, so the two halves cannot disagree. At wrap it names the gaps out
+loud: shots scheduled but never shot, and shots with takes but no good one.
+
+Every field starts pre-filled with what the app already knows — the production,
+the crew, the scene, the lens and camera on the plan — and you type over only
+what was actually different on the day. A shot planned at 24mm but grabbed at
+85mm exports as 85mm.
+
+Nobody planned it? Log a pickup: it takes the next free number in whatever
+convention the scene already uses (`1/3` → `1/4`, or `1F` → `1G`), so nothing
+already on a slate is renumbered, and it is listed apart from the plan so the
+shot you actually missed stays visible.
+
+The whole log exports as a **DaVinci Resolve metadata CSV**. Resolve matches
+clips by file name and fields by header name, and fails silently at both, so the
+header is byte-identical to Resolve's own template and is tested that way.
+
 ### Print the whole package
 
 ![Export and print studio](docs/screenshots/export.png)
@@ -259,6 +281,17 @@ board — in one print job, with your production logo on the paperwork.
 - **Draft until you say otherwise** — an unfinished sheet carries a DRAFT watermark on **every** printed page until the day is marked final, and cast contact numbers can be withheld from the copies left on a table.
 - **Coverage matrix** — plan what every camera is responsible for at each moment. Rows follow the run-of-show cue list or are added freely; columns are discovered from the cameras on the plan.
 - **Printable** — stripboard, calendar, coverage and each day's call sheet all print, with the production logo and strip colours.
+
+### Continuity log & shooting-day checklist
+
+- **One page, two jobs** — the take log and the day's tick-off list, because on a set they are the same job. Coverage is derived from the takes (a shot is covered when it has a good take), so the checklist can never disagree with the log.
+- **The wrap gaps, named** — shots scheduled with no takes at all, and shots with takes but no good one. That list is what an AD actually wants at the end of the day.
+- **Sticky columns** — a new take inherits the previous one's roll card, keywords and camera settings and increments the take number; changing shot resets it to 1. What describes only this take — file name, good/NG, comments — always starts blank, because inherited-but-wrong metadata is worse than none.
+- **Every column editable** — all 29 metadata fields are settable per take, each pre-filled with what the app already knows as a placeholder. Type over it with what was *actually* shot; clear it to fall back to the plan. Nothing is copied, so fixing the shot list still fixes every take that never overrode it.
+- **Unplanned shots** — log a pickup and it takes the next free number in the scene's existing convention (`1/3` → `1/4`, `1F` → `1G`); pre-existing numbers never move, because a shot number that has reached a slate or a metadata import cannot be renumbered without invalidating all of it. Provenance is a flag, not part of the number.
+- **Plan vs actual stay separate** — an unplanned shot never joins the plan retroactively, or the checklist would stop being able to report the shot you actually missed.
+- **File-name reconciliation** — file names are filled *after* the fact against the card's listing, not typed live: clip counters restart per card and an aborted take still burns a number, and a log that drifts by one clip attaches every later row to the wrong clip in Resolve. The pass shows the drift instead of hiding it, and can count on from the last name (`A001C002` → `A001C003`, incrementing the *clip* field, not the reel).
+- **Take records** — a take carries its file name, roll card, good/NG flag, comments, keywords and any camera or slate values that differed. Deleting a shot takes its takes with it; deleting a day only unhooks them, because the footage still exists on a card.
 
 ### Crew, cast & contacts
 
@@ -379,6 +412,7 @@ New to it? **Templates → Fill empty modules with examples** loads a worked exa
 | **Sides** | Per-day or per-selection sides in Courier, filterable by character |
 | **Contact list** | Departments, cast list and accommodation table |
 | **DMX patch** | Universe patch sheet with modes, start/end addresses and footprints |
+| **Continuity / Resolve metadata** | The take log as a **DaVinci Resolve metadata CSV** (Media Pool → right-click → Import Metadata…) — byte-identical headers, CRLF, no BOM — plus a printable continuity report and wrap checklist |
 | **Complete package** | Everything above that has data, in one print job |
 | **JSON** | Full project backup — import to restore or share |
 
