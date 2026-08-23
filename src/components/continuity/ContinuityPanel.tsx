@@ -91,6 +91,16 @@ export const ContinuityPanel: React.FC = () => {
   const [reconcileText, setReconcileText] = useState('');
   /** Takes whose full column editor is open. */
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  /**
+   * Raw text of the keywords field while it is being typed, per take.
+   *
+   * The stored value is a string array, but the input is one comma-separated
+   * line — and round-tripping array→text on every keystroke ate the separator:
+   * typing "Laptop," split to ["Laptop"], rejoined to "Laptop", and the comma
+   * vanished as fast as it was typed. So the text the user is typing is held
+   * as-is until they leave the field, and only the parsed array is persisted.
+   */
+  const [keywordDrafts, setKeywordDrafts] = useState<Record<string, string>>({});
   const [reconcilePreview, setReconcilePreview] = useState<ReconciliationResult | null>(null);
 
   // The day scope lives on the project so the printed report can be built from
@@ -686,16 +696,26 @@ export const ContinuityPanel: React.FC = () => {
                       className={`${inputClass} flex-1 min-w-[160px]`}
                     />
                     <input
-                      value={(take.keywords ?? []).join(', ')}
-                      onChange={(event) =>
+                      value={keywordDrafts[take.id] ?? (take.keywords ?? []).join(', ')}
+                      onChange={(event) => {
+                        const raw = event.target.value;
+                        setKeywordDrafts((prev) => ({ ...prev, [take.id]: raw }));
                         updateTake(take.id, {
-                          keywords: event.target.value
+                          keywords: raw
                             .split(',')
                             .map((keyword) => keyword.trim())
                             .filter((keyword) => keyword.length > 0),
+                        });
+                      }}
+                      onBlur={() =>
+                        setKeywordDrafts((prev) => {
+                          const next = { ...prev };
+                          delete next[take.id];
+                          return next;
                         })
                       }
-                      placeholder="Keywords"
+                      placeholder="Keywords, comma separated"
+                      title="Comma separated, e.g. Laptop, John, Gimbal"
                       className={`${inputClass} !w-40`}
                     />
                   </div>
