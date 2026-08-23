@@ -44,7 +44,9 @@ describe('resolveDayLocations', () => {
   const out = resolveDayLocations(blocks.map((b) => b.id), blocks, { locations, scriptScenes, setups });
 
   it('gives a linked or alias-matched set its address and pin, once', () => {
-    expect(out[0]).toEqual({ name: 'Kreuzberg Studio', address: 'Kohlfurter Str. 41', lat: 52.5, lng: 13.4 });
+    expect(out[0]).toEqual({ name: 'Kreuzberg Studio', setName: 'LIVING ROOM', address: 'Kohlfurter Str. 41', lat: 52.5, lng: 13.4 });
+    // The set name is the handle for changing the link later; a location named directly carries none.
+    expect(out[1].setName).toBeUndefined();
     expect(out.filter((l) => l.name === 'Kreuzberg Studio')).toHaveLength(1);
     expect(out.filter((l) => l.name === "Ruby's Diner")).toHaveLength(1);
   });

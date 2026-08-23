@@ -46,11 +46,12 @@ export const resolveDayLocations = (
   const seenIds = new Set<string>();
   const seenNames = new Set<string>();
 
-  const pushEntity = (entity: Location) => {
+  const pushEntity = (entity: Location, setName?: string) => {
     if (seenIds.has(entity.id)) return;
     seenIds.add(entity.id);
     seenNames.add(entity.name.toLocaleLowerCase());
     const entry: CallSheetLocation = { name: entity.name };
+    if (setName && setName.toLocaleLowerCase() !== entity.name.toLocaleLowerCase()) entry.setName = setName;
     if (entity.address) entry.address = entity.address;
     if (typeof entity.lat === 'number') entry.lat = entity.lat;
     if (typeof entity.lng === 'number') entry.lng = entity.lng;
@@ -58,18 +59,18 @@ export const resolveDayLocations = (
   };
   const pushText = (text: string | undefined) => {
     const entity = locationForText(locations, text);
+    const name = setNameFromLocationText(text);
     if (entity) {
-      pushEntity(entity);
+      pushEntity(entity, name);
       return;
     }
-    const name = setNameFromLocationText(text);
     if (!name || seenNames.has(name.toLocaleLowerCase())) return;
     seenNames.add(name.toLocaleLowerCase());
     out.push({ name });
   };
   const pushLinkedOrText = (locationId: string | undefined, text: string | undefined) => {
     const linked = locationId ? locations.find((candidate) => candidate.id === locationId) : undefined;
-    if (linked) pushEntity(linked);
+    if (linked) pushEntity(linked, setNameFromLocationText(text));
     else pushText(text);
   };
 

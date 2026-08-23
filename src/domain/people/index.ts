@@ -8,10 +8,9 @@ export {
   normaliseFraming,
   panFraming,
   zoomFraming,
-  rotateFraming,
-  rotateFramingBy,
-  zoomToCoverRotation,
-  MAX_HEADSHOT_ROTATION,
+  dragFraming,
+  framingTravelPx,
+  UNLOCK_ZOOM,
 } from './headshot';
 export type { FramingSlack, HeadshotFraming } from './headshot';
 export {

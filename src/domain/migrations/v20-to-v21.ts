@@ -1,20 +1,18 @@
 /**
  * v20 → v21 adds four optional, absent-safe groups:
  *
- *  - `Person.headshotFraming.rotation` — a tilt in degrees on the headshot crop.
  *  - `Person.rateCard` — a structured rate (amount, per day/week/flat, VAT).
  *  - `Project.budget` — currency and VAT settings, equipment rates, manual lines.
  *  - `Project.sceneNumbersLocked` — whether scene numbers are production numbers.
  *  - `ProductionDay.callSheet.locationMaps` — one captured map per location.
  *
- * Nothing is backfilled. A headshot with no rotation is upright, a person with
+ * Nothing is backfilled. A person with
  * no rate card is unpriced (and reported as such, never priced at zero), a
  * project with no budget has an empty one, and a script whose numbering regime
  * was never chosen is decided by its own numbers on the next edit.
  *
  * Values already present are normalised so the budget never multiplies by a
- * string and the reframer never rotates by NaN:
- *  - rotation wraps into (-180, 180] and non-numeric values are dropped,
+ * string:
  *  - a rate card needs a finite non-negative amount; its basis falls back to
  *    `day`, and a negative or non-numeric VAT is dropped (= default VAT),
  *  - equipment rates need a string key; budget lines need a string id; either
@@ -40,13 +38,6 @@ const isFiniteNumber = (value: unknown): value is number =>
 const applyOrDelete = (target: UnknownRecord, key: string, value: unknown): void => {
   if (value === undefined) delete target[key];
   else target[key] = value;
-};
-
-/** Wrap into (-180, 180]; reject anything that is not a number. */
-export const normalizeRotation = (raw: unknown): number | undefined => {
-  if (!isFiniteNumber(raw)) return undefined;
-  const wrapped = ((((raw + 180) % 360) + 360) % 360) - 180;
-  return wrapped === -180 ? 180 : wrapped;
 };
 
 const cleanRateFields = (raw: UnknownRecord): UnknownRecord | undefined => {
@@ -107,9 +98,8 @@ export const migrateV20ToV21 = (raw: UnknownRecord): Project => {
   if (Array.isArray(raw.people)) {
     for (const person of raw.people) {
       if (!isRecord(person)) continue;
-      if (isRecord(person.headshotFraming) && 'rotation' in person.headshotFraming) {
-        applyOrDelete(person.headshotFraming, 'rotation', normalizeRotation(person.headshotFraming.rotation));
-      }
+      // A short-lived 'rotation' on the framing never shipped; drop it if seen.
+      if (isRecord(person.headshotFraming) && 'rotation' in person.headshotFraming) delete person.headshotFraming.rotation;
       if ('aboveTheLine' in person && typeof person.aboveTheLine !== 'boolean') delete person.aboveTheLine;
       if ('rateCard' in person) {
         applyOrDelete(person, 'rateCard', isRecord(person.rateCard) ? normaliseRateCard(person.rateCard as never) : undefined);

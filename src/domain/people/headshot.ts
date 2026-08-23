@@ -33,13 +33,6 @@ export interface HeadshotFraming {
   x: number;
   y: number;
   zoom: number;
-  /**
-   * Tilt in degrees, clockwise positive; absent means 0. A phone picture taken
-   * sideways and a head cocked at twenty degrees both need straightening, and
-   * neither is a pan. Applied about the centre of the circle, so the picture
-   * turns in place rather than swinging around.
-   */
-  rotation?: number;
 }
 
 /**
@@ -49,20 +42,10 @@ export interface HeadshotFraming {
  * looks identical to one who reset it, and no migration has to backfill
  * anything (rule 13).
  */
-export const DEFAULT_HEADSHOT_FRAMING: HeadshotFraming = { x: 50, y: 50, zoom: 1, rotation: 0 };
+export const DEFAULT_HEADSHOT_FRAMING: HeadshotFraming = { x: 50, y: 50, zoom: 1 };
 
 /** How far in the control allows; past this a headshot is a nostril. */
 export const MAX_HEADSHOT_ZOOM = 3;
-
-/** Tilt range: half a turn each way reaches every orientation a photo arrives in. */
-export const MAX_HEADSHOT_ROTATION = 180;
-
-/** Normalise any angle into (-180, 180]; a full turn is no tilt at all. */
-const wrapRotation = (value: number): number => {
-  if (!Number.isFinite(value)) return 0;
-  const wrapped = ((((value + 180) % 360) + 360) % 360) - 180;
-  return wrapped === -180 ? 180 : wrapped;
-};
 
 const clamp = (value: number, min: number, max: number): number =>
   Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
@@ -82,7 +65,6 @@ export const normaliseFraming = (
   x: clamp(framing?.x ?? DEFAULT_HEADSHOT_FRAMING.x, 0, 100),
   y: clamp(framing?.y ?? DEFAULT_HEADSHOT_FRAMING.y, 0, 100),
   zoom: clamp(framing?.zoom ?? DEFAULT_HEADSHOT_FRAMING.zoom, 1, MAX_HEADSHOT_ZOOM),
-  rotation: wrapRotation(framing?.rotation ?? 0),
 });
 
 /** True when this framing is the default, so the UI can hide a reset nobody needs. */
@@ -91,8 +73,7 @@ export const isDefaultFraming = (framing: Partial<HeadshotFraming> | undefined):
   return (
     normalised.x === DEFAULT_HEADSHOT_FRAMING.x &&
     normalised.y === DEFAULT_HEADSHOT_FRAMING.y &&
-    normalised.zoom === DEFAULT_HEADSHOT_FRAMING.zoom &&
-    normalised.rotation === 0
+    normalised.zoom === DEFAULT_HEADSHOT_FRAMING.zoom
   );
 };
 
@@ -114,7 +95,6 @@ export const panFraming = (
     x: current.x - deltaXPercent,
     y: current.y - deltaYPercent,
     zoom: current.zoom,
-    rotation: current.rotation,
   });
 };
 
@@ -124,53 +104,29 @@ export const zoomFraming = (
   zoom: number,
 ): HeadshotFraming => normaliseFraming({ ...normaliseFraming(framing), zoom });
 
-/** Set the tilt in degrees, keeping position and zoom. */
-export const rotateFraming = (
-  framing: Partial<HeadshotFraming> | undefined,
-  rotation: number,
-): HeadshotFraming => normaliseFraming({ ...normaliseFraming(framing), rotation });
-
-/** Turn by a relative amount — the quarter-turn buttons. */
-export const rotateFramingBy = (
-  framing: Partial<HeadshotFraming> | undefined,
-  deltaDegrees: number,
-): HeadshotFraming => rotateFraming(framing, (normaliseFraming(framing).rotation ?? 0) + deltaDegrees);
-
-/**
- * The zoom at which a picture tilted by `rotation` degrees still fills the
- * circle. The picture is a rectangle turned inside a round window: at 45° its
- * edges cut across the rim and the background shows through unless it is also
- * enlarged by |cos θ| + |sin θ| — √2 at the worst case. At a quarter turn the
- * edges are square to the window again and nothing extra is needed.
- */
-export const zoomToCoverRotation = (rotation: number): number => {
-  const radians = (Math.abs(wrapRotation(rotation)) * Math.PI) / 180;
-  const needed = Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians));
-  return Math.min(MAX_HEADSHOT_ZOOM, Math.ceil(needed * 100) / 100);
-};
-
 /**
  * The CSS for an `<img>` filling a square avatar with this framing.
  *
- * `object-position` places the crop and `scale` zooms it. Scaling the image
- * rather than resizing the box keeps the circle exactly the size the layout
- * asked for, so a zoomed headshot never shifts the row it sits in.
+ * `object-position` places the crop at 1× and `scale` zooms it. The scale is
+ * applied ABOUT THE SAME POINT — `transform-origin: x% y%` — and that is what
+ * makes the short axis move at all. `object-fit: cover` only overflows the
+ * picture's longer axis, so on a landscape headshot `object-position`'s y has
+ * nothing to slide; but scaling about a point near the top keeps the top in
+ * view and pushes the bottom out, which is exactly "move it up". So 0..100 on
+ * either axis means "pin that edge" at every zoom, and the circle stays
+ * covered without knowing the picture's dimensions.
+ *
+ * Scaling the image rather than resizing the box keeps the circle exactly the
+ * size the layout asked for, so a zoomed headshot never shifts its row.
  */
 export const headshotImageStyle = (
   framing: Partial<HeadshotFraming> | undefined,
-): { objectFit: 'cover'; objectPosition: string; transform?: string } => {
-  const { x, y, zoom, rotation = 0 } = normaliseFraming(framing);
-  // CSS applies a transform list right to left, so this enlarges first and
-  // then turns the enlarged picture about the circle's centre — the picture
-  // tilts in place rather than swinging around the rim.
-  const transforms = [
-    ...(rotation === 0 ? [] : [`rotate(${rotation}deg)`]),
-    ...(zoom === 1 ? [] : [`scale(${zoom})`]),
-  ];
+): { objectFit: 'cover'; objectPosition: string; transform?: string; transformOrigin?: string } => {
+  const { x, y, zoom } = normaliseFraming(framing);
   return {
     objectFit: 'cover',
     objectPosition: `${x}% ${y}%`,
-    ...(transforms.length ? { transform: transforms.join(' ') } : {}),
+    ...(zoom === 1 ? {} : { transform: `scale(${zoom})`, transformOrigin: `${x}% ${y}%` }),
   };
 };
 
@@ -213,6 +169,58 @@ export const framingSlack = (
   const vertical = safeZoom * Math.max(height / width, 1) > 1.0001;
 
   // Any zoom above 1 gives the constrained axis something to show.
-  const zoomToUnlock = horizontal && vertical ? null : 1.2;
+  const zoomToUnlock = horizontal && vertical ? null : UNLOCK_ZOOM;
   return { horizontal, vertical, zoomToUnlock };
+};
+
+/** The zoom a drag along a locked axis silently steps up to, so the drag just works. */
+export const UNLOCK_ZOOM = 1.25;
+
+/**
+ * How many pixels of travel an axis has at this zoom, for a box of `boxPx`:
+ * the rendered size minus the box. This is what turns pointer pixels into
+ * percentage points so the picture tracks the finger instead of racing it.
+ */
+export const framingTravelPx = (
+  naturalWidth: number | undefined,
+  naturalHeight: number | undefined,
+  zoom: number,
+  boxPx: number,
+): { x: number; y: number } => {
+  const width = naturalWidth ?? 0;
+  const height = naturalHeight ?? 0;
+  const safeZoom = normaliseFraming({ zoom }).zoom;
+  if (width <= 0 || height <= 0) {
+    // Unknown dimensions: assume a square, so the drag still moves something.
+    const travel = Math.max(0, boxPx * (safeZoom - 1));
+    return { x: travel, y: travel };
+  }
+  return {
+    x: Math.max(0, boxPx * (safeZoom * Math.max(width / height, 1) - 1)),
+    y: Math.max(0, boxPx * (safeZoom * Math.max(height / width, 1) - 1)),
+  };
+};
+
+/**
+ * Move the framing by a pointer drag in PIXELS on a `boxPx` preview. An axis
+ * with no travel — the short side of a picture at 1× — steps the zoom up to
+ * `UNLOCK_ZOOM` first, so dragging works in every direction without anyone
+ * having to understand why it would not have.
+ */
+export const dragFraming = (
+  framing: Partial<HeadshotFraming> | undefined,
+  dxPx: number,
+  dyPx: number,
+  natural: { width?: number; height?: number } | undefined,
+  boxPx: number,
+): HeadshotFraming => {
+  let current = normaliseFraming(framing);
+  let travel = framingTravelPx(natural?.width, natural?.height, current.zoom, boxPx);
+  if ((dxPx !== 0 && travel.x === 0) || (dyPx !== 0 && travel.y === 0)) {
+    current = zoomFraming(current, Math.max(current.zoom, UNLOCK_ZOOM));
+    travel = framingTravelPx(natural?.width, natural?.height, current.zoom, boxPx);
+  }
+  const dxPercent = travel.x > 0 ? (dxPx / travel.x) * 100 : 0;
+  const dyPercent = travel.y > 0 ? (dyPx / travel.y) * 100 : 0;
+  return panFraming(current, dxPercent, dyPercent);
 };

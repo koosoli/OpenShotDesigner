@@ -349,9 +349,10 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               {sheet.locations.map((location, index) => (
                 <div key={index} className="text-[10px] flex items-center gap-1.5 flex-wrap">
                   <b className="truncate">{location.name}</b>
-                  {location.address
-                    ? <span className="text-slate-500 truncate">{location.address}</span>
-                    : <SetLocationLink setName={location.name} isLight={isLight} />}
+                  {location.address && <span className="text-slate-500 truncate">{location.address}</span>}
+                  {/* Always offered, linked or not: a wrong link is changed here
+                      by picking another location, or undone with Unlink. */}
+                  <SetLocationLink setName={location.setName ?? location.name} isLight={isLight} />
                 </div>
               ))}
             </div>

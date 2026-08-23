@@ -1,5 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CalendarRange, Coins, Download, Plus, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, CalendarRange, Coins, Download, Plus, Printer, Trash2 } from 'lucide-react';
+import { BudgetPrintView } from '../reports/BudgetPrintView';
+import { waitForImages } from '../../utils/image';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import {
@@ -44,6 +47,28 @@ export const BudgetPanel: React.FC = () => {
   const { project, updateProjectMeta, theme, setActiveRightTab } = useFloorPlan();
   const isLight = theme === 'light';
   const [view, setView] = useState<'budget' | 'needs'>('budget');
+  const [printing, setPrinting] = useState(false);
+
+  // Mount the print document, let images decode, print, unmount — the same
+  // dance the schedule does, so the logo is never missing from the printout.
+  useEffect(() => {
+    if (!printing) return;
+    const unmount = () => setPrinting(false);
+    window.addEventListener('afterprint', unmount);
+    let cancelled = false;
+    const printTimer = window.setTimeout(() => {
+      void waitForImages(document.querySelector('.budget-print-host') ?? document.body).then(() => {
+        if (!cancelled) window.print();
+      });
+    }, 50);
+    const fallbackTimer = window.setTimeout(unmount, 15000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('afterprint', unmount);
+      window.clearTimeout(printTimer);
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [printing]);
   const budget: ProjectBudget = useMemo(() => project.budget ?? emptyBudget(), [project.budget]);
   const { shootDays, personDays, equipment } = useProductionNeeds();
   const summary = useMemo(
@@ -166,12 +191,24 @@ export const BudgetPanel: React.FC = () => {
             ))}
           </div>
           {view === 'budget' && (
+            <button onClick={() => setPrinting(true)} className={`h-8 px-2.5 rounded-md border text-[9px] font-black flex items-center gap-1.5 ${isLight ? 'bg-white border-slate-300 hover:border-emerald-500' : 'bg-slate-950 border-slate-800 hover:border-emerald-500'}`}>
+              <Printer className="w-3.5 h-3.5" /> Print / PDF
+            </button>
+          )}
+          {view === 'budget' && (
             <button onClick={exportCsv} className={`h-8 px-2.5 rounded-md border text-[9px] font-black flex items-center gap-1.5 ${isLight ? 'bg-white border-slate-300 hover:border-emerald-500' : 'bg-slate-950 border-slate-800 hover:border-emerald-500'}`}>
               <Download className="w-3.5 h-3.5" /> CSV
             </button>
           )}
         </div>
       </header>
+
+      {printing && createPortal(
+        <div className="budget-print-host">
+          <BudgetPrintView productionTitle={project.title} company={project.productionCompany} logo={project.logo} summary={summary} />
+        </div>,
+        document.body,
+      )}
 
       {view === 'needs' ? (
         <DayNeedsView isLight={isLight} />

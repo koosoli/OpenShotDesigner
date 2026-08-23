@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CURRENT_PROJECT_SCHEMA_VERSION, migrateProject } from '../migrations';
-import { migrateV20ToV21, normalizeBudget, normalizeRotation } from '../migrations/v20-to-v21';
+import { migrateV20ToV21, normalizeBudget } from '../migrations/v20-to-v21';
 
 const v20Fixture = () => ({
   schemaVersion: 20,
@@ -17,17 +17,6 @@ const v20Fixture = () => ({
 
 type Loose = Record<string, unknown>;
 const peopleOf = (project: unknown) => (project as { people: Loose[] }).people;
-
-describe('normalizeRotation', () => {
-  it('wraps into a half turn each way and rejects non-numbers', () => {
-    expect(normalizeRotation(0)).toBe(0);
-    expect(normalizeRotation(370)).toBe(10);
-    expect(normalizeRotation(-190)).toBe(170);
-    expect(normalizeRotation(-180)).toBe(180);
-    expect(normalizeRotation('sideways')).toBeUndefined();
-    expect(normalizeRotation(NaN)).toBeUndefined();
-  });
-});
 
 describe('normalizeBudget', () => {
   it('falls back field by field to the Luxembourg defaults', () => {
@@ -71,7 +60,7 @@ describe('migrateV20ToV21', () => {
     expect('sceneNumbersLocked' in after).toBe(false);
   });
 
-  it('normalises a rotation, a rate card, a budget and the numbering flag that are present', () => {
+  it('normalises a rate card, a budget and the numbering flag that are present', () => {
     const before = {
       ...v20Fixture(),
       sceneNumbersLocked: 'yes',
@@ -83,7 +72,7 @@ describe('migrateV20ToV21', () => {
     };
     const after = migrateV20ToV21(before as never) as unknown as Loose;
     const [ines, tom] = peopleOf(after);
-    expect((ines.headshotFraming as Loose).rotation).toBe(90);
+    expect('rotation' in (ines.headshotFraming as Loose)).toBe(false);
     expect(ines.rateCard).toEqual({ amount: 600, basis: 'day', vatPercent: 17 });
     expect('rateCard' in tom).toBe(false);
     expect((after.budget as Loose).settings).toEqual({ currency: 'EUR', defaultVatPercent: 17, weekDays: 5 });

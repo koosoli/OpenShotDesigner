@@ -20,6 +20,12 @@ export type DocumentLifecycle = 'draft' | 'published' | 'superseded';
 
 export interface CallSheetLocation {
   name: string;
+  /**
+   * The set as the script or setup names it — "LIVING ROOM" — when this entry
+   * came from free text that resolved to a project location. It is the handle
+   * for changing that link later; absent when the entry IS its own set name.
+   */
+  setName?: string;
   address?: string;
   /** Optional pin (WGS84) so paperwork can link out to a map provider. */
   lat?: number;
