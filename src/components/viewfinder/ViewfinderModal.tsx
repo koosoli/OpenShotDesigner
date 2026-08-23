@@ -5,7 +5,7 @@ import { isPointInCameraFov } from '../../utils/geometry';
 import { loadStoryboardImageFile } from '../../utils/image';
 import { storeImageAsset } from '../../utils/assetImages';
 import { dataUrlToBlob } from '../../utils/projectMedia';
-import { setFramePatch, isSlotOmitted, slotsOf, START_SLOT, keyFrameImage } from '../../utils/storyboardFrames';
+import { framesOf, setFramePatch, isSlotOmitted, slotsOf, START_SLOT, keyFrameImage } from '../../utils/storyboardFrames';
 import { renderSimulatedFrame, SimulatedSubject } from '../../utils/simulatedFrame';
 import {
   APERTURES,
@@ -393,9 +393,16 @@ export const ViewfinderModal: React.FC = () => {
       setSaveNote(`Storyboard and framing saved to shot ${targetShot.shotNumber}.`);
       setTimeout(() => setPhotoFeedback(false), 2200);
     } else {
-      // No webcam: still board the simulated blocking so saving the framing
-      // leaves the shot with a picture. Canvas failure falls back to metadata.
-      const boardImage = renderFinderBoardImage();
+      // No webcam: board the simulated blocking so saving the framing leaves
+      // the shot with a picture — but ONLY when this slot has none.
+      //
+      // It used to do that unconditionally, which meant attaching your own
+      // photo and then pressing Save replaced it with a raster of the
+      // simulated view: silhouettes, and the caption "Empty frame" whenever no
+      // actor stood in the camera's cone. The photo was not lost by accident,
+      // it was deliberately overwritten by the thing meant to be a fallback.
+      const existingArt = framesOf(targetShot)[currentSlotKey]?.image;
+      const boardImage = existingArt ? null : renderFinderBoardImage();
       if (boardImage) {
         updateShot(targetShot.id, {
           ...framing,
@@ -405,6 +412,11 @@ export const ViewfinderModal: React.FC = () => {
         setSaveNote(`Framing and board saved to shot ${targetShot.shotNumber}.`);
       } else {
         updateShot(targetShot.id, framing);
+        setSaveNote(
+          existingArt
+            ? `Framing saved to shot ${targetShot.shotNumber}. Its board was kept.`
+            : `Framing saved to shot ${targetShot.shotNumber}.`,
+        );
       }
     }
     setSavedFeedback(true);
