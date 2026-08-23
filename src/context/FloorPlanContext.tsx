@@ -83,7 +83,7 @@ import {
 } from '../domain/workspace';
 
 /** Sections available in the export / print studio. */
-export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'sides' | 'scriptreports' | 'equipment' | 'dmx' | 'moodboard' | 'crew' | 'combined';
+export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'avscript' | 'sides' | 'scriptreports' | 'equipment' | 'dmx' | 'moodboard' | 'crew' | 'combined';
 
 /**
  * Collision-proof ids. `Date.now()` alone repeats when two shots are created

@@ -40,6 +40,7 @@ import { WallLayer } from '../canvas/WallLayer';
 import { StoryboardThumbLayer } from '../canvas/StoryboardThumbLayer';
 import { LinedScriptPage, linedExcerpt } from '../script/LinedScriptPage';
 import { TitlePageView } from '../script/TitlePageView';
+import { AvScriptPrintView } from '../reports/AvScriptPrintView';
 import { hasTitlePageContent } from '../../domain/script';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
 import { slotsOf, boardedFrames, visibleStoryboardSlots } from '../../utils/storyboardFrames';
@@ -116,7 +117,6 @@ export const PrintableShotPlan: React.FC = () => {
     allScriptMarks,
     allShots,
     avScriptRows,
-    scriptFormatMode,
     displaySettings,
   } = useFloorPlan();
   const [pngScale, setPngScale] = useState<2 | 3>(2);
@@ -625,6 +625,16 @@ export const PrintableShotPlan: React.FC = () => {
               }`}
             >
               Lined Script
+            </button>
+            <button
+              onClick={() => setExportSection('avscript')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'avscript'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              AV Script
             </button>
             <button
               onClick={() => setExportSection('sides')}
@@ -1897,123 +1907,83 @@ export const PrintableShotPlan: React.FC = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* SECTION L: SCRIPT / AV 2-COLUMN SCRIPT / LINED SHOOTING SCRIPT              */}
+          {/* SECTION L1: AV (2-COLUMN) SCRIPT                                           */}
           {/* ========================================================================= */}
-          {(exportSection === 'linedscript' || exportSection === 'combined') && (
+          {/* Its own section, and part of the complete package whenever there are
+              rows. It used to print only while the script panel sat in AV mode — a
+              screenplay-shaped condition on a document that has no screenplay in
+              it, so a production with an AV script could not print one without
+              flipping a mode that has nothing to do with the document. */}
+          {(exportSection === 'avscript' || (exportSection === 'combined' && (avScriptRows || []).length > 0)) && (
+            <div className="mb-8 print-section">
+              <AvScriptPrintView rows={avScriptRows || []} />
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* SECTION L2: LINED SHOOTING SCRIPT                                          */}
+          {/* ========================================================================= */}
+          {(exportSection === 'linedscript' || (exportSection === 'combined' && scriptLines.length > 0)) && (
             <div className="mb-8">
-              {scriptFormatMode === 'av_script' ? (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                      <Film className="w-4 h-4 text-violet-600" />
-                      <span>Audio-Visual (AV) 2-Column Script Sheet</span>
-                    </h3>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-violet-600" />
+                    <span>Lined Shooting Script</span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center rounded-lg border border-slate-300 p-0.5 print:hidden">
+                      <button
+                        onClick={() => setScriptScope('lined')}
+                        className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
+                          scriptScope === 'lined' ? 'bg-sky-600 text-white' : 'text-slate-600'
+                        }`}
+                      >
+                        Lined portions
+                      </button>
+                      <button
+                        onClick={() => setScriptScope('full')}
+                        className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
+                          scriptScope === 'full' ? 'bg-sky-600 text-white' : 'text-slate-600'
+                        }`}
+                      >
+                        Full screenplay
+                      </button>
+                    </div>
                     <span className="font-mono text-xs font-bold text-slate-700">
-                      {(avScriptRows || []).length} SHOTS
+                      {allScriptMarks.length} LINED SHOT{allScriptMarks.length === 1 ? '' : 'S'}
                     </span>
                   </div>
-
-                  <div className="border border-slate-900 rounded-lg overflow-hidden">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-bold">
-                          <th className="p-2.5 font-mono w-16 text-center">SHOT #</th>
-                          <th className="p-2.5 w-44">NAME & SIZE</th>
-                          <th className="p-2.5 w-1/2">VIDEO (VISUALS & CAMERA)</th>
-                          <th className="p-2.5 w-1/2">AUDIO (VO, DIALOGUE, SFX, MUSIC)</th>
-                          <th className="p-2.5 font-mono w-16 text-center">TIME</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-300">
-                        {(avScriptRows || []).map((row) => (
-                          <tr key={row.id} className="hover:bg-slate-50">
-                            <td className="p-2.5 font-mono font-black text-slate-900 text-center">
-                              {row.shotNumber}
-                            </td>
-                            <td className="p-2.5">
-                              <div className="font-bold text-slate-900">{row.shotName || `Shot ${row.shotNumber}`}</div>
-                              {row.shotSize && (
-                                <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded bg-slate-200 text-slate-800 text-[10px] font-bold">
-                                  {row.shotSize}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2.5 text-slate-800 whitespace-pre-wrap leading-relaxed">
-                              {row.video}
-                            </td>
-                            <td className="p-2.5 text-slate-800 whitespace-pre-wrap leading-relaxed font-mono text-[11px]">
-                              {row.audio}
-                            </td>
-                            <td className="p-2.5 font-mono text-center text-slate-600">
-                              {row.durationSec ? `${row.durationSec}s` : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
-              ) : (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-violet-600" />
-                      <span>Lined Shooting Script</span>
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center rounded-lg border border-slate-300 p-0.5 print:hidden">
-                        <button
-                          onClick={() => setScriptScope('lined')}
-                          className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
-                            scriptScope === 'lined' ? 'bg-sky-600 text-white' : 'text-slate-600'
-                          }`}
-                        >
-                          Lined portions
-                        </button>
-                        <button
-                          onClick={() => setScriptScope('full')}
-                          className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
-                            scriptScope === 'full' ? 'bg-sky-600 text-white' : 'text-slate-600'
-                          }`}
-                        >
-                          Full screenplay
-                        </button>
-                      </div>
-                      <span className="font-mono text-xs font-bold text-slate-700">
-                        {allScriptMarks.length} LINED SHOT{allScriptMarks.length === 1 ? '' : 'S'}
-                      </span>
-                    </div>
+                {scriptLines.length === 0 ? (
+                  <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                    No screenplay imported for this scene — load one in the Script panel to print a lined script.
+                  </p>
+                ) : (
+                  <div className="border border-slate-300 rounded-lg p-3 bg-white">
+                    {/* The cover, when the production has asked for one. It is
+                        a page of its own, so it breaks before the script. */}
+                    {project.titlePage?.enabled && hasTitlePageContent(project.titlePage, project.scriptTitle) && (
+                      <TitlePageView page={project.titlePage} fallbackTitle={project.scriptTitle} fontSize={11} print isLight />
+                    )}
+                    {printedScriptLines.length === 0 ? (
+                      <p className="text-xs text-slate-500 p-3">
+                        Nothing is lined yet — line a shot in the Script panel, or switch to “Full screenplay”.
+                      </p>
+                    ) : (
+                      <LinedScriptPage
+                        lines={printedScriptLines}
+                        marks={allScriptMarks}
+                        shots={allShots}
+                        fontSize={11}
+                        showShotSize={eff.showShotSizeInScript !== false}
+                        isLight
+                        print
+                      />
+                    )}
                   </div>
-                  {scriptLines.length === 0 ? (
-                    <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
-                      No screenplay imported for this scene — load one in the Script panel to print a lined script.
-                    </p>
-                  ) : (
-                    <div className="border border-slate-300 rounded-lg p-3 bg-white">
-                      {/* The cover, when the production has asked for one. It is
-                          a page of its own, so it breaks before the script. */}
-                      {project.titlePage?.enabled && hasTitlePageContent(project.titlePage, project.scriptTitle) && (
-                        <TitlePageView page={project.titlePage} fallbackTitle={project.scriptTitle} fontSize={11} print isLight />
-                      )}
-                      {printedScriptLines.length === 0 ? (
-                        <p className="text-xs text-slate-500 p-3">
-                          Nothing is lined yet — line a shot in the Script panel, or switch to “Full screenplay”.
-                        </p>
-                      ) : (
-                        <LinedScriptPage
-                          lines={printedScriptLines}
-                          marks={allScriptMarks}
-                          shots={allShots}
-                          fontSize={11}
-                          showShotSize={eff.showShotSizeInScript !== false}
-                          isLight
-                          print
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 

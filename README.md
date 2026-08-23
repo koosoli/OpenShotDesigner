@@ -187,7 +187,7 @@ board — in one print job, with your production logo on the paperwork.
   - **Smart blank conversions** — pressing <kbd>Enter</kbd> on empty cues seamlessly converts Parentheticals to Dialogue, empty Characters to Action, and empty Actions to Scene Headings.
   - **Tab cycling** — press <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to cycle across all 6 screenplay element types.
   - **Fountain mode** — toggle between WYSIWYG Page View and raw Fountain syntax markdown code.
-- **AV Script (2-Column Audio/Visual)** — dedicated production AV table for commercials, documentaries, and multicam setups. Synchronized bidirectionally with floor plan cameras and lined coverage.
+- **AV Script (2-Column Audio/Visual)** — dedicated production AV table for commercials, documentaries, and multicam setups. Synchronized bidirectionally with floor plan cameras and lined coverage. Prints as a sheet of its own — video down one side, audio down the other, with shot count and running time — and joins the complete package whenever it has rows.
 - **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or Final Draft scene attributes — and printed in **both margins**, the way a numbered production draft is read.
 - **Title page** — the screenplay's cover with title, credit, author(s), source, draft, date, contact and copyright, edited beside a live preview. The fields are Fountain's standard title-page keys, so a script that arrives with a cover keeps it and an exported one carries it back out. Printing the cover is opt-in, and a **DRAFT** stamp is one toggle away (off by default).
 - **Cut a scene without losing its number** — deleting a scene heading first *omits* it: the slugline stays in place as **SCENE 12 — OMITTED**, its body is parked and restored verbatim by **Restore**, and deleting it again removes it for good. Scheduled strips for an omitted scene stay visible on the board rather than vanishing, and a new scene can be started directly after an omitted one.
@@ -370,7 +370,8 @@ New to it? **Templates → Fill empty modules with examples** loads a worked exa
 | **Equipment manifest** | Scene or all-scenes master truck package — print sheet (PDF) or CSV/Excel spreadsheet |
 | **PNG** | High-resolution blueprint render (1×/2×/3×) with a title block carrying your production logo |
 | **Print view (PDF)** | Page-ready layout — print or "Save as PDF" from your browser |
-| **CSV** | Shot list spreadsheet (per scene, or all scenes in one file) |
+| **CSV** | Shot list spreadsheet (per scene, or all scenes in one file), or the AV script as a spreadsheet |
+| **AV script** | The two-column video/audio sheet on its own, with shot count and running time |
 | **Call sheet** | Per-day sheet with crew call, locations and their maps, the schedule grouped by scene heading, cast, transport & pick-ups, weather, safety and a next-day look-ahead |
 | **Budget** | Print sheet with above/below-the-line totals, every category, VAT by rate and the unpriced list — or a CSV spreadsheet |
 | **Stripboard / calendar / coverage** | The schedule as an AD board, a calendar, or the multi-camera coverage grid |

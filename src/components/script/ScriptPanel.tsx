@@ -936,9 +936,9 @@ export const ScriptPanel: React.FC = () => {
 
             {activeTab !== 'reports' && activeTab !== 'title_page' && lines.length > 0 && (
               <button
-                onClick={() => openExportModal(activeTab === 'av_script' ? 'combined' : 'linedscript')}
+                onClick={() => openExportModal(activeTab === 'av_script' ? 'avscript' : 'linedscript')}
                 className={headerButton}
-                title="Export / print formatted script"
+                title={activeTab === 'av_script' ? 'Print the AV script on its own' : 'Export / print formatted script'}
               >
                 <Printer className="w-3.5 h-3.5" /> Print PDF
               </button>
