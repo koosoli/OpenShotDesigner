@@ -56,6 +56,6 @@ describe('migrateV21ToV22', () => {
     const { project, migratedFrom } = migrateProject(v21Fixture());
     expect(migratedFrom).toBe(21);
     expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
-    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(22);
+    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(23);
   });
 });

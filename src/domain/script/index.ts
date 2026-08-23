@@ -30,6 +30,15 @@ export {
 } from './breakdownTags';
 export type { BreakdownCategoryGroup, BreakdownSourceLine } from './breakdownTags';
 export {
+  avCoverage,
+  avRowNumber,
+  isDanglingRow,
+  isShotlessRow,
+  rowsAfterShotRemoval,
+  rowsForMissingShots,
+} from './avScript';
+export type { AvCoverage, AvLinkedShot } from './avScript';
+export {
   hasTitlePageContent,
   parseFountainTitlePage,
   resolveTitlePage,

@@ -1916,7 +1916,7 @@ export const PrintableShotPlan: React.FC = () => {
               flipping a mode that has nothing to do with the document. */}
           {(exportSection === 'avscript' || (exportSection === 'combined' && (avScriptRows || []).length > 0)) && (
             <div className="mb-8 print-section">
-              <AvScriptPrintView rows={avScriptRows || []} />
+              <AvScriptPrintView rows={avScriptRows || []} shots={allShots} />
             </div>
           )}
 

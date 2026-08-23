@@ -682,6 +682,13 @@ export interface AVScriptRow {
   audio: string; // Voiceover, dialogue, SFX, music
   durationSec?: number; // Estimated timing in seconds
   linkedShotId?: string; // Linked camera shot on floor plan
+  /**
+   * This row is deliberately not a shot: titles, a lower third, graphics,
+   * stock or archive footage, a music-only beat. It still prints, and the
+   * coverage check stops asking it to become a camera on the floor plan.
+   * Absent = an ordinary shot row.
+   */
+  noShot?: boolean;
   /** Board art for this row (data URL). Absent = fall back to the linked shot's storyboard. */
   storyboardImage?: string;
   storyboardFit?: 'cover' | 'contain';

@@ -33,6 +33,14 @@ import {
 import { createId } from '../domain/ids';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
+import { rowsAfterShotRemoval } from '../domain/script';
+
+/**
+ * Every shot in a project, flattened across setups — what an AV row's number
+ * is resolved against. Read from a `prev` snapshot so it is correct inside a
+ * state updater rather than one render behind.
+ */
+const allShotsOf = (project: Project): Shot[] => project.setups.flatMap((setup) => setup.shots || []);
 import type { ScreenplayTitlePage } from '../domain/script';
 import { removeSetupReferences, removeShotReferences } from '../domain/integrity';
 import { applyMediaReplacements, migrateProjectMedia } from '../utils/projectMedia';
@@ -1648,7 +1656,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return {
           ...prev,
           ...cleaned,
-          avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
+          // A row nobody wrote in goes with its shot; one carrying video or
+          // audio copy survives, unlinked, with its number frozen. Deleting a
+          // camera from a floor plan is not a reason to destroy written copy.
+          avScriptRows: rowsAfterShotRemoval(prev.avScriptRows || [], removedShotIds, allShotsOf(prev)),
         };
       });
     }
@@ -1694,7 +1705,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return {
           ...prev,
           ...cleaned,
-          avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
+          // A row nobody wrote in goes with its shot; one carrying video or
+          // audio copy survives, unlinked, with its number frozen. Deleting a
+          // camera from a floor plan is not a reason to destroy written copy.
+          avScriptRows: rowsAfterShotRemoval(prev.avScriptRows || [], removedShotIds, allShotsOf(prev)),
         };
       });
     }
@@ -3342,7 +3356,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return {
         ...prev,
         ...cleaned,
-        avScriptRows: (prev.avScriptRows || []).filter((r) => r.linkedShotId !== id),
+        avScriptRows: rowsAfterShotRemoval(prev.avScriptRows || [], new Set([id]), allShotsOf(prev)),
       };
     });
   };

@@ -44,10 +44,19 @@ import {
   suggestCharacters,
   suggestLocations,
 } from '../../domain/script/logic';
-import { omittedSceneLabel, reconcileScriptLineIds, removeLineOrOmit, restoreScene } from '../../domain/script';
+import {
+  avCoverage,
+  avRowNumber,
+  omittedSceneLabel,
+  reconcileScriptLineIds,
+  removeLineOrOmit,
+  restoreScene,
+  rowsForMissingShots,
+} from '../../domain/script';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
 import { TitlePageEditor } from './TitlePageEditor';
 import { SetLocationLink } from '../locations/SetLocationLink';
+import { createId } from '../../domain/ids';
 import { BreakdownTagControl } from './BreakdownTagControl';
 import { ProjectImage } from '../common/ProjectImage';
 import { keyFrameImage } from '../../utils/storyboardFrames';
@@ -328,7 +337,7 @@ export const ScriptPanel: React.FC = () => {
     rows.forEach((r) => {
       const v = `"${(r.video || '').replace(/"/g, '""')}"`;
       const a = `"${(r.audio || '').replace(/"/g, '""')}"`;
-      csv += `${r.shotNumber},"${r.shotName || ''}",${r.shotSize || ''},${v},${a},${r.durationSec || ''}\n`;
+      csv += `${avRowNumber(r, allShots)},"${r.shotName || ''}",${r.shotSize || ''},${v},${a},${r.durationSec || ''}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -685,6 +694,30 @@ export const ScriptPanel: React.FC = () => {
     };
     setScriptLines([...lines.slice(0, index + 1), newLine, ...lines.slice(index + 1)]);
     setActiveEditingLineId(newLineId);
+  };
+
+  /**
+   * Where the AV script and the shot list disagree. Every shot should be
+   * scripted; a row that is titles, graphics or stock is not a shot and says
+   * so, so it is never counted as a gap (domain/script/avScript.ts).
+   */
+  const avCoverageReport = useMemo(
+    () => avCoverage(avScriptRows || [], allShots),
+    [avScriptRows, allShots],
+  );
+
+  /** The missing direction: a row for every shot that has none. */
+  const addRowsForMissingShots = () => {
+    const additions = rowsForMissingShots(
+      avCoverageReport.missingShots,
+      () => createId('av'),
+      (shot) => {
+        const full = allShots.find((candidate) => candidate.id === shot.id);
+        return full?.framingDescription || [full?.shotSize, full?.movement].filter(Boolean).join(' · ');
+      },
+    );
+    if (additions.length === 0) return;
+    setAVScriptRows([...(avScriptRows || []), ...additions]);
   };
 
   const addBlankLineAtBottom = (type: ScriptElementType = 'scene') => {
@@ -1426,11 +1459,25 @@ export const ScriptPanel: React.FC = () => {
                       }`}
                     >
                       <td className="py-2 px-2 text-center font-mono font-bold text-slate-400">
-                        <input
-                          value={row.shotNumber}
-                          onChange={(e) => updateAVScriptRow(row.id, { shotNumber: e.target.value })}
-                          className="w-10 text-center bg-transparent border border-transparent hover:border-slate-700 focus:border-violet-500 rounded outline-none"
-                        />
+                        {/* A linked row shows its SHOT's number and cannot drift
+                            from it. Editing numbers belongs to the shot list,
+                            which is also what renumbers them; a stored copy here
+                            is how "shot 2" came to mean nothing to "shot 1/2". */}
+                        {row.linkedShotId ? (
+                          <span
+                            className="block w-full text-center text-emerald-300"
+                            title="From the linked shot — renumber in the shot list"
+                          >
+                            {avRowNumber(row, allShots)}
+                          </span>
+                        ) : (
+                          <input
+                            value={row.shotNumber}
+                            onChange={(e) => updateAVScriptRow(row.id, { shotNumber: e.target.value })}
+                            aria-label="Row number"
+                            className="w-10 text-center bg-transparent border border-transparent hover:border-slate-700 focus:border-violet-500 rounded outline-none"
+                          />
+                        )}
                       </td>
 
                       <td className="py-2 px-2">
@@ -1511,14 +1558,34 @@ export const ScriptPanel: React.FC = () => {
                               View
                             </button>
                           </div>
-                        ) : (
+                        ) : row.noShot ? (
                           <button
-                            onClick={() => syncAVRowToShot(row.id)}
-                            className="px-2.5 py-1 rounded bg-sky-600/80 hover:bg-sky-500 text-white text-[10px] font-semibold flex items-center gap-1 mx-auto shadow-sm"
-                            title="Create camera element on floor plan and link to this AV shot"
+                            onClick={() => updateAVScriptRow(row.id, { noShot: undefined })}
+                            className="px-2 py-0.5 rounded-full border border-slate-600 text-slate-400 text-[10px] font-bold mx-auto block"
+                            title="Marked as needing no camera — titles, graphics, stock. Click to treat it as a shot again."
                           >
-                            <Video className="w-3 h-3" /> Sync Cam
+                            No camera
                           </button>
+                        ) : (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <button
+                              onClick={() => syncAVRowToShot(row.id)}
+                              className="px-2.5 py-1 rounded bg-sky-600/80 hover:bg-sky-500 text-white text-[10px] font-semibold flex items-center gap-1 shadow-sm"
+                              title="Create camera element on floor plan and link to this AV shot"
+                            >
+                              <Video className="w-3 h-3" /> Sync Cam
+                            </button>
+                            {/* Titles, graphics and stock are real AV rows that
+                                will never be a camera; saying so once stops the
+                                coverage line asking for ever. */}
+                            <button
+                              onClick={() => updateAVScriptRow(row.id, { noShot: true })}
+                              className="text-[9px] text-slate-500 hover:text-slate-300 underline"
+                              title="Titles, graphics, stock footage — this row needs no camera"
+                            >
+                              needs no camera
+                            </button>
+                          </div>
                         )}
                       </td>
 
@@ -1547,6 +1614,26 @@ export const ScriptPanel: React.FC = () => {
                 </button>
                 <span className="text-[11px] text-slate-500 font-mono">
                   {avScriptRows.length} total shots · {avScriptRows.reduce((acc, r) => acc + (r.durationSec || 0), 0)}s est. runtime
+                  {/* The AV script and the shot list describe the same shoot;
+                      this says where they disagree, and fills the gap in one
+                      press. Rows marked "needs no camera" are never counted. */}
+                  {avCoverageReport.missingShots.length > 0 && (
+                    <>
+                      {' · '}
+                      <button
+                        onClick={addRowsForMissingShots}
+                        className="text-amber-400 hover:text-amber-300 underline font-semibold"
+                        title={avCoverageReport.missingShots.map((shot) => `${shot.shotNumber} ${shot.name ?? ''}`.trim()).join(', ')}
+                      >
+                        {avCoverageReport.missingShots.length} shot{avCoverageReport.missingShots.length === 1 ? '' : 's'} not in the AV script — add {avCoverageReport.missingShots.length === 1 ? 'it' : 'them'}
+                      </button>
+                    </>
+                  )}
+                  {avCoverageReport.danglingRows.length > 0 && (
+                    <span className="text-slate-500">
+                      {' · '}{avCoverageReport.danglingRows.length} row{avCoverageReport.danglingRows.length === 1 ? '' : 's'} whose shot was deleted
+                    </span>
+                  )}
                 </span>
               </div>
             </div>

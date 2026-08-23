@@ -1,9 +1,13 @@
 import React from 'react';
 import { Film } from 'lucide-react';
 import type { AVScriptRow } from '../../types';
+import { avRowNumber } from '../../domain/script';
+import type { AvLinkedShot } from '../../domain/script';
 
 interface AvScriptPrintViewProps {
   rows: AVScriptRow[];
+  /** The shot list, so a linked row prints the shot's number rather than a stale copy. */
+  shots?: AvLinkedShot[];
 }
 
 /**
@@ -16,7 +20,7 @@ interface AvScriptPrintViewProps {
  * panel happened to be in AV mode — a screenplay-shaped condition on a document
  * that has nothing to do with a screenplay.
  */
-export const AvScriptPrintView: React.FC<AvScriptPrintViewProps> = ({ rows }) => {
+export const AvScriptPrintView: React.FC<AvScriptPrintViewProps> = ({ rows, shots = [] }) => {
   const totalSeconds = rows.reduce((sum, row) => sum + (row.durationSec || 0), 0);
 
   return (
@@ -51,12 +55,19 @@ export const AvScriptPrintView: React.FC<AvScriptPrintViewProps> = ({ rows }) =>
             <tbody className="divide-y divide-slate-300">
               {rows.map((row) => (
                 <tr key={row.id} className="break-inside-avoid">
-                  <td className="p-2.5 font-mono font-black text-slate-900 text-center">{row.shotNumber}</td>
+                  <td className="p-2.5 font-mono font-black text-slate-900 text-center">{avRowNumber(row, shots)}</td>
                   <td className="p-2.5">
-                    <div className="font-bold text-slate-900">{row.shotName || `Shot ${row.shotNumber}`}</div>
-                    {row.shotSize && (
+                    <div className="font-bold text-slate-900">{row.shotName || `Shot ${avRowNumber(row, shots)}`}</div>
+                    {row.shotSize && !row.noShot && (
                       <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded bg-slate-200 text-slate-800 text-[10px] font-bold">
                         {row.shotSize}
+                      </span>
+                    )}
+                    {/* Titles, graphics and stock are real rows on the sheet;
+                        the badge tells the unit there is nothing to shoot. */}
+                    {row.noShot && (
+                      <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded border border-slate-400 text-slate-600 text-[10px] font-bold">
+                        NO CAMERA
                       </span>
                     )}
                   </td>
