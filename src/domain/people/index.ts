@@ -14,6 +14,7 @@ export {
   PERSON_KINDS,
   PERSON_KIND_LABELS,
   PRODUCTION_DEPARTMENTS,
+  allPhonesFor,
   assignCast,
   callSheetPhone,
   castPersonForCharacter,

@@ -8,6 +8,7 @@ import type { ProductionDay } from '../../domain/scheduling';
 import type { CallSheetData, StandingCallSheetField } from '../../domain/reports';
 import { resolveStandingCallSheet } from '../../domain/reports';
 import { StandingCallSheetEditor } from './StandingCallSheetEditor';
+import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { LocationMapCapture } from './LocationMapCapture';
 import { ProjectImage } from '../common/ProjectImage';
 
@@ -316,6 +317,18 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               </label>
             ))}
 
+            {/* Draft is the default, so this toggle records the decision to
+                issue rather than the decision to hold. */}
+            <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase text-slate-500">
+              <input
+                type="checkbox"
+                checked={(selectedDay.callSheet?.status ?? 'draft') === 'draft'}
+                onChange={(event) => patchCallSheet({ status: event.target.checked ? 'draft' : 'final' })}
+                className="accent-rose-600"
+              />
+              Draft — watermark the sheet
+            </label>
+
             <LocationMapCapture
               day={selectedDay}
               locations={sheet.locations}
@@ -468,52 +481,16 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               <button onClick={() => onPrint(selectedDay)} className="h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-black flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /> Print / PDF</button>
             </div>
 
-            <article className="mx-auto bg-white text-slate-950 shadow-xl border border-slate-300 min-h-[720px] p-6 font-sans">
-              <header className="grid grid-cols-[1fr_auto] gap-5 pb-4 border-b-[3px] border-slate-950">
-                <div><div className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-700">{sheet.productionCompany ? `${sheet.productionCompany} · Production call sheet` : 'Production call sheet'}</div><h1 className="mt-1 text-2xl font-black uppercase tracking-tight">{sheet.productionTitle}</h1><div className="mt-1 text-sm font-bold">{sheet.dayName}</div>{(sheet.productionCompanyInfo?.address || sheet.productionCompanyInfo?.phone || sheet.productionCompanyInfo?.email || sheet.productionCompanyInfo?.website) && <div className="mt-1 text-[10px] text-slate-600 leading-snug">{[sheet.productionCompanyInfo?.address, sheet.productionCompanyInfo?.phone, sheet.productionCompanyInfo?.email, sheet.productionCompanyInfo?.website].filter(Boolean).join(' · ')}</div>}</div>
-                <div className="text-right flex flex-col items-end gap-2">
-                  {sheet.productionLogo && <ProjectImage imageRef={sheet.productionLogo} alt="Production logo" className="max-w-[42mm] max-h-[18mm] object-contain" />}
-                  <div><div className="text-[9px] font-bold uppercase text-slate-500">General crew call</div><div className="text-3xl font-black font-mono tracking-tight">{sheet.crewCall ?? '—'}</div><div className="text-[10px] font-bold">{sheet.date ?? 'DATE NOT SET'}</div></div>
-                </div>
-              </header>
-
-              <div className="grid grid-cols-3 gap-px mt-3 bg-slate-300 border border-slate-300 text-[10px]">
-                <div className="bg-slate-50 p-2"><b className="block uppercase text-[8px] text-slate-500">Planned wrap</b>{sheet.plannedWrap ?? '—'}</div>
-                <div className="bg-slate-50 p-2"><b className="block uppercase text-[8px] text-slate-500">Weather</b>{sheet.weatherSummary ?? 'Not entered'}</div>
-                <div className="bg-slate-50 p-2">
-                  <b className="block uppercase text-[8px] text-slate-500">Sunrise / sunset</b>
-                  {sheet.daylight.sunrise || sheet.daylight.sunset
-                    ? `${sheet.daylight.sunrise ?? '—'} / ${sheet.daylight.sunset ?? '—'}`
-                    : 'Pin the location to calculate'}
-                </div>
-                <div className="bg-slate-50 p-2"><b className="block uppercase text-[8px] text-slate-500">Total schedule</b>{formatMinutes(sheet.totalEstimatedMinutes)}</div>
-              </div>
-
-              {sheet.safetyNotes && <div className="mt-3 border-2 border-amber-500 bg-amber-50 p-2.5 flex gap-2 text-[10px]"><ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" /><div><b className="block uppercase text-[8px] tracking-wider">Safety bulletin</b>{sheet.safetyNotes}</div></div>}
-
-              <section className="mt-4"><h2 className="text-[9px] font-black uppercase tracking-[0.18em] border-b-2 border-slate-900 pb-1">Locations</h2>{sheet.locations.length ? sheet.locations.map((location, index) => <div key={index} className="grid grid-cols-[18px_1fr_auto] gap-2 py-2 border-b border-slate-200 text-[10px]"><MapPin className="w-3.5 h-3.5 text-cyan-700" /><div><b>{location.name}</b><div className="text-slate-600">{location.address ?? 'Address not entered'}</div>{!location.address && <div className="text-[9px] text-amber-700">From the scene heading. Script → Reports → Locations → Create location to add an address and a map pin.</div>}</div><a href={locationMapLinkUrl(location)} target="_blank" rel="noreferrer" className="text-[9px] font-bold text-sky-700 underline self-center">Map</a></div>) : <div className="py-2 text-[10px] text-amber-700">No linked shooting location</div>}</section>
-
-<section className="mt-4"><h2 className="text-[9px] font-black uppercase tracking-[0.18em] border-b-2 border-slate-900 pb-1">Shooting schedule</h2><table className="w-full text-[9px] border-collapse"><thead><tr className="bg-slate-100 text-left uppercase text-[8px]"><th className="p-1.5">Time</th><th className="p-1.5">Schedule item</th><th className="p-1.5">Type</th><th className="p-1.5 text-right">Duration</th></tr></thead><tbody>{sheet.schedule.map((entry, index) => <tr key={index} className={`border-b border-slate-200 ${entry.omitted ? 'text-slate-400' : ''}`}><td className="p-1.5 font-mono font-bold">{entry.scheduledStart ?? '—'}</td><td className={`p-1.5 font-bold ${entry.omitted ? 'line-through' : ''}`}>{entry.label}{entry.omitted && <span className="ml-1 px-1 border border-slate-300 text-[7px] uppercase align-middle">Omitted</span>}</td><td className="p-1.5 uppercase text-slate-500">{entry.kind}</td><td className="p-1.5 text-right font-mono">{entry.estimatedMinutes === undefined ? '—' : `${entry.estimatedMinutes}m`}</td></tr>)}</tbody></table></section>
-
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                <section><h2 className="text-[9px] font-black uppercase tracking-[0.18em] border-b-2 border-slate-900 pb-1">Cast</h2>{sheet.cast.map((person, index) => <div key={index} className="py-1.5 border-b border-slate-200 text-[9px]"><b>{person.displayName}</b><span className="text-slate-500"> · {person.role ?? 'Talent'}</span></div>)}</section>
-                <section><h2 className="text-[9px] font-black uppercase tracking-[0.18em] border-b-2 border-slate-900 pb-1">Key crew</h2>{sheet.crew.map((person, index) => <div key={index} className="py-1.5 border-b border-slate-200 text-[9px]"><b>{person.displayName}</b><span className="text-slate-500"> · {[person.department, person.role].filter(Boolean).join(' / ')}</span></div>)}</section>
-              </div>
-
-              {(sheet.parking || sheet.nearestHospital || sheet.generalNotes) && <section className="mt-4 grid grid-cols-2 gap-3 text-[9px]"><div><b className="block uppercase text-[8px] text-slate-500">Parking / access</b>{sheet.parking ?? '—'}</div><div><b className="block uppercase text-[8px] text-slate-500">Nearest hospital</b>{sheet.nearestHospital ?? '—'}</div>{sheet.generalNotes && <div className="col-span-2"><b className="block uppercase text-[8px] text-slate-500">General notes</b>{sheet.generalNotes}</div>}</section>}
-
-              {sheet.lookAhead && (
-                <section className="mt-4">
-                  <h2 className="text-[9px] font-black uppercase tracking-[0.18em] text-white bg-violet-700 px-2 py-1">Look ahead · {sheet.lookAhead.dayName}</h2>
-                  <div className="border border-violet-300 border-t-0 bg-violet-50 p-2 text-[9px]">
-                    <div className="flex justify-between gap-2 font-bold"><span>{sheet.lookAhead.date ?? 'Date not set'} · crew call {sheet.lookAhead.crewCall ?? '—'}</span><span className="text-slate-500 font-normal">{sheet.lookAhead.locations.map((loc) => loc.name).join(', ') || 'No location linked yet'}</span></div>
-                    {sheet.lookAhead.items.length ? <ol className="list-decimal pl-4 mt-1 space-y-0.5">{sheet.lookAhead.items.map((item, index) => <li key={index} className={item.omitted ? 'line-through text-slate-400' : ''}>{item.label}</li>)}</ol> : <p className="text-slate-500 mt-1">Nothing scheduled yet.</p>}
-                    {sheet.lookAhead.cast.length > 0 && <p className="mt-1"><b>Cast:</b> {sheet.lookAhead.cast.map((person) => person.displayName).join(', ')}</p>}
-                  </div>
-                </section>
-              )}
-
-              {sheet.warnings.length > 0 && <div className="mt-4 border border-amber-400 bg-amber-50 p-2 text-[8px] text-amber-900"><b className="uppercase">Draft readiness:</b> {sheet.warnings.join(' · ')}</div>}
+            {/* The real printed sheet, not a second rendering of it.
+                Maintaining a separate preview meant every block added to the
+                printout had to be added here too, and three were missed —
+                walkie channels, unit base and pick-ups were reported as "not
+                getting added to the call sheet" when they had been on the
+                printout all along, and the heads-of-department block had the
+                same gap. `CallSheetPrintView` carries its own styles, so it
+                renders on screen exactly as it prints. */}
+            <article className="mx-auto bg-white text-slate-950 shadow-xl border border-slate-300 min-h-[720px] p-6">
+              <CallSheetPrintView sheet={sheet} />
             </article>
           </section>
         </div>

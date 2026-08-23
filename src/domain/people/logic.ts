@@ -200,6 +200,7 @@ const CSV_COLUMNS: Array<PersonTextField> = [
   'department',
   'role',
   'phone',
+  'privatePhone',
   'productionPhone',
   'email',
   'company',
@@ -230,7 +231,8 @@ const CSV_HEADERS: Record<PersonTextField, string> = {
   kind: 'Type',
   department: 'Department',
   role: 'Role',
-  phone: 'Phone',
+  phone: 'Work phone',
+  privatePhone: 'Private phone',
   productionPhone: 'Production phone',
   email: 'Email',
   company: 'Company',
@@ -316,7 +318,8 @@ export const parsePeopleCsv = (text: string): Person[] => {
     if (cell === 'name' || cell === 'full name') return 'displayName';
     if (cell === 'dept') return 'department';
     if (cell === 'position' || cell === 'title') return 'role';
-    if (cell === 'mobile' || cell === 'cell' || cell === 'telephone') return 'phone';
+    if (cell === 'mobile' || cell === 'cell' || cell === 'telephone' || cell === 'phone') return 'phone';
+    if (cell === 'private' || cell === 'home' || cell === 'personal phone') return 'privatePhone';
     if (cell === 'prod phone' || cell === 'production mobile' || cell === 'unit phone') {
       return 'productionPhone';
     }
@@ -359,9 +362,26 @@ export const callSheetPhone = (
 ): string | undefined => {
   const production = person.productionPhone?.trim();
   if (production) return production;
-  const personal = person.phone?.trim();
-  return personal || undefined;
+  const work = person.phone?.trim();
+  return work || undefined;
 };
+
+/**
+ * Every number held for a person, for the contact sheet the office keeps.
+ *
+ * Deliberately NOT what a call sheet prints: a call sheet is copied, printed
+ * and left on a table, so it gets one number and it is never the private one.
+ */
+export const allPhonesFor = (
+  person: Pick<Person, 'phone' | 'privatePhone' | 'productionPhone'>,
+): Array<{ label: string; number: string }> =>
+  [
+    { label: 'Production', number: person.productionPhone },
+    { label: 'Work', number: person.phone },
+    { label: 'Private', number: person.privatePhone },
+  ]
+    .map((entry) => ({ label: entry.label, number: entry.number?.trim() ?? '' }))
+    .filter((entry): entry is { label: string; number: string } => entry.number.length > 0);
 
 /** True when the number on the call sheet is one the production issued. */
 export const usesProductionPhone = (

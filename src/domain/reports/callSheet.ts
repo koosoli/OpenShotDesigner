@@ -98,6 +98,8 @@ export interface CallSheetData {
   crewCall?: string;
   plannedWrap?: string;
   type: NonNullable<ProductionDay['callSheet']>['type'];
+  /** True until the day is explicitly marked final; drives the DRAFT watermark. */
+  isDraft: boolean;
   parking?: string;
   /** Walkie plan, inherited from the production unless the day overrides it. */
   walkieChannels?: string;
@@ -355,6 +357,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     crewCall: day.crewCall,
     plannedWrap: day.plannedWrap,
     type: day.callSheet?.type ?? 'shoot',
+    isDraft: day.callSheet?.status !== 'final',
     parking: standing.parking.value,
     walkieChannels: standing.walkieChannels.value,
     unitBase: standing.unitBase.value,

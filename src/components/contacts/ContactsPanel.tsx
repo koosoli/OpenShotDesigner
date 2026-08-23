@@ -121,7 +121,10 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
         </label>
         <HeadshotField draft={draft} onChange={onChange} isLight={isLight} />
         {field('role', 'Role / position', 'Gaffer, 1st AD, Lead…')}
-        {field('phone', 'Phone', '+1 555 0100', 'tel')}
+        {field('phone', 'Work phone', '+1 555 0100', 'tel')}
+        {/* Held for emergencies and deliberately never suggested for paperwork:
+            a call sheet is copied, printed and left on a table. */}
+        {field('privatePhone', 'Private phone', 'Emergencies only', 'tel')}
         {/* A number issued for this job only — a rented handset, a department
             line. When present it is what the call sheet prints, because that is
             the number the unit should ring today. */}

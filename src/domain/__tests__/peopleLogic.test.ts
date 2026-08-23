@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  allPhonesFor,
   assignCast,
   callSheetPhone,
   castPersonForCharacter,
@@ -86,7 +87,7 @@ describe('CSV round-trip', () => {
   it('exports every person and re-imports them with fresh ids', () => {
     const csv = peopleToCsv(people);
     expect(csv.split('\n')[0]).toBe(
-      'Name,Type,Department,Role,Phone,Production phone,Email,Company,Address,Rate,Emergency contact,Hotel,Hotel address,Check-in,Check-out,Notes',
+      'Name,Type,Department,Role,Work phone,Private phone,Production phone,Email,Company,Address,Rate,Emergency contact,Hotel,Hotel address,Check-in,Check-out,Notes',
     );
     expect(csv).toContain('"Needs 7am pickup, ""north gate"""');
     const imported = parsePeopleCsv(csv);
@@ -148,5 +149,52 @@ describe('production phone in CSV', () => {
   it('accepts the headers a production office actually types', () => {
     const csv = 'Name,Unit phone\r\nAda Reyes,+1 555 0999\r\n';
     expect(parsePeopleCsv(csv)[0].productionPhone).toBe('+1 555 0999');
+  });
+});
+
+/**
+ * A call sheet is copied, printed and left on a table. Someone's home number
+ * does not belong on it — which is the entire reason the private number is a
+ * separate field rather than a second value in `phone`.
+ */
+describe('private phone never reaches a call sheet', () => {
+  const person = (extra: Partial<Person>): Person => ({ id: 'p', displayName: 'Ada', ...extra });
+
+  /**
+   * The guarantee is structural, not just behavioural: `callSheetPhone` takes
+   * `Pick<Person, 'phone' | 'productionPhone'>`, so it cannot read the private
+   * number even by mistake. These pin the behaviour that follows from it.
+   */
+  it('prefers the work number and ignores the private one', () => {
+    expect(callSheetPhone(person({ phone: '+1 555 0100', privatePhone: '+1 555 9999' }))).toBe('+1 555 0100');
+  });
+
+  it('reports no number rather than falling back to the private one', () => {
+    expect(callSheetPhone(person({ privatePhone: '+1 555 9999' }))).toBeUndefined();
+  });
+
+  it('still lets a production-issued number win over the work number', () => {
+    expect(
+      callSheetPhone(person({ phone: '+1 555 0100', privatePhone: '+1 555 9999', productionPhone: '+1 555 0001' })),
+    ).toBe('+1 555 0001');
+  });
+});
+
+describe('allPhonesFor', () => {
+  it('lists every number held, most work-relevant first', () => {
+    expect(
+      allPhonesFor({ phone: '+1 555 0100', privatePhone: '+1 555 9999', productionPhone: '+1 555 0001' }),
+    ).toEqual([
+      { label: 'Production', number: '+1 555 0001' },
+      { label: 'Work', number: '+1 555 0100' },
+      { label: 'Private', number: '+1 555 9999' },
+    ]);
+  });
+
+  it('omits the ones that are not set, rather than printing blank rows', () => {
+    expect(allPhonesFor({ phone: '+1 555 0100', privatePhone: '   ' })).toEqual([
+      { label: 'Work', number: '+1 555 0100' },
+    ]);
+    expect(allPhonesFor({})).toEqual([]);
   });
 });

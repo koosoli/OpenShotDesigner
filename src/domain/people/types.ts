@@ -17,10 +17,21 @@ export interface Person {
   role?: string;
   email?: string;
   /**
-   * The person's own number — agency, mobile, however they are normally
-   * reached. Kept as the number of record beyond this production.
+   * The WORK number: agency, office, or the mobile someone gives out
+   * professionally. This is the field that has always existed, so it keeps its
+   * name and its meaning — an existing project needs no migration (rule 13).
+   *
+   * This is what a call sheet prints when no production number was issued.
    */
   phone?: string;
+  /**
+   * A private number, held for emergencies and never suggested for paperwork.
+   *
+   * Separate from `phone` precisely so it can be excluded: a call sheet is
+   * copied, printed and left on a table, and someone's home number does not
+   * belong on it. `callSheetPhone` never returns this.
+   */
+  privatePhone?: string;
   /**
    * A number the production issued for this job only: a rented handset, a
    * department line, a temporary SIM. When present it is what belongs on the

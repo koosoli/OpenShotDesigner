@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CastAssignment, Person } from '../../domain/people';
-import { PERSON_KIND_LABELS, callSheetPhone, groupPeopleByDepartment, usesProductionPhone } from '../../domain/people';
+import { PERSON_KIND_LABELS, allPhonesFor, callSheetPhone, groupPeopleByDepartment } from '../../domain/people';
 import { PersonAvatar } from '../contacts/PersonAvatar';
 import type { Character } from '../../domain/script';
 import { ProjectImage } from '../common/ProjectImage';
@@ -84,11 +84,16 @@ export const ContactListPrintView: React.FC<ContactListPrintViewProps> = ({ peop
                         leads. The personal number stays underneath rather than
                         being replaced — the office still needs to reach people
                         after the handsets go back. */}
+                    {/* The office's own document, so it carries every number
+                        held — unlike a call sheet, which gets one and never the
+                        private one. */}
                     <td className={`${cell} font-mono whitespace-nowrap`}>
-                      {callSheetPhone(person) ?? ''}
-                      {usesProductionPhone(person) && person.phone && (
-                        <div className="text-[9px] text-slate-500">own: {person.phone}</div>
-                      )}
+                      {allPhonesFor(person).map((entry) => (
+                        <div key={entry.label}>
+                          <span className="text-[8px] uppercase text-slate-500">{entry.label} </span>
+                          {entry.number}
+                        </div>
+                      ))}
                     </td>
                     <td className={cell}>{person.email ?? ''}</td>
                     <td className={cell}>{person.company ?? ''}</td>

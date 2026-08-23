@@ -41,6 +41,13 @@ export interface ProductionDay {
      * sheet wants one, and fetching tiles is a deliberate act rather than
      * something every day does on open (rules 29–30).
      */
+    /**
+     * Whether this sheet has been signed off. ABSENT MEANS DRAFT, deliberately:
+     * a sheet is a draft until someone says otherwise, and the expensive
+     * mistake is a half-finished sheet going out looking final. Marking it
+     * final is the decision worth recording (rule 13).
+     */
+    status?: 'draft' | 'final';
     showLocationMap?: boolean;
     /**
      * The composed OpenStreetMap picture in the asset store. Captured once and

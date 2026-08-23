@@ -107,6 +107,21 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         .cs-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #cbd5e1; border: 1px solid #cbd5e1; margin-top: 8px; }
         .cs-strip div { background: #f8fafc; padding: 5px 7px; }
         .cs-strip b { display: block; font-size: 7.5px; letter-spacing: 1px; text-transform: uppercase; color: #64748b; margin-bottom: 1px; }
+        /* The watermark sits behind the content and must survive printing,
+           which strips background colours unless told not to. */
+        .cs-draft-mark {
+          position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+          pointer-events: none; z-index: 5; overflow: hidden;
+        }
+        .cs-draft-mark span {
+          transform: rotate(-32deg);
+          font-size: 92px; font-weight: 900; letter-spacing: 14px;
+          color: rgba(220, 38, 38, 0.13);
+          border: 6px solid rgba(220, 38, 38, 0.13);
+          padding: 6px 34px; white-space: nowrap;
+          -webkit-print-color-adjust: exact; print-color-adjust: exact;
+        }
+        .cs-sheet { position: relative; }
         .cs-section-title { font-size: 9px; letter-spacing: 1.8px; text-transform: uppercase; font-weight: 900; color: #fff; background: #0f172a; padding: 3px 7px; margin: 12px 0 0; page-break-after: avoid; break-after: avoid; }
         .cs-section-title.accent { background: #0e7490; }
         .cs-section-title.ahead { background: #7c3aed; }
@@ -136,7 +151,16 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         .cs-footer { margin-top: 14px; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 8.5px; color: #475569; display: flex; justify-content: space-between; gap: 10px; }
         .cs-footer p { margin: 0; }
       `}</style>
-      <div className="cs-doc">
+      <div className="cs-doc cs-sheet">
+        {/* A sheet is a draft until someone marks it final, so the watermark is
+            the default state rather than an extra someone has to remember. The
+            expensive mistake is a half-finished sheet going out looking
+            issued. */}
+        {sheet.isDraft && (
+          <div className="cs-draft-mark" aria-hidden="true">
+            <span>DRAFT</span>
+          </div>
+        )}
         <header className="cs-masthead">
           <div>
             <p className="cs-kicker">{sheet.productionCompany ? `${sheet.productionCompany} · Call sheet` : 'Call sheet'} · {sheet.type}</p>

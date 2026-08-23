@@ -241,3 +241,24 @@ describe('a scene heading names the location on the call sheet', () => {
     expect(parseSceneHeading('INT. LIVING ROOM - NIGHT').timeOfDay).toBe('NIGHT');
   });
 });
+
+describe('a call sheet is a draft until it is marked final', () => {
+  const dayWith = (status?: 'draft' | 'final') => {
+    const base = concertFixture();
+    const day = { ...base.productionDays![0], callSheet: { ...(base.productionDays![0].callSheet ?? {}), ...(status ? { status } : {}) } };
+    return { ...base, productionDays: [day] } as Project;
+  };
+
+  /** The expensive mistake is a half-finished sheet going out looking issued. */
+  it('is a draft when nothing has been decided', () => {
+    expect(callSheetFor(dayWith()).isDraft).toBe(true);
+  });
+
+  it('stays a draft when explicitly held', () => {
+    expect(callSheetFor(dayWith('draft')).isDraft).toBe(true);
+  });
+
+  it('drops the draft mark only when marked final', () => {
+    expect(callSheetFor(dayWith('final')).isDraft).toBe(false);
+  });
+});
