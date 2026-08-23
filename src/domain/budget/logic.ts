@@ -19,6 +19,7 @@ import type {
 } from './types';
 
 export const BUDGET_CATEGORIES: Array<{ key: BudgetCategory; label: string }> = [
+  { key: 'above_the_line', label: 'Above the line' },
   { key: 'crew', label: 'Crew' },
   { key: 'cast', label: 'Cast' },
   { key: 'equipment', label: 'Equipment' },
@@ -140,6 +141,9 @@ export interface BudgetSummary {
   contingency: number;
   /** Gross plus contingency. */
   total: number;
+  /** The split a financier reads first. Above = the  category; below = everything else. */
+  aboveTheLine: { net: number; vat: number; gross: number };
+  belowTheLine: { net: number; vat: number; gross: number };
   /** People and gear with no rate — the budget's known blind spots. */
   unpriced: Array<{ kind: 'person' | 'equipment'; id: string; label: string }>;
 }
@@ -175,8 +179,9 @@ export const deriveBudget = (input: DeriveBudgetInput): BudgetSummary => {
 
   for (const person of input.people ?? []) {
     const kind = person.kind ?? 'other';
-    const category: BudgetCategory | null = kind === 'crew' ? 'crew' : kind === 'cast' || kind === 'talent' ? 'cast' : null;
-    if (!category) continue;
+    const below: BudgetCategory | null = kind === 'crew' ? 'crew' : kind === 'cast' || kind === 'talent' ? 'cast' : null;
+    if (!below) continue;
+    const category: BudgetCategory = isAboveTheLine(person) ? 'above_the_line' : below;
     const label = person.displayName;
     if (!person.rateCard) {
       unpriced.push({ kind: 'person', id: person.id, label });
@@ -322,11 +327,19 @@ export const deriveBudget = (input: DeriveBudgetInput): BudgetSummary => {
   const contingencyPercent = settings.contingencyPercent ?? 0;
   const contingency = roundMoney((net * (Number.isFinite(contingencyPercent) ? Math.max(0, contingencyPercent) : 0)) / 100);
 
+  const sumOf = (list: BudgetEntry[]) => ({
+    net: roundMoney(list.reduce((sum, entry) => sum + entry.net, 0)),
+    vat: roundMoney(list.reduce((sum, entry) => sum + entry.vat, 0)),
+    gross: roundMoney(list.reduce((sum, entry) => sum + entry.gross, 0)),
+  });
+
   return {
     settings,
     shootDays,
     entries,
     categories,
+    aboveTheLine: sumOf(entries.filter((entry) => entry.category === 'above_the_line')),
+    belowTheLine: sumOf(entries.filter((entry) => entry.category !== 'above_the_line')),
     vatByRate,
     net,
     vat,
@@ -403,4 +416,20 @@ export const describeRateCard = (card: RateCard | undefined, currency: string): 
   if (!card) return '';
   const vat = card.vatPercent === undefined ? '' : card.vatPercent === 0 ? ' · no VAT' : ` · VAT ${card.vatPercent}%`;
   return `${formatMoney(card.amount, currency)} ${RATE_BASIS_LABELS[card.basis]}${vat}`;
+};
+
+/**
+ * Above the line: the creative principals a financier reads first — producers,
+ * director, writers, principal cast. Everyone else is below the line. The
+ * default comes from the role; `Person.aboveTheLine` overrides it either way,
+ * because "Director" on a commercial and "Director" on a feature are not
+ * always budgeted alike.
+ */
+export const isAboveTheLine = (person: Pick<Person, 'kind' | 'role' | 'aboveTheLine'>): boolean => {
+  if (typeof person.aboveTheLine === 'boolean') return person.aboveTheLine;
+  if (person.kind === 'cast') return true;
+  if (person.kind !== 'crew') return false;
+  const role = (person.role ?? '').toLowerCase();
+  if (/photograph|assistant director|\b(1st|2nd|3rd)\b|art director|casting|technical director|post/.test(role)) return false;
+  return /producer|director|writer|screenplay|showrunner|creator/.test(role);
 };

@@ -17,6 +17,7 @@ export {
   describeRateCard,
   emptyBudget,
   formatMoney,
+  isAboveTheLine,
   isBudgetLine,
   isEquipmentRate,
   normaliseRateCard,

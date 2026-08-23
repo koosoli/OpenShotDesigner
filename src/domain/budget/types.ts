@@ -44,6 +44,7 @@ export interface EquipmentRate extends RateCard {
 }
 
 export type BudgetCategory =
+  | 'above_the_line'
   | 'crew'
   | 'cast'
   | 'equipment'

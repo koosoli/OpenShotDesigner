@@ -10,7 +10,9 @@ import {
   deriveBudget,
   emptyBudget,
   formatMoney,
+  isAboveTheLine,
 } from '../../domain/budget';
+import type { Person } from '../../domain/people';
 import type { BudgetCategory, BudgetEntry, BudgetLine, EquipmentRate, ProjectBudget, RateBasis, RateCard } from '../../domain/budget';
 import { RateCardFields, VatSelect } from './RateCardFields';
 import { useProductionNeeds } from './useProductionNeeds';
@@ -100,6 +102,46 @@ export const BudgetPanel: React.FC = () => {
     </tr>
   );
 
+  const people = useMemo(() => (project.people ?? []).filter((p) => p.kind === 'crew' || p.kind === 'cast' || p.kind === 'talent'), [project.people]);
+  const patchPerson = (id: string, updates: Partial<Person>) =>
+    updateProjectMeta({ people: (project.people ?? []).map((p) => (p.id === id ? { ...p, ...updates } : p)) });
+  const entryById = new Map(summary.entries.map((entry) => [entry.id, entry] as const));
+  const aboveLine = people.filter((p) => isAboveTheLine(p));
+  const belowLine = people.filter((p) => !isAboveTheLine(p));
+
+  /** One person: rate fields inline, the days the schedule gives them, what that costs. */
+  const personRow = (person: Person) => {
+    const entry = entryById.get(`person:${person.id}`);
+    const days = personDays.get(person.id) ?? 0;
+    const above = isAboveTheLine(person);
+    return (
+      <div key={person.id} className={`grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] gap-2 items-start rounded-lg border p-2 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div className="min-w-0">
+          <div className="text-xs font-semibold truncate">{person.displayName}</div>
+          <div className={`text-[10px] ${mutedCls}`}>{[person.role, person.department, person.kind === 'crew' ? undefined : person.kind].filter(Boolean).join(' · ') || '—'} · {days} day{days === 1 ? '' : 's'}</div>
+          <label className={`mt-1 inline-flex items-center gap-1 text-[10px] ${mutedCls}`}>
+            <input type="checkbox" checked={above} onChange={(e) => patchPerson(person.id, { aboveTheLine: e.target.checked })} className="accent-emerald-600" />
+            Above the line
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <RateCardFields value={person.rateCard} onChange={(rateCard) => patchPerson(person.id, { rateCard })} currency={currency} defaultVatPercent={defaultVatPercent} inputCls={inputCls} labelCls={labelCls} />
+        </div>
+        <div className="text-right font-mono text-xs min-w-[110px]">
+          {entry ? (
+            <>
+              <div className={mutedCls}>net {money(entry.net)}</div>
+              <div className="font-bold">{money(entry.gross)}</div>
+              {entry.warning && <div className="text-[10px] text-amber-600 font-sans">{entry.warning}</div>}
+            </>
+          ) : (
+            <div className="text-[10px] text-amber-600 font-sans">No rate yet</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const unpricedPeople = summary.unpriced.filter((item) => item.kind === 'person');
   const unpricedEquipment = equipment.filter((item) => !budget.equipmentRates.some((rate) => rate.key === item.key));
 
@@ -179,6 +221,9 @@ export const BudgetPanel: React.FC = () => {
                 </div>
               ))}
             </div>
+            <div className={`mt-2 text-[10px] ${mutedCls}`}>
+              Above the line {money(summary.aboveTheLine.gross)} · below the line {money(summary.belowTheLine.gross)} (gross)
+            </div>
             {summary.vatByRate.length > 1 && (
               <div className={`mt-2 text-[10px] ${mutedCls}`}>
                 VAT by rate: {summary.vatByRate.map((bucket) => `${bucket.percent}% on ${money(bucket.net)} = ${money(bucket.vat)}`).join(' · ')}
@@ -186,7 +231,22 @@ export const BudgetPanel: React.FC = () => {
             )}
           </section>
 
-          {summary.categories.map((category) => (
+          {/* Every crew and cast member, priced or not, with the rate right
+              here: a budget that only lists the people who already have one
+              reads as "no cast and crew" to anyone opening it fresh. */}
+          {[['Above the line', aboveLine, 'Producers, director, writers and principal cast. Untick to move someone below the line.'], ['Below the line — crew & cast', belowLine, 'Everyone else on the unit. Cast and crew without a rate are listed but not counted.']].map(([title, list, hint]) => (
+            <section key={title as string} className={cardCls}>
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <h3 className={`text-[10px] font-black uppercase tracking-wider ${mutedCls}`}>{title as string}</h3>
+                <div className="text-xs font-mono"><b>{money((title === 'Above the line' ? summary.aboveTheLine : summary.categories.filter((c) => c.category === 'crew' || c.category === 'cast').reduce((acc, c) => ({ gross: acc.gross + c.gross }), { gross: 0 })).gross)}</b></div>
+              </div>
+              <p className={`text-[10px] mb-2 ${mutedCls}`}>{hint as string}</p>
+              {(list as Person[]).length === 0 && <p className={`text-[10px] ${mutedCls}`}>Nobody here yet — add people on the Crew tab.</p>}
+              <div className="space-y-1.5">{(list as Person[]).map(personRow)}</div>
+            </section>
+          ))}
+
+          {summary.categories.filter((category) => !['above_the_line', 'crew', 'cast'].includes(category.category)).map((category) => (
             <section key={category.category} className={cardCls}>
               <div className="flex items-baseline justify-between gap-2 mb-1">
                 <h3 className={`text-[10px] font-black uppercase tracking-wider ${mutedCls}`}>{category.label}</h3>

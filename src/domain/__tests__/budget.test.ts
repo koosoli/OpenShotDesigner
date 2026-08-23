@@ -5,6 +5,7 @@ import {
   budgetToCsv,
   deriveBudget,
   emptyBudget,
+  isAboveTheLine,
   normaliseRateCard,
   rateNet,
   roundMoney,
@@ -183,5 +184,38 @@ describe('normaliseRateCard', () => {
     expect(normaliseRateCard({ amount: -1, basis: 'day' })).toBeUndefined();
     expect(normaliseRateCard({ amount: 10, basis: 'day', vatPercent: -5 })).toEqual({ amount: 10, basis: 'day' });
     expect(normaliseRateCard(undefined)).toBeUndefined();
+  });
+});
+
+describe('above the line', () => {
+  it('puts producers, director, writers and cast above the line by role and kind', () => {
+    expect(isAboveTheLine({ kind: 'crew', role: 'Director' })).toBe(true);
+    expect(isAboveTheLine({ kind: 'crew', role: 'Executive Producer' })).toBe(true);
+    expect(isAboveTheLine({ kind: 'crew', role: 'Screenwriter' })).toBe(true);
+    expect(isAboveTheLine({ kind: 'cast', role: 'Lead' })).toBe(true);
+  });
+  it('keeps the director of photography, ADs and talent below the line', () => {
+    expect(isAboveTheLine({ kind: 'crew', role: 'Director of Photography' })).toBe(false);
+    expect(isAboveTheLine({ kind: 'crew', role: '1st Assistant Director' })).toBe(false);
+    expect(isAboveTheLine({ kind: 'crew', role: 'Art Director' })).toBe(false);
+    expect(isAboveTheLine({ kind: 'crew', role: 'Gaffer' })).toBe(false);
+    expect(isAboveTheLine({ kind: 'talent', role: 'Presenter' })).toBe(false);
+  });
+  it('an explicit flag wins either way', () => {
+    expect(isAboveTheLine({ kind: 'crew', role: 'Gaffer', aboveTheLine: true })).toBe(true);
+    expect(isAboveTheLine({ kind: 'cast', role: 'Lead', aboveTheLine: false })).toBe(false);
+  });
+  it('splits the totals', () => {
+    const summary = deriveBudget({
+      people: [
+        { id: 'dir', displayName: 'Dir', kind: 'crew', role: 'Director', rateCard: { amount: 1000, basis: 'flat', vatPercent: 0 } },
+        { id: 'gaf', displayName: 'Gaf', kind: 'crew', role: 'Gaffer', rateCard: { amount: 400, basis: 'day', vatPercent: 0 } },
+      ],
+      shootDays: 2,
+      personDays: new Map([['gaf', 2]]),
+    });
+    expect(summary.aboveTheLine.gross).toBe(1000);
+    expect(summary.belowTheLine.gross).toBe(800);
+    expect(summary.categories.map((c) => c.category)).toEqual(['above_the_line', 'crew']);
   });
 });

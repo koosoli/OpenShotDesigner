@@ -107,6 +107,7 @@ export const migrateV20ToV21 = (raw: UnknownRecord): Project => {
       if (isRecord(person.headshotFraming) && 'rotation' in person.headshotFraming) {
         applyOrDelete(person.headshotFraming, 'rotation', normalizeRotation(person.headshotFraming.rotation));
       }
+      if ('aboveTheLine' in person && typeof person.aboveTheLine !== 'boolean') delete person.aboveTheLine;
       if ('rateCard' in person) {
         applyOrDelete(person, 'rateCard', isRecord(person.rateCard) ? normaliseRateCard(person.rateCard as never) : undefined);
       }

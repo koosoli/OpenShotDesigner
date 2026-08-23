@@ -70,6 +70,8 @@ export interface Person {
    * rather than reading as free (rule 13).
    */
   rateCard?: import('../budget/types').RateCard;
+  /** Budget section override; absent = decided by kind and role (`isAboveTheLine`). */
+  aboveTheLine?: boolean;
   emergencyContact?: string;
   /**
    * Lodging for an away shoot. All optional and independent: a production may
