@@ -189,6 +189,7 @@ board — in one print job, with your production logo on the paperwork.
   - **Fountain mode** — toggle between WYSIWYG Page View and raw Fountain syntax markdown code.
 - **AV Script (2-Column Audio/Visual)** — dedicated production AV table for commercials, documentaries, and multicam setups. Synchronized bidirectionally with floor plan cameras and lined coverage.
 - **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or Final Draft scene attributes.
+- **Cut a scene without losing its number** — deleting a scene heading first *omits* it: the slugline stays in place as **SCENE 12 — OMITTED**, its body is parked and restored verbatim by **Restore**, and deleting it again removes it for good. Scheduled strips for an omitted scene stay visible on the board rather than vanishing, and a new scene can be started directly after an omitted one.
 - **Lock the numbers when the script locks** — while you are still writing, scenes are numbered by position and renumber as you insert. One click makes them **production numbers**: a scene inserted between 3 and 4 becomes **3A** (and **3AA** between 3A and 3B), a cut scene stays in place as **OMITTED** with its number, a deleted one leaves a gap, and every other scene keeps the number the breakdown, stripboard and call sheets already quote. Numbers stay editable by hand while locked, and a script imported with production numbers already in it locks on arrival.
 - **Link a scene heading to a real location** — the set a heading names ("INT. **LIVING ROOM** - NIGHT") is linked to a project location from the heading itself, so the call sheet gets its address and map pin. One link covers every scene *and* setup that names the same set, and it is changed or undone from the same control — on the heading, on the call sheet, or in the script's location report.
 - **Highlight anything to make a shot** — select as little as a single word or multiple speeches; the selection creates a shot on the floor plan with classic vertical lining lines.
@@ -260,7 +261,7 @@ board — in one print job, with your production logo on the paperwork.
 
 ### Crew, cast & contacts
 
-- **Crew tab** — people with department, role, three phone numbers (work, private, production-issued), email, company, rate, address, emergency contact and **hotel booking** (name, address, check-in/out), grouped by department.
+- **Crew tab** — people with department, role, three phone numbers (work, private, production-issued), email, company, address, emergency contact and **hotel booking** (name, address, check-in/out), grouped by department.
 - **Headshots** — attach a photo and frame it by dragging the picture itself in any direction, with a zoom; the framing is stored beside the image rather than baked into it, so it is reversible and two people can share one photo. Faces appear on the crew list, the contact sheet and the call sheet's cast table.
 - **Rates that feed the budget** — an amount, whether it is per day, per week or a flat fee, and the VAT on top, plus a free-text note for what a number cannot say ("kit fee €120/day on top").
 - **Key crew** — assign Director, DP, Producer, 1st AD, Gaffer, Key Grip, Sound Mixer and more by role. Director and DP are the same fields the scene inspector and every export use, so the two can never drift apart.
@@ -443,7 +444,7 @@ src/
 │   ├── logistics/     # Cases, containers, packed items
 │   ├── rigging/       # Truss runs, motors, suspended loads
 │   ├── power/         # Sources, circuits, per-truss load, phase balance
-│   ├── reports/       # Printable call sheets, stripboard, sides, breakdown, contact list
+│   ├── reports/       # Printable call sheets, budget, stripboard, sides, breakdown, contact list
 │   ├── viewfinder/    # Simulated finder + live device camera
 │   ├── inspector/     # Plan & scene settings, and the selected-element inspector
 │   ├── dashboard/     # Project dashboard (create / open / manage productions)
