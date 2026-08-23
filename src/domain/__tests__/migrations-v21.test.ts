@@ -97,3 +97,26 @@ describe('migrateV20ToV21', () => {
     expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(21);
   });
 });
+
+describe('location maps in v21', () => {
+  it('keeps well-formed maps and drops the rest', () => {
+    const before = {
+      ...v20Fixture(),
+      productionDays: [{ id: 'd1', name: 'Day 1', scheduleBlockIds: [], callSheet: { locationMaps: [
+        { locationName: 'Studio', lat: 52.5, lng: 13.4, assetId: 'asset-a' },
+        { locationName: '', lat: 1, lng: 1, assetId: 'asset-b' },
+        { locationName: 'Nowhere', lat: 'x', lng: 1, assetId: 'asset-c' },
+        'junk',
+      ] } }],
+    };
+    const after = migrateV20ToV21(before as never) as unknown as { productionDays: Array<{ callSheet: Loose }> };
+    expect(after.productionDays[0].callSheet.locationMaps).toEqual([
+      { id: 'map-migrated-0', locationName: 'Studio', lat: 52.5, lng: 13.4, assetId: 'asset-a' },
+    ]);
+  });
+  it('removes an empty list', () => {
+    const before = { ...v20Fixture(), productionDays: [{ id: 'd1', name: 'Day 1', scheduleBlockIds: [], callSheet: { locationMaps: 'none' } }] };
+    const after = migrateV20ToV21(before as never) as unknown as { productionDays: Array<{ callSheet: Loose }> };
+    expect('locationMaps' in after.productionDays[0].callSheet).toBe(false);
+  });
+});

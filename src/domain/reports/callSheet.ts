@@ -26,6 +26,13 @@ export interface CallSheetLocation {
   lng?: number;
 }
 
+/** One captured map and the location it belongs to. */
+export interface CallSheetMapPicture {
+  assetId: string;
+  locationName: string;
+  address?: string;
+}
+
 /** Company contact block derived onto every sheet (single canonical source). */
 export interface CallSheetCompanyInfo {
   address?: string;
@@ -136,8 +143,12 @@ export interface CallSheetData {
    */
   pickups: CallSheetPickup[];
   locations: CallSheetLocation[];
-  /** Captured location map, when the sheet asks for one and it was fetched. */
-  mapAssetId?: string;
+  /**
+   * Captured location maps, when the sheet asks for them: one per pinned
+   * location, each labelled with the place it shows. Empty when the sheet has
+   * none or the toggle is off.
+   */
+  maps: CallSheetMapPicture[];
   schedule: CallSheetEntry[];
   cast: CallSheetPerson[];
   crew: CallSheetPerson[];
@@ -194,6 +205,30 @@ export interface DeriveCallSheetInput {
     castPersonIds?: string[];
   };
 }
+
+/**
+ * Which captured pictures print, and what each is captioned. Per-location maps
+ * take their caption from the location they were captured for — matched by
+ * name against today's resolved locations so the address rides along — and a
+ * pre-v21 single map is read as the first pinned location's. A map whose
+ * location is no longer on the day still prints under its stored name rather
+ * than vanishing: someone chose to fetch it.
+ */
+export const deriveMapPictures = (
+  callSheet: NonNullable<ProductionDay['callSheet']>,
+  locations: readonly CallSheetLocation[],
+): CallSheetMapPicture[] => {
+  const byName = (name: string) => locations.find((location) => location.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const pictures: CallSheetMapPicture[] = (callSheet.locationMaps ?? []).map((map) => {
+    const location = byName(map.locationName);
+    return { assetId: map.assetId, locationName: location?.name ?? map.locationName, ...(location?.address ? { address: location.address } : {}) };
+  });
+  if (pictures.length === 0 && callSheet.mapAssetId) {
+    const pinned = locations.find((location) => typeof location.lat === 'number' && typeof location.lng === 'number') ?? locations[0];
+    pictures.push({ assetId: callSheet.mapAssetId, locationName: pinned?.name ?? 'Location', ...(pinned?.address ? { address: pinned.address } : {}) });
+  }
+  return pictures;
+};
 
 const labelForBlock = (block: ScheduleBlock, input: DeriveCallSheetInput): { label: string; omitted?: boolean } => {
   switch (block.kind) {
@@ -425,9 +460,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
       };
     }),
     locations: resolvedLocations,
-    ...(day.callSheet?.showLocationMap && day.callSheet.mapAssetId
-      ? { mapAssetId: day.callSheet.mapAssetId }
-      : {}),
+    maps: day.callSheet?.showLocationMap ? deriveMapPictures(day.callSheet, resolvedLocations) : [],
     schedule,
     cast,
     crew,

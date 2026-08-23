@@ -5,6 +5,7 @@
  *  - `Person.rateCard` — a structured rate (amount, per day/week/flat, VAT).
  *  - `Project.budget` — currency and VAT settings, equipment rates, manual lines.
  *  - `Project.sceneNumbersLocked` — whether scene numbers are production numbers.
+ *  - `ProductionDay.callSheet.locationMaps` — one captured map per location.
  *
  * Nothing is backfilled. A headshot with no rotation is upright, a person with
  * no rate card is unpriced (and reported as such, never priced at zero), a
@@ -19,7 +20,9 @@
  *  - equipment rates need a string key; budget lines need a string id; either
  *    is dropped without its rate, and a line's category falls back to `other`,
  *  - budget settings fall back field by field to the defaults (EUR, 17 %, 5-day week),
- *  - `sceneNumbersLocked` is kept only when it is a boolean.
+ *  - `sceneNumbersLocked` is kept only when it is a boolean,
+ *  - a location map needs a name, finite coordinates and an asset id; anything
+ *    else is dropped, and a missing id is minted from the row index.
  *
  * LOSSLESS for well-formed data. DETERMINISTIC.
  */
@@ -111,6 +114,25 @@ export const migrateV20ToV21 = (raw: UnknownRecord): Project => {
       if ('rateCard' in person) {
         applyOrDelete(person, 'rateCard', isRecord(person.rateCard) ? normaliseRateCard(person.rateCard as never) : undefined);
       }
+    }
+  }
+
+  if (Array.isArray(raw.productionDays)) {
+    for (const day of raw.productionDays) {
+      if (!isRecord(day) || !isRecord(day.callSheet) || !('locationMaps' in day.callSheet)) continue;
+      const callSheet = day.callSheet;
+      const cleaned: UnknownRecord[] = [];
+      if (Array.isArray(callSheet.locationMaps)) {
+        callSheet.locationMaps.forEach((map, index) => {
+          if (!isRecord(map)) return;
+          const locationName = typeof map.locationName === 'string' ? map.locationName.trim() : '';
+          const assetId = typeof map.assetId === 'string' ? map.assetId.trim() : '';
+          if (!locationName || !assetId || !isFiniteNumber(map.lat) || !isFiniteNumber(map.lng)) return;
+          cleaned.push({ id: typeof map.id === 'string' && map.id.trim() ? map.id : `map-migrated-${index}`, locationName, lat: map.lat, lng: map.lng, assetId });
+        });
+      }
+      if (cleaned.length > 0) callSheet.locationMaps = cleaned;
+      else delete callSheet.locationMaps;
     }
   }
 

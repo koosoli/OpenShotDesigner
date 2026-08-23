@@ -38,6 +38,8 @@ export interface StaticMapOptions {
   /** Tiles across and down. Kept small on purpose — see the note above. */
   tilesX?: number;
   tilesY?: number;
+  /** Burned into the top-left corner, so the picture says which place it shows. */
+  label?: string;
 }
 
 export type StaticMapResult =

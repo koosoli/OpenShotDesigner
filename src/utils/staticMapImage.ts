@@ -30,15 +30,49 @@ const loadTile = (url: string): Promise<HTMLImageElement | null> =>
     img.src = url;
   });
 
+/**
+ * A map pin: a teardrop whose point sits exactly on the coordinate, with a
+ * shadow so it reads on a busy street map and a white ring so it reads on a
+ * red-roofed one. A flat dot disappeared into the tiles at print size.
+ */
 const drawPin = (ctx: CanvasRenderingContext2D, x: number, y: number): void => {
+  const r = 10;
+  const headY = y - 24;
   ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
   ctx.beginPath();
-  ctx.arc(x, y, 7, 0, Math.PI * 2);
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - r * 0.85, headY + r * 0.5);
+  ctx.arc(x, headY, r, Math.PI * 0.85, Math.PI * 2.15);
+  ctx.closePath();
   ctx.fillStyle = '#dc2626';
   ctx.fill();
+  ctx.shadowColor = 'transparent';
   ctx.lineWidth = 2.5;
   ctx.strokeStyle = '#ffffff';
   ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, headY, r * 0.4, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.restore();
+};
+
+/** The place name, top-left, so the picture itself says what it shows. */
+const drawLabel = (ctx: CanvasRenderingContext2D, label: string): void => {
+  const text = label.trim();
+  if (!text) return;
+  ctx.save();
+  ctx.font = 'bold 14px sans-serif';
+  const padding = 6;
+  const boxWidth = Math.min(ctx.measureText(text).width + padding * 2, ctx.canvas.width - 8);
+  ctx.fillStyle = 'rgba(15,23,42,0.85)';
+  ctx.fillRect(4, 4, boxWidth, 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 4 + padding, 16, boxWidth - padding * 2);
   ctx.restore();
 };
 
@@ -110,6 +144,7 @@ export const composeStaticMap = async (options: StaticMapOptions): Promise<Stati
   });
 
   drawPin(ctx, grid.pin.x, grid.pin.y);
+  if (options.label) drawLabel(ctx, options.label);
   drawAttribution(ctx, grid.width, grid.height);
 
   const blob = await canvasToBlob(canvas);

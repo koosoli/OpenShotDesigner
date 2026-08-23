@@ -64,6 +64,19 @@ export interface ProductionDay {
      * then printable offline; absent means it has not been captured yet.
      */
     mapAssetId?: string;
+    /**
+     * One captured map per location (v21). A day that moves between two
+     * places needs two pictures, each saying which place it shows — the name
+     * is stored with the picture and also burned into it. `mapAssetId` above is
+     * the pre-v21 single map, still read for the first pinned location.
+     */
+    locationMaps?: Array<{
+      id: string;
+      locationName: string;
+      lat: number;
+      lng: number;
+      assetId: string;
+    }>;
     safetyNotes?: string;
     generalNotes?: string;
     /** Transport arrangements for the day as free text (shuttles, drivers). */

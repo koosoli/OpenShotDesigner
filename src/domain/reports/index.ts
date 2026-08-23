@@ -6,6 +6,7 @@ export {
 } from './callSheet';
 export type {
   CallSheetData,
+  CallSheetMapPicture,
   CallSheetEntry,
   CallSheetLocation,
   CallSheetLookAhead,

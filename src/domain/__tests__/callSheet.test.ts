@@ -222,3 +222,38 @@ describe('pick-ups on the cast and crew rows', () => {
     expect(sheet.cast.map((p) => p.displayName)).toEqual(['Mara', 'Ola']);
   });
 });
+
+/** One picture per place, each saying which place it shows. */
+describe('location maps', () => {
+  const locations = [
+    { name: 'Kreuzberg Studio', address: 'Kohlfurter Str. 41', lat: 52.5, lng: 13.4 },
+    { name: 'Car park' },
+  ];
+  const dayWith = (callSheet: NonNullable<ProductionDay['callSheet']>): ProductionDay => ({
+    id: 'd', name: 'Day', scheduleBlockIds: [], callSheet,
+  });
+
+  it('captions each per-location map with its location and address', () => {
+    const sheet = deriveCallSheet({
+      day: dayWith({ showLocationMap: true, locationMaps: [
+        { id: 'm1', locationName: 'kreuzberg studio', lat: 52.5, lng: 13.4, assetId: 'asset-a' },
+        { id: 'm2', locationName: 'Old depot', lat: 1, lng: 1, assetId: 'asset-b' },
+      ] }),
+      blocks: [], productionTitle: 'T', locations,
+    });
+    expect(sheet.maps).toEqual([
+      { assetId: 'asset-a', locationName: 'Kreuzberg Studio', address: 'Kohlfurter Str. 41' },
+      { assetId: 'asset-b', locationName: 'Old depot' },
+    ]);
+  });
+
+  it('reads a pre-v21 single map as the first pinned location', () => {
+    const sheet = deriveCallSheet({ day: dayWith({ showLocationMap: true, mapAssetId: 'asset-old' }), blocks: [], productionTitle: 'T', locations });
+    expect(sheet.maps).toEqual([{ assetId: 'asset-old', locationName: 'Kreuzberg Studio', address: 'Kohlfurter Str. 41' }]);
+  });
+
+  it('prints nothing when the toggle is off', () => {
+    const sheet = deriveCallSheet({ day: dayWith({ mapAssetId: 'asset-old' }), blocks: [], productionTitle: 'T', locations });
+    expect(sheet.maps).toEqual([]);
+  });
+});

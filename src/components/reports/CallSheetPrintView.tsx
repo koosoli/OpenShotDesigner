@@ -92,6 +92,10 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         @media print {
           body #app-root { display: none !important; }
           .call-sheet-print-host { position: static !important; left: 0 !important; width: auto !important; }
+          /* A fixed element is painted on every printed page, so a two-page
+             draft says DRAFT on page two as well — which is the page most
+             likely to be read on its own. */
+          .cs-draft-mark { position: fixed !important; }
         }
         .cs-doc { padding: 6mm 4mm; color: #0f172a; background: #fff; font-size: 10.5px; line-height: 1.35; }
         .cs-doc * { box-sizing: border-box; }
@@ -240,7 +244,9 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
               clicked, and the person reading it is usually the one standing
               outside with no signal. Attribution is burned into the image, so
               it survives being photographed. */}
-          {sheet.mapAssetId && <CallSheetMap assetId={sheet.mapAssetId} />}
+          {sheet.maps.map((map) => (
+            <CallSheetMap key={map.assetId} assetId={map.assetId} locationName={map.locationName} address={map.address} />
+          ))}
         </section>
 
         <section>
