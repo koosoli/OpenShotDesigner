@@ -100,6 +100,8 @@ export interface CallSheetData {
   type: NonNullable<ProductionDay['callSheet']>['type'];
   /** True until the day is explicitly marked final; drives the DRAFT watermark. */
   isDraft: boolean;
+  /** True when cast numbers were deliberately withheld, so the sheet can say so. */
+  castContactsHidden: boolean;
   parking?: string;
   /** Walkie plan, inherited from the production unless the day overrides it. */
   walkieChannels?: string;
@@ -285,6 +287,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   const resolvedLocations = locations;
 
   const castIdFilter = input.castPersonIds ? new Set(input.castPersonIds) : null;
+  const hideCastContacts = day.callSheet?.hideCastContacts === true;
   // Individual calls, keyed by person, applied to both lists below.
   const personCalls = new Map(
     (day.callSheet?.personCalls ?? []).map((entry) => [entry.personId, entry] as const),
@@ -295,14 +298,23 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
       ? { ...(entry.time ? { callTime: entry.time } : {}), ...(entry.note ? { callNote: entry.note } : {}) }
       : {};
   };
+  // An individual call is an explicit statement that this person is wanted on
+  // this day, so it overrides the derived cast filter. Without this, giving a
+  // performer a 06:15 make-up call quietly did nothing whenever the day's
+  // scenes did not already resolve to them — the call was stored, and the
+  // person it belonged to was filtered off the sheet before it could show.
   const cast = people
-    .filter((p) => (p.kind === 'cast' || p.kind === 'talent') && (!castIdFilter || castIdFilter.has(p.id)))
+    .filter(
+      (p) =>
+        (p.kind === 'cast' || p.kind === 'talent') &&
+        (!castIdFilter || castIdFilter.has(p.id) || personCalls.has(p.id)),
+    )
     .map((p) => ({
       displayName: p.displayName,
       ...(p.headshotAssetId ? { headshotAssetId: p.headshotAssetId } : {}),
       role: p.role,
-      email: p.email,
-      phone: callSheetPhone(p),
+      // Withheld together: an email reaches a performer as surely as a number.
+      ...(hideCastContacts ? {} : { email: p.email, phone: callSheetPhone(p) }),
       ...callFor(p.id),
     }));
   const crew = people
@@ -358,6 +370,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     plannedWrap: day.plannedWrap,
     type: day.callSheet?.type ?? 'shoot',
     isDraft: day.callSheet?.status !== 'final',
+    castContactsHidden: hideCastContacts,
     parking: standing.parking.value,
     walkieChannels: standing.walkieChannels.value,
     unitBase: standing.unitBase.value,

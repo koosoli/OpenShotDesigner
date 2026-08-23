@@ -299,7 +299,9 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                         </span>
                       </td>
                       <td>{p.role ?? '—'}</td>
-                      <td>{joinDefined([p.phone, p.email]) || '—'}</td>
+                      {/* Said plainly, so nobody reads a blank as "we have no
+                          number for this performer" and starts hunting. */}
+                      <td>{sheet.castContactsHidden ? 'Via AD dept' : joinDefined([p.phone, p.email]) || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

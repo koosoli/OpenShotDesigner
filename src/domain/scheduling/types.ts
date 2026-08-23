@@ -48,6 +48,16 @@ export interface ProductionDay {
      * final is the decision worth recording (rule 13).
      */
     status?: 'draft' | 'final';
+    /**
+     * Whether cast contact numbers appear on this sheet. ABSENT MEANS INCLUDE,
+     * which is what the sheet has always done — silently withholding numbers a
+     * production already relied on would be the worse surprise.
+     *
+     * Worth switching off: a call sheet is copied, printed and left on a table,
+     * and plenty of productions keep performers' numbers to the AD department
+     * rather than putting them on every copy.
+     */
+    hideCastContacts?: boolean;
     showLocationMap?: boolean;
     /**
      * The composed OpenStreetMap picture in the asset store. Captured once and

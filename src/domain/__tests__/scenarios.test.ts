@@ -262,3 +262,76 @@ describe('a call sheet is a draft until it is marked final', () => {
     expect(callSheetFor(dayWith('final')).isDraft).toBe(false);
   });
 });
+
+describe('cast contact numbers can be withheld', () => {
+  const dayWith = (extra: Record<string, unknown>) => {
+    const base = concertFixture();
+    const day = { ...base.productionDays![0], callSheet: { ...(base.productionDays![0].callSheet ?? {}), ...extra } };
+    return {
+      ...base,
+      productionDays: [day],
+      people: (base.people ?? []).map((p) => ({ ...p, phone: '+49 170 1', email: 'x@y.example' })),
+    } as Project;
+  };
+
+  /** Absent means include: silently withholding numbers already relied on
+   *  would be the worse surprise. */
+  it('includes them by default', () => {
+    const sheet = callSheetFor(dayWith({}));
+    expect(sheet.castContactsHidden).toBe(false);
+    expect(sheet.cast[0].phone).toBe('+49 170 1');
+  });
+
+  it('withholds the number AND the email, since either reaches the performer', () => {
+    const sheet = callSheetFor(dayWith({ hideCastContacts: true }));
+    expect(sheet.castContactsHidden).toBe(true);
+    expect(sheet.cast[0].phone).toBeUndefined();
+    expect(sheet.cast[0].email).toBeUndefined();
+  });
+
+  it('leaves crew contacts alone — the toggle is about cast', () => {
+    const sheet = callSheetFor(dayWith({ hideCastContacts: true }));
+    expect(sheet.crew[0].phone).toBe('+49 170 1');
+  });
+
+  it('keeps individual call times, which are not contact details', () => {
+    const base = concertFixture();
+    const castId = (base.people ?? []).find((p) => p.kind === 'cast')!.id;
+    const day = {
+      ...base.productionDays![0],
+      callSheet: {
+        ...(base.productionDays![0].callSheet ?? {}),
+        hideCastContacts: true,
+        personCalls: [{ id: 'c1', personId: castId, time: '06:15' }],
+      },
+    };
+    const sheet = callSheetFor({ ...base, productionDays: [day] } as Project);
+    expect(sheet.cast.find((c) => c.callTime === '06:15')).toBeTruthy();
+  });
+});
+
+/**
+ * An individual call is an explicit statement that this person is wanted on
+ * this day. It used to be filtered off the sheet whenever the day's scenes did
+ * not already resolve to that performer — the call was stored, and the person
+ * it belonged to was removed before it could show.
+ */
+describe('an individual call puts a performer on the sheet', () => {
+  it('survives a cast filter that would otherwise exclude them', () => {
+    const base = narrativeFixture();
+    const outsider = (base.people ?? []).find((p) => p.id === 'p-sarah')!;
+    const day = {
+      ...base.productionDays![0],
+      callSheet: { personCalls: [{ id: 'c1', personId: outsider.id, time: '05:45', note: 'Make-up' }] },
+    };
+    // A day whose only strip resolves to nobody.
+    const project = {
+      ...base,
+      productionDays: [{ ...day, scheduleBlockIds: ['blk-2'] }],
+    } as Project;
+    const sheet = callSheetFor(project);
+    const row = sheet.cast.find((c) => c.displayName === outsider.displayName);
+    expect(row?.callTime).toBe('05:45');
+    expect(row?.callNote).toBe('Make-up');
+  });
+});

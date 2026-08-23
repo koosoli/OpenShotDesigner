@@ -329,6 +329,16 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               Draft — watermark the sheet
             </label>
 
+            <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase text-slate-500">
+              <input
+                type="checkbox"
+                checked={selectedDay.callSheet?.hideCastContacts !== true}
+                onChange={(event) => patchCallSheet({ hideCastContacts: !event.target.checked })}
+                className="accent-cyan-600"
+              />
+              Include cast contact numbers
+            </label>
+
             <LocationMapCapture
               day={selectedDay}
               locations={sheet.locations}
