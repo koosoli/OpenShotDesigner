@@ -158,8 +158,12 @@ const dropBlocks = <R extends ScheduleReferences>(refs: R, removedIds: Set<strin
 };
 
 /**
- * Delete a shot's references: its schedule strip, and the script line that was
- * lined for it.
+ * Delete shots' references: their schedule strips, and the script lines that
+ * were lined for them.
+ *
+ * Takes a set because deleting a camera takes every shot on it at once, and
+ * doing that one at a time would drop a multi-shot strip only when the last of
+ * its shots happened to go.
  *
  * A `shots` strip covering several shots keeps the others and loses only this
  * one; a strip that covered only this shot goes entirely, because a strip
@@ -168,18 +172,24 @@ const dropBlocks = <R extends ScheduleReferences>(refs: R, removedIds: Set<strin
  * The camera and the lining marks are handled where the shot itself is removed,
  * since they live inside the owning setup.
  */
-export const removeShotReferences = <R extends ShotReferences>(refs: R, shotId: string): R => {
+export const removeShotReferences = <R extends ShotReferences>(
+  refs: R,
+  shotIds: string | readonly string[],
+): R => {
+  const removed = new Set(typeof shotIds === 'string' ? [shotIds] : shotIds);
+  if (removed.size === 0) return refs;
+
   const blocks = refs.scheduleBlocks ?? [];
   const emptied = new Set<string>();
 
   const nextBlocks = blocks.map((block) => {
-    if (block.kind !== 'shots' || !block.shotIds.includes(shotId)) return block;
-    const shotIds = block.shotIds.filter((id) => id !== shotId);
-    if (shotIds.length === 0) {
+    if (block.kind !== 'shots' || !block.shotIds.some((id) => removed.has(id))) return block;
+    const shotIdsLeft = block.shotIds.filter((id) => !removed.has(id));
+    if (shotIdsLeft.length === 0) {
       emptied.add(block.id);
       return block;
     }
-    return { ...block, shotIds };
+    return { ...block, shotIds: shotIdsLeft };
   });
 
   const withBlocks = dropBlocks({ ...refs, scheduleBlocks: nextBlocks }, emptied);
@@ -187,7 +197,9 @@ export const removeShotReferences = <R extends ShotReferences>(refs: R, shotId: 
   return {
     ...withBlocks,
     scriptLines: (refs.scriptLines ?? []).map((line) =>
-      line.linkedShotId === shotId ? { ...line, linkedShotId: undefined } : line,
+      line.linkedShotId && removed.has(line.linkedShotId)
+        ? { ...line, linkedShotId: undefined }
+        : line,
     ),
   };
 };

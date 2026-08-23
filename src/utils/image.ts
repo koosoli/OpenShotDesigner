@@ -1,5 +1,5 @@
 import { BackgroundImage } from '../types';
-import { storeImageAsset } from './assetImages';
+import { storeImageAsset, whenAssetImagesSettled } from './assetImages';
 
 /**
  * Image loaders (rule 26).
@@ -96,8 +96,15 @@ export async function loadStoryboardImageFile(
  * Never rejects, and never waits longer than `timeoutMs` — a broken or slow
  * image must not be able to stop someone printing a call sheet.
  */
-export function waitForImages(root: ParentNode | null, timeoutMs = 3000): Promise<void> {
-  if (!root) return Promise.resolve();
+export async function waitForImages(root: ParentNode | null, timeoutMs = 3000): Promise<void> {
+  if (!root) return;
+  // Asset-backed images are not in the DOM until their blob URL arrives, so
+  // there would be nothing to wait for yet.
+  await whenAssetImagesSettled();
+  return waitForDomImages(root, timeoutMs);
+}
+
+function waitForDomImages(root: ParentNode, timeoutMs: number): Promise<void> {
   const images = Array.from(root.querySelectorAll('img'));
   const pending = images.filter((img) => !img.complete || img.naturalWidth === 0);
   if (pending.length === 0) return Promise.resolve();

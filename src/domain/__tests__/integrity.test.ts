@@ -4,6 +4,8 @@ import {
   removePowerSource,
   removeRunOfShowCue,
   removeTrussElement,
+  removeSetupReferences,
+  removeShotReferences,
 } from '../integrity';
 import type { PowerPlan } from '../power';
 import type { RiggingItem, SuspendedLoad, TrussElement } from '../rigging';
@@ -151,5 +153,103 @@ describe('removePowerSource', () => {
     const next = removePowerSource({ powerPlan: powerPlan() }, 'ghost');
     expect(next.powerPlan.sources).toHaveLength(2);
     expect(next.powerPlan.circuits).toHaveLength(2);
+  });
+});
+
+describe('removeShotReferences', () => {
+  const refs = () => ({
+    scheduleBlocks: [
+      { id: 'b1', kind: 'shots' as const, shotIds: ['s1'] },
+      { id: 'b2', kind: 'shots' as const, shotIds: ['s1', 's2', 's3'] },
+      { id: 'b3', kind: 'setup' as const, setupId: 'setup-1' },
+    ],
+    productionDays: [
+      { id: 'd1', name: 'Day 1', scheduleBlockIds: ['b1', 'b2', 'b3'] },
+    ],
+    scriptLines: [
+      { id: 'l1', linkedShotId: 's1' },
+      { id: 'l2', linkedShotId: 's2' },
+      { id: 'l3' },
+    ],
+  });
+
+  /** A strip covering nothing is not a plan; it is a gap on the board. */
+  it('drops a strip that covered only the deleted shot', () => {
+    const next = removeShotReferences(refs(), 's1');
+    expect(next.scheduleBlocks.map((b) => b.id)).toEqual(['b2', 'b3']);
+    expect(next.productionDays[0].scheduleBlockIds).toEqual(['b2', 'b3']);
+  });
+
+  it('keeps a strip that still covers other shots', () => {
+    const next = removeShotReferences(refs(), 's1');
+    const shared = next.scheduleBlocks.find((b) => b.id === 'b2');
+    expect(shared && 'shotIds' in shared && shared.shotIds).toEqual(['s2', 's3']);
+  });
+
+  it('unlinks the script line that was lined for it, and leaves the others', () => {
+    const next = removeShotReferences(refs(), 's1');
+    expect(next.scriptLines[0].linkedShotId).toBeUndefined();
+    expect(next.scriptLines[1].linkedShotId).toBe('s2');
+  });
+
+  /**
+   * Deleting a camera takes every shot on it at once. One at a time would drop
+   * a multi-shot strip only when the last of its shots happened to go.
+   */
+  it('takes a set, so a camera deletion clears a strip covering all its shots', () => {
+    const next = removeShotReferences(refs(), ['s1', 's2', 's3']);
+    expect(next.scheduleBlocks.map((b) => b.id)).toEqual(['b3']);
+    expect(next.productionDays[0].scheduleBlockIds).toEqual(['b3']);
+  });
+
+  it('leaves setup strips and unrelated shots alone', () => {
+    const next = removeShotReferences(refs(), 'unknown-shot');
+    expect(next.scheduleBlocks).toHaveLength(3);
+    expect(next.scriptLines[0].linkedShotId).toBe('s1');
+  });
+
+  it('does nothing for an empty set', () => {
+    const original = refs();
+    expect(removeShotReferences(original, [])).toBe(original);
+  });
+});
+
+describe('removeSetupReferences', () => {
+  const refs = () => ({
+    scheduleBlocks: [
+      { id: 'b1', kind: 'setup' as const, setupId: 'setup-1' },
+      { id: 'b2', kind: 'shots' as const, shotIds: ['s1', 's2'] },
+      { id: 'b3', kind: 'shots' as const, shotIds: ['s1', 'other'] },
+      { id: 'b4', kind: 'setup' as const, setupId: 'setup-2' },
+    ],
+    productionDays: [{ id: 'd1', name: 'Day 1', scheduleBlockIds: ['b1', 'b2', 'b3', 'b4'] }],
+  });
+
+  /**
+   * These used to survive as "Unresolved setup 8f3c…" on the board and on every
+   * call sheet for that day, permanently, with no way to tell which strips were
+   * affected.
+   */
+  it('drops the setup strip and the strips covering only its shots', () => {
+    const next = removeSetupReferences(refs(), 'setup-1', ['s1', 's2']);
+    expect(next.scheduleBlocks.map((b) => b.id)).toEqual(['b3', 'b4']);
+    expect(next.productionDays[0].scheduleBlockIds).toEqual(['b3', 'b4']);
+  });
+
+  it('trims a mixed strip rather than dropping shots that belonged elsewhere', () => {
+    const next = removeSetupReferences(refs(), 'setup-1', ['s1', 's2']);
+    const mixed = next.scheduleBlocks.find((b) => b.id === 'b3');
+    expect(mixed && 'shotIds' in mixed && mixed.shotIds).toEqual(['other']);
+  });
+
+  it('leaves another setup’s strip alone', () => {
+    const next = removeSetupReferences(refs(), 'setup-1', ['s1', 's2']);
+    expect(next.scheduleBlocks.some((b) => b.id === 'b4')).toBe(true);
+  });
+
+  it('handles a setup that was never scheduled and had no shots', () => {
+    const original = refs();
+    const next = removeSetupReferences(original, 'setup-never', []);
+    expect(next.scheduleBlocks).toHaveLength(4);
   });
 });

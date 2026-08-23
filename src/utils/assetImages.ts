@@ -43,18 +43,54 @@ export const forgetAssetUrl = (assetId: string): void => {
   }
 };
 
+/**
+ * Resolutions currently in flight.
+ *
+ * Printing needs this. An asset-backed image is not in the DOM at all until its
+ * blob URL arrives — `ProjectImage` renders nothing until then — so a print
+ * routine that waits for `<img>` elements to load finds none pending and prints
+ * an empty masthead. Waiting for these first is what makes a printed sheet
+ * deterministic rather than a race the fast path usually wins.
+ */
+const inFlight = new Set<Promise<unknown>>();
+
 /** Resolve one asset id to a displayable URL, or null when it is not there. */
 export const assetImageUrl = async (assetId: string): Promise<string | null> => {
   const cached = urlCache.get(assetId);
   if (cached) return cached;
+  const pending = (async () => {
+    try {
+      const blob = await assetImageStore.get(assetId);
+      if (!blob) return null;
+      const url = URL.createObjectURL(blob);
+      urlCache.set(assetId, url);
+      return url;
+    } catch {
+      return null;
+    }
+  })();
+  inFlight.add(pending);
   try {
-    const blob = await assetImageStore.get(assetId);
-    if (!blob) return null;
-    const url = URL.createObjectURL(blob);
-    urlCache.set(assetId, url);
-    return url;
-  } catch {
-    return null;
+    return await pending;
+  } finally {
+    inFlight.delete(pending);
+  }
+};
+
+/**
+ * Settle every asset lookup currently running.
+ *
+ * Loops rather than awaiting once: a resolution re-renders the component that
+ * asked for it, which can start further lookups (a contact sheet resolves its
+ * logo, then forty headshots). Bounded so a store that never settles cannot
+ * stop someone printing (rule 30).
+ */
+export const whenAssetImagesSettled = async (maxRounds = 8): Promise<void> => {
+  for (let round = 0; round < maxRounds && inFlight.size > 0; round += 1) {
+    await Promise.allSettled([...inFlight]);
+    // Yield, so React can commit the render those resolutions unblocked and
+    // any newly-mounted image can register its own lookup.
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 };
 

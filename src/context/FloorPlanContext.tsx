@@ -1626,10 +1626,24 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setSelectedShotId(null);
     }
     if (removedShotIds.size > 0) {
-      setRecordedProject((prev) => ({
-        ...prev,
-        avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
-      }));
+      setRecordedProject((prev) => {
+        // Deleting a camera takes its shots, and their schedule strips and
+        // lined script lines have to go with them — the same cleanup
+        // `deleteShot` does for one shot.
+        const cleaned = removeShotReferences(
+          {
+            scheduleBlocks: prev.scheduleBlocks,
+            productionDays: prev.productionDays,
+            scriptLines: prev.scriptLines,
+          },
+          [...removedShotIds],
+        );
+        return {
+          ...prev,
+          ...cleaned,
+          avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
+        };
+      });
     }
     commitSetupState(updatedSetup);
   };
@@ -1659,10 +1673,23 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedElementIds([]);
     setSelectedShotId(null);
     if (removedShotIds.size > 0) {
-      setRecordedProject((prev) => ({
-        ...prev,
-        avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
-      }));
+      setRecordedProject((prev) => {
+        // Same cleanup as the single-element path: shots taken by a deleted
+        // camera lose their schedule strips and lined script lines too.
+        const cleaned = removeShotReferences(
+          {
+            scheduleBlocks: prev.scheduleBlocks,
+            productionDays: prev.productionDays,
+            scriptLines: prev.scriptLines,
+          },
+          [...removedShotIds],
+        );
+        return {
+          ...prev,
+          ...cleaned,
+          avScriptRows: (prev.avScriptRows || []).filter((r) => !removedShotIds.has(r.linkedShotId || '')),
+        };
+      });
     }
     commitSetupState(updatedSetup);
   };

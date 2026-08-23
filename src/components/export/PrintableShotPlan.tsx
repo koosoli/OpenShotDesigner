@@ -99,6 +99,7 @@ import { buildScriptSides, sidesCharacterOptions, splitScenes } from '../../doma
 import { deriveScriptBreakdown } from '../../domain/script/logic';
 import { attachBreakdownItemsToScenes } from '../../domain/script';
 import { ProjectImage } from '../common/ProjectImage';
+import { useImageRefSrcs } from '../../utils/assetImages';
 import { keyFrameImage } from '../../utils/storyboardFrames';
 
 export const PrintableShotPlan: React.FC = () => {
@@ -398,6 +399,15 @@ export const PrintableShotPlan: React.FC = () => {
         ? deriveAllScenesEquipment(project.setups || [activeSetup])
         : deriveSceneEquipment(activeSetup),
     [equipmentScope, project.setups, activeSetup]
+  );
+
+  // Above the early return: hooks must run in the same order on every render,
+  // and this one sat after it. Reference plates live in the asset store, so the
+  // printed blueprint has to resolve them like everything else — without this
+  // the export lost its reference plate silently, which is the worst way for a
+  // printed plan to be wrong.
+  const backgroundSrcs = useImageRefSrcs(
+    (activeSetup.backgroundImages ?? []).filter((img) => img.visible).map((img) => img.url),
   );
 
   if (!isExportModalOpen) return null;
@@ -1353,7 +1363,7 @@ export const PrintableShotPlan: React.FC = () => {
                         strokeDasharray="4 3"
                       />
                       <image
-                        href={img.url}
+                        href={backgroundSrcs[img.url] ?? undefined}
                         x={0}
                         y={0}
                         width={img.width}
