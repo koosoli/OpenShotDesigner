@@ -164,29 +164,56 @@ export const shotIdsScheduledOn = (
   return ordered;
 };
 
-const describe = (
-  shotId: string,
-  sources: ChecklistSources,
-  takes: readonly Take[],
-): ChecklistShot | null => {
+type IndexedShot = NonNullable<ChecklistSources['setups']>[number]['shots'];
+type ShotEntry = { setupId: string; sceneNumber?: string; shot: NonNullable<IndexedShot>[number] };
+
+/**
+ * Shots by id, built once per derivation.
+ *
+ * Searching every setup for each shot is O(shots × setups), and grouping takes
+ * the same way is O(shots × takes). Both are invisible on the example project
+ * and dominate on a feature — where this runs on every keystroke in the panel.
+ */
+const indexShots = (sources: ChecklistSources): Map<string, ShotEntry> => {
+  const index = new Map<string, ShotEntry>();
   for (const setup of sources.setups ?? []) {
-    const shot = (setup.shots ?? []).find((candidate) => candidate.id === shotId);
-    if (!shot) continue;
-    const shotTakes = takesForShot(takes, shotId);
-    const covered = shotTakes.some((take) => take.isGoodTake === true);
-    return {
-      shotId,
-      setupId: setup.id,
-      sceneNumber: setup.sceneNumber,
-      shotNumber: shot.shotNumber,
-      name: shot.name,
-      unplanned: shot.unplanned === true,
-      takeCount: shotTakes.length,
-      covered,
-      attemptedNotCovered: shotTakes.length > 0 && !covered,
-    };
+    for (const shot of setup.shots ?? []) {
+      index.set(shot.id, { setupId: setup.id, sceneNumber: setup.sceneNumber, shot });
+    }
   }
-  return null;
+  return index;
+};
+
+const groupTakesByShot = (takes: readonly Take[]): Map<string, Take[]> => {
+  const grouped = new Map<string, Take[]>();
+  for (const take of takes) {
+    const list = grouped.get(take.shotId);
+    if (list) list.push(take);
+    else grouped.set(take.shotId, [take]);
+  }
+  return grouped;
+};
+
+const describeShot = (
+  shotId: string,
+  shotsById: Map<string, ShotEntry>,
+  takesByShot: Map<string, Take[]>,
+): ChecklistShot | null => {
+  const entry = shotsById.get(shotId);
+  if (!entry) return null;
+  const shotTakes = takesByShot.get(shotId) ?? [];
+  const covered = shotTakes.some((take) => take.isGoodTake === true);
+  return {
+    shotId,
+    setupId: entry.setupId,
+    sceneNumber: entry.sceneNumber,
+    shotNumber: entry.shot.shotNumber,
+    name: entry.shot.name,
+    unplanned: entry.shot.unplanned === true,
+    takeCount: shotTakes.length,
+    covered,
+    attemptedNotCovered: shotTakes.length > 0 && !covered,
+  };
 };
 
 /**
@@ -209,9 +236,11 @@ export const dayChecklist = (
   const dayTakes = takesForDay(allTakes, productionDayId);
   const plannedIds = shotIdsScheduledOn(scheduleBlockIds, blocks, sources);
   const plannedSet = new Set(plannedIds);
+  const shotsById = indexShots(sources);
+  const takesByShot = groupTakesByShot(dayTakes);
 
   const planned = plannedIds
-    .map((shotId) => describe(shotId, sources, dayTakes))
+    .map((shotId) => describeShot(shotId, shotsById, takesByShot))
     .filter((entry): entry is ChecklistShot => entry !== null);
 
   const unscheduledIds: string[] = [];
@@ -222,7 +251,7 @@ export const dayChecklist = (
     unscheduledIds.push(take.shotId);
   }
   const unscheduled = unscheduledIds
-    .map((shotId) => describe(shotId, sources, dayTakes))
+    .map((shotId) => describeShot(shotId, shotsById, takesByShot))
     .filter((entry): entry is ChecklistShot => entry !== null);
 
   return {

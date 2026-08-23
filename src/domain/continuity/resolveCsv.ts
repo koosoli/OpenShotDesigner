@@ -208,11 +208,23 @@ export const buildResolveRows = (
     crewName(sources.people, 'script_supervisor') || (sources.crewDefaults?.scriptSupervisor ?? '');
   const dayById = new Map((sources.productionDays ?? []).map((day) => [day.id, day] as const));
 
+  // Indexed once rather than searched per take. Finding a take's shot by
+  // scanning every setup is O(takes × setups × shots): invisible on the
+  // ten-shot example project, and the dominant cost on a feature — where this
+  // export is exactly the thing someone runs at wrap on a tired laptop.
+  type Shot = NonNullable<NonNullable<ContinuitySources['setups']>[number]['shots']>[number];
+  type Setup = NonNullable<ContinuitySources['setups']>[number];
+  const shotIndex = new Map<string, { setup: Setup; shot: Shot }>();
+  for (const setup of sources.setups ?? []) {
+    for (const shot of setup.shots ?? []) {
+      shotIndex.set(shot.id, { setup, shot });
+    }
+  }
+
   return takes.map((take) => {
-    const setup = (sources.setups ?? []).find((candidate) =>
-      (candidate.shots ?? []).some((shot) => shot.id === take.shotId),
-    );
-    const shot = (setup?.shots ?? []).find((candidate) => candidate.id === take.shotId);
+    const found = shotIndex.get(take.shotId);
+    const setup = found?.setup;
+    const shot = found?.shot;
     const camera = (setup?.elements ?? []).find(
       (element) => element.type === 'camera' && element.id === shot?.cameraId,
     );
