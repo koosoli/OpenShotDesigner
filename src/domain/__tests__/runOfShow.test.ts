@@ -4,6 +4,10 @@ import {
   computeCueStarts,
   totalRunTime,
   validateCueList,
+  renumberCuesByPosition,
+  sortAndRenumberCues,
+  moveCueInList,
+  buildRunOfShowSheet,
   type RunOfShowCue,
 } from '../scheduling/runOfShow';
 import { createId } from '../ids';
@@ -162,5 +166,194 @@ describe('validateCueList', () => {
       cue(3, { plannedDurationSeconds: 60 }),
     ]);
     expect(issues).toEqual([]);
+  });
+});
+
+describe('renumberCuesByPosition', () => {
+  it('numbers by array position, honouring an order the caller has already chosen', () => {
+    const a = cue(0);
+    const b = cue(1);
+    const c = cue(2);
+    // The caller hands over c, a, b — the reordering it just performed.
+    const out = renumberCuesByPosition([c, a, b]);
+    expect(out.map((x) => [x.id, x.order])).toEqual([
+      [c.id, 0],
+      [a.id, 1],
+      [b.id, 2],
+    ]);
+  });
+
+  it('leaves already-correct cues identical so React keeps their identity', () => {
+    const a = cue(0);
+    const b = cue(5);
+    const out = renumberCuesByPosition([a, b]);
+    expect(out[0]).toBe(a);
+    expect(out[1]).not.toBe(b);
+    expect(out[1].order).toBe(1);
+  });
+
+  it('does not mutate the input', () => {
+    const a = cue(3);
+    renumberCuesByPosition([a]);
+    expect(a.order).toBe(3);
+  });
+});
+
+describe('sortAndRenumberCues', () => {
+  it('sorts an arbitrary array by stored order before closing the gaps', () => {
+    const a = cue(4);
+    const b = cue(0);
+    const c = cue(2);
+    const out = sortAndRenumberCues([a, b, c]);
+    expect(out.map((x) => [x.id, x.order])).toEqual([
+      [b.id, 0],
+      [c.id, 1],
+      [a.id, 2],
+    ]);
+  });
+});
+
+describe('moveCueInList', () => {
+  const list = () => [cue(0), cue(1), cue(2), cue(3)];
+
+  it('moves a cue down and renumbers 0..n-1', () => {
+    const cues = list();
+    const out = moveCueInList(cues, 0, 2);
+    expect(out.map((x) => x.id)).toEqual([cues[1].id, cues[2].id, cues[0].id, cues[3].id]);
+    expect(out.map((x) => x.order)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('moves a cue up', () => {
+    const cues = list();
+    const out = moveCueInList(cues, 3, 1);
+    expect(out.map((x) => x.id)).toEqual([cues[0].id, cues[3].id, cues[1].id, cues[2].id]);
+    expect(out.map((x) => x.order)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('does not undo the move by re-sorting on the old order (the reorder bug)', () => {
+    const cues = list();
+    const once = moveCueInList(cues, 0, 3);
+    expect(once.map((x) => x.id)).toEqual([cues[1].id, cues[2].id, cues[3].id, cues[0].id]);
+    // Feeding the result back in must keep the new order, not snap back.
+    const twice = moveCueInList(once, 3, 0);
+    expect(twice.map((x) => x.id)).toEqual(cues.map((x) => x.id));
+  });
+
+  it('takes indices in the running order, not in the stored array', () => {
+    const a = cue(2);
+    const b = cue(0);
+    const c = cue(1);
+    // Running order is b, c, a; moving index 0 moves b.
+    const out = moveCueInList([a, b, c], 0, 2);
+    expect(out.map((x) => x.id)).toEqual([c.id, a.id, b.id]);
+  });
+
+  it('clamps a target past either end rather than losing the cue', () => {
+    const cues = list();
+    expect(moveCueInList(cues, 2, 99).map((x) => x.id)).toEqual([
+      cues[0].id,
+      cues[1].id,
+      cues[3].id,
+      cues[2].id,
+    ]);
+    expect(moveCueInList(cues, 2, -5).map((x) => x.id)).toEqual([
+      cues[2].id,
+      cues[0].id,
+      cues[1].id,
+      cues[3].id,
+    ]);
+  });
+
+  it('leaves the order alone for an out-of-range source index', () => {
+    const cues = list();
+    expect(moveCueInList(cues, 9, 0).map((x) => x.id)).toEqual(cues.map((x) => x.id));
+    expect(moveCueInList([], 0, 1)).toEqual([]);
+  });
+
+  it('does not mutate the input array or its cues', () => {
+    const cues = list();
+    const snapshot = cues.map((x) => x.id);
+    moveCueInList(cues, 0, 3);
+    expect(cues.map((x) => x.id)).toEqual(snapshot);
+    expect(cues.map((x) => x.order)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('duplicating: an inserted copy sharing its source order lands by position', () => {
+    const cues = list();
+    const source = cues[1];
+    const copy: RunOfShowCue = { ...source, id: createId('cue'), label: `${source.label} (copy)` };
+    const next = [...cues];
+    next.splice(2, 0, copy);
+    const out = renumberCuesByPosition(next);
+    expect(out.map((x) => x.id)).toEqual([
+      cues[0].id,
+      source.id,
+      copy.id,
+      cues[2].id,
+      cues[3].id,
+    ]);
+    expect(out.map((x) => x.order)).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
+describe('buildRunOfShowSheet', () => {
+  const segments = [{ id: 'seg1', name: 'Opening block' }];
+
+  it('numbers rows 1..n in running order and resolves starts from the show start', () => {
+    const cues = [
+      cue(2, { label: 'Second', plannedDurationSeconds: 120 }),
+      cue(1, { label: 'First', plannedDurationSeconds: 60 }),
+    ];
+    const sheet = buildRunOfShowSheet(cues, segments, 72000);
+    expect(sheet.rows.map((r) => [r.number, r.label, r.startSeconds])).toEqual([
+      [1, 'First', 72000],
+      [2, 'Second', 72060],
+    ]);
+    expect(sheet.totalRunTimeSeconds).toBe(180);
+  });
+
+  it('keeps an unknown duration and an unresolvable start as null, never 0', () => {
+    const cues = [cue(1), cue(2, { plannedDurationSeconds: 30 })];
+    const sheet = buildRunOfShowSheet(cues);
+    expect(sheet.rows[0].durationSeconds).toBeNull();
+    expect(sheet.rows[1].startSeconds).toBeNull();
+    expect(sheet.totalRunTimeSeconds).toBeNull();
+  });
+
+  it('resolves the segment name and drops a dangling segment reference', () => {
+    const cues = [
+      cue(1, { segmentId: 'seg1', plannedDurationSeconds: 10 }),
+      cue(2, { segmentId: 'gone', plannedDurationSeconds: 10 }),
+    ];
+    const sheet = buildRunOfShowSheet(cues, segments);
+    expect(sheet.rows[0].segmentName).toBe('Opening block');
+    expect(sheet.rows[1].segmentName).toBeUndefined();
+  });
+
+  it('lists only the departments that have notes, in reading order', () => {
+    const cues = [
+      cue(1, {
+        plannedDurationSeconds: 10,
+        audioNotes: 'Playback A',
+        cameraNotes: 'Cam 2 on the door',
+        stageNotes: '   ',
+      }),
+    ];
+    const sheet = buildRunOfShowSheet(cues);
+    expect(sheet.rows[0].notes).toEqual([
+      { department: 'Camera', text: 'Cam 2 on the door' },
+      { department: 'Audio', text: 'Playback A' },
+    ]);
+  });
+
+  it('carries the validation issues, de-duplicated', () => {
+    const sheet = buildRunOfShowSheet([cue(1, { label: '' }), cue(2, { plannedDurationSeconds: 5 })]);
+    const codes = sheet.issues.map((i) => i.code).sort();
+    expect(codes).toEqual(['EMPTY_CUE_LABEL', 'MISSING_DURATION']);
+    expect(new Set(sheet.issues.map((i) => `${i.code}:${i.entityId}`)).size).toBe(sheet.issues.length);
+  });
+
+  it('yields an empty sheet for an empty cue list', () => {
+    expect(buildRunOfShowSheet([])).toEqual({ rows: [], totalRunTimeSeconds: 0, issues: [] });
   });
 });

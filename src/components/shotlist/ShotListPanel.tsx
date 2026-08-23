@@ -447,6 +447,7 @@ export const ShotListPanel: React.FC = () => {
         setInsertMenu({ shotId: shot.id, x: rect.right, y: rect.bottom });
       }}
       title="Insert a shot directly after this shot"
+      aria-label="Insert a shot directly after this shot"
       className="p-1 text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 rounded"
     >
       <Plus className="w-3.5 h-3.5" />
@@ -538,6 +539,7 @@ export const ShotListPanel: React.FC = () => {
             <button
               onClick={() => exportShotListToCsv(activeSetup, project.title)}
               title="Export Shot List to Excel / CSV spreadsheet"
+              aria-label="Export Shot List to Excel / CSV spreadsheet"
               className={`p-1.5 rounded-lg border text-xs transition-colors ${
                 isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
@@ -549,6 +551,7 @@ export const ShotListPanel: React.FC = () => {
             <button
               onClick={() => openExportModal('shotlist')}
               title="Print Shot List or Blueprint Floor Plan"
+              aria-label="Print Shot List or Blueprint Floor Plan"
               className={`p-1.5 rounded-lg border text-xs transition-colors ${
                 isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
@@ -584,6 +587,7 @@ export const ShotListPanel: React.FC = () => {
               <button
                 onClick={() => setIsRenumberMenuOpen((prev) => !prev)}
                 title="Auto-Renumber All Shots in Scene"
+                aria-expanded={isRenumberMenuOpen}
                 className={`flex items-center gap-1 px-1.5 py-0.5 border rounded text-[11px] font-medium transition-colors ${
                   isLight ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                 }`}
@@ -639,6 +643,7 @@ export const ShotListPanel: React.FC = () => {
           <button
             onClick={() => setShowFilters((prev) => !prev)}
             title="Filter shots and choose which columns to show"
+            aria-pressed={showFilters}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
               showFilters || filterCamera !== 'all' || filterStatus !== 'all' || hiddenColumns.size > 0
                 ? 'bg-sky-600 text-white border-sky-500'
@@ -668,6 +673,7 @@ export const ShotListPanel: React.FC = () => {
                 ? 'Showing shots from every scene — click to show this scene only'
                 : 'Show shots from all scenes in this project'
             }
+            aria-pressed={showAllScenes}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
               showAllScenes
                 ? 'bg-violet-600 text-white border-violet-500'
@@ -691,6 +697,7 @@ export const ShotListPanel: React.FC = () => {
                   ? 'Hide storyboard thumbnails from the shot list'
                   : 'Show storyboard thumbnails in the shot list (like the print export)'
               }
+              aria-pressed={showStoryboards}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 showStoryboards
                   ? 'bg-amber-500 text-white shadow-xs'
@@ -703,6 +710,7 @@ export const ShotListPanel: React.FC = () => {
             <button
               onClick={() => setViewMode('cards')}
               title="Storyboard / Coverage Cards View"
+              aria-pressed={viewMode === 'cards'}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 viewMode === 'cards'
                   ? 'bg-sky-600 text-white shadow-xs'
@@ -715,6 +723,7 @@ export const ShotListPanel: React.FC = () => {
             <button
               onClick={() => setViewMode('table')}
               title="Production Table / Spreadsheet List View"
+              aria-pressed={viewMode === 'table'}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 viewMode === 'table'
                   ? 'bg-sky-600 text-white shadow-xs'
@@ -782,6 +791,7 @@ export const ShotListPanel: React.FC = () => {
                   <button
                     key={column.key}
                     onClick={() => toggleColumn(column.key)}
+                    aria-pressed={shows(column.key)}
                     className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${
                       shows(column.key)
                         ? 'bg-sky-600 text-white border-sky-500'
@@ -1000,6 +1010,7 @@ export const ShotListPanel: React.FC = () => {
                         openViewfinder(shot.cameraId);
                       }}
                       title="Open Simulated Viewfinder for this Shot"
+                      aria-label="Open Simulated Viewfinder for this Shot"
                       className={`p-1 rounded transition-colors ${
                         isLight ? 'text-slate-500 hover:text-sky-600 hover:bg-slate-100' : 'text-slate-400 hover:text-sky-300 hover:bg-slate-700'
                       }`}
@@ -1014,6 +1025,11 @@ export const ShotListPanel: React.FC = () => {
                         startScriptLinking(shot.id);
                       }}
                       title={
+                        linedShotIds.has(shot.id)
+                          ? 'Re-line this shot: highlight the screenplay it covers'
+                          : 'Line this shot: highlight the screenplay it covers'
+                      }
+                      aria-label={
                         linedShotIds.has(shot.id)
                           ? 'Re-line this shot: highlight the screenplay it covers'
                           : 'Line this shot: highlight the screenplay it covers'
@@ -1036,6 +1052,9 @@ export const ShotListPanel: React.FC = () => {
                         e.stopPropagation();
                         setExpandedShotId(isExpanded ? null : shot.id);
                       }}
+                      title={isExpanded ? 'Collapse shot details' : 'Expand shot details'}
+                      aria-label={isExpanded ? 'Collapse shot details' : 'Expand shot details'}
+                      aria-expanded={isExpanded}
                       className={`p-1 rounded transition-colors ${
                         isLight ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-700'
                       }`}
@@ -1106,6 +1125,8 @@ export const ShotListPanel: React.FC = () => {
                     <div className={`flex items-center border rounded-lg ${isLight ? 'border-slate-300 bg-slate-100' : 'border-slate-700 bg-slate-900'}`}>
                       <button
                         onClick={() => updateShot(shot.id, { takesCount: Math.max(0, (shot.takesCount || 0) - 1) })}
+                        title="One fewer take"
+                        aria-label={`One fewer take for shot ${shot.shotNumber}`}
                         className={`px-2 py-0.5 text-xs font-bold ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-slate-800 text-slate-300'}`}
                       >
                         -
@@ -1113,6 +1134,8 @@ export const ShotListPanel: React.FC = () => {
                       <span className="px-2 font-mono text-sky-500 font-bold text-xs">{shot.takesCount || 0}</span>
                       <button
                         onClick={() => updateShot(shot.id, { takesCount: (shot.takesCount || 0) + 1 })}
+                        title="One more take"
+                        aria-label={`One more take for shot ${shot.shotNumber}`}
                         className={`px-2 py-0.5 text-xs font-bold ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-slate-800 text-slate-300'}`}
                       >
                         +
@@ -1421,6 +1444,8 @@ export const ShotListPanel: React.FC = () => {
                         <div className="flex items-center justify-center gap-1 font-mono text-xs font-bold text-sky-500">
                         <button
                         onClick={() => updateShot(shot.id, { takesCount: Math.max(0, (shot.takesCount || 0) - 1) })}
+                        title="One fewer take"
+                        aria-label={`One fewer take for shot ${shot.shotNumber}`}
                         className="px-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                         >
                         -
@@ -1428,6 +1453,8 @@ export const ShotListPanel: React.FC = () => {
                         <span>{shot.takesCount || 0}</span>
                         <button
                         onClick={() => updateShot(shot.id, { takesCount: (shot.takesCount || 0) + 1 })}
+                        title="One more take"
+                        aria-label={`One more take for shot ${shot.shotNumber}`}
                         className="px-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                         >
                         +
@@ -1464,6 +1491,7 @@ export const ShotListPanel: React.FC = () => {
                           <button
                             onClick={() => openViewfinder(shot.cameraId)}
                             title="Simulate Camera Viewfinder"
+                            aria-label="Simulate Camera Viewfinder"
                             className="p-1 text-slate-400 hover:text-sky-500 rounded"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -1471,6 +1499,11 @@ export const ShotListPanel: React.FC = () => {
                           <button
                             onClick={() => startScriptLinking(shot.id)}
                             title={
+                              linedShotIds.has(shot.id)
+                                ? 'Re-line this shot in the script'
+                                : 'Line this shot in the script'
+                            }
+                            aria-label={
                               linedShotIds.has(shot.id)
                                 ? 'Re-line this shot in the script'
                                 : 'Line this shot in the script'
@@ -1485,6 +1518,7 @@ export const ShotListPanel: React.FC = () => {
                           <button
                             onClick={() => deleteShot(shot.id)}
                             title="Delete Shot"
+                            aria-label="Delete Shot"
                             className="p-1 text-red-400 hover:text-red-500 rounded"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

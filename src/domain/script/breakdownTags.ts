@@ -13,7 +13,12 @@
  */
 
 import { createId } from '../ids';
-import type { BreakdownCategory, BreakdownItem, ScriptScene } from './types';
+import type {
+  BreakdownCategory,
+  BreakdownItem,
+  BreakdownSourceRange,
+  ScriptScene,
+} from './types';
 
 /** Display order and labels. `other` is deliberately last. */
 export const BREAKDOWN_CATEGORIES: Array<{ value: BreakdownCategory; label: string; tint: string }> = [
@@ -42,6 +47,38 @@ export const breakdownCategoryTint = (category: BreakdownCategory): string =>
 export const breakdownItemKey = (item: Pick<BreakdownItem, 'category' | 'name'>): string =>
   `${item.category}::${item.name.trim().toLowerCase()}`;
 
+/** Identity of a range, so tagging the same words twice does not stack them. */
+const rangeKey = (range: BreakdownSourceRange): string =>
+  `${range.lineId}:${range.startOffset ?? ''}:${range.endOffset ?? ''}`;
+
+/**
+ * Merge two range lists, keeping the first occurrence of each.
+ *
+ * A range that covers a whole line swallows the partial ranges on that line:
+ * once an element is tagged across the entire line, tinting a few words inside
+ * it as well would draw the same tag twice on top of itself.
+ */
+const mergeRanges = (
+  existing: readonly BreakdownSourceRange[],
+  incoming: readonly BreakdownSourceRange[],
+): BreakdownSourceRange[] => {
+  const all = [...existing, ...incoming];
+  const wholeLineIds = new Set(
+    all.filter((r) => r.startOffset === undefined && r.endOffset === undefined).map((r) => r.lineId),
+  );
+  const seen = new Set<string>();
+  const out: BreakdownSourceRange[] = [];
+  for (const range of all) {
+    const isWhole = range.startOffset === undefined && range.endOffset === undefined;
+    if (!isWhole && wholeLineIds.has(range.lineId)) continue;
+    const key = rangeKey(range);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(range);
+  }
+  return out;
+};
+
 /**
  * Tag a stretch of script as a breakdown element.
  *
@@ -55,23 +92,38 @@ export const breakdownItemKey = (item: Pick<BreakdownItem, 'category' | 'name'>)
  */
 export const tagBreakdownItem = (
   items: readonly BreakdownItem[],
-  input: { category: BreakdownCategory; name: string; notes?: string; scriptLineIds?: string[] },
+  input: {
+    category: BreakdownCategory;
+    name: string;
+    notes?: string;
+    scriptLineIds?: string[];
+    /**
+     * Where on each line the words sit. Supplying these also supplies the
+     * lines, so the page can tint exactly what was highlighted without the
+     * caller having to pass the same relationship twice.
+     */
+    scriptRanges?: BreakdownSourceRange[];
+  },
 ): BreakdownItem[] => {
   const name = input.name.trim();
   if (!name) return [...items];
 
   const key = breakdownItemKey({ category: input.category, name });
-  const lineIds = input.scriptLineIds ?? [];
+  const ranges = input.scriptRanges ?? [];
+  // Ranges imply their lines, so a caller never has to keep the two in step.
+  const lineIds = [...new Set([...(input.scriptLineIds ?? []), ...ranges.map((r) => r.lineId)])];
   const existing = items.find((item) => breakdownItemKey(item) === key);
 
   if (existing) {
-    const merged = new Set([...(existing.sourceScriptLineIds ?? []), ...lineIds]);
+    const mergedLines = new Set([...(existing.sourceScriptLineIds ?? []), ...lineIds]);
+    const mergedRanges = mergeRanges(existing.sourceRanges ?? [], ranges);
     return items.map((item) =>
       item.id === existing.id
         ? {
             ...item,
             ...(input.notes ? { notes: input.notes } : {}),
-            ...(merged.size > 0 ? { sourceScriptLineIds: [...merged] } : {}),
+            ...(mergedLines.size > 0 ? { sourceScriptLineIds: [...mergedLines] } : {}),
+            ...(mergedRanges.length > 0 ? { sourceRanges: mergedRanges } : {}),
           }
         : item,
     );
@@ -84,7 +136,8 @@ export const tagBreakdownItem = (
       category: input.category,
       name,
       ...(input.notes ? { notes: input.notes } : {}),
-      ...(lineIds.length > 0 ? { sourceScriptLineIds: [...lineIds] } : {}),
+      ...(lineIds.length > 0 ? { sourceScriptLineIds: lineIds } : {}),
+      ...(ranges.length > 0 ? { sourceRanges: mergeRanges([], ranges) } : {}),
     },
   ];
 };
@@ -101,7 +154,13 @@ export const removeBreakdownItem = (
   itemId: string,
 ): BreakdownItem[] => items.filter((item) => item.id !== itemId);
 
-/** Drop one script line from an item's sources; an item with none left stays. */
+/**
+ * Drop one script line from an item's sources; an item with none left stays.
+ *
+ * The element itself survives on purpose. Untagging says "these words are not
+ * where this prop comes from", not "the production no longer needs the prop" —
+ * that is what deleting the element is for.
+ */
 export const untagScriptLine = (
   items: readonly BreakdownItem[],
   itemId: string,
@@ -109,9 +168,83 @@ export const untagScriptLine = (
 ): BreakdownItem[] =>
   items.map((item) =>
     item.id === itemId
-      ? { ...item, sourceScriptLineIds: (item.sourceScriptLineIds ?? []).filter((id) => id !== lineId) }
+      ? {
+          ...item,
+          sourceScriptLineIds: (item.sourceScriptLineIds ?? []).filter((id) => id !== lineId),
+          sourceRanges: (item.sourceRanges ?? []).filter((range) => range.lineId !== lineId),
+        }
       : item,
   );
+
+/** One element's claim on one line, which is what the page draws. */
+export interface BreakdownLineTag {
+  item: BreakdownItem;
+  /** Absent when the item was tagged before ranges existed: tint the whole line. */
+  range?: BreakdownSourceRange;
+}
+
+/**
+ * Every element tagged on one script line, so the page can tint the words.
+ *
+ * An item that claims the line but has no range for it (anything tagged before
+ * ranges existed, or added by hand and pointed at a line) yields a tag with no
+ * range, which the page renders as a whole-line mark rather than dropping.
+ */
+export const breakdownTagsForLine = (
+  items: readonly BreakdownItem[],
+  lineId: string,
+): BreakdownLineTag[] => {
+  const tags: BreakdownLineTag[] = [];
+  for (const item of items) {
+    const ranges = (item.sourceRanges ?? []).filter((range) => range.lineId === lineId);
+    if (ranges.length > 0) {
+      for (const range of ranges) tags.push({ item, range });
+    } else if ((item.sourceScriptLineIds ?? []).includes(lineId)) {
+      tags.push({ item });
+    }
+  }
+  return tags;
+};
+
+/** Every element tagged anywhere in a set of lines, each listed once. */
+export const breakdownItemsForLines = (
+  items: readonly BreakdownItem[],
+  lineIds: readonly string[],
+): BreakdownItem[] => {
+  const wanted = new Set(lineIds);
+  return items.filter((item) => (item.sourceScriptLineIds ?? []).some((id) => wanted.has(id)));
+};
+
+/**
+ * Drop every pointer into script lines that no longer exist.
+ *
+ * Deleting a line (or a whole omitted scene) used to leave elements claiming
+ * it, which is invisible until a report tries to say which scenes need the
+ * prop and silently finds none. The element survives the loss of its source —
+ * the art department still has to find the ashtray — but the dead pointer goes
+ * (see `domain/integrity.ts` for the same rule applied to shots and trusses).
+ */
+export const pruneBreakdownScriptLines = (
+  items: readonly BreakdownItem[],
+  liveLineIds: ReadonlySet<string> | readonly string[],
+): BreakdownItem[] => {
+  const live = liveLineIds instanceof Set ? liveLineIds : new Set(liveLineIds);
+  let changed = false;
+  const next = items.map((item) => {
+    const lineIds = item.sourceScriptLineIds ?? [];
+    const ranges = item.sourceRanges ?? [];
+    const keptLines = lineIds.filter((id) => live.has(id));
+    const keptRanges = ranges.filter((range) => live.has(range.lineId));
+    if (keptLines.length === lineIds.length && keptRanges.length === ranges.length) return item;
+    changed = true;
+    return {
+      ...item,
+      ...(lineIds.length > 0 ? { sourceScriptLineIds: keptLines } : {}),
+      ...(ranges.length > 0 ? { sourceRanges: keptRanges } : {}),
+    };
+  });
+  return changed ? next : [...items];
+};
 
 export interface BreakdownCategoryGroup {
   category: BreakdownCategory;

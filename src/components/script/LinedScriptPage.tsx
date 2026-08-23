@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ScriptElementType, ScriptLine, ScriptMark, Shot } from '../../types';
-import { omittedSceneLabel } from '../../domain/script';
+import { breakdownCategoryLabel, breakdownCategoryTint, breakdownTagsForLine, omittedSceneLabel } from '../../domain/script';
+import type { BreakdownItem } from '../../domain/script';
+
+/** Stable identity so the default prop does not re-run the tag lookup each render. */
+const EMPTY_BREAKDOWN_ITEMS: BreakdownItem[] = [];
 
 /**
  * Standard Hollywood layout (in character columns, 12pt Courier = 10 chars per
@@ -133,6 +137,16 @@ interface LinedScriptPageProps {
   showShotSize?: boolean;
   selection?: { from: number; to: number } | null;
   selectedShotId?: string | null;
+  /**
+   * Tagged breakdown elements, so the words that carry one are marked on the
+   * page. Optional and empty by default: the print builder renders the same
+   * page and a breakdown tint is a working mark, not something that belongs on
+   * a distributed lined script.
+   */
+  breakdownItems?: BreakdownItem[];
+  /** Highlight the tags for this element only — used when one is selected. */
+  highlightedBreakdownItemId?: string | null;
+  onSelectBreakdownItem?: (itemId: string) => void;
   onLinePointerDown?: (event: React.PointerEvent, lineId: string) => void;
   onSelectMark?: (mark: ScriptMark) => void;
   /** Commit a dragged lining edge (called once, on release). */
@@ -151,6 +165,9 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
   showShotSize = true,
   selection = null,
   selectedShotId = null,
+  breakdownItems = EMPTY_BREAKDOWN_ITEMS,
+  highlightedBreakdownItemId = null,
+  onSelectBreakdownItem,
   onLinePointerDown,
   onSelectMark,
   onExtendMark,
@@ -351,6 +368,13 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
             : null;
           const partialCover = !!covered && (covered.start > 0 || covered.end < line.text.length);
 
+          // An omitted slugline renders as "SCENE n — OMITTED" rather than its
+          // own text, so a tag's offsets would point into words that are not
+          // on screen. The element keeps its pointer; the page just does not
+          // draw it until the scene is restored.
+          const breakdownTags =
+            breakdownItems.length > 0 && !line.omitted ? breakdownTagsForLine(breakdownItems, line.id) : [];
+
           return (
             <div
               key={line.id}
@@ -410,6 +434,43 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                   </span>
                 </span>
               )}
+
+              {/* Breakdown tags: underline the tagged words in their
+                  department's colour. This reuses the same invisible-prefix
+                  trick as the lining overlays above, which is what keeps the
+                  mark aligned to the words at any zoom without splitting the
+                  line's text node (the selection listener reads offsets off
+                  that node, so splitting it would break tagging itself). */}
+              {breakdownTags.map(({ item, range }, tagIndex) => {
+                const start = range?.startOffset ?? 0;
+                const end = range?.endOffset ?? line.text.length;
+                const dimmed = highlightedBreakdownItemId != null && highlightedBreakdownItemId !== item.id;
+                const tint = breakdownCategoryTint(item.category);
+                return (
+                  <span
+                    key={`${item.id}-${tagIndex}`}
+                    aria-hidden
+                    className="absolute inset-0 whitespace-pre-wrap break-words pointer-events-none"
+                  >
+                    <span className="invisible">{line.text.slice(0, start)}</span>
+                    <span
+                      title={`${breakdownCategoryLabel(item.category)}: ${item.name}`}
+                      onClick={() => onSelectBreakdownItem?.(item.id)}
+                      className={`rounded-[2px] ${onSelectBreakdownItem ? 'pointer-events-auto cursor-pointer' : ''}`}
+                      style={{
+                        // Stack the underlines so two departments tagging the
+                        // same words both stay visible instead of one hiding
+                        // the other.
+                        boxShadow: `inset 0 -${0.12 + tagIndex * 0.1}em 0 -${tagIndex * 0.1}em ${tint}`,
+                        backgroundColor: dimmed ? 'transparent' : `${tint}${isLight || print ? '26' : '33'}`,
+                        opacity: dimmed ? 0.45 : 1,
+                      }}
+                    >
+                      {line.text.slice(start, end)}
+                    </span>
+                  </span>
+                );
+              })}
 
               {/* Tint only the covered words when the selected lining is partial */}
               {covered && (covered.start > 0 || covered.end < line.text.length) && (

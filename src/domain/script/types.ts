@@ -50,10 +50,32 @@ export type BreakdownCategory =
   | 'special_equipment'
   | 'other';
 
+/**
+ * Where on one script line a tagged element's words sit.
+ *
+ * Offsets are optional and mean "the whole line" when absent, which is what
+ * every item tagged before ranges existed carries. A multi-line tag is stored
+ * flattened — one range per line it touches — rather than as a single
+ * start/end pair like `ScriptMark`, because the page marks a tag by tinting
+ * words line by line and a flat list is what that lookup needs.
+ */
+export interface BreakdownSourceRange {
+  lineId: string;
+  startOffset?: number;
+  endOffset?: number;
+}
+
 export interface BreakdownItem {
   id: string;
   category: BreakdownCategory;
   name: string;
   notes?: string;
+  /**
+   * The lines this element was tagged from. This stays the authoritative list —
+   * every report resolves scenes through it — and `sourceRanges` only refines
+   * where on those lines the words are. The tagging operations keep the two in
+   * step so a range can never point at a line the item does not claim.
+   */
   sourceScriptLineIds?: string[];
+  sourceRanges?: BreakdownSourceRange[];
 }

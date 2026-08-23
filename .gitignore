@@ -8,6 +8,7 @@ coverage/
 *.local
 *.tsbuildinfo
 .claude/
+.aistudio/
 .opencode/
 .cursor/
 AGENTS.md

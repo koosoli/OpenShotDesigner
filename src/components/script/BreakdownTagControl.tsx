@@ -7,11 +7,16 @@ import {
   breakdownItemKey,
   tagBreakdownItem,
 } from '../../domain/script';
-import type { BreakdownCategory } from '../../domain/script';
+import type { BreakdownCategory, BreakdownSourceRange } from '../../domain/script';
 
 interface BreakdownTagControlProps {
   /** Script line ids the selection covers — the element's source in the script. */
   lineIds: string[];
+  /**
+   * The same selection as one range per line, so the tag marks the words the
+   * user highlighted rather than every line they touch.
+   */
+  ranges?: BreakdownSourceRange[];
   /** Text the user highlighted, offered as the element's name. */
   selectedText?: string;
   isLight: boolean;
@@ -28,6 +33,7 @@ interface BreakdownTagControlProps {
  */
 export const BreakdownTagControl: React.FC<BreakdownTagControlProps> = ({
   lineIds,
+  ranges,
   selectedText,
   isLight,
 }) => {
@@ -53,6 +59,7 @@ export const BreakdownTagControl: React.FC<BreakdownTagControlProps> = ({
         category,
         name: effectiveName,
         scriptLineIds: lineIds,
+        ...(ranges && ranges.length > 0 ? { scriptRanges: ranges } : {}),
       }),
     }));
     setName('');

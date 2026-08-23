@@ -71,7 +71,9 @@ describe('calendarDate', () => {
 
   it('bounds the axis with padding and a minimum visible window', () => {
     const bounds = timelineBoundsFor(
-      [eventSpan(event('2026-04-01', '2026-04-03')), productionDaySpan(day('2026-04-10')) as NonNullable<ReturnType<typeof productionDaySpan>>],
+      [eventSpan(event('2026-04-01', '2026-04-03')), productionDaySpan(day('2026-04-10'))].filter(
+        (span): span is NonNullable<typeof span> => span !== null,
+      ),
       { padding: 2 }
     );
     expect(bounds.start).toBe((isoDayNumber('2026-04-01') as number) - 2);

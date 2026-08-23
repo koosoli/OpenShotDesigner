@@ -8,6 +8,7 @@ import {
   propagateSceneNumbers,
   renumberScenes,
 } from '../script';
+import { compareSceneNumbers } from '../reports/breakdown';
 
 const h = (id: string, sceneNumber?: string, omitted?: boolean) => ({
   id,
@@ -49,6 +50,103 @@ describe('insertedSceneNumber (locked regime)', () => {
   });
   it('starts at 1 in an empty script', () => {
     expect(insertedSceneNumber(undefined, undefined, new Set())).toBe('1');
+  });
+  it('prefixes the next number when no suffix fits between 3 and 3A', () => {
+    // Every suffix of 3 sorts at or above "A", so there is nothing between
+    // "3" and "3A" in suffix space. Used to spin forever.
+    expect(insertedSceneNumber('3', '3A', new Set(['3', '3A', '4']))).toBe('A3A');
+    expect(insertedSceneNumber('3', '3A', new Set(['3', '3A', 'A3A', '4']))).toBe('B3A');
+  });
+  it('terminates when the neighbours are out of order', () => {
+    expect(insertedSceneNumber('3B', '3A', new Set(['3A', '3B']))).toBe('A3A');
+  });
+  /**
+   * The real contract, not just "it returned something": an inserted number
+   * has to be free, and it has to SORT between the two scenes it was inserted
+   * between — `compareSceneNumbers` is what the breakdown report orders by, so
+   * a number that does not is a scene that prints in the wrong place.
+   */
+  it('every neighbour pair in a locked script lands between its neighbours', () => {
+    const pool = ['1', '2', '3', '3A', '3B', '3AA', 'A1', '12', '12A', 'Z9'];
+    const taken = new Set(pool);
+    const ordered = [...pool].sort(compareSceneNumbers);
+    for (let i = 0; i < ordered.length; i += 1) {
+      // Only genuinely adjacent pairs: a scene is inserted between neighbours,
+      // and asking for one between 1 and 12 is not a question the caller asks.
+      const previous = ordered[i];
+      const next = ordered[i + 1];
+      const result = insertedSceneNumber(previous, next, taken);
+      expect(taken.has(result.toUpperCase())).toBe(false);
+      expect(compareSceneNumbers(previous, result)).toBeLessThan(0);
+      if (next !== undefined) {
+        expect(compareSceneNumbers(result, next)).toBeLessThan(0);
+      }
+    }
+  });
+
+  /**
+   * The invariant has to survive being used, not just used once: a locked
+   * script accumulates inserts, and each one has to stay in its slot as later
+   * ones land around it. Seeded so a failure is reproducible.
+   */
+  it('holds through a long run of inserts into a locked script', () => {
+    let seed = 20260823;
+    const rnd = (n: number): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed % n;
+    };
+    let scenes = ['1', '2', '3', '4', '5'];
+    let exhaustedGaps = 0;
+    const taken = new Set(scenes);
+    for (let step = 0; step < 300; step += 1) {
+      // Insert between a random adjacent pair, or before the first scene.
+      const at = rnd(scenes.length);
+      const previous = at === 0 ? undefined : scenes[at - 1];
+      const next = scenes[at];
+      const result = insertedSceneNumber(previous, next, taken);
+
+      // Always: a fresh number that sorts after the scene it follows.
+      expect(taken.has(result.toUpperCase())).toBe(false);
+      if (previous !== undefined) expect(compareSceneNumbers(previous, result)).toBeLessThan(0);
+
+      // And before the scene it precedes, except in the one case the scheme
+      // cannot express — a gap already closed by a prefixed number, where no
+      // number exists between the neighbours at all. Anything else failing
+      // here is a real ordering bug, so the exception is pinned narrowly.
+      if (next !== undefined && compareSceneNumbers(result, next) >= 0) {
+        exhaustedGaps += 1;
+        expect(parseSceneNumber(next)?.prefix).not.toBe('');
+      }
+
+      taken.add(result.toUpperCase());
+      scenes = [...scenes.slice(0, at), result, ...scenes.slice(at)];
+    }
+    // Every number is distinct, and the run really did exercise the ordinary
+    // path — most of these inserts placed cleanly between their neighbours,
+    // so the loop is testing the ordering rule and not just the exception.
+    expect(new Set(scenes).size).toBe(scenes.length);
+    expect(300 - exhaustedGaps).toBeGreaterThan(150);
+  });
+
+  /**
+   * The documented limit of the scheme, pinned so it cannot change silently.
+   * Between 3 and A3A there is no number: the suffix run has no room between
+   * "" and "A", and any prefix sorts ahead of 3. The result is still unique
+   * and still follows 3; it just cannot also precede A3A.
+   *
+   * This is not exotic once a script has been squeezed: every later insert
+   * immediately ahead of a prefixed number lands here too.
+   */
+  it('returns a unique number even where the scheme has no room left', () => {
+    const taken = new Set(['3', 'A3A', '3A']);
+    const result = insertedSceneNumber('3', 'A3A', taken);
+    expect(taken.has(result)).toBe(false);
+    expect(compareSceneNumbers('3', result)).toBeLessThan(0);
+  });
+
+  it('a scene added before the first one sorts before it', () => {
+    const result = insertedSceneNumber(undefined, '1', new Set(['1']));
+    expect(compareSceneNumbers(result, '1')).toBeLessThan(0);
   });
 });
 

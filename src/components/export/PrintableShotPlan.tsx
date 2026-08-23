@@ -1,5 +1,5 @@
 import { BRANDING } from '../../config/branding';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
@@ -92,6 +92,11 @@ import { collectFixturePatches, findConflicts, sortedPatchRows } from '../../uti
 import { deriveCharacterReport, deriveDood } from '../../domain/reports';
 import { ScriptSidesPrintView } from '../reports/ScriptSidesPrintView';
 import { StripboardPrintView } from '../reports/StripboardPrintView';
+import { PowerPrintView, buildPowerPrintModel } from '../reports/PowerPrintView';
+import { RiggingPrintView, buildRiggingPrintModel } from '../reports/RiggingPrintView';
+import { LogisticsPrintView, buildLogisticsPrintModel } from '../reports/LogisticsPrintView';
+import { RunOfShowPrintView, buildRunOfShowPrintModel } from '../reports/RunOfShowPrintView';
+import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { CoverageMatrixPrintView } from '../reports/CoverageMatrixPrintView';
 import {
   buildPrintableCoverageRows,
@@ -119,6 +124,14 @@ export const PrintableShotPlan: React.FC = () => {
     avScriptRows,
     displaySettings,
   } = useFloorPlan();
+  // The power sheet reads the same two things the power panel does: the lights
+  // standing on the plan, and the live fixture catalogue that gives them a
+  // rated draw.
+  const fixtureCatalog = useFixtureCatalog();
+  const powerPlanLights = useMemo(
+    () => activeSetup.elements.filter((element): element is LightElement => element.type === 'light'),
+    [activeSetup.elements],
+  );
   const [pngScale, setPngScale] = useState<2 | 3>(2);
   const [showStoryboards, setShowStoryboards] = useState(false);
   const [omitBlankWaypoints, setOmitBlankWaypoints] = useState(
@@ -137,6 +150,8 @@ export const PrintableShotPlan: React.FC = () => {
     panY: 0,
   });
   const floorPlanSvgRef = useRef<SVGSVGElement>(null);
+  // The dialog panel, so the focus trap below knows what counts as "inside".
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Mood-board export: which board to print (defaults to the first).
   const moodBoards = React.useMemo(() => project.moodBoards ?? [], [project.moodBoards]);
@@ -250,6 +265,63 @@ export const PrintableShotPlan: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExportModalOpen, closeExportModal]);
+
+  // Focus management for the export dialog. Without it the keyboard focus stays
+  // on whatever was behind the overlay, so Tab walks the page the user can no
+  // longer see. On open we remember the trigger, move focus into the dialog and
+  // keep Tab / Shift+Tab cycling inside it; on close we hand focus back so the
+  // keyboard user resumes exactly where they left off.
+  useEffect(() => {
+    if (!isExportModalOpen) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    // Recomputed on every Tab rather than cached, because the dialog's toolbar
+    // and body change completely whenever the user picks another export section.
+    const getFocusable = () =>
+      Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((node) => node.offsetParent !== null);
+
+    // Focus the panel itself rather than its first control: the toolbar is long,
+    // and landing on the container lets a screen reader announce the heading first.
+    dialog.focus();
+
+    const handleTabKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) {
+        // Nothing to move to, but focus must still not escape the dialog.
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      if (!active || !dialog.contains(active)) {
+        event.preventDefault();
+        first.focus();
+        return;
+      }
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    // Capture phase so the trap wins over anything the dialog body listens for.
+    document.addEventListener('keydown', handleTabKey, true);
+    return () => {
+      document.removeEventListener('keydown', handleTabKey, true);
+      previouslyFocused?.focus();
+    };
+  }, [isExportModalOpen]);
 
   // Derived effective display settings for the blueprint export
   const eff = React.useMemo(() => {
@@ -558,8 +630,13 @@ export const PrintableShotPlan: React.FC = () => {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 md:p-5 select-none animate-in fade-in cursor-pointer"
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-modal-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-[98vw] xl:max-w-[1600px] bg-white text-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] cursor-default"
+        className="relative w-full max-w-[98vw] xl:max-w-[1600px] bg-white text-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] cursor-default outline-hidden"
       >
         <style>{`@media print { html body #app-root { display: block !important; } }`}</style>
         {/* Top Control Bar (Hidden when printing) */}
@@ -571,7 +648,7 @@ export const PrintableShotPlan: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold text-white tracking-wide uppercase">
+                <h3 id="export-modal-title" className="text-xs font-bold text-white tracking-wide uppercase">
                   Export & Print Studio
                 </h3>
                 <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-slate-800 text-slate-400 border border-slate-700">
@@ -685,6 +762,46 @@ export const PrintableShotPlan: React.FC = () => {
               }`}
             >
               Equipment List
+            </button>
+            <button
+              onClick={() => setExportSection('power')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'power'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Power Plan
+            </button>
+            <button
+              onClick={() => setExportSection('rigging')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'rigging'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Rigging Plot
+            </button>
+            <button
+              onClick={() => setExportSection('logistics')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'logistics'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Load List
+            </button>
+            <button
+              onClick={() => setExportSection('runofshow')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'runofshow'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Run of Show
             </button>
             <button
               onClick={() => setExportSection('moodboard')}
@@ -871,6 +988,7 @@ export const PrintableShotPlan: React.FC = () => {
             <button
               onClick={closeExportModal}
               title="Close (Esc or click outside)"
+              aria-label="Close (Esc or click outside)"
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors ml-1"
             >
               <X className="w-5 h-5" />
@@ -1244,6 +1362,30 @@ export const PrintableShotPlan: React.FC = () => {
             )
           )}
 
+          {/* Power, rigging, load list and run of show: the four production
+              sheets that had no way onto paper at all. Each is rendered from
+              the same domain derivation its panel uses, so the sheet and the
+              screen cannot disagree. */}
+          {exportSection === 'power' && (
+            <PowerPrintView
+              {...buildPowerPrintModel(project, {
+                planLights: powerPlanLights,
+                profiles: fixtureCatalog.profiles,
+                sceneName: `Scene ${activeSetup.sceneNumber || ''}: ${activeSetup.name}`,
+              })}
+            />
+          )}
+
+          {exportSection === 'rigging' && <RiggingPrintView {...buildRiggingPrintModel(project)} />}
+
+          {exportSection === 'logistics' && (
+            <LogisticsPrintView {...buildLogisticsPrintModel(project)} />
+          )}
+
+          {exportSection === 'runofshow' && (
+            <RunOfShowPrintView {...buildRunOfShowPrintModel(project)} />
+          )}
+
           {/* Production contact list */}
           {exportSection === 'crew' && (
             (project.people ?? []).length === 0 ? (
@@ -1285,6 +1427,7 @@ export const PrintableShotPlan: React.FC = () => {
                     type="button"
                     onClick={() => handleFloorPlanZoom(-1)}
                     title="Zoom out (widen the printed portion)"
+                    aria-label="Zoom out (widen the printed portion)"
                     className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
                   >
                     <Minus className="w-3.5 h-3.5" />
@@ -1296,6 +1439,7 @@ export const PrintableShotPlan: React.FC = () => {
                     type="button"
                     onClick={() => handleFloorPlanZoom(1)}
                     title="Zoom in (focus the printed portion)"
+                    aria-label="Zoom in (focus the printed portion)"
                     className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -1304,6 +1448,7 @@ export const PrintableShotPlan: React.FC = () => {
                     type="button"
                     onClick={resetFloorPlanZoom}
                     title="Reset view to fit the entire scene"
+                    aria-label="Reset view to fit the entire scene"
                     className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
                   >
                     <Maximize2 className="w-3.5 h-3.5" />
@@ -1313,6 +1458,7 @@ export const PrintableShotPlan: React.FC = () => {
                     type="button"
                     onClick={() => handleFloorPlanPan(-1, 0)}
                     title="Pan left"
+                    aria-label="Pan left"
                     className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
@@ -1321,6 +1467,7 @@ export const PrintableShotPlan: React.FC = () => {
                     type="button"
                     onClick={() => handleFloorPlanPan(0, -1)}
                     title="Pan up"
+                    aria-label="Pan up"
                     className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
                   >
                     <ChevronUp className="w-3.5 h-3.5" />
@@ -1329,6 +1476,7 @@ export const PrintableShotPlan: React.FC = () => {
                     type="button"
                     onClick={() => handleFloorPlanPan(0, 1)}
                     title="Pan down"
+                    aria-label="Pan down"
                     className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
                   >
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -1337,6 +1485,7 @@ export const PrintableShotPlan: React.FC = () => {
                     type="button"
                     onClick={() => handleFloorPlanPan(1, 0)}
                     title="Pan right"
+                    aria-label="Pan right"
                     className="p-1 rounded-md hover:bg-slate-200 text-slate-600"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />

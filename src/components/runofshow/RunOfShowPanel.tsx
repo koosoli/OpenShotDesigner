@@ -8,6 +8,7 @@ import {
   Copy,
   ListOrdered,
   Plus,
+  Printer,
   Trash2,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
@@ -19,18 +20,14 @@ import {
   validateCueList,
 } from '../../domain/scheduling';
 import type { RunOfShowCue } from '../../domain/scheduling';
+import {
+  CUE_NOTE_FIELDS,
+  moveCueInList,
+  renumberCuesByPosition,
+  sortAndRenumberCues,
+} from '../../domain/scheduling/runOfShow';
 import { removeRunOfShowCue } from '../../domain';
 
-const NOTE_FIELDS = [
-  { key: 'cameraNotes', label: 'Camera' },
-  { key: 'lightingNotes', label: 'Lighting' },
-  { key: 'audioNotes', label: 'Audio' },
-  { key: 'videoNotes', label: 'Video' },
-  { key: 'stageNotes', label: 'Stage' },
-  { key: 'productionNotes', label: 'Production' },
-] as const;
-
-type NoteKey = (typeof NOTE_FIELDS)[number]['key'];
 
 const parseClockToSeconds = (value: string): number | null => {
   const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
@@ -64,11 +61,8 @@ const formatDuration = (seconds: number): string => {
   return parts.join(' ');
 };
 
-const renumber = (cues: RunOfShowCue[]): RunOfShowCue[] =>
-  sortCues(cues).map((cue, index) => (cue.order === index ? cue : { ...cue, order: index }));
-
 export const RunOfShowPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta } = useFloorPlan();
+  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
   const isLight = theme === 'light';
 
   // Memoised so the cue-timing memos below actually memoise.
@@ -106,12 +100,6 @@ export const RunOfShowPanel: React.FC = () => {
     return out;
   }, [sorted]);
 
-  const segmentNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const segment of segments) map.set(segment.id, segment.name);
-    return map;
-  }, [segments]);
-
   // --- Mutations ---
 
   const setCues = (next: RunOfShowCue[]) => {
@@ -124,7 +112,10 @@ export const RunOfShowPanel: React.FC = () => {
       label: `Cue ${sorted.length + 1}`,
       order: sorted.length,
     };
-    setCues([...cues, cue]);
+    // Appended to the running order, not to the stored array: a list whose
+    // stored orders have gaps would otherwise swallow the new cue somewhere in
+    // the middle instead of at the bottom where it was asked for.
+    setCues(renumberCuesByPosition([...sorted, cue]));
   };
 
   const duplicateCue = (cueId: string) => {
@@ -133,8 +124,11 @@ export const RunOfShowPanel: React.FC = () => {
     const source = sorted[index];
     const copy: RunOfShowCue = { ...source, id: createId('cue'), label: `${source.label} (copy)` };
     const next = [...sorted];
+    // The copy sits directly under its original, and carries the original's
+    // `order` until the renumber below settles it — so the array's position,
+    // not the duplicated number, is what decides where it lands.
     next.splice(index + 1, 0, copy);
-    setCues(renumber(next));
+    setCues(renumberCuesByPosition(next));
   };
 
   const deleteCue = (cueId: string) => {
@@ -146,7 +140,9 @@ export const RunOfShowPanel: React.FC = () => {
       cueId,
     );
     updateProjectMeta({
-      runOfShowCues: renumber(next.runOfShowCues as RunOfShowCue[]),
+      // The filtered project array is in storage order, not running order, so
+      // it has to be sorted before the gap the deleted cue left is closed up.
+      runOfShowCues: sortAndRenumberCues(next.runOfShowCues as RunOfShowCue[]),
       ...(next.coverageMatrix ? { coverageMatrix: next.coverageMatrix } : {}),
     });
     setExpandedCueIds((prev) => {
@@ -162,13 +158,11 @@ export const RunOfShowPanel: React.FC = () => {
   };
 
   const moveCue = (fromIndex: number, toIndex: number) => {
+    // A move that changes nothing is dropped here rather than in the domain:
+    // writing an identical cue list back would still mark the project dirty.
     if (fromIndex < 0 || fromIndex >= sorted.length) return;
-    const target = Math.max(0, Math.min(toIndex, sorted.length - 1));
-    if (target === fromIndex) return;
-    const next = [...sorted];
-    const [moved] = next.splice(fromIndex, 1);
-    next.splice(target, 0, moved);
-    setCues(renumber(next));
+    if (Math.max(0, Math.min(toIndex, sorted.length - 1)) === fromIndex) return;
+    setCues(moveCueInList(sorted, fromIndex, toIndex));
   };
 
   const toggleExpanded = (cueId: string) => {
@@ -392,7 +386,7 @@ export const RunOfShowPanel: React.FC = () => {
               isLight ? 'border-slate-100 bg-slate-50' : 'border-slate-800 bg-slate-950/40'
             }`}
           >
-            {NOTE_FIELDS.map(({ key, label }) => (
+            {CUE_NOTE_FIELDS.map(({ key, label }) => (
               <label key={key} className="flex flex-col gap-1">
                 <span className={`text-[10px] font-semibold uppercase tracking-wide ${mutedText}`}>
                   {label}
@@ -446,6 +440,19 @@ export const RunOfShowPanel: React.FC = () => {
             className={`${inputClass} !w-auto w-[80px] font-mono`}
           />
         </label>
+        {/* The show caller works from paper, and the printed sheet uses the
+            same show start typed above. */}
+        <button
+          onClick={() => openExportModal('runofshow')}
+          title="Printable run of show with cue times and department notes"
+          className={`flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 ${
+            isLight
+              ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+              : 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
+          }`}
+        >
+          <Printer className="w-3.5 h-3.5" /> Print
+        </button>
         <button
           onClick={addCue}
           title="Add cue"

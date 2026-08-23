@@ -32,6 +32,27 @@ const serviceWorkerBuildId = (): Plugin => {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), serviceWorkerBuildId()],
+  build: {
+    rollupOptions: {
+      output: {
+        /**
+         * React and the icon set change far less often than app code, so
+         * giving them their own chunks lets a returning visitor reuse them
+         * across deploys instead of re-downloading them inside the entry
+         * chunk. `react-dom` is tested first because `node_modules/react`
+         * is a prefix of `node_modules/react-dom` and would otherwise
+         * swallow it.
+         */
+        manualChunks(id: string) {
+          if (id.includes('node_modules/react-dom')) return 'vendor-react';
+          if (id.includes('node_modules/react/')) return 'vendor-react';
+          if (id.includes('node_modules/scheduler')) return 'vendor-react';
+          if (id.includes('node_modules/lucide-react')) return 'vendor-icons';
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     host: true,

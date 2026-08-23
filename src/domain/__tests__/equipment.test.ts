@@ -95,7 +95,9 @@ describe('FixtureProfile', () => {
   });
 });
 
-const baseFixture = (): EquipmentProfile => ({
+// Typed as the narrower shape a fixture profile requires — a lighting fixture
+// always names its maker and model — so spreading it satisfies FixtureProfile.
+const baseFixture = (): EquipmentProfile & { manufacturer: string; model: string } => ({
   id: createId('eq'),
   category: 'lighting',
   manufacturer: 'Robe',

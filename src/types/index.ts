@@ -796,6 +796,18 @@ export interface BackgroundImage {
   calibration?: BackgroundImageCalibration;
 }
 
+/**
+ * A reference image that has been through the legacy normalisation and is
+ * therefore guaranteed an id.
+ *
+ * `BackgroundImage.id` is optional because a pre-v3 project stored one
+ * unnamed image per setup. Everything that renders or edits an image goes
+ * through that normalisation first, so the render layer should not have to
+ * keep asking whether the id exists — and, more to the point, should not be
+ * able to pass `undefined` where a selection id is expected.
+ */
+export type IdentifiedBackgroundImage = BackgroundImage & { id: string };
+
 export interface BackgroundImageCalibration {
   realLength: number;
   unit: 'm' | 'ft';

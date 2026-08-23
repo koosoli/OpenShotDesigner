@@ -8,7 +8,7 @@
  * schedule workstream later.
  */
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Box, Package, Plus, Trash2, Truck } from 'lucide-react';
+import { AlertTriangle, Box, Package, Plus, Printer, Trash2, Truck } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import {
@@ -64,7 +64,7 @@ const EMPTY_ITEM_DRAFT: ItemDraft = {
 };
 
 export const LogisticsPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta } = useFloorPlan();
+  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
   const isLight = theme === 'light';
 
   const containers = useMemo(
@@ -629,6 +629,14 @@ export const LogisticsPanel: React.FC = () => {
       {/* Fleet summary strip — totals across top-level containers */}
       <section className={`rounded-xl border p-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 ${surfaceClass}`}>
         {sectionHeading(<Truck className="w-3.5 h-3.5" />, 'Fleet')}
+        {/* The load list is worked from paper at the truck. */}
+        <button
+          onClick={() => openExportModal('logistics')}
+          title="Printable load list with a tick box per item"
+          className={`${secondaryBtnClass} ml-auto`}
+        >
+          <Printer className="w-3.5 h-3.5" /> Print
+        </button>
         <span className={`text-[11px] ${mutedText}`}>
           Containers <span className={`font-mono ${headingText}`}>{fleet.containerCount}</span>
         </span>

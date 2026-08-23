@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { getSymbolById, searchSymbols } from '../../domain/assets';
 import type { PlanSymbolDefinition } from '../../domain/assets';
 import { CameraRigType, CableType, FloorPlanElement, LightFixtureType, PropType, ShapeType } from '../../types';
@@ -9,21 +10,17 @@ import {
   BrickWall,
   Cable,
   Circle,
-  Clapperboard,
   DoorClosed,
   Flag,
-  Layers,
   MoveHorizontal,
   MoveUpRight,
   Ruler,
   Search,
   Armchair,
-  Sparkles,
   TreePine,
   Truck,
   Type,
   User,
-  Video,
   X,
   Zap,
   Mic2,
@@ -438,6 +435,9 @@ export const QuickAssetSearch: React.FC = () => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // The palette floats over the whole app, so keyboard focus has to be confined
+  // to it and handed back to the canvas when it closes.
+  const dialogRef = useDialogFocusTrap(quickSearchOpen);
 
   const isLight = theme === 'light';
 
@@ -577,8 +577,13 @@ export const QuickAssetSearch: React.FC = () => {
       <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[3px]" />
 
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Quick asset search"
+        tabIndex={-1}
         onPointerDown={(e) => e.stopPropagation()}
-        className={`relative mt-16 sm:mt-20 w-[540px] max-w-[94vw] rounded-2xl border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 ${
+        className={`relative mt-16 sm:mt-20 w-[540px] max-w-[94vw] rounded-2xl border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 outline-hidden ${
           isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
         }`}
       >
@@ -606,6 +611,8 @@ export const QuickAssetSearch: React.FC = () => {
               setQuickSearchOpen(false);
               setQuery('');
             }}
+            title="Close quick search"
+            aria-label="Close quick search"
             className={`p-1 rounded-md flex-shrink-0 transition-colors ${
               isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800'
             }`}
@@ -622,6 +629,7 @@ export const QuickAssetSearch: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveCategory(tab.id)}
+              aria-pressed={activeCategory === tab.id}
               className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all flex items-center gap-1 ${
                 activeCategory === tab.id
                   ? 'bg-violet-600 text-white shadow-sm'

@@ -20,7 +20,7 @@ interface StoryboardThumbProps {
  * waypoints) by a dashed leader line. Thumbnails are dragged with pointer
  * capture so a fast drag can't slip off.
  */
-export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
+const StoryboardThumbLayerImpl: React.FC<StoryboardThumbProps> = ({
   items,
   canvasScale,
   aspectRatio,
@@ -110,7 +110,7 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
             }
             setDrag(null);
             if (!moved) return;
-            onDragThumb(shot.id, slot.key, finalPos);
+            onDragThumb?.(shot.id, slot.key, finalPos);
             if (isFirst) onDropToCamera?.(shot, finalPos);
           };
 
@@ -212,3 +212,13 @@ export const StoryboardThumbLayer: React.FC<StoryboardThumbProps> = ({
     </g>
   );
 };
+
+/**
+ * Memoised because the canvas re-renders on every pointer move — hovering the
+ * plan used to redraw every layer, glyph by glyph. The props are stable by
+ * construction on the canvas side (element buckets come from one memoised
+ * pass, callbacks are `useCallback`ed), so a shallow compare is enough and a
+ * custom comparator would only hide a prop that is not stable yet.
+ */
+export const StoryboardThumbLayer = React.memo(StoryboardThumbLayerImpl);
+StoryboardThumbLayerImpl.displayName = 'StoryboardThumbLayer';

@@ -130,6 +130,9 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                   <button
                     key={c}
                     onClick={() => updateElement(actor.id, { color: c })}
+                    title={`Avatar color ${c}`}
+                    aria-label={`Avatar color ${c}`}
+                    aria-pressed={actor.color === c}
                     style={{ backgroundColor: c }}
                     className={`w-6 h-6 rounded-full border ${
                       actor.color === c ? 'border-white ring-2 ring-emerald-400' : 'border-transparent'

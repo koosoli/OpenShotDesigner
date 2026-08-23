@@ -7,7 +7,6 @@ import { subscribeSaveState, type LibrarySaveState } from '../../utils/projectLi
 import { OnSetModeOverlay } from '../onset/OnSetModeOverlay';
 import type { ModuleId } from '../../domain/workspace';
 import {
-  Camera,
   ChevronDown,
   Clapperboard,
   Download,
@@ -143,6 +142,7 @@ export const TopNavbar: React.FC = () => {
         <button
           onClick={openDashboard}
           title="All projects (dashboard)"
+          aria-label="All projects (dashboard)"
           className={`p-2 rounded-lg border transition-colors flex-shrink-0 ${
             isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
           }`}
@@ -199,6 +199,7 @@ export const TopNavbar: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setIsSetupsOpen(!isSetupsOpen)}
+            aria-expanded={isSetupsOpen}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
               isLight ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-300 text-slate-800' : 'bg-slate-800 hover:bg-slate-700/80 border-slate-700 text-slate-100'
             }`}
@@ -251,11 +252,12 @@ export const TopNavbar: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Delete scene "${setup.name}"? This cannot be undone.`)) {
+                            if (window.confirm(`Delete scene "${setup.name}"? Undo (Ctrl+Z) brings it back.`)) {
                               deleteSetup(setup.id);
                             }
                           }}
                           title="Delete this scene setup"
+                          aria-label="Delete this scene setup"
                           className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-red-500/20 text-red-400 transition-opacity"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -309,6 +311,7 @@ export const TopNavbar: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setIsTemplatesOpen(!isTemplatesOpen)}
+            aria-expanded={isTemplatesOpen}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
               isLight ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-300 text-slate-800' : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200'
             }`}
@@ -406,6 +409,7 @@ export const TopNavbar: React.FC = () => {
             onClick={undo}
             disabled={historyIndex <= 0}
             title="Undo (Ctrl+Z)"
+            aria-label="Undo (Ctrl+Z)"
             className="p-1.5 opacity-80 hover:opacity-100 disabled:opacity-30 rounded hover:bg-black/10 dark:hover:bg-slate-700 transition-colors"
           >
             <Undo2 className="w-3.5 h-3.5" />
@@ -414,6 +418,7 @@ export const TopNavbar: React.FC = () => {
             onClick={redo}
             disabled={historyIndex >= historyLength - 1}
             title="Redo (Ctrl+Y)"
+            aria-label="Redo (Ctrl+Y)"
             className="p-1.5 opacity-80 hover:opacity-100 disabled:opacity-30 rounded hover:bg-black/10 dark:hover:bg-slate-700 transition-colors"
           >
             <Redo2 className="w-3.5 h-3.5" />
@@ -426,7 +431,9 @@ export const TopNavbar: React.FC = () => {
             {/* Snap to Grid Toggle */}
             <button
               onClick={() => setGridSettings({ snap: !gridSettings.snap })}
+              aria-pressed={gridSettings.snap}
               title={gridSettings.snap ? 'Snap to Grid: ON' : 'Snap to Grid: OFF'}
+              aria-label="Snap to grid"
               className={`p-2 rounded-lg border transition-colors ${
                 gridSettings.snap
                   ? 'bg-sky-500/15 text-sky-500 border-sky-500/40 font-bold'
@@ -441,6 +448,7 @@ export const TopNavbar: React.FC = () => {
               id="btn-toggle-theme"
               onClick={toggleTheme}
               title={`Switch to ${isLight ? 'Dark' : 'Light'} Mode`}
+              aria-label={`Switch to ${isLight ? 'dark' : 'light'} mode`}
               className={`p-2 rounded-lg border transition-colors ${
                 isLight ? 'bg-slate-100 text-amber-600 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-sky-400 border-slate-700 hover:bg-slate-700'
               }`}
@@ -452,6 +460,7 @@ export const TopNavbar: React.FC = () => {
             <div className="relative">
               <button
                 onClick={() => setIsViewingOptionsOpen(!isViewingOptionsOpen)}
+                aria-expanded={isViewingOptionsOpen}
                 title="Viewing options & category opacity"
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                   isLight
@@ -476,6 +485,8 @@ export const TopNavbar: React.FC = () => {
                     </span>
                     <button
                       onClick={() => setIsViewingOptionsOpen(false)}
+                      title="Close viewing & opacity controls"
+                      aria-label="Close viewing & opacity controls"
                       className="text-slate-400 hover:text-slate-200"
                     >
                       ✕
@@ -683,6 +694,7 @@ export const TopNavbar: React.FC = () => {
           id="btn-open-export"
           onClick={() => openExportModal()}
           title="Export & Print Studio"
+          aria-label="Open the export and print studio"
           className={`flex items-center gap-1.5 ${isCompact ? 'px-2 py-1.5' : 'px-3 py-1.5'} bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm`}
         >
           <Printer className="w-3.5 h-3.5" />
@@ -695,6 +707,7 @@ export const TopNavbar: React.FC = () => {
             <button
               onClick={handleExportJson}
               title="Save & Download Project JSON"
+              aria-label="Save & Download Project JSON"
               className={`p-2 rounded-lg border transition-colors ${
                 isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
               }`}
@@ -705,6 +718,7 @@ export const TopNavbar: React.FC = () => {
             <button
               onClick={() => fileInputRef.current?.click()}
               title="Open / Import Project JSON"
+              aria-label="Open / Import Project JSON"
               className={`p-2 rounded-lg border transition-colors ${
                 isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
               }`}
@@ -729,6 +743,8 @@ export const TopNavbar: React.FC = () => {
             <button
               onClick={() => setIsOverflowOpen((open) => !open)}
               title="More controls"
+              aria-expanded={isOverflowOpen}
+              aria-label="More controls"
               className={`p-2 rounded-lg border transition-colors ${
                 isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800/80 text-slate-300 border-slate-700'
               }`}

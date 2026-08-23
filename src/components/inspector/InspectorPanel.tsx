@@ -347,6 +347,7 @@ export const InspectorPanel: React.FC = () => {
           <button
             onClick={() => setSelectedBackgroundId(null)}
             title="Close image settings (back to scene setup)"
+            aria-label="Close image settings (back to scene setup)"
             className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
               isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
             }`}
@@ -490,6 +491,7 @@ export const InspectorPanel: React.FC = () => {
         <div className="grid grid-cols-2 gap-1.5">
           <button
             onClick={() => updateBackgroundImage(selectedBg.id, { visible: !selectedBg.visible })}
+            aria-pressed={selectedBg.visible}
             className={`py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
               selectedBg.visible
                 ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
@@ -502,6 +504,7 @@ export const InspectorPanel: React.FC = () => {
           <button
             onClick={() => updateBackgroundImage(selectedBg.id, { locked: !selectedBg.locked })}
             title={selectedBg.locked ? 'Unlock (allow moving & resizing)' : 'Lock (prevent accidental moves)'}
+            aria-pressed={selectedBg.locked}
             className={`py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
               selectedBg.locked
                 ? isLight ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-800'
@@ -676,6 +679,7 @@ export const InspectorPanel: React.FC = () => {
                       pixelsPerUnit: 30,
                     })
                   }
+                  aria-pressed={(activeSetup.gridSettings?.unit || 'm') === 'm'}
                   className={`py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center justify-center gap-1.5 ${
                     (activeSetup.gridSettings?.unit || 'm') === 'm'
                       ? 'bg-sky-600 text-white border-sky-500 shadow-sm'
@@ -695,6 +699,7 @@ export const InspectorPanel: React.FC = () => {
                       pixelsPerUnit: 25,
                     })
                   }
+                  aria-pressed={activeSetup.gridSettings?.unit === 'ft'}
                   className={`py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center justify-center gap-1.5 ${
                     activeSetup.gridSettings?.unit === 'ft'
                       ? 'bg-sky-600 text-white border-sky-500 shadow-sm'
@@ -1174,6 +1179,9 @@ export const InspectorPanel: React.FC = () => {
               <span className="text-[11px] font-semibold">Show all labels</span>
               <button
                 onClick={() => updateDisplaySettings({ showLabels: !displaySettings.showLabels })}
+                title="Show all labels"
+                aria-label="Show all labels"
+                aria-pressed={displaySettings.showLabels}
                 className={`relative w-10 h-5 rounded-full transition-colors ${
                   displaySettings.showLabels ? 'bg-teal-500' : isLight ? 'bg-slate-300' : 'bg-slate-700'
                 }`}
@@ -1547,6 +1555,8 @@ export const InspectorPanel: React.FC = () => {
                       <button
                         onClick={() => updateBackgroundImage(bg.id, { visible: !bg.visible })}
                         title={bg.visible ? 'Hide on canvas' : 'Show on canvas'}
+                        aria-label={bg.visible ? 'Hide on canvas' : 'Show on canvas'}
+                        aria-pressed={bg.visible}
                         className="p-1 rounded hover:bg-slate-500/15 transition-colors"
                       >
                         <Eye
@@ -1580,6 +1590,7 @@ export const InspectorPanel: React.FC = () => {
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <button
                         onClick={() => updateBackgroundImage(bg.id, { visible: !bg.visible })}
+                        aria-pressed={bg.visible}
                         className={`py-1.5 text-[10px] font-semibold rounded-lg border flex items-center justify-center gap-1 transition-colors ${
                           bg.visible
                             ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
@@ -1592,6 +1603,7 @@ export const InspectorPanel: React.FC = () => {
                       <button
                         onClick={() => updateBackgroundImage(bg.id, { locked: !bg.locked })}
                         title={bg.locked ? 'Unlock (allow moving & resizing)' : 'Lock (prevent accidental moves)'}
+                        aria-pressed={bg.locked}
                         className={`py-1.5 text-[10px] font-semibold rounded-lg border flex items-center justify-center gap-1 transition-colors ${
                           bg.locked
                             ? isLight ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-800'
@@ -1710,6 +1722,7 @@ export const InspectorPanel: React.FC = () => {
               );
             }}
             title="Lock or unlock all selected elements (prevent accidental drag moves) [L]"
+            aria-pressed={selectedElementIds.every((id) => activeSetup.elements.find((e) => e.id === id)?.locked)}
             className={`py-1.5 px-2.5 rounded-lg border flex items-center gap-1.5 font-bold text-xs transition-colors ${
               selectedElementIds.every((id) => activeSetup.elements.find((e) => e.id === id)?.locked)
                 ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/30'
@@ -1934,6 +1947,7 @@ export const InspectorPanel: React.FC = () => {
                     key={mode}
                     onClick={doAlign}
                     title={title}
+                    aria-label={title}
                     className={`py-2 border rounded-lg flex items-center justify-center transition-colors ${
                       isLight
                         ? 'bg-slate-100 hover:bg-sky-100 text-slate-600 hover:text-sky-700 border-slate-300'
@@ -2058,6 +2072,7 @@ export const InspectorPanel: React.FC = () => {
           <button
             onClick={() => updateElement(el.id, { locked: !el.locked })}
             title={el.locked ? 'Unlock element (allow moving & rotating) [L]' : 'Lock element (prevent accidental drag moves) [L]'}
+            aria-pressed={el.locked}
             className={`px-2 py-1 rounded-lg border flex items-center gap-1 font-bold text-xs transition-colors ${
               el.locked
                 ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/30'
@@ -2072,6 +2087,7 @@ export const InspectorPanel: React.FC = () => {
           <button
             onClick={duplicateSelected}
             title="Duplicate (Ctrl+D)"
+            aria-label="Duplicate (Ctrl+D)"
             className={`p-1.5 rounded-lg transition-colors ${
               isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
@@ -2082,6 +2098,7 @@ export const InspectorPanel: React.FC = () => {
             onClick={deleteSelectedElements}
             disabled={el.locked}
             title={el.locked ? 'Locked elements cannot be deleted' : 'Delete element (Del)'}
+            aria-label={el.locked ? 'Locked elements cannot be deleted' : 'Delete element (Del)'}
             className={`p-1.5 rounded-lg transition-colors ${
               el.locked
                 ? 'text-slate-500 cursor-not-allowed opacity-50'
@@ -2222,6 +2239,7 @@ export const InspectorPanel: React.FC = () => {
               <div className="grid grid-cols-4 gap-1 text-[9px] font-mono">
                 <button
                   onClick={() => updateElement(el.id, { rotation: 0 })}
+                  aria-pressed={currentRotation === 0}
                   className={`py-0.5 rounded border text-center ${
                     currentRotation === 0 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                   }`}
@@ -2230,6 +2248,7 @@ export const InspectorPanel: React.FC = () => {
                 </button>
                 <button
                   onClick={() => updateElement(el.id, { rotation: 90 })}
+                  aria-pressed={currentRotation === 90}
                   className={`py-0.5 rounded border text-center ${
                     currentRotation === 90 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                   }`}
@@ -2238,6 +2257,7 @@ export const InspectorPanel: React.FC = () => {
                 </button>
                 <button
                   onClick={() => updateElement(el.id, { rotation: 180 })}
+                  aria-pressed={currentRotation === 180}
                   className={`py-0.5 rounded border text-center ${
                     currentRotation === 180 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                   }`}
@@ -2246,6 +2266,7 @@ export const InspectorPanel: React.FC = () => {
                 </button>
                 <button
                   onClick={() => updateElement(el.id, { rotation: 270 })}
+                  aria-pressed={currentRotation === 270}
                   className={`py-0.5 rounded border text-center ${
                     currentRotation === 270 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
                   }`}

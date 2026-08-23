@@ -23,6 +23,16 @@ export interface FixtureMode {
 }
 
 export interface FixtureProfile extends EquipmentProfile {
+  /**
+   * Narrowed from the optional fields on `EquipmentProfile`. A generic piece
+   * of gear can be a nameless bit of grip; a lighting fixture profile cannot —
+   * it comes from OFL or from the curated table, and both key on maker and
+   * model. Every consumer already assumed this (sorting, matching a preset,
+   * building the catalogue key), and saying so lets the compiler check it
+   * instead of each caller re-deciding what a missing model would mean.
+   */
+  manufacturer: string;
+  model: string;
   categories: string[];
   modes: FixtureMode[];
   optics?: {

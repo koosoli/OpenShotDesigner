@@ -1,9 +1,9 @@
 import React from 'react';
-import { BackgroundImage } from '../../types';
+import { BackgroundImage, IdentifiedBackgroundImage } from '../../types';
 import { useImageRefSrc } from '../../utils/assetImages';
 
 interface BackgroundLayerProps {
-  backgroundImages: BackgroundImage[];
+  backgroundImages: IdentifiedBackgroundImage[];
   canvasScale: number;
   selectedBackgroundId: string | null;
   isInteractive: boolean;
@@ -16,7 +16,7 @@ interface BackgroundLayerProps {
 type ResizeHandle = 'move' | 'nw' | 'ne' | 'sw' | 'se';
 
 interface ImageDragProps {
-  img: BackgroundImage;
+  img: IdentifiedBackgroundImage;
   canvasScale: number;
   isInteractive: boolean;
   isSelected: boolean;
@@ -272,7 +272,7 @@ const DraggableReferenceImage: React.FC<ImageDragProps> = ({
   );
 };
 
-export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
+const BackgroundLayerImpl: React.FC<BackgroundLayerProps> = ({
   backgroundImages,
   canvasScale,
   selectedBackgroundId,
@@ -387,3 +387,13 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
     </g>
   );
 };
+
+/**
+ * Memoised because the canvas re-renders on every pointer move — hovering the
+ * plan used to redraw every layer, glyph by glyph. The props are stable by
+ * construction on the canvas side (element buckets come from one memoised
+ * pass, callbacks are `useCallback`ed), so a shallow compare is enough and a
+ * custom comparator would only hide a prop that is not stable yet.
+ */
+export const BackgroundLayer = React.memo(BackgroundLayerImpl);
+BackgroundLayerImpl.displayName = 'BackgroundLayer';

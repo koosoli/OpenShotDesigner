@@ -47,9 +47,10 @@ export default tseslint.config(
       // is an error, not a warning.
       'react-hooks/exhaustive-deps': 'error',
 
-      // Rule 5 in AGENTS.md: no NEW `any`. The existing 129 escapes are
+      // Rule 5 in AGENTS.md: no NEW `any`. The existing escapes are
       // grandfathered as warnings so the build stays green while they are paid
-      // down; they are not silently accepted.
+      // down; they are not silently accepted. The `--max-warnings` ceiling in
+      // the `lint` script is the ratchet that stops the count from growing.
       '@typescript-eslint/no-explicit-any': 'warn',
 
       // Caught by tsc with better messages, and the TS-aware version

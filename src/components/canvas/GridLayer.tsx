@@ -10,7 +10,7 @@ interface GridLayerProps {
   dark?: boolean;
 }
 
-export const GridLayer: React.FC<GridLayerProps> = ({
+const GridLayerImpl: React.FC<GridLayerProps> = ({
   gridSettings,
   canvasScale = 1,
   canvasOffset = { x: 0, y: 0 },
@@ -90,3 +90,13 @@ export const GridLayer: React.FC<GridLayerProps> = ({
     </g>
   );
 };
+
+/**
+ * Memoised because the canvas re-renders on every pointer move — hovering the
+ * plan used to redraw every layer, glyph by glyph. The props are stable by
+ * construction on the canvas side (element buckets come from one memoised
+ * pass, callbacks are `useCallback`ed), so a shallow compare is enough and a
+ * custom comparator would only hide a prop that is not stable yet.
+ */
+export const GridLayer = React.memo(GridLayerImpl);
+GridLayerImpl.displayName = 'GridLayer';

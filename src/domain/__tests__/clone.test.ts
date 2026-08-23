@@ -187,6 +187,36 @@ describe('cloneProjectWithNewIds', () => {
     expect(block?.kind === 'scene' ? block.scriptSceneId : undefined).toBe(clonedSceneId);
   });
 
+  it('remaps a breakdown element’s pointers into the copied script', () => {
+    // These used to be copied verbatim, which left every tagged element in a
+    // duplicated project pointing at the original's lines: the breakdown looked
+    // intact but no element could say which scene it was in.
+    const rich = buildRichSetup();
+    const project = makeProject([rich], { id: 'fx-project-bd', title: 'Original Title' });
+    project.scriptLines = rich.scriptLines;
+    project.setups[0].scriptLines = undefined;
+    const sourceLineId = project.scriptLines![0].id;
+    project.breakdownItems = [
+      {
+        id: 'bd-1',
+        category: 'prop',
+        name: 'Ledger',
+        sourceScriptLineIds: [sourceLineId, 'line-that-was-cut'],
+        sourceRanges: [{ lineId: sourceLineId, startOffset: 0, endOffset: 4 }, { lineId: 'line-that-was-cut' }],
+      },
+    ];
+
+    const clone = cloneProjectWithNewIds(project);
+    const lineIds = new Set((clone.scriptLines ?? []).map((line) => line.id));
+    const item = clone.breakdownItems?.[0];
+    expect(item?.id).not.toBe('bd-1');
+    expect(item?.sourceScriptLineIds).toHaveLength(1);
+    expect(lineIds.has(item!.sourceScriptLineIds![0])).toBe(true);
+    expect(item?.sourceRanges).toHaveLength(1);
+    expect(lineIds.has(item!.sourceRanges![0].lineId)).toBe(true);
+    expect(item?.sourceRanges?.[0]).toMatchObject({ startOffset: 0, endOffset: 4 });
+  });
+
   it('remaps production calendar event ids and dependencies', () => {
     const project = buildProject();
     project.productionCalendarEvents = [

@@ -162,7 +162,7 @@ const cameraTemplate = (id: string, name: string, x: number, y: number, rotation
   rigType: 'Tripod',
   throwDistance: 280,
   path: [],
-  associatedShotId: null,
+  associatedShotId: undefined,
 });
 
 /** Built-in examples so the concept is visible without any setup (plan §6.5). */
@@ -273,6 +273,7 @@ export const AssembliesPanel: React.FC = () => {
     <div className={`rounded-xl border ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-900/50'}`}>
       <button
         onClick={() => setIsCollapsed((c) => !c)}
+        aria-expanded={!isCollapsed}
         className="w-full flex items-center justify-between px-3 py-2 rounded-xl"
       >
         <span className="flex items-center gap-2 font-bold uppercase tracking-wider text-[10px]">
@@ -319,6 +320,7 @@ export const AssembliesPanel: React.FC = () => {
                   <button
                     onClick={() => deleteAssembly(assembly.id)}
                     title="Delete this saved assembly"
+                    aria-label="Delete this saved assembly"
                     className="p-1 rounded hover:bg-red-500/10 text-red-400"
                   >
                     <Trash2 className="w-3 h-3" />

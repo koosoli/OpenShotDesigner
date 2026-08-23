@@ -19,9 +19,6 @@ const DEPARTMENT_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-const joinDefined = (parts: (string | undefined)[]): string =>
-  parts.filter(Boolean).join(' · ');
-
 /**
  * Self-contained printable crew-sheet document (concert/broadcast, plan §16).
  * Render inside a `.crew-sheet-print-host` container (see the embedded style

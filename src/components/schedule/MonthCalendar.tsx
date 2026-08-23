@@ -69,12 +69,12 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
   return (
     <div className={`rounded-lg border overflow-hidden ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-900'}`}>
       <div className="flex items-center justify-between px-2 py-1.5 bg-slate-900 text-white">
-        <button onClick={() => onChangeMonth(shiftYearMonth(yearMonth, -1))} className="p-1 rounded hover:bg-white/10" title="Previous month"><ChevronLeft className="w-4 h-4" /></button>
+        <button onClick={() => onChangeMonth(shiftYearMonth(yearMonth, -1))} className="p-1 rounded hover:bg-white/10" title="Previous month" aria-label="Previous month"><ChevronLeft className="w-4 h-4" /></button>
         <div className="flex items-center gap-2">
           <span className="text-xs font-black uppercase tracking-wider">{monthLabel(yearMonth)}</span>
           <button onClick={() => onChangeMonth(yearMonthOf(today))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">Today</button>
         </div>
-        <button onClick={() => onChangeMonth(shiftYearMonth(yearMonth, 1))} className="p-1 rounded hover:bg-white/10" title="Next month"><ChevronRight className="w-4 h-4" /></button>
+        <button onClick={() => onChangeMonth(shiftYearMonth(yearMonth, 1))} className="p-1 rounded hover:bg-white/10" title="Next month" aria-label="Next month"><ChevronRight className="w-4 h-4" /></button>
       </div>
       <div className={`grid grid-cols-7 text-[9px] font-black uppercase tracking-wider ${isLight ? 'bg-slate-100 text-slate-500' : 'bg-slate-950 text-slate-400'}`}>
         {WEEKDAYS.map((day) => <div key={day} className="px-1.5 py-1 text-center">{day}</div>)}
@@ -185,7 +185,7 @@ export const CalendarEventEditor: React.FC<CalendarEventEditorProps> = ({ event,
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className={labelCls}>Color</span>
         {EVENT_COLOR_SWATCHES.map((swatch) => (
-          <button key={swatch} onClick={() => onUpdate({ color: swatch })} className={`w-5 h-5 rounded-full border-2 ${(event.color ?? EVENT_COLOR_SWATCHES[0]) === swatch ? 'border-white ring-2 ring-sky-500' : 'border-transparent'}`} style={{ backgroundColor: swatch }} title={swatch} />
+          <button key={swatch} onClick={() => onUpdate({ color: swatch })} aria-pressed={(event.color ?? EVENT_COLOR_SWATCHES[0]) === swatch} className={`w-5 h-5 rounded-full border-2 ${(event.color ?? EVENT_COLOR_SWATCHES[0]) === swatch ? 'border-white ring-2 ring-sky-500' : 'border-transparent'}`} style={{ backgroundColor: swatch }} title={swatch} aria-label={swatch} />
         ))}
       </div>
       {people.length > 0 && (
@@ -198,6 +198,7 @@ export const CalendarEventEditor: React.FC<CalendarEventEditorProps> = ({ event,
                 <button
                   key={person.id}
                   onClick={() => onUpdate({ assigneeIds: on ? assignees.filter((id) => id !== person.id) : [...assignees, person.id] })}
+                  aria-pressed={on}
                   className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${on ? 'bg-sky-600 text-white border-sky-500' : isLight ? 'border-slate-300 text-slate-600' : 'border-slate-700 text-slate-300'}`}
                 >
                   {person.displayName}

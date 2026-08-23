@@ -76,6 +76,9 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                     <button
                       key={c}
                       onClick={() => updateElement(cam.id, { color: c })}
+                      title={`Camera color ${c}`}
+                      aria-label={`Camera color ${c}`}
+                      aria-pressed={cam.color === c}
                       style={{ backgroundColor: c }}
                       className={`w-5 h-5 rounded-full border ${
                         cam.color === c ? 'border-white ring-2 ring-sky-400' : 'border-transparent'

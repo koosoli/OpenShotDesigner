@@ -92,6 +92,16 @@ interface DragState {
   startAngleDeg?: number;
 }
 
+/**
+ * One shared empty array for element types the plan has none of.
+ * A fresh `[]` per render would defeat the memoised layers below for exactly
+ * the plans that need it least — an empty layer would re-render every frame.
+ */
+const EMPTY_ELEMENTS: FloorPlanElement[] = [];
+
+/** Element types a cable can be plugged into. Fixed, so it lives out here. */
+const ATTACHABLE_DEVICE_TYPES: ReadonlyArray<FloorPlanElement['type']> = ['camera', 'light', 'actor', 'prop'];
+
 export const FloorPlanCanvas: React.FC = () => {
   const {
     activeSetup,
@@ -179,12 +189,12 @@ export const FloorPlanCanvas: React.FC = () => {
   // pointer up/cancel — and never starts while a pen stroke is in progress.
   const [contextMenu, setContextMenu] = useState<ElementContextMenuState | null>(null);
   const longPressRef = useRef<{ timer: number; startX: number; startY: number } | null>(null);
-  const cancelLongPress = () => {
+  const cancelLongPress = useCallback(() => {
     if (longPressRef.current) {
       window.clearTimeout(longPressRef.current.timer);
       longPressRef.current = null;
     }
-  };
+  }, []);
 
   // Plan layers (§6.1): elements whose layerId maps to a hidden layer of the
   // active setup are not rendered; locked layers render but are
@@ -194,10 +204,10 @@ export const FloorPlanCanvas: React.FC = () => {
       el.layerId ? activeSetup.layers?.find((l) => l.id === el.layerId) ?? null : null,
     [activeSetup.layers],
   );
-  const isElementHidden = (el: FloorPlanElement): boolean => {
+  const isElementHidden = useCallback((el: FloorPlanElement): boolean => {
     const layer = getLayerFor(el);
     return !!layer && !layer.visible;
-  };
+  }, [getLayerFor]);
   const isEffectivelyLocked = useCallback(
     (el: FloorPlanElement): boolean => {
       const layer = getLayerFor(el);
@@ -208,7 +218,7 @@ export const FloorPlanCanvas: React.FC = () => {
 
   // Lightweight hit-test for the context menu: topmost element whose
   // approximate bounds contain the canvas point (hidden layers skipped).
-  const findElementAtPoint = (pos: Vector2D): FloorPlanElement | null => {
+  const findElementAtPoint = useCallback((pos: Vector2D): FloorPlanElement | null => {
     const pad = 12;
     const elements = activeSetup.elements;
     for (let i = elements.length - 1; i >= 0; i--) {
@@ -253,7 +263,7 @@ export const FloorPlanCanvas: React.FC = () => {
       if (pos.x >= minX && pos.x <= maxX && pos.y >= minY && pos.y <= maxY) return el;
     }
     return null;
-  };
+  }, [activeSetup.elements, isElementHidden]);
 
 
   // Continuous / Connected architectural wall drawing state
@@ -296,10 +306,9 @@ export const FloorPlanCanvas: React.FC = () => {
   const movedCableSnapshotsRef = useRef<Map<string, CableElement>>(new Map());
 
   /** Point-anchored device kinds a cable end can attach to. */
-  const ATTACHABLE_DEVICE_TYPES: ReadonlyArray<FloorPlanElement['type']> = ['camera', 'light', 'actor', 'prop'];
 
   /** Nearest attachable device anchor within `radius` canvas units, if any. */
-  const findAttachableDeviceAt = (
+  const findAttachableDeviceAt = useCallback((
     point: Vector2D,
     elements: FloorPlanElement[],
     radius = 26,
@@ -311,7 +320,7 @@ export const FloorPlanCanvas: React.FC = () => {
       if (dist <= radius && (!best || dist < best.dist)) best = { el: candidate, dist };
     }
     return best?.el;
-  };
+  }, []);
 
   /** Display label used for cable end labels (e.g. "CAM A"). */
   const deviceLabelOf = (el: FloorPlanElement): string =>
@@ -459,7 +468,7 @@ export const FloorPlanCanvas: React.FC = () => {
       container.removeEventListener('touchend', endPinch);
       container.removeEventListener('touchcancel', endPinch);
     };
-  }, [setCanvasTransform]);
+  }, [cancelLongPress, setCanvasTransform]);
 
   // Compute the bounding box of all scene content (elements + reference images)
   const getContentBounds = useCallback((): { minX: number; minY: number; maxX: number; maxY: number } | null => {
@@ -542,41 +551,52 @@ export const FloorPlanCanvas: React.FC = () => {
   // Segregate elements for wall snapping & SVG z-ordering.
   // Elements on hidden layers are filtered out here, so they are neither
   // rendered, hit-tested, snapped against, nor exported to storyboard thumbs.
-  const visibleElements = activeSetup.elements.filter((el) => !isElementHidden(el));
+  //
+  // Memoised, and so is everything derived from it below. Without this the
+  // filter allocates a new array on every render, which makes the bucketing
+  // pass recompute, which hands every SVG layer a new array — and the
+  // `React.memo` on those layers becomes a no-op. Moving the pointer across
+  // the canvas would redraw the whole plan, glyph by glyph, which is exactly
+  // what the memoisation exists to stop.
+  const visibleElements = useMemo(
+    () => activeSetup.elements.filter((el) => !isElementHidden(el)),
+    [activeSetup.elements, isElementHidden],
+  );
 
   // Group animation (§6.4): members of keyed groups render from their
   // interpolated pose at the current beat. Ephemeral render state only —
   // editing keeps targeting base data, so pauses/drags stay stable.
-  const groupPoseOverrides = new Map<string, ElementPose>();
+  //
   // Poses are suppressed mid-drag so editing targets base data — except while
   // dragging a group keyframe, where the whole point is to watch the group
   // follow the dot.
-  if (!dragState || dragState.type === 'group_waypoint') {
-    for (const group of activeSetup.groups || []) {
-      if (!group.path || group.path.length === 0) continue;
-      computeGroupPoseOverrides(visibleElements, group, playback.currentBeat).forEach((pose, id) =>
-        groupPoseOverrides.set(id, pose),
-      );
+  const renderedElements = useMemo(() => {
+    const groupPoseOverrides = new Map<string, ElementPose>();
+    if (!dragState || dragState.type === 'group_waypoint') {
+      for (const group of activeSetup.groups || []) {
+        if (!group.path || group.path.length === 0) continue;
+        computeGroupPoseOverrides(visibleElements, group, playback.currentBeat).forEach((pose, id) =>
+          groupPoseOverrides.set(id, pose),
+        );
+      }
     }
-  }
-  const renderedElements =
-    groupPoseOverrides.size === 0
-      ? visibleElements
-      : visibleElements.map((el) => {
-          const pose = groupPoseOverrides.get(el.id);
-          if (!pose) return el;
-          const merged: Record<string, unknown> = { ...el, x: pose.x, y: pose.y, rotation: pose.rotation };
-          if ('x2' in el) {
-            merged.x2 = pose.x2;
-            merged.y2 = pose.y2;
-          }
-          if (el.type === 'stroke') {
-            merged.points = pose.strokePoints;
-          } else if (pose.pathPoints && 'path' in el) {
-            merged.path = pose.pathPoints;
-          }
-          return merged as unknown as FloorPlanElement;
-        });
+    if (groupPoseOverrides.size === 0) return visibleElements;
+    return visibleElements.map((el) => {
+      const pose = groupPoseOverrides.get(el.id);
+      if (!pose) return el;
+      const merged: Record<string, unknown> = { ...el, x: pose.x, y: pose.y, rotation: pose.rotation };
+      if ('x2' in el) {
+        merged.x2 = pose.x2;
+        merged.y2 = pose.y2;
+      }
+      if (el.type === 'stroke') {
+        merged.points = pose.strokePoints;
+      } else if (pose.pathPoints && 'path' in el) {
+        merged.path = pose.pathPoints;
+      }
+      return merged as unknown as FloorPlanElement;
+    });
+  }, [visibleElements, activeSetup.groups, dragState, playback.currentBeat]);
 
   /**
    * Sun for this scene (plan §37): the linked location's map pin, on the date
@@ -607,40 +627,58 @@ export const FloorPlanCanvas: React.FC = () => {
     };
   }, [sunSettings, project.locations, project.date, activeSetup.locationId]);
 
-  const walls = renderedElements.filter((e) => e.type === 'wall') as WallElement[];
-  const doors = renderedElements.filter((e) => e.type === 'door') as DoorElement[];
-  const windows = renderedElements.filter((e) => e.type === 'window') as WindowElement[];
-  const lights = renderedElements.filter((e) => e.type === 'light') as LightElement[];
-  const propsList = renderedElements.filter((e) => e.type === 'prop') as PropElement[];
-  const tracks = renderedElements.filter((e) => e.type === 'track') as TrackElement[];
-  const roads = renderedElements.filter((e) => e.type === 'road') as RoadElement[];
-  const actors = renderedElements.filter((e) => e.type === 'actor') as ActorElement[];
-  const cameras = renderedElements.filter((e) => e.type === 'camera') as CameraElement[];
+  // One bucketing pass, memoised, instead of thirteen `.filter()` calls per
+  // render. Two reasons, and the second is the important one: the plan is
+  // walked once rather than thirteen times, and — because each bucket keeps
+  // its identity while the elements are unchanged — the memoised SVG layers
+  // below can skip re-rendering entirely. Without this, moving the pointer
+  // across the canvas handed every layer a brand-new array and redrew the
+  // whole plan, furniture glyphs and all, on every mouse move.
+  const byType = useMemo(() => {
+    const buckets: Record<string, FloorPlanElement[]> = {};
+    for (const element of renderedElements) (buckets[element.type] ??= []).push(element);
+    return buckets;
+  }, [renderedElements]);
+  const ofType = <T extends FloorPlanElement>(type: string): T[] =>
+    (byType[type] ?? EMPTY_ELEMENTS) as T[];
+
+  const walls = ofType<WallElement>('wall');
+  const doors = ofType<DoorElement>('door');
+  const windows = ofType<WindowElement>('window');
+  const lights = ofType<LightElement>('light');
+  const propsList = ofType<PropElement>('prop');
+  const tracks = ofType<TrackElement>('track');
+  const roads = ofType<RoadElement>('road');
+  const actors = ofType<ActorElement>('actor');
+  const cameras = ofType<CameraElement>('camera');
 
   // Which shot's info to show under a camera: the selected shot if it uses this
   // camera, else the camera's associated shot, else the first linked shot.
-  const getShotForCamera = (camera: CameraElement): Shot | null => {
-    if (selectedShotId) {
-      const sel = activeSetup.shots.find((s) => s.id === selectedShotId && s.cameraId === camera.id);
-      if (sel) return sel;
-    }
-    if (camera.associatedShotId) {
-      const assoc = activeSetup.shots.find((s) => s.id === camera.associatedShotId);
-      if (assoc) return assoc;
-    }
-    return activeSetup.shots.find((s) => s.cameraId === camera.id) || null;
-  };
-  const measurements = renderedElements.filter((e) => e.type === 'measurement');
-  const arrows = renderedElements.filter((e) => e.type === 'arrow');
-  const texts = renderedElements.filter((e) => e.type === 'text');
-  const cables = renderedElements.filter((e) => e.type === 'cable') as CableElement[];
-  const strokes = renderedElements.filter((e) => e.type === 'stroke') as StrokeElement[];
+  const getShotForCamera = useCallback(
+    (camera: CameraElement): Shot | null => {
+      if (selectedShotId) {
+        const sel = activeSetup.shots.find((s) => s.id === selectedShotId && s.cameraId === camera.id);
+        if (sel) return sel;
+      }
+      if (camera.associatedShotId) {
+        const assoc = activeSetup.shots.find((s) => s.id === camera.associatedShotId);
+        if (assoc) return assoc;
+      }
+      return activeSetup.shots.find((s) => s.cameraId === camera.id) || null;
+    },
+    [selectedShotId, activeSetup.shots],
+  );
+  const measurements = ofType('measurement');
+  const arrows = ofType('arrow');
+  const texts = ofType('text');
+  const cables = ofType<CableElement>('cable');
+  const strokes = ofType<StrokeElement>('stroke');
 
   // Storyboard thumbnails: shots that have a storyboard attached, shown near
   // their camera on the floor plan.
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
-  const shapes = renderedElements.filter((e) => e.type === 'shape') as ShapeElement[];
+  const shapes = ofType<ShapeElement>('shape');
   const storyboardThumbs = cameras
     .map((c) => ({ camera: c, shot: getShotForCamera(c) }))
     .filter(
@@ -648,15 +686,103 @@ export const FloorPlanCanvas: React.FC = () => {
         !!item.shot && boardedFrames(item.shot, item.camera).length > 0
     );
 
-  // Collect all wall corner vertices for magnetic snapping
-  const wallVertices: Vector2D[] = [];
-  walls.forEach((w) => {
-    wallVertices.push({ x: w.x, y: w.y });
-    wallVertices.push({ x: w.x2 ?? w.x + 200, y: w.y2 ?? w.y });
-  });
+  // Layer callbacks are hoisted out of the JSX and given stable identities, so
+  // the memoised layers below can actually skip a render. Inline arrow props
+  // are a new function every render, which makes `React.memo` a no-op: hovering
+  // the plan redrew every furniture glyph on the canvas.
+  //
+  // The context actions these call (`updateShot`, `updateElement`, …) are
+  // themselves identity-stable — see `useStableContextValue` — so these
+  // dependency lists really do stay quiet between renders.
+  const nearestCameraTo = useCallback(
+    (center: Vector2D): CameraElement | null => {
+      let best: CameraElement | null = null;
+      let bestDistance = Infinity;
+      for (const camera of cameras) {
+        const distance = Math.hypot(camera.x - center.x, camera.y - center.y);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = camera;
+        }
+      }
+      // Beyond this the user was not aiming at a camera; dropping onto the
+      // nearest one anywhere on the plan would be a surprise, not a shortcut.
+      return best && bestDistance <= 110 ? best : null;
+    },
+    [cameras],
+  );
+
+  const handleSelectBackgroundImage = useCallback(
+    (id: string) => {
+      clearSelection();
+      setSelectedBackgroundId(id);
+      setActiveRightTab('inspector');
+    },
+    [clearSelection, setSelectedBackgroundId, setActiveRightTab],
+  );
+
+  const handleDropImageToCamera = useCallback(
+    (image: { url: string }, center: Vector2D) => {
+      const target = nearestCameraTo(center);
+      if (!target) return;
+      const shot = getShotForCamera(target);
+      // Through setFramePatch, not the retired `storyboardImage` field:
+      // writing that directly leaves `storyboardFrames` — which is what the
+      // thumb layer and the exports read — untouched.
+      if (shot) updateShot(shot.id, setFramePatch(shot, START_SLOT, { image: image.url, fit: 'cover' }));
+    },
+    [nearestCameraTo, getShotForCamera, updateShot],
+  );
+
+  const handleUpdateElementText = useCallback(
+    (id: string, newText: string) => updateElement(id, { text: newText }),
+    [updateElement],
+  );
+
+  const handleDragStoryboardThumb = useCallback(
+    (shotId: string, slotKey: string, pos: Vector2D) => {
+      const shot = activeSetup.shots.find((item) => item.id === shotId);
+      if (shot) updateShot(shotId, setFramePatch(shot, slotKey, { canvasPosition: pos }));
+    },
+    [activeSetup.shots, updateShot],
+  );
+
+  const handleDropBoardToCamera = useCallback(
+    (sourceShot: Shot, center: Vector2D) => {
+      const target = nearestCameraTo(center);
+      if (!target) return;
+      const targetShot = getShotForCamera(target);
+      // `keyFrameImage` rather than the retired field, which is now cleared on
+      // every frame write — so dragging a board between cameras had silently
+      // stopped working for any recently boarded shot.
+      const sourceImage = keyFrameImage(sourceShot);
+      if (targetShot && targetShot.id !== sourceShot.id && sourceImage) {
+        updateShot(
+          targetShot.id,
+          setFramePatch(targetShot, START_SLOT, {
+            image: sourceImage,
+            fit: keyFrame(sourceShot)?.fit || 'cover',
+          }),
+        );
+      }
+    },
+    [nearestCameraTo, getShotForCamera, updateShot],
+  );
+
+  // Collect all wall corner vertices for magnetic snapping. Memoised so the
+  // snap lookup below keeps a stable identity between renders that did not
+  // move a wall.
+  const wallVertices: Vector2D[] = useMemo(() => {
+    const vertices: Vector2D[] = [];
+    for (const w of walls) {
+      vertices.push({ x: w.x, y: w.y });
+      vertices.push({ x: w.x2 ?? w.x + 200, y: w.y2 ?? w.y });
+    }
+    return vertices;
+  }, [walls]);
 
   // Find nearest corner vertex
-  const findNearestVertex = (pt: Vector2D, maxDist = 20): Vector2D | null => {
+  const findNearestVertex = useCallback((pt: Vector2D, maxDist = 20): Vector2D | null => {
     let nearest: Vector2D | null = null;
     let minDist = maxDist;
     wallVertices.forEach((v) => {
@@ -667,7 +793,7 @@ export const FloorPlanCanvas: React.FC = () => {
       }
     });
     return nearest;
-  };
+  }, [wallVertices]);
 
   // Compute live wall snapping for door/window tools
   const nearestWallInfo =
@@ -676,7 +802,7 @@ export const FloorPlanCanvas: React.FC = () => {
       : null;
 
   // Snapped current cursor position for drawing (Alt temporarily disables magnets)
-  const getDrawingCursorPos = (rawPos: Vector2D): Vector2D => {
+  const getDrawingCursorPos = useCallback((rawPos: Vector2D): Vector2D => {
     const snapEnabled = !altDownRef.current;
     const snapVertex = snapEnabled ? findNearestVertex(rawPos, 20) : null;
     if (snapVertex) return snapVertex;
@@ -702,7 +828,7 @@ export const FloorPlanCanvas: React.FC = () => {
     }
 
     return { x, y };
-  };
+  }, [connectedWallStart, findNearestVertex, gridSettings.size, gridSettings.snap]);
 
   // Finish connected wall mode
   const finishConnectedWalls = useCallback(() => {
@@ -751,7 +877,7 @@ export const FloorPlanCanvas: React.FC = () => {
    * pen stroke is in progress. `elementId` pre-resolves the pressed element
    * (element views stop propagation, so the hit test cannot be redone later).
    */
-  const armLongPress = (e: React.PointerEvent, elementId: string | null) => {
+  const armLongPress = useCallback((e: React.PointerEvent, elementId: string | null) => {
     cancelLongPress();
     if (e.pointerType !== 'touch' || !e.isPrimary) return;
     const startX = e.clientX;
@@ -766,10 +892,10 @@ export const FloorPlanCanvas: React.FC = () => {
       setContextMenu({ x: startX, y: startY, elementId: hit });
     }, 550);
     longPressRef.current = { timer, startX, startY };
-  };
+  }, [cancelLongPress, findElementAtPoint, screenToCanvas]);
 
   // Pointer Down on canvas background or elements
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (!containerRef.current || isPinchingRef.current) return;
     // A second finger is the start of a pinch (touchstart fires after this
     // pointerdown); it must never place elements or start a drag/marquee.
@@ -1122,7 +1248,34 @@ export const FloorPlanCanvas: React.FC = () => {
         y2: canvasPos.y,
       });
     }
-  };
+  }, [
+    activeCableType,
+    activeSetup.elements,
+    activeShapeType,
+    activeTool,
+    addElement,
+    armLongPress,
+    backgroundImages,
+    calibratingBackgroundId,
+    cancelBackgroundCalibration,
+    cancelLongPress,
+    canvasOffset,
+    clearSelection,
+    connectedCableStart,
+    connectedWallStart,
+    findAttachableDeviceAt,
+    finishConnectedCable,
+    finishConnectedWalls,
+    getDrawingCursorPos,
+    isSpacePressed,
+    screenToCanvas,
+    selectElement,
+    selectedElementIds,
+    setTool,
+    updateElement,
+    wallChainFirstPoint,
+    walls,
+  ]);
 
   // Double-click to open contextual inspector. `force` selects even locked
   // elements so they can be reached and unlocked from the inspector.
@@ -1133,7 +1286,7 @@ export const FloorPlanCanvas: React.FC = () => {
   };
 
   // Element Select & Drag
-  const handleElementSelect = (id: string, e: React.PointerEvent) => {
+  const handleElementSelect = useCallback((id: string, e: React.PointerEvent) => {
     e.stopPropagation();
     if (isPinchingRef.current) return;
     if (e.pointerType === 'touch' && !e.isPrimary) {
@@ -1284,7 +1437,37 @@ export const FloorPlanCanvas: React.FC = () => {
         activeElementId: id,
       });
     }
-  };
+    // Everything the handler reads is listed. Memoised because it is the
+    // `onSelect` of every SVG layer: an unstable identity here makes
+    // `React.memo` on those layers a no-op, which is what used to redraw the
+    // whole plan on a pointer move.
+  }, [
+    activeSetup.elements,
+    activeSetup.groups,
+    activeShapeType,
+    activeTool,
+    addElement,
+    armLongPress,
+    cancelLongPress,
+    clearSelection,
+    handlePointerDown,
+    isEffectivelyLocked,
+    isSpacePressed,
+    screenToCanvas,
+    selectElement,
+    selectElements,
+    selectedElementIds,
+    setActiveRightTab,
+    setTool,
+    walls,
+  ]);
+
+  // Stable identity so the memoised stroke layer is not handed a new callback
+  // on every render.
+  const handleStrokePointerDown = useCallback(
+    (stroke: StrokeElement, e: React.PointerEvent) => handleElementSelect(stroke.id, e),
+    [handleElementSelect],
+  );
 
   // Rotate handle start
   const handleRotateStart = (e: React.PointerEvent) => {
@@ -2262,22 +2445,65 @@ export const FloorPlanCanvas: React.FC = () => {
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
         return;
       }
+      // The canvas is always mounted, so a window-level listener would keep
+      // acting on the plan while the user is working a button in the shot
+      // list, the inspector or a modal — Delete would silently remove the
+      // selected element, "l" would lock it, Ctrl+V would paste into the plan.
+      //
+      // The rule is stated as "not somewhere that owns its own keys" rather
+      // than "inside the canvas container". Requiring the container looked
+      // tighter but was wrong: the tool palette and the timeline are siblings
+      // of the canvas, so clicking a tool button and then pressing Delete did
+      // nothing at all. What actually needs excluding is the side panel and
+      // any open dialog.
+      //
+      // A dialog is checked by presence, not just by focus: a modal that opens
+      // without moving focus leaves it on <body>, and Delete would otherwise
+      // reach the plan behind the modal.
+      //
+      // `instanceof Element` before `closest`: a keyboard event dispatched
+      // straight at `window` (which tooling and some libraries do) has a
+      // target that is neither, and calling DOM methods on it throws — taking
+      // every shortcut in the app down with it, including undo.
+      const targetElement = target instanceof Element ? target : null;
+      const onCanvasSurface =
+        document.querySelector('[role="dialog"]') === null &&
+        targetElement?.closest('#right-sidebar, [role="dialog"]') == null;
+      // Letter keys arrive upper-case while Shift is held, so compare on a
+      // folded copy: `e.key === 'z'` alone never matches Ctrl+Shift+Z.
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       const textSelection = window.getSelection();
       if (
         textSelection &&
         !textSelection.isCollapsed &&
         textSelection.toString().length > 0 &&
         (e.metaKey || e.ctrlKey) &&
-        (e.key === 'c' || e.key === 'x')
+        (key === 'c' || key === 'x')
       ) {
         return;
       }
 
       // Holding Ctrl+Z (or C/V/D/Y) auto-repeats keydown events; ignore repeats
       // so a single physical press only ever triggers ONE undo/redo/copy/paste.
-      if (e.repeat && ['z', 'y', 'c', 'v', 'd'].includes(e.key)) {
+      if (e.repeat && ['z', 'y', 'c', 'v', 'd'].includes(key)) {
         return;
       }
+
+      // Undo/redo are application-level and stay global.
+      if ((e.metaKey || e.ctrlKey) && key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && key === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
+      if (!onCanvasSurface) return;
 
       if (e.code === 'Space') {
         setIsSpacePressed(true);
@@ -2315,34 +2541,23 @@ export const FloorPlanCanvas: React.FC = () => {
         setShowShortcuts((v) => !v);
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+      if ((e.metaKey || e.ctrlKey) && key === 'd') {
         e.preventDefault();
         duplicateSelected();
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+      if ((e.metaKey || e.ctrlKey) && key === 'c') {
         e.preventDefault();
         copySelectedElements();
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+      if ((e.metaKey || e.ctrlKey) && key === 'v') {
         e.preventDefault();
         pasteElements();
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
-        e.preventDefault();
-        redo();
-      }
-
       // Lock / Unlock toggle shortcut (L or Ctrl+L)
-      if (((e.metaKey || e.ctrlKey) && (e.key === 'l' || e.key === 'L')) || (e.key === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+      if (key === 'l' && !e.altKey && !e.shiftKey) {
         if (selectedElementIds.length > 0) {
           e.preventDefault();
           const selectedEls = activeSetup.elements.filter((el) => selectedElementIds.includes(el.id));
@@ -2354,7 +2569,7 @@ export const FloorPlanCanvas: React.FC = () => {
         } else if (selectedBackgroundId) {
           e.preventDefault();
           const bg = activeSetup.backgroundImages?.find((b) => b.id === selectedBackgroundId);
-          if (bg) updateBackgroundImage(bg.id, { locked: !bg.locked });
+          if (bg) updateBackgroundImage(selectedBackgroundId, { locked: !bg.locked });
         }
       }
 
@@ -2533,26 +2748,10 @@ export const FloorPlanCanvas: React.FC = () => {
             canvasScale={canvasScale}
             selectedBackgroundId={selectedBackgroundId}
             isInteractive={activeTool === 'select' && !calibratingBackgroundId}
-            onSelectImage={(id) => {
-              clearSelection();
-              setSelectedBackgroundId(id);
-              setActiveRightTab('inspector');
-            }}
+            onSelectImage={handleSelectBackgroundImage}
             onUpdate={updateBackgroundImage}
             onDelete={removeBackgroundImage}
-            onDropToCamera={(image, center) => {
-              const target = cameras
-                .map((camera) => ({ camera, distance: Math.hypot(camera.x - center.x, camera.y - center.y) }))
-                .sort((a, b) => a.distance - b.distance)[0];
-              if (!target || target.distance > 110) return;
-              const shot = getShotForCamera(target.camera);
-              // Through setFramePatch, not the retired `storyboardImage`
-              // field: writing that directly leaves `storyboardFrames` — which
-              // is what the thumb layer and the exports read — untouched.
-              if (shot) {
-                updateShot(shot.id, setFramePatch(shot, START_SLOT, { image: image.url, fit: 'cover' }));
-              }
-            }}
+            onDropToCamera={handleDropImageToCamera}
           />
 
           {/* 3. Props, Furniture, Rigs, Tracks, Measurements */}
@@ -2594,7 +2793,7 @@ export const FloorPlanCanvas: React.FC = () => {
             selectedIds={selectedElementIds}
             onSelect={handleElementSelect}
             onDoubleClick={handleElementDoubleClick}
-            onUpdateText={(id, newText) => updateElement(id, { text: newText })}
+            onUpdateText={handleUpdateElementText}
             pixelsPerUnit={gridSettings.pixelsPerUnit}
             displaySettings={displaySettings}
             currentBeat={playback.currentBeat}
@@ -2916,35 +3115,12 @@ export const FloorPlanCanvas: React.FC = () => {
             canvasScale={canvasScale}
             aspectRatio={sceneAspectRatio}
             isInteractive={activeTool === 'select'}
-            onDragThumb={(shotId, slotKey, pos) => {
-              const shot = activeSetup.shots.find((item) => item.id === shotId);
-              if (shot) updateShot(shotId, setFramePatch(shot, slotKey, { canvasPosition: pos }));
-            }}
+            onDragThumb={handleDragStoryboardThumb}
             // Select only — going through handleElementSelect would also start a
             // camera move drag, which fought with the thumbnail's own drag.
-            onSelectCamera={(camId) => selectElement(camId)}
+            onSelectCamera={selectElement}
             onDoubleClickCamera={handleElementDoubleClick}
-            onDropToCamera={(sourceShot, center) => {
-              const target = cameras
-                .map((camera) => ({ camera, distance: Math.hypot(camera.x - center.x, camera.y - center.y) }))
-                .sort((a, b) => a.distance - b.distance)[0];
-              if (!target || target.distance > 110) return;
-              const targetShot = getShotForCamera(target.camera);
-              // `keyFrameImage` rather than the retired field, which is now
-              // cleared on every frame write — so dragging a board between
-              // cameras had silently stopped working for any recently
-              // boarded shot.
-              const sourceImage = keyFrameImage(sourceShot);
-              if (targetShot && targetShot.id !== sourceShot.id && sourceImage) {
-                updateShot(
-                  targetShot.id,
-                  setFramePatch(targetShot, START_SLOT, {
-                    image: sourceImage,
-                    fit: keyFrame(sourceShot)?.fit || 'cover',
-                  })
-                );
-              }
-            }}
+            onDropToCamera={handleDropBoardToCamera}
           />
           )}
 
@@ -2959,7 +3135,7 @@ export const FloorPlanCanvas: React.FC = () => {
             liveWidth={freehandSettings.strokeWidth}
             liveOpacity={freehandSettings.opacity}
             liveToolStyle={freehandSettings.toolStyle}
-            onStrokePointerDown={(stroke, e) => handleElementSelect(stroke.id, e)}
+            onStrokePointerDown={handleStrokePointerDown}
             selectedStrokeIds={selectedElementIds}
           />
 
@@ -3100,6 +3276,7 @@ export const FloorPlanCanvas: React.FC = () => {
           id="btn-zoom-out"
           onClick={zoomOut}
           title="Zoom Out (Mouse Wheel Down or Ctrl -)"
+          aria-label="Zoom out"
           className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
         >
           <ZoomOut className="w-4 h-4" />
@@ -3109,6 +3286,7 @@ export const FloorPlanCanvas: React.FC = () => {
           id="btn-zoom-reset"
           onClick={resetZoom}
           title="Reset Zoom & Pan"
+          aria-label="Reset zoom and pan"
           className="px-2.5 py-1 text-xs font-mono text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
         >
           {Math.round(canvasScale * 100)}%
@@ -3118,6 +3296,7 @@ export const FloorPlanCanvas: React.FC = () => {
           id="btn-zoom-in"
           onClick={zoomIn}
           title="Zoom In (Mouse Wheel Up or Ctrl +)"
+          aria-label="Zoom in"
           className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
         >
           <ZoomIn className="w-4 h-4" />
@@ -3129,6 +3308,8 @@ export const FloorPlanCanvas: React.FC = () => {
           id="btn-pan-toggle"
           onClick={() => setTool(activeTool === 'pan' ? 'select' : 'pan')}
           title="Pan Mode (Hold Spacebar or Middle Click to Drag)"
+          aria-label="Pan mode"
+          aria-pressed={activeTool === 'pan'}
           className={`p-2 rounded-lg transition-colors ${
             activeTool === 'pan' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800'
           }`}
@@ -3142,6 +3323,7 @@ export const FloorPlanCanvas: React.FC = () => {
           id="btn-center-view"
           onClick={fitToContent}
           title="Center View (Fit Floor Plan to Screen)"
+          aria-label="Centre the view on the floor plan"
           className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
         >
           <Scan className="w-4 h-4" />
@@ -3161,6 +3343,8 @@ export const FloorPlanCanvas: React.FC = () => {
                 setGridSettings({ showGrid: next });
               }}
               title={`Toggle Viewing Grid Overlay (${isGridOn ? 'ON' : 'OFF'})`}
+              aria-label="Viewing grid overlay"
+              aria-pressed={isGridOn}
               className={`p-2 rounded-lg transition-colors ${
                 isGridOn
                   ? 'bg-sky-600 text-white shadow-sm'
@@ -3189,6 +3373,7 @@ export const FloorPlanCanvas: React.FC = () => {
             onClick={finishConnectedWalls}
             className="p-1 hover:bg-sky-900 rounded text-slate-400 hover:text-white"
             title="Cancel"
+            aria-label="Finish the wall run"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -3211,6 +3396,7 @@ export const FloorPlanCanvas: React.FC = () => {
             onClick={finishConnectedCable}
             className="p-1 hover:bg-sky-900 rounded text-slate-400 hover:text-white"
             title="Cancel"
+            aria-label="Finish the cable run"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -3258,6 +3444,8 @@ export const FloorPlanCanvas: React.FC = () => {
               </h3>
               <button
                 onClick={() => setShowShortcuts(false)}
+                title="Close"
+                aria-label="Close the keyboard shortcuts list"
                 className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <X className="w-4 h-4" />

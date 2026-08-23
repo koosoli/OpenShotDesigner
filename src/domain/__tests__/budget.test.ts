@@ -40,6 +40,17 @@ describe('rateNet', () => {
   it('zero days is zero, never a guess', () => {
     expect(rateNet({ amount: 450, basis: 'day' }, 0, 1, 5)).toBe(0);
   });
+  /** A struck line prices as nothing. It used to quietly price as one. */
+  it('zero quantity is zero, on every basis', () => {
+    expect(rateNet({ amount: 450, basis: 'day' }, 6, 0, 5)).toBe(0);
+    expect(rateNet({ amount: 2000, basis: 'week' }, 6, 0, 5)).toBe(0);
+    expect(rateNet({ amount: 5000, basis: 'flat' }, 6, 0, 5)).toBe(0);
+  });
+  it('falls back to one only when the quantity is missing or nonsensical', () => {
+    expect(rateNet({ amount: 450, basis: 'day' }, 1, Number.NaN, 5)).toBe(450);
+    expect(rateNet({ amount: 450, basis: 'day' }, 1, undefined as unknown as number, 5)).toBe(450);
+    expect(rateNet({ amount: 450, basis: 'day' }, 1, -3, 5)).toBe(450);
+  });
 });
 
 describe('VAT presets', () => {

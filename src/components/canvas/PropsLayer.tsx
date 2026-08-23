@@ -23,7 +23,7 @@ interface PropsLayerProps {
   onWaypointRotateStart?: (elementId: string, waypointId: string, e: React.PointerEvent) => void;
 }
 
-export const PropsLayer: React.FC<PropsLayerProps> = ({
+const PropsLayerImpl: React.FC<PropsLayerProps> = ({
   propsList,
   tracks,
   measurements,
@@ -1621,3 +1621,13 @@ const measurementLabelScale = baseLabelScale * (catLabelScale.measurements ?? 1)
     </g>
   );
 };
+
+/**
+ * Memoised because the canvas re-renders on every pointer move — hovering the
+ * plan used to redraw every layer, glyph by glyph. The props are stable by
+ * construction on the canvas side (element buckets come from one memoised
+ * pass, callbacks are `useCallback`ed), so a shallow compare is enough and a
+ * custom comparator would only hide a prop that is not stable yet.
+ */
+export const PropsLayer = React.memo(PropsLayerImpl);
+PropsLayerImpl.displayName = 'PropsLayer';

@@ -6,7 +6,7 @@
  * never fabricated zeros (rule 13). Canonical units kg (rule 14).
  */
 
-import type { RiggingItem, SuspendedLoad, TrussElement, TrussProfile } from './types';
+import type { RiggingItem, RiggingItemKind, SuspendedLoad, TrussElement, TrussProfile } from './types';
 
 export interface TrussLoadBreakdown {
   trussElementId: string;
@@ -83,6 +83,74 @@ export const calculateTrussLoad = (
       trussSelfWeightKg === null
         ? null
         : trussSelfWeightKg + loadsKg + clampsKg + cableAllowanceKg,
+  };
+};
+
+/** Rigging points that carry a truss run — the things a capacity is quoted for. */
+const CAPACITY_BEARING_KINDS: ReadonlySet<RiggingItemKind> = new Set(['motor', 'hang_point']);
+
+export interface TrussCapacityVerdict {
+  trussElementId: string;
+  /** Motors and hang points attached to this run. */
+  pointCount: number;
+  /** Of those, how many carry no capacity figure. */
+  unknownCapacityPointCount: number;
+  /**
+   * Combined rated capacity in kg, or null when there is nothing to add up or
+   * any single point's capacity is unknown — a partial sum would read as the
+   * whole rig's limit and invite overloading it (rule 13).
+   */
+  capacityKg: number | null;
+  /** Planned total / capacity as a fraction; null whenever either side is unknown. */
+  utilization: number | null;
+  /**
+   * 'within' and 'over' are only ever reported when both the planned load and
+   * the combined capacity are known; everything else is 'unknown'.
+   */
+  verdict: 'within' | 'over' | 'unknown';
+}
+
+/**
+ * Compare a run's planned load against the rated capacity of the motors and
+ * hang points holding it up.
+ *
+ * This is a planning cross-check, not a structural sign-off (rule 15): it
+ * ignores load distribution, bridle angles, point-by-point sharing and dynamic
+ * factors, all of which a rigger judges on site.
+ */
+export const evaluateTrussCapacity = (
+  breakdown: TrussLoadBreakdown,
+  riggingItems: RiggingItem[],
+): TrussCapacityVerdict => {
+  let pointCount = 0;
+  let unknownCapacityPointCount = 0;
+  let knownCapacityKg = 0;
+  for (const item of riggingItems) {
+    if (item.trussElementId !== breakdown.trussElementId) continue;
+    if (!CAPACITY_BEARING_KINDS.has(item.kind)) continue;
+    pointCount += 1;
+    if (item.capacityKg === undefined || item.capacityKg === null) {
+      unknownCapacityPointCount += 1;
+      continue;
+    }
+    knownCapacityKg += item.capacityKg;
+  }
+
+  const capacityKg =
+    pointCount > 0 && unknownCapacityPointCount === 0 ? knownCapacityKg : null;
+
+  const utilization =
+    capacityKg !== null && capacityKg > 0 && breakdown.totalKg !== null
+      ? breakdown.totalKg / capacityKg
+      : null;
+
+  return {
+    trussElementId: breakdown.trussElementId,
+    pointCount,
+    unknownCapacityPointCount,
+    capacityKg,
+    utilization,
+    verdict: utilization === null ? 'unknown' : utilization > 1 ? 'over' : 'within',
   };
 };
 

@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActiveTool,
   AspectRatio,
   BackgroundImage,
+  IdentifiedBackgroundImage,
   CableElement,
   CableType,
   CameraElement,
@@ -31,6 +32,7 @@ import {
   Vector2D,
 } from '../types';
 import { createId } from '../domain/ids';
+import { useStableContextValue } from './stableContextValue';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
 import { rowsAfterShotRemoval } from '../domain/script';
@@ -74,7 +76,6 @@ import {
 } from '../utils/projectLibrary';
 import { deriveSceneEquipment } from '../utils/equipmentList';
 import { migrateProject } from '../domain/migrations';
-import { mergeSetupWrite } from '../domain/plan';
 import { cloneSetupWithNewIds } from '../domain/clone';
 import { validateProject } from '../domain/validation';
 import {
@@ -91,7 +92,7 @@ import {
 } from '../domain/workspace';
 
 /** Sections available in the export / print studio. */
-export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'avscript' | 'sides' | 'scriptreports' | 'equipment' | 'dmx' | 'moodboard' | 'crew' | 'combined';
+export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'avscript' | 'sides' | 'scriptreports' | 'equipment' | 'dmx' | 'power' | 'rigging' | 'logistics' | 'runofshow' | 'moodboard' | 'crew' | 'combined';
 
 /**
  * Collision-proof ids. `Date.now()` alone repeats when two shots are created
@@ -263,7 +264,7 @@ interface FloorPlanContextType {
   setShootMode: (mode: 'single_cam' | 'multi_cam') => void;
 
   // Background Screenshots / Reference Blueprints (multiple supported)
-  backgroundImages: BackgroundImage[];
+  backgroundImages: IdentifiedBackgroundImage[];
   selectedBackgroundId: string | null;
   addBackgroundImage: (bg: BackgroundImage) => void;
   updateBackgroundImage: (id: string, updates: Partial<BackgroundImage>, recordHistory?: boolean) => void;
@@ -621,6 +622,18 @@ const cloneProjectForSnapshot = (source: Project): Project => {
 };
 
 /** Maximum number of revisions kept per project; oldest are dropped. */
+/**
+ * Shared empty arrays for the "absent" case of optional project collections.
+ *
+ * These land on the context value, which is compared field by field to decide
+ * whether consumers need to re-render. A fresh `[]` per render is never equal
+ * to the last one, so a single `|| []` is enough to re-render the whole
+ * application on every keystroke — and the absent case is the DEFAULT for a
+ * new project, so it would be the common path, not an edge case.
+ */
+const NO_SCRIPT_LINES: ScriptLine[] = [];
+const NO_REVISIONS: ProjectRevision[] = [];
+
 const MAX_REVISIONS = 20;
 
 const capRevisions = (list: ProjectRevision[]): ProjectRevision[] => {
@@ -658,7 +671,7 @@ const applyRevisionRestore = (base: Project, revision: ProjectRevision): Project
 export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Open the project the user was last working on. Projects saved by earlier
   // (single-project) versions are moved into the library on first run.
-  const [project, setProject] = useState<Project>(() => {
+  const [project, setProjectState] = useState<Project>(() => {
     try {
       // Pull anything the pre-library builds left behind into the library first
       migrateStorageKey(LEGACY_STORAGE_KEYS.project, STORAGE_KEYS.project);
@@ -859,6 +872,41 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // (canvas gesture end), including live drag refs.
   const liveProjectRef = useRef(project);
 
+  /**
+   * Every project write goes through here, so `liveProjectRef` can never fall
+   * behind the committed project.
+   *
+   * It matters because `commitCurrentState` — the drag-release path — records
+   * whatever this ref holds. The ref used to be written only by
+   * `commitSetupUpdate` and by an effect that runs after the render, which
+   * left a window after an undo, a scene switch or any non-setup edit where
+   * releasing a drag would record a project from before it and silently
+   * revert the edit. Wrapping the setter closes that by construction rather
+   * than by remembering to update the ref at each of the dozen call sites,
+   * which is the mistake the old `liveSetupRef` made.
+   */
+  const setProject = useCallback((value: Project | ((prev: Project) => Project)) => {
+    setProjectState((prev) => {
+      const next = typeof value === 'function' ? (value as (p: Project) => Project)(prev) : value;
+      liveProjectRef.current = next;
+      return next;
+    });
+  }, []);
+
+  // Stable, like `setProject`: both only ever touch the state setter and refs,
+  // so an effect that writes the project does not have to re-subscribe on
+  // every render just to list them as dependencies.
+  const setRecordedProject = useCallback(
+    (updater: (prev: Project) => Project) => {
+      setProject((prev) => {
+        const next = updater(prev);
+        if (next !== prev) pendingSnapshotsRef.current.push(next);
+        return next;
+      });
+    },
+    [setProject],
+  );
+
   /** Push one immutable snapshot (dedupe by reference; cap length). */
   const recordProjectSnapshot = (snapshot: Project, baseHistory: Project[], baseIndex: number) => {
     const nextHistory = baseHistory.slice(0, baseIndex + 1);
@@ -1011,39 +1059,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return () => clearInterval(interval);
   }, [isPlaying, playbackSpeed, activeSetup.totalBeats, isLooping]);
 
-  // Helper to commit new setup state with history push. The history entry is
-  // a whole-project snapshot so unrelated project edits stay undoable too.
-  /**
-   * Commit a whole rebuilt setup.
-   *
-   * Callers build `newSetup` from the setup they read at render time, so two
-   * commits in the same render used to mean the second silently discarded the
-   * first. `mergeSetupWrite` applies only the keys this caller actually
-   * changed, measured against the state it read, on top of whatever is current
-   * — so an element write and a shot write in the same render both survive.
-   *
-   * `baseSetup` defaults to the render-time active setup, which is what every
-   * caller reads; pass it explicitly when writing to a different setup.
-   */
-  const commitSetupState = (
-    newSetup: SceneSetup,
-    recordHistory = true,
-    baseSetup: SceneSetup = activeSetup,
-  ) => {
-    setProject((prev) => {
-      const current = prev.setups.find((s) => s.id === newSetup.id);
-      const merged = current ? mergeSetupWrite(current, baseSetup, newSetup) : newSetup;
-      if (current && merged === current) return prev;
-      const next: Project = {
-        ...prev,
-        setups: prev.setups.map((s) => (s.id === merged.id ? merged : s)),
-      };
-      liveSetupRef.current = merged;
-      if (recordHistory) pendingSnapshotsRef.current.push(next);
-      return next;
-    });
-  };
-
   /**
    * Commit a change to the ACTIVE setup computed from the latest committed
    * project state rather than from the render-time `activeSetup`.
@@ -1068,9 +1083,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...prev,
         setups: prev.setups.map((s) => (s.id === nextSetup.id ? nextSetup : s)),
       };
-      // Keep the live-drag snapshot in step with what was actually committed,
-      // so releasing a drag records the state the canvas is showing.
-      liveSetupRef.current = nextSetup;
+      // `liveProjectRef` is kept in step by `setProject` itself, so a drag
+      // released before React re-renders still records what the canvas shows.
       if (recordHistory) pendingSnapshotsRef.current.push(next);
       return next;
     });
@@ -1230,7 +1244,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       newElement = {
         ...baseDefaults,
-        type: 'actor',
         name: partial.name || `CHARACTER ${letterCode}`,
         characterLetter: letterCode,
         color,
@@ -1238,6 +1251,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         path: [],
         speechCues: [],
         ...partial,
+        type: 'actor',
       };
     } else if (partial.type === 'camera') {
       const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
@@ -1259,7 +1273,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const createdCamera: CameraElement = {
         ...baseDefaults,
-        type: 'camera',
         name: partial.name || `Cam ${camLetter}`,
         cameraLabel: camLetter,
         color: camColor,
@@ -1274,6 +1287,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         associatedShotId: shotId,
         cameraModel: 'Cinema Camera',
         ...partial,
+        type: 'camera',
       };
 
       const newShot: Shot = {
@@ -1299,12 +1313,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       newElement = createdCamera;
 
-      const updatedSetup: SceneSetup = {
-        ...activeSetup,
-        elements: [...activeSetup.elements, newElement],
-        shots: [...activeSetup.shots, newShot],
-      };
-
       const newAVRow: AVScriptRow = {
         id: `av-${shotId}`,
         shotNumber,
@@ -1321,7 +1329,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         avScriptRows: [...(prev.avScriptRows || avScriptRows), newAVRow],
       }));
 
-      commitSetupState(updatedSetup);
+      commitSetupUpdate((prevSetup) => ({
+        ...prevSetup,
+        elements: [...prevSetup.elements, newElement],
+        shots: [...prevSetup.shots, newShot],
+      }));
       setSelectedElementIds([id]);
       setSelectedShotId(shotId);
       return id;
@@ -1332,7 +1344,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         LIGHT_FIXTURES[0];
       newElement = {
         ...baseDefaults,
-        type: 'light',
         name: partial.name || fixture.name,
         fixtureType: fixture.type,
         colorTemp: fixture.defaultTemp,
@@ -1343,12 +1354,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         fixtureModel: partial.fixtureModel,
         ...(fixture.isFlag ? { flagSize: '24x36' as const } : {}),
         ...partial,
+        type: 'light',
       };
     } else if (partial.type === 'shape') {
       const requested = (partial as Partial<ShapeElement>).shapeType || activeShapeType;
       newElement = {
         ...baseDefaults,
-        type: 'shape',
         name: partial.name || `${requested.charAt(0).toUpperCase()}${requested.slice(1)}`,
         shapeType: requested,
         width: 180,
@@ -1362,36 +1373,37 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         dashStyle: 'solid',
         cornerRadius: requested === 'rectangle' ? 8 : 0,
         ...partial,
+        type: 'shape',
       } as ShapeElement;
     } else if (partial.type === 'wall') {
       newElement = {
         ...baseDefaults,
-        type: 'wall',
         name: partial.name || 'Wall',
         x2: partial.x2 ?? (baseDefaults.x + 200),
         y2: partial.y2 ?? baseDefaults.y,
         thickness: 12,
         ...partial,
+        type: 'wall',
       };
     } else if (partial.type === 'door') {
       newElement = {
         ...baseDefaults,
-        type: 'door',
         name: partial.name || 'Door',
         width: 60,
         swingAngle: 90,
         swingDirection: 'left',
         ...partial,
+        type: 'door',
       };
     } else if (partial.type === 'window') {
       newElement = {
         ...baseDefaults,
-        type: 'window',
         name: partial.name || 'Window',
         width: 100,
         depth: 12,
         beamVisible: false,
         ...partial,
+        type: 'window',
       };
     } else if (partial.type === 'prop') {
       const requestedProp = (partial as Partial<PropElement>).propType;
@@ -1399,27 +1411,26 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         PROP_CATALOG.find((p) => p.type === (requestedProp ?? activePropSubtype)) || PROP_CATALOG[0];
       newElement = {
         ...baseDefaults,
-        type: 'prop',
         name: partial.name || propInfo.name,
         propType: activePropSubtype,
         width: propInfo.defaultWidth,
         height: propInfo.defaultHeight,
         color: propInfo.defaultColor,
         ...partial,
+        type: 'prop',
       };
     } else if (partial.type === 'track') {
       newElement = {
         ...baseDefaults,
-        type: 'track',
         name: partial.name || 'Dolly Track',
         x2: baseDefaults.x + 240,
         y2: baseDefaults.y,
         ...partial,
+        type: 'track',
       };
     } else if (partial.type === 'road') {
       newElement = {
         ...baseDefaults,
-        type: 'road',
         name: partial.name || 'Street',
         x2: baseDefaults.x + 320,
         y2: baseDefaults.y,
@@ -1429,21 +1440,21 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         lanes: 2,
         sidewalks: true,
         ...partial,
+        type: 'road',
       };
     } else if (partial.type === 'measurement') {
       newElement = {
         ...baseDefaults,
-        type: 'measurement',
         name: 'Measure Tape',
         x2: baseDefaults.x + 150,
         y2: baseDefaults.y,
         unit: activeSetup.gridSettings.unit,
         ...partial,
+        type: 'measurement',
       };
     } else if (partial.type === 'arrow') {
       newElement = {
         ...baseDefaults,
-        type: 'arrow',
         name: 'Arrow',
         x2: baseDefaults.x + 150,
         y2: baseDefaults.y,
@@ -1452,13 +1463,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         headStyle: 'single',
         dashStyle: 'solid',
         ...partial,
+        type: 'arrow',
       };
     } else if (partial.type === 'cable') {
       const requestedCable = (partial as Partial<CableElement>).cableType;
       const cableInfo = CABLE_TYPES.find((c) => c.type === (requestedCable ?? activeCableType)) || CABLE_TYPES[0];
       newElement = {
         ...baseDefaults,
-        type: 'cable',
         name: partial.name || `Cable ${cableInfo.shortLabel}`,
         x2: baseDefaults.x + 150,
         y2: baseDefaults.y,
@@ -1469,36 +1480,35 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         fromLabel: 'FROM',
         toLabel: 'TO',
         ...partial,
+        type: 'cable',
       };
     } else if (partial.type === 'stroke') {
       newElement = {
         ...baseDefaults,
-        type: 'stroke',
         name: partial.name || 'Annotation',
         points: [],
         color: '#f59e0b',
         strokeWidth: 3,
         toolStyle: 'pen',
         ...partial,
+        type: 'stroke',
       } as StrokeElement;
     } else {
       newElement = {
         ...baseDefaults,
-        type: 'text',
         name: 'Text Label',
         text: 'Director Notes',
         fontSize: 16,
         color: '#94a3b8',
         ...partial,
+        type: 'text',
       } as FloorPlanElement;
     }
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: [...activeSetup.elements, newElement],
-    };
-
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: [...prevSetup.elements, newElement],
+    }));
     setSelectedElementIds([id]);
     return id;
   };
@@ -1620,21 +1630,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteElementById = (id: string) => {
-    const updatedElements = activeSetup.elements.filter((e) => e.id !== id);
     // If it's a camera, its shots go with it — and so do their linings, so the
     // lined script never keeps a stroke for a shot that no longer exists.
     const removedShotIds = new Set(
       activeSetup.shots.filter((s) => s.cameraId === id).map((s) => s.id)
     );
     const updatedShots = activeSetup.shots.filter((s) => s.cameraId !== id);
-
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: updatedElements,
-      shots: updatedShots,
-      scriptMarks: (activeSetup.scriptMarks || []).filter((mark) => !removedShotIds.has(mark.shotId)),
-      groups: pruneGroups(activeSetup.groups, new Set([id])),
-    };
 
     setSelectedElementIds((prev) => prev.filter((i) => i !== id));
     if (selectedShotId && !updatedShots.find((s) => s.id === selectedShotId)) {
@@ -1663,7 +1664,21 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
       });
     }
-    commitSetupState(updatedSetup);
+    // Derived from the committed setup, not the render-time one: an element
+    // added or moved earlier in the same render would otherwise be resurrected
+    // by writing back a whole setup built before it existed.
+    commitSetupUpdate((prevSetup) => {
+      const shotsGone = new Set(
+        prevSetup.shots.filter((s) => s.cameraId === id).map((s) => s.id),
+      );
+      return {
+        ...prevSetup,
+        elements: prevSetup.elements.filter((e) => e.id !== id),
+        shots: prevSetup.shots.filter((s) => s.cameraId !== id),
+        scriptMarks: (prevSetup.scriptMarks || []).filter((mark) => !shotsGone.has(mark.shotId)),
+        groups: pruneGroups(prevSetup.groups, new Set([id])),
+      };
+    });
   };
 
   const deleteSelectedElements = () => {
@@ -1674,20 +1689,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
     if (idsToDelete.length === 0) return;
     const idsSet = new Set(idsToDelete);
-    const updatedElements = activeSetup.elements.filter((e) => !idsSet.has(e.id));
     const removedShotIds = new Set(
       activeSetup.shots.filter((s) => idsSet.has(s.cameraId)).map((s) => s.id)
     );
-    const updatedShots = activeSetup.shots.filter((s) => !idsSet.has(s.cameraId));
-
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: updatedElements,
-      shots: updatedShots,
-      scriptMarks: (activeSetup.scriptMarks || []).filter((mark) => !removedShotIds.has(mark.shotId)),
-      groups: pruneGroups(activeSetup.groups, idsSet),
-    };
-
     setSelectedElementIds([]);
     setSelectedShotId(null);
     if (removedShotIds.size > 0) {
@@ -1712,7 +1716,18 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
       });
     }
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => {
+      const shotsGone = new Set(
+        prevSetup.shots.filter((s) => idsSet.has(s.cameraId)).map((s) => s.id),
+      );
+      return {
+        ...prevSetup,
+        elements: prevSetup.elements.filter((e) => !idsSet.has(e.id)),
+        shots: prevSetup.shots.filter((s) => !idsSet.has(s.cameraId)),
+        scriptMarks: (prevSetup.scriptMarks || []).filter((mark) => !shotsGone.has(mark.shotId)),
+        groups: pruneGroups(prevSetup.groups, idsSet),
+      };
+    });
   };
 
   const duplicateSelected = () => {
@@ -1755,29 +1770,20 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         childIds: g.childIds.map((cid) => duplicateIdMap.get(cid)!),
       }));
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: [...activeSetup.elements, ...newElements],
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: [...prevSetup.elements, ...newElements],
       groups:
         duplicatedGroups.length > 0
-          ? [...(activeSetup.groups || []), ...duplicatedGroups]
-          : activeSetup.groups,
-    };
-
-    commitSetupState(updatedSetup);
+          ? [...(prevSetup.groups || []), ...duplicatedGroups]
+          : prevSetup.groups,
+    }));
     setSelectedElementIds(newSelectedIds);
   };
 
   // Clipboard for Ctrl+C / Ctrl+V copy & paste of selected assets.
   const clipboardRef = useRef<FloorPlanElement[]>([]);
   const pasteOffsetRef = useRef(30);
-
-  // Holds the most recent LIVE setup produced by a no-history update (drag
-  // moves, rotate, endpoint/waypoint drags). Updated synchronously by
-  // updateElement / updateMultipleElements so that commitCurrentState (called
-  // on release) always pushes the EXACT state shown on the canvas — even if
-  // React hasn't re-rendered the pointerup handler with the final position yet.
-  const liveSetupRef = useRef<SceneSetup | null>(null);
 
   const copySelectedElements = () => {
     if (selectedElementIds.length === 0) return;
@@ -1792,11 +1798,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (clipboardRef.current.length === 0) return;
     const newElements: FloorPlanElement[] = [];
     const newSelectedIds: string[] = [];
-    let newShots = activeSetup.shots;
-    let newShotsAdded = 0;
+    // The shots the paste adds, in paste order. Their `order` and shot number
+    // depend on how many shots the scene already has, which is only known
+    // against the committed setup — so they are numbered inside the updater
+    // below rather than here.
+    const pastedShots: Shot[] = [];
 
     clipboardRef.current.forEach((el) => {
-      const newId = `el-${el.type}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      // `Date.now()` plus four random characters collides when two elements are
+      // pasted inside the same millisecond, which breaks React keys and drag
+      // targeting alike (rule 16).
+      const newId = createId(`el-${el.type}`);
       const pasted: FloorPlanElement = {
         ...el,
         id: newId,
@@ -1813,18 +1825,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const copiedShotId = newShotId();
         cam.associatedShotId = copiedShotId;
         if (linkedShot) {
-          const order = activeSetup.shots.length + newShotsAdded + 1;
-          const copiedShot: Shot = {
+          pastedShots.push({
             ...linkedShot,
             id: copiedShotId,
             cameraId: newId,
             cameraLabel: cam.cameraLabel,
-            shotNumber: `${activeSetup.sceneNumber || '1'}/${order}`,
             name: `${linkedShot.name} (Copy)`,
-            order,
-          };
-          newShots = [...newShots, copiedShot];
-          newShotsAdded++;
+            // Placeholders; numbered against the committed setup below.
+            shotNumber: linkedShot.shotNumber,
+            order: linkedShot.order,
+          });
         }
       }
 
@@ -1834,13 +1844,21 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     pasteOffsetRef.current += 30;
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: [...activeSetup.elements, ...newElements],
-      shots: newShots,
-    };
-
-    commitSetupState(updatedSetup);
+    // Built against the committed setup, not the render-time one: the shot
+    // list used to be rebuilt from a snapshot taken before the paste, so two
+    // pastes in the same render kept only the second one's shots — and the
+    // copies were numbered from a shot count that was already out of date.
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: [...prevSetup.elements, ...newElements],
+      shots: [
+        ...prevSetup.shots,
+        ...pastedShots.map((shot, index) => {
+          const order = prevSetup.shots.length + index + 1;
+          return { ...shot, order, shotNumber: `${prevSetup.sceneNumber || '1'}/${order}` };
+        }),
+      ],
+    }));
     setSelectedElementIds(newSelectedIds);
   };
 
@@ -1849,13 +1867,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // drag/move/rotate is exactly one undoable operation. Uses the latest
   // project ref so the snapshot includes every live drag update.
   const commitCurrentState = () => {
-    const targetSetup = liveSetupRef.current ?? activeSetup;
-    const base = liveProjectRef.current ?? project;
-    const snapshot: Project = {
-      ...base,
-      setups: base.setups.map((s) => (s.id === targetSetup.id ? targetSetup : s)),
-    };
-    recordProjectSnapshot(snapshot, history, historyIndex);
+    recordProjectSnapshot(liveProjectRef.current ?? project, history, historyIndex);
   };
 
   const insertDoorInWall = (wallId: string): string | null => {
@@ -1913,11 +1925,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Shot CRUD Operations
   const setShootMode = (mode: 'single_cam' | 'multi_cam') => {
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      shootMode: mode,
-    };
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => ({ ...prevSetup, shootMode: mode }));
   };
 
   const addShot = (shotData?: Partial<Shot>): string => {
@@ -1939,7 +1947,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     let camId = shotData?.cameraId || '';
     let camLabel = shotData?.cameraLabel || nextCamLetter;
     let lens = shotData?.lensMm || 35;
-    const newElements = [...activeSetup.elements];
+    // Only the elements this call ADDS. It used to be a copy of the
+    // render-time element list, which meant committing it discarded anything
+    // another handler had added in the same render.
+    const addedElements: FloorPlanElement[] = [];
 
     // If no camera was explicitly specified in shotData, reuse the default camera
     // (Camera A) in single-camera mode so we don't spawn a new camera element for
@@ -1951,7 +1962,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         camLabel = defaultCam.cameraLabel || 'A';
         lens = defaultCam.focalLength || 35;
       } else {
-        const newCamId = `cam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+        const newCamId = createId('cam');
         const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
 
         // Calculate smart position for new camera
@@ -1996,7 +2007,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           associatedShotId: id,
         };
 
-        newElements.push(newCamera);
+        addedElements.push(newCamera);
         camId = newCamId;
       }
     }
@@ -2023,18 +2034,30 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ...shotData,
     };
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: newElements,
-      shots: [...activeSetup.shots, newShot],
-      scriptLines: shotData?.scriptLineId
-        ? (activeSetup.scriptLines || []).map((line) =>
-            line.id === shotData.scriptLineId ? { ...line, linkedShotId: id } : line
-          )
-        : activeSetup.scriptLines,
-    };
-
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => {
+      // Numbered against the COMMITTED shot list, not the render-time one.
+      // Two `addShot` calls in the same batch both read "there are 3 shots"
+      // and both claimed 1/4 — and the shot number is what the stripboard,
+      // the call sheet and every department's paperwork refer to. A number
+      // the caller supplied explicitly still wins.
+      const order = shotData?.order ?? prevSetup.shots.length + 1;
+      const numbered: Shot = {
+        ...newShot,
+        order,
+        ...(shotData?.shotNumber ? null : { shotNumber: `${prevSetup.sceneNumber || '1'}/${order}` }),
+      };
+      return {
+        ...prevSetup,
+        elements:
+          addedElements.length > 0 ? [...prevSetup.elements, ...addedElements] : prevSetup.elements,
+        shots: [...prevSetup.shots, numbered],
+        scriptLines: shotData?.scriptLineId
+          ? (prevSetup.scriptLines || []).map((line) =>
+              line.id === shotData.scriptLineId ? { ...line, linkedShotId: id } : line,
+            )
+          : prevSetup.scriptLines,
+      };
+    });
     setSelectedShotId(id);
     if (camId) {
       setSelectedElementIds([camId]);
@@ -2141,29 +2164,24 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       order: shotIdx !== -1 ? shotIdx + 2 : activeSetup.shots.length + 1,
     };
 
-    const nextShots = [...activeSetup.shots];
-    const insertPosition = shotIdx !== -1 ? shotIdx + 1 : nextShots.length;
-    nextShots.splice(insertPosition, 0, newShot);
-
-    // If renumberRest is requested, update subsequent shot numbers in 1/1, 1/2, 1/3 format
-    let finalShots = nextShots;
-    if (options?.renumberRest) {
-      finalShots = nextShots.map((s, idx) => ({
-        ...s,
-        shotNumber: `${sceneNum}/${idx + 1}`,
-        order: idx + 1,
-      }));
-    } else {
-      finalShots = nextShots.map((s, idx) => ({ ...s, order: idx + 1 }));
-    }
-
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: [...activeSetup.elements, newCamera],
-      shots: finalShots,
-    };
-
-    commitSetupState(updatedSetup);
+    // The insert position and the renumbering are worked out against the
+    // committed shot list, not the render-time copy: inserting after a shot
+    // that another handler had just added would otherwise drop that shot.
+    commitSetupUpdate((prevSetup) => {
+      const nextShots = [...prevSetup.shots];
+      const committedIdx = nextShots.findIndex((s) => s.id === afterShotId);
+      const insertPosition = committedIdx !== -1 ? committedIdx + 1 : nextShots.length;
+      nextShots.splice(insertPosition, 0, newShot);
+      // If renumberRest is requested, update subsequent shot numbers in 1/1, 1/2, 1/3 format
+      const finalShots = options?.renumberRest
+        ? nextShots.map((s, idx) => ({ ...s, shotNumber: `${sceneNum}/${idx + 1}`, order: idx + 1 }))
+        : nextShots.map((s, idx) => ({ ...s, order: idx + 1 }));
+      return {
+        ...prevSetup,
+        elements: [...prevSetup.elements, newCamera],
+        shots: finalShots,
+      };
+    });
     setSelectedShotId(shotId);
     setSelectedElementIds([shotCamId]);
     return shotId;
@@ -2177,7 +2195,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    */
   // The screenplay lives on the project so it stays open when the user adds or
   // switches scenes; older saves keep it on the setup and are hoisted once.
-  const scriptLines: ScriptLine[] = project.scriptLines || activeSetup.scriptLines || [];
+  // Memoised, and the empty case is a shared constant. A bare `|| []` here
+  // allocates a new array on every render, and because the context value is
+  // compared field by field that one field is enough to re-render all fifty-odd
+  // consumers on every keystroke — for every project that has no screenplay,
+  // which is most of them.
+  const scriptLines: ScriptLine[] = useMemo(
+    () => project.scriptLines || activeSetup.scriptLines || NO_SCRIPT_LINES,
+    [project.scriptLines, activeSetup.scriptLines],
+  );
 
   useEffect(() => {
     if (project.scriptLines) return;
@@ -2189,10 +2215,19 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       scriptText: prev.scriptText || legacy.scriptText,
       scriptLines: legacy.scriptLines,
     }));
-  }, [project.scriptLines, project.setups]);
+  }, [project.scriptLines, project.setups, setRecordedProject]);
 
-  const allScriptMarks: ScriptMark[] = project.setups.flatMap((setup) => setup.scriptMarks || []);
-  const allShots: Shot[] = project.setups.flatMap((setup) => setup.shots);
+  // Memoised so the context value keeps its identity across renders that did
+  // not touch the setups. A fresh array here would make every consumer of the
+  // context re-render on every keystroke, however unrelated.
+  const allScriptMarks: ScriptMark[] = useMemo(
+    () => project.setups.flatMap((setup) => setup.scriptMarks || []),
+    [project.setups],
+  );
+  const allShots: Shot[] = useMemo(
+    () => project.setups.flatMap((setup) => setup.shots),
+    [project.setups],
+  );
   const setupIdForMark = (markId: string): string | null =>
     project.setups.find((setup) => (setup.scriptMarks || []).some((mark) => mark.id === markId))?.id || null;
 
@@ -2203,7 +2238,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    */
   const commitSetupById = (setupId: string, updater: (setup: SceneSetup) => SceneSetup) => {
     if (setupId === activeSetup.id) {
-      commitSetupState(updater(activeSetup));
+      commitSetupUpdate((prevSetup) => updater(prevSetup));
       return;
     }
     setRecordedProject((prev) => ({
@@ -2320,13 +2355,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       sceneNumber: sceneNum,
     };
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: [...activeSetup.elements, newCamera],
-      shots: [...activeSetup.shots, newShot],
-      scriptMarks: [...(activeSetup.scriptMarks || []), mark],
-    };
-
     const newAVRow: AVScriptRow = {
       id: `av-${shotId}`,
       shotNumber,
@@ -2343,7 +2371,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       avScriptRows: [...(prev.avScriptRows || avScriptRows), newAVRow],
     }));
 
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: [...prevSetup.elements, newCamera],
+      shots: [...prevSetup.shots, newShot],
+      scriptMarks: [...(prevSetup.scriptMarks || []), mark],
+    }));
     setSelectedShotId(shotId);
     setSelectedElementIds([camId]);
     return shotId;
@@ -2646,9 +2679,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (derived.characters.length === 0) return prev;
       return { ...prev, scriptScenes: derived.scenes, characters: derived.characters };
     });
-  }, [project.scriptScenes, project.scriptLines, project.characters]);
+  }, [project.scriptScenes, project.scriptLines, project.characters, setProject]);
 
-  const avScriptRows: AVScriptRow[] = project.avScriptRows || [    {
+  const avScriptRows: AVScriptRow[] = useMemo(
+    () =>
+      project.avScriptRows || [    {
       id: 'av-1',
       shotNumber: '1',
       shotName: 'WS - Master Establishing',
@@ -2675,7 +2710,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       audio: 'SFX: High-tech confirmation chime (DOUBLE BEEP). Pneumatic door lock releases with a hiss.',
       durationSec: 3,
     },
-  ];
+  ],
+    // Same reason as `scriptLines`: the fallback builds three fresh objects,
+    // which would change the context value's identity on every render.
+    [project.avScriptRows],
+  );
 
   const scriptFormatMode: ScriptFormatMode = project.scriptFormatMode || 'lined_coverage';
 
@@ -2786,13 +2825,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       linkedShotId: shotId,
     };
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: [...activeSetup.elements, newCamera],
-      shots: [...activeSetup.shots, newShotItem],
-    };
-
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: [...prevSetup.elements, newCamera],
+      shots: [...prevSetup.shots, newShotItem],
+    }));
 
     setRecordedProject((prev) => ({
       ...prev,
@@ -2878,11 +2915,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     // Update active scene setup with new camera and shot
-    commitSetupState({
-      ...activeSetup,
-      elements: [...activeSetup.elements, newCamera],
-      shots: [...activeSetup.shots, newShotItem],
-    });
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: [...prevSetup.elements, newCamera],
+      shots: [...prevSetup.shots, newShotItem],
+    }));
 
     // Link row back to created shot
     updateAVScriptRow(rowId, { linkedShotId: shotId });
@@ -2928,16 +2965,14 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       rigType: 'Tripod',
       throwDistance: 280,
       path: [],
-      associatedShotId: null,
+      associatedShotId: undefined,
       cameraModel: 'Cinema Camera',
     };
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: [...activeSetup.elements, newCamera],
-    };
-
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: [...prevSetup.elements, newCamera],
+    }));
     return id;
   };
 
@@ -2984,19 +3019,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       cameraModel: 'Cinema Camera',
     };
 
-    const updatedShots = activeSetup.shots.map((s) =>
-      s.id === shotId
-        ? ({ ...s, cameraId: id, cameraLabel: camLetter, lensMm: lensMm ?? s.lensMm ?? 35 } as Shot)
-        : s
-    );
-
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: [...activeSetup.elements, newCamera],
-      shots: updatedShots,
-    };
-
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: [...prevSetup.elements, newCamera],
+      shots: prevSetup.shots.map((s) =>
+        s.id === shotId
+          ? ({ ...s, cameraId: id, cameraLabel: camLetter, lensMm: lensMm ?? s.lensMm ?? 35 } as Shot)
+          : s,
+      ),
+    }));
     setSelectedShotId(shotId);
     setSelectedElementIds([id]);
     return id;
@@ -3217,7 +3248,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const shot = activeSetup.shots.find((s) => s.id === shotId);
     if (!shot) return;
 
-    let updatedElements = activeSetup.elements;
+    // Only the KEYS this call changes, and the id they belong to. Carrying a
+    // whole rebuilt camera would write back the render-time copy of every
+    // other field, so relabelling a camera that had just been dragged in the
+    // same batch would snap it back to where the drag started.
+    let relabel: { id: string; patch: Partial<CameraElement> } | null = null;
     let cameraId = shot.cameraId || '';
 
     const currentCam = shot.cameraId
@@ -3236,9 +3271,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const name = cam.name || '';
       const newName = autoRe.test(name) ? name.replace(autoRe, `$1${clean}$2`) : name;
 
-      updatedElements = activeSetup.elements.map((e) =>
-        e.id === currentCam.id ? ({ ...e, cameraLabel: clean, name: newName } as CameraElement) : e
-      );
+      relabel = { id: cam.id, patch: { cameraLabel: clean, name: newName } };
     } else {
       // Shot has no camera element — link it to an existing camera carrying
       // this letter.
@@ -3249,17 +3282,18 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       cameraId = rep.id;
     }
 
-    const updatedShots = activeSetup.shots.map((s) =>
-      s.id === shotId ? ({ ...s, cameraId, cameraLabel: clean } as Shot) : s
-    );
-
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      elements: updatedElements,
-      shots: updatedShots,
-    };
-
-    commitSetupState(updatedSetup);
+    const relabelled = relabel;
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      elements: relabelled
+        ? prevSetup.elements.map((e) =>
+            e.id === relabelled.id ? ({ ...e, ...relabelled.patch } as FloorPlanElement) : e,
+          )
+        : prevSetup.elements,
+      shots: prevSetup.shots.map((s) =>
+        s.id === shotId ? ({ ...s, cameraId, cameraLabel: clean } as Shot) : s,
+      ),
+    }));
     setSelectedShotId(shotId);
     if (cameraId) setSelectedElementIds([cameraId]);
   };
@@ -3278,14 +3312,17 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // COMMIT — a separate updateElement call would be overwritten by this
       // commit, because both rebuild the setup from the same base state.
       let updatedElements = setup.elements;
-      if (shot.cameraId && updates.lensMm !== undefined) {
+      // Read out of the patch before the closure: narrowing a property of a
+      // parameter does not survive into a nested function.
+      const nextLensMm = updates.lensMm;
+      if (shot.cameraId && nextLensMm !== undefined) {
         updatedElements = setup.elements.map((e) => {
           if (e.id === shot.cameraId && e.type === 'camera') {
             const cam = e as CameraElement;
             return {
               ...e,
-              focalLength: updates.lensMm,
-              fovAngle: calculateFovAngle(updates.lensMm, cam.sensorFormat),
+              focalLength: nextLensMm,
+              fovAngle: calculateFovAngle(nextLensMm, cam.sensorFormat),
             } as FloorPlanElement;
           }
           return e;
@@ -3361,6 +3398,40 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  /**
+   * Re-apply an ordering the UI worked out from a render-time shot list to the
+   * committed one.
+   *
+   * Reordering, sorting and renumbering all arrive as "here is the whole list,
+   * in the new order", computed from what the panel was showing. Writing that
+   * list back wholesale replaces the committed one — so a shot added, deleted
+   * or edited by another handler in the same render is undone by a drag that
+   * had nothing to do with it. Ordering by id instead keeps the committed
+   * objects (so concurrent edits survive), honours a deletion by simply not
+   * finding the id, and appends anything the UI had not seen yet at the end
+   * rather than dropping it.
+   */
+  const reorderCommittedShots = (
+    committed: Shot[],
+    orderedIds: readonly string[],
+    numberFor?: (shot: Shot, index: number) => string,
+  ): Shot[] => {
+    const byId = new Map(committed.map((shot) => [shot.id, shot]));
+    const out: Shot[] = [];
+    for (const id of orderedIds) {
+      const shot = byId.get(id);
+      if (!shot) continue;
+      byId.delete(id);
+      out.push(shot);
+    }
+    for (const shot of committed) if (byId.has(shot.id)) out.push(shot);
+    return out.map((shot, index) => ({
+      ...shot,
+      order: index + 1,
+      ...(numberFor ? { shotNumber: numberFor(shot, index) } : null),
+    }));
+  };
+
   const reorderShots = (arg1: number | Shot[], arg2?: number) => {
     let reindexed: Shot[] = [];
     if (Array.isArray(arg1)) {
@@ -3376,16 +3447,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      shots: reindexed,
-    };
-
-    commitSetupState(updatedSetup);
+    const orderedIds = reindexed.map((shot) => shot.id);
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      shots: reorderCommittedShots(prevSetup.shots, orderedIds),
+    }));
   };
 
   const setStoryboardOrder = (shotIds: string[]) => {
-    commitSetupState({ ...activeSetup, storyboardOrder: shotIds });
+    commitSetupUpdate((prevSetup) => ({ ...prevSetup, storyboardOrder: shotIds }));
   };
 
   const moveShot = (shotId: string, direction: 'up' | 'down') => {
@@ -3417,7 +3487,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const reindexed: Shot[] = newShots.map((s: Shot, i: number) => ({ ...s, order: i + 1 }));
 
       if (sourceSetupId === activeSetup.id) {
-        commitSetupState({ ...activeSetup, shots: reindexed });
+        const orderedIds = reindexed.map((shot) => shot.id);
+        commitSetupUpdate((prevSetup) => ({
+          ...prevSetup,
+          shots: reorderCommittedShots(prevSetup.shots, orderedIds),
+        }));
       } else {
         setRecordedProject((prev) => ({
           ...prev,
@@ -3470,33 +3544,29 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const renumberAllShots = (format: 'scene_slash_number' | 'scene_alphabetic' | 'numeric' | 'alphabetic' = 'scene_slash_number') => {
-    const scene = activeSetup.sceneNumber || '1';
-    const renumbered = activeSetup.shots.map((shot, idx) => {
-      let num = '';
-      if (format === 'numeric') {
-        num = `${idx + 1}`;
-      } else if (format === 'alphabetic') {
-        num = String.fromCharCode(65 + (idx % 26)) + (idx >= 26 ? `${Math.floor(idx / 26)}` : '');
-      } else if (format === 'scene_alphabetic') {
-        // scene_alphabetic: 1A, 1B, 1C...
-        const letter = String.fromCharCode(65 + (idx % 26)) + (idx >= 26 ? `${Math.floor(idx / 26)}` : '');
-        num = `${scene}${letter}`;
-      } else {
+    // Renumbering covers whatever is committed, in its committed order — the
+    // scene number included, since another handler may have changed it in the
+    // same render.
+    commitSetupUpdate((prevSetup) => {
+      const scene = prevSetup.sceneNumber || '1';
+      const numberAt = (index: number): string => {
+        const letter =
+          String.fromCharCode(65 + (index % 26)) + (index >= 26 ? `${Math.floor(index / 26)}` : '');
+        if (format === 'numeric') return `${index + 1}`;
+        if (format === 'alphabetic') return letter;
+        if (format === 'scene_alphabetic') return `${scene}${letter}`;
         // scene_slash_number (Default: 1/1, 1/2, 1/3...)
-        num = `${scene}/${idx + 1}`;
-      }
+        return `${scene}/${index + 1}`;
+      };
       return {
-        ...shot,
-        shotNumber: num,
-        order: idx + 1,
+        ...prevSetup,
+        shots: reorderCommittedShots(
+          prevSetup.shots,
+          prevSetup.shots.map((shot) => shot.id),
+          (_shot, index) => numberAt(index),
+        ),
       };
     });
-
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      shots: renumbered,
-    };
-    commitSetupState(updatedSetup);
   };
 
   const sortShotsBy = (criteria: 'custom' | 'shotNumber' | 'camera' | 'lens' | 'status') => {
@@ -3511,21 +3581,46 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const statusOrder = { planned: 1, rehearsed: 2, ready: 3, taken: 4, omitted: 5 };
       sorted.sort((a, b) => (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0));
     }
-    const reindexed = sorted.map((s, idx) => ({ ...s, order: idx + 1 }));
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      shots: reindexed,
-    };
-    commitSetupState(updatedSetup);
+    const orderedIds = sorted.map((shot) => shot.id);
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      shots: reorderCommittedShots(prevSetup.shots, orderedIds),
+    }));
   };
 
   // Derive the list of reference images (migrates legacy single-image setups).
   // Once `backgroundImages` exists (even empty), it is authoritative.
-  const backgroundImages: BackgroundImage[] = Array.isArray(activeSetup.backgroundImages)
-    ? activeSetup.backgroundImages
-    : activeSetup.backgroundImage
-    ? [{ ...activeSetup.backgroundImage, id: activeSetup.backgroundImage.id || 'bg-legacy' }]
-    : [];
+  //
+  // Taken as a function of a setup rather than of the render-time one, because
+  // the writers below have to apply it to whichever setup is committed at the
+  // time they run, not to the copy the component rendered with.
+  const imagesOfSetup = (setup: SceneSetup): IdentifiedBackgroundImage[] => {
+    if (Array.isArray(setup.backgroundImages)) {
+      // Hand back the stored array untouched when every image already has an
+      // id, which is every image this app has ever created. Mapping
+      // unconditionally would allocate a fresh object per image on every read
+      // — and since the writers below feed this result back into state, it
+      // would also rewrite the whole list on every background edit.
+      if (setup.backgroundImages.every((image) => !!image.id)) {
+        return setup.backgroundImages as IdentifiedBackgroundImage[];
+      }
+      // A save old enough to hold images without ids still has to be usable.
+      // The id has to be DISTINCT per image: giving them all 'bg-legacy'
+      // collides their React keys, and selecting one would select, move and
+      // delete every other id-less image with it.
+      return setup.backgroundImages.map((image, index) => ({
+        ...image,
+        id: image.id || `bg-legacy-${index}`,
+      }));
+    }
+    return setup.backgroundImage
+      ? [{ ...setup.backgroundImage, id: setup.backgroundImage.id || 'bg-legacy' }]
+      : [];
+  };
+  const backgroundImages: IdentifiedBackgroundImage[] = useMemo(
+    () => imagesOfSetup(activeSetup),
+    [activeSetup],
+  );
 
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
   const [calibratingBackgroundId, setCalibratingBackgroundId] = useState<string | null>(null);
@@ -3537,7 +3632,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const cancelBackgroundCalibration = () => setCalibratingBackgroundId(null);
 
   const addBackgroundImage = (bg: BackgroundImage) => {
-    const newBg = { ...bg, id: bg.id || `bg-${Date.now()}` };
+    const newBg = { ...bg, id: bg.id || createId('bg') };
     // Spawn at a spot that doesn't sit underneath existing elements/images,
     // so the imported image is immediately visible and clickable. Then open
     // the inspector with the image's settings (opacity, lock, visibility...).
@@ -3549,32 +3644,34 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
     newBg.x = freePos.x;
     newBg.y = freePos.y;
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      backgroundImages: [...backgroundImages, newBg],
+    commitSetupUpdate((prevSetup) => ({
+      ...prevSetup,
+      backgroundImages: [...imagesOfSetup(prevSetup), newBg],
       backgroundImage: null,
-    };
-    commitSetupState(updatedSetup);
+    }));
     setSelectedBackgroundId(newBg.id);
     setActiveRightTab('inspector');
   };
 
   const updateBackgroundImage = (id: string, updates: Partial<BackgroundImage>, recordHistory = false) => {
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      backgroundImages: backgroundImages.map((b) => (b.id === id ? { ...b, ...updates } : b)),
-    };
-    commitSetupState(updatedSetup, recordHistory);
+    commitSetupUpdate(
+      (prevSetup) => ({
+        ...prevSetup,
+        backgroundImages: imagesOfSetup(prevSetup).map((b) => (b.id === id ? { ...b, ...updates } : b)),
+      }),
+      recordHistory,
+    );
   };
 
   const removeBackgroundImage = (id: string) => {
-    const remaining = backgroundImages.filter((b) => b.id !== id);
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      backgroundImages: remaining,
-      backgroundImage: remaining.length === 0 ? null : activeSetup.backgroundImage,
-    };
-    commitSetupState(updatedSetup);
+    commitSetupUpdate((prevSetup) => {
+      const remaining = imagesOfSetup(prevSetup).filter((b) => b.id !== id);
+      return {
+        ...prevSetup,
+        backgroundImages: remaining,
+        backgroundImage: remaining.length === 0 ? null : prevSetup.backgroundImage,
+      };
+    });
     setSelectedBackgroundId((prev) => (prev === id ? null : prev));
     setCalibratingBackgroundId((current) => (current === id ? null : current));
   };
@@ -3643,15 +3740,26 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteSetup = (setupId: string) => {
     if (project.setups.length <= 1) return; // Keep at least one setup
-    const remaining = project.setups.filter((s) => s.id !== setupId);
-    const shotIdsOnSetup = (project.setups.find((s) => s.id === setupId)?.shots ?? []).map((shot) => shot.id);
     setRecordedProject((prev) => {
+      // Everything is derived from `prev`, the committed project, not from the
+      // render-time copy. Deriving `remaining` outside and writing it back
+      // inside discarded any setup write committed earlier in the same render
+      // — including a live drag's final commit.
+      if (prev.setups.length <= 1) return prev;
+      const doomed = prev.setups.find((s) => s.id === setupId);
+      if (!doomed) return prev;
+      const remaining = prev.setups.filter((s) => s.id !== setupId);
+      const shotIdsOnSetup = (doomed.shots ?? []).map((shot) => shot.id);
       // Deleting a setup used to leave its schedule strip and the strips
       // covering its shots behind, reading "Unresolved setup 8f3c…" on the
       // board and on every call sheet for that day — permanently, and with no
       // way to tell which strips were affected.
       const cleaned = removeSetupReferences(
-        { scheduleBlocks: prev.scheduleBlocks, productionDays: prev.productionDays },
+        {
+          scheduleBlocks: prev.scheduleBlocks,
+          productionDays: prev.productionDays,
+          scriptLines: prev.scriptLines,
+        },
         setupId,
         shotIdsOnSetup,
       );
@@ -3659,7 +3767,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...prev,
         ...cleaned,
         setups: remaining,
-        activeSetupId: remaining[0].id,
+        avScriptRows: rowsAfterShotRemoval(
+          prev.avScriptRows || [],
+          new Set(shotIdsOnSetup),
+          remaining.flatMap((setup) => setup.shots || []),
+        ),
+        // Only follow the deletion if it took the scene being edited. Deleting
+        // a different scene from the dropdown used to yank the user off theirs.
+        activeSetupId: remaining.some((s) => s.id === prev.activeSetupId)
+          ? prev.activeSetupId
+          : remaining[0].id,
       };
     });
   };
@@ -3703,6 +3820,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const { project: next, applied } = applyMediaReplacements(prev, result.replacements);
         return applied > 0 ? next : prev;
       });
+      // The undo stack has to be rewritten too, or the migration is only
+      // skin-deep: `history[0]` still holds the project with the images inline,
+      // so undoing to the bottom of the stack puts every base64 blob back and
+      // the next autosave writes it out again — the housekeeping silently
+      // undone by a keystroke that had nothing to do with it. Replacing the
+      // data URL with its asset id inside each snapshot keeps the timeline
+      // intact (same number of steps, same edits) while making the swap
+      // unconditional. This is not an undo step of its own: nothing the user
+      // did caused it, so `historyIndex` does not move.
+      setHistory((entries) =>
+        entries.map((entry) => {
+          if (entry.id !== projectId) return entry;
+          const { project: next, applied } = applyMediaReplacements(entry, result.replacements);
+          return applied > 0 ? next : entry;
+        }),
+      );
     })();
     return () => {
       cancelled = true;
@@ -3807,17 +3940,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * content mutation that builds its next state from `prev` directly
    * (AV-script rows, setup add/duplicate/delete, cross-scene lining edits…).
    */
-  const setRecordedProject = (updater: (prev: Project) => Project) => {
-    setProject((prev) => {
-      const next = updater(prev);
-      if (next !== prev) pendingSnapshotsRef.current.push(next);
-      return next;
-    });
-  };
-
   // Named revisions (plan §13.2): user-created milestones, separate from the
   // per-setup undo history. Persisted on the project so autosave keeps them.
-  const revisions: ProjectRevision[] = project.revisions || [];
+  const revisions: ProjectRevision[] = project.revisions || NO_REVISIONS;
 
   const saveRevision = (name: string, note?: string) => {
     setProject((prev) => {
@@ -3999,13 +4124,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const setCanvasTransform = (scale: number, offset: Vector2D) => {
-    const updatedSetup: SceneSetup = {
-      ...activeSetup,
-      canvasScale: Math.max(0.15, Math.min(4.0, scale)),
-      canvasOffset: offset,
-    };
     // Do not record history for smooth continuous zoom & pan
-    commitSetupState(updatedSetup, false);
+    commitSetupUpdate(
+      (prevSetup) => ({
+        ...prevSetup,
+        canvasScale: Math.max(0.15, Math.min(4.0, scale)),
+        canvasOffset: offset,
+      }),
+      false,
+    );
   };
 
   const setGridSettings = (settings: Partial<SceneSetup['gridSettings']>) => {
@@ -4155,9 +4282,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  return (
-    <FloorPlanContext.Provider
-      value={{
+  // Grouped, and memoised, because the context value is compared field by
+  // field: a fresh object here would change identity on every render and
+  // defeat the comparison for every consumer, not just the ones that watch
+  // playback.
+  const playback = useMemo(
+    () => ({
+      isPlaying,
+      currentBeat,
+      totalBeats: activeSetup.totalBeats || 3,
+      speed: playbackSpeed,
+      isLooping,
+    }),
+    [isPlaying, currentBeat, activeSetup.totalBeats, playbackSpeed, isLooping],
+  );
+
+  const contextValue = useStableContextValue<FloorPlanContextType>({
         project,
         activeSetup,
         selectedElementIds,
@@ -4169,13 +4309,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         activeCameraRig,
         historyIndex,
         historyLength: history.length,
-        playback: {
-          isPlaying,
-          currentBeat,
-          totalBeats: activeSetup.totalBeats || 3,
-          speed: playbackSpeed,
-          isLooping,
-        },
+        playback,
         isViewfinderOpen,
         viewfinderCameraId,
         isExportModalOpen,
@@ -4336,8 +4470,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateDisplaySettings,
         storageWarning,
         dismissStorageWarning,
-      }}
-    >
+  });
+
+  return (
+    <FloorPlanContext.Provider value={contextValue}>
       {children}
     </FloorPlanContext.Provider>
   );

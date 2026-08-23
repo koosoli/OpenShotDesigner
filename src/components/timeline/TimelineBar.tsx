@@ -1,9 +1,7 @@
 import React from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
-  FastForward,
   Film,
-  Layers,
   MessageCircle,
   Pause,
   Play,
@@ -65,6 +63,7 @@ export const TimelineBar: React.FC = () => {
         <button
           onClick={() => setCurrentBeat(1)}
           title="Rewind to Start (Beat 1)"
+          aria-label="Rewind to Start (Beat 1)"
           className={`p-2 rounded-lg transition-colors ${isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
         >
           <RotateCcw className="w-4 h-4" />
@@ -73,6 +72,7 @@ export const TimelineBar: React.FC = () => {
         <button
           onClick={() => setCurrentBeat(Math.max(1, Math.floor(currentBeat - 1)))}
           title="Previous Beat"
+          aria-label="Previous Beat"
           className={`p-2 rounded-lg transition-colors ${isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
         >
           <SkipBack className="w-4 h-4" />
@@ -82,6 +82,7 @@ export const TimelineBar: React.FC = () => {
           id="btn-play-pause"
           onClick={togglePlayback}
           title={isPlaying ? 'Pause Simulation (Space)' : 'Play Blocking Animation'}
+          aria-label={isPlaying ? 'Pause Simulation (Space)' : 'Play Blocking Animation'}
           className="flex items-center justify-center w-10 h-10 bg-sky-600 hover:bg-sky-500 text-white rounded-xl shadow-lg transition-transform active:scale-95"
         >
           {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
@@ -90,6 +91,7 @@ export const TimelineBar: React.FC = () => {
         <button
           onClick={() => setCurrentBeat(Math.min(totalBeats, Math.floor(currentBeat + 1)))}
           title="Next Beat"
+          aria-label="Next Beat"
           className={`p-2 rounded-lg transition-colors ${isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
         >
           <SkipForward className="w-4 h-4" />
@@ -107,6 +109,7 @@ export const TimelineBar: React.FC = () => {
             isLight ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200' : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700'
           }`}
           title="Playback Speed"
+          aria-label={`Playback speed ${speed}x`}
         >
           {speed}x
         </button>
@@ -120,6 +123,8 @@ export const TimelineBar: React.FC = () => {
               : isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-500 hover:text-slate-300'
           }`}
           title="Loop Animation"
+          aria-label="Loop Animation"
+          aria-pressed={isLooping}
         >
           <Repeat className="w-4 h-4" />
         </button>
@@ -132,6 +137,7 @@ export const TimelineBar: React.FC = () => {
               : isLight ? 'text-slate-400 border-slate-200 hover:text-slate-700' : 'text-slate-500 border-slate-800 hover:text-slate-300'
           }`}
           title={displaySettings.showSpeechBubbles ? 'Hide actor speech bubbles' : 'Show actor speech bubbles'}
+          aria-label={displaySettings.showSpeechBubbles ? 'Hide actor speech bubbles' : 'Show actor speech bubbles'}
           aria-pressed={displaySettings.showSpeechBubbles}
         >
           <MessageCircle className="w-4 h-4" />
@@ -193,6 +199,7 @@ export const TimelineBar: React.FC = () => {
               <button
                 key={beatNum}
                 onClick={() => setCurrentBeat(beatNum)}
+                aria-label={`Go to beat ${beatNum}`}
                 style={{ left: `${leftPercent}%` }}
                 className={`absolute -translate-x-1/2 w-4 h-4 rounded-full border-2 flex items-center justify-center text-[9px] font-bold font-mono transition-transform hover:scale-125 z-20 ${
                   Math.abs(currentBeat - beatNum) < 0.2

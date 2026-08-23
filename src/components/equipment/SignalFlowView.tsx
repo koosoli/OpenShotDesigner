@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Cable, Workflow, X } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { CableElement } from '../../types';
 import { CABLE_TYPES } from '../../constants/presets';
 import {
@@ -168,6 +169,9 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
     });
   };
 
+  // The parent only mounts this view while it is open, so the trap is armed
+  // unconditionally; it releases focus back to the caller when this unmounts.
+  const dialogRef = useDialogFocusTrap(true);
   const panelBg = isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-900 border-slate-700 text-slate-100';
   const subtleText = isLight ? 'text-slate-600' : 'text-slate-400';
   const cardBorder = isLight ? 'bg-slate-50 border-slate-300' : 'bg-slate-950 border-slate-700';
@@ -187,7 +191,14 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
-      <div className={`w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden ${panelBg}`}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="signal-flow-title"
+        tabIndex={-1}
+        className={`w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden outline-hidden ${panelBg}`}
+      >
         {/* Header */}
         <div className={`flex items-center justify-between gap-2 px-4 py-3 border-b ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/60'}`}>
           <div className="flex items-center gap-2">
@@ -195,7 +206,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
               <Workflow className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black">Signal Flow</h3>
+              <h3 id="signal-flow-title" className="text-sm font-black">Signal Flow</h3>
               <p className={`text-[11px] font-semibold ${subtleText}`}>
                 {cables.length} cable{cables.length === 1 ? '' : 's'} · {nodes.length} node{nodes.length === 1 ? '' : 's'} · {effectiveSourceIds.length} source{effectiveSourceIds.length === 1 ? '' : 's'}
               </p>

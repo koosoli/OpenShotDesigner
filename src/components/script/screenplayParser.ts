@@ -324,8 +324,6 @@ export const serializeToFountain = (
   if (cover) out.push(cover);
   else if (title) out.push(`Title: ${title}\n\n===\n\n`);
 
-  let prevType: ScriptElementType | undefined;
-
   lines.forEach((line) => {
     const text = (line.text || '').trim();
     if (!text) return;
@@ -371,7 +369,6 @@ export const serializeToFountain = (
         out.push(`\n${text}\n`);
         break;
     }
-    prevType = line.type;
   });
 
   return out.join('').trim() + '\n';

@@ -112,7 +112,7 @@ describe('concert scenario — no script anywhere', () => {
   });
 
   it('loads the power plan without a screenplay in sight', () => {
-    const load = calculatePowerLoad(project.powerPlan!.consumers, () => undefined);
+    const load = calculatePowerLoad(project.powerPlan?.consumers ?? [], () => undefined);
     expect(load.knownWatts).toBe(2400);
     expect(load.unknownConsumerCount).toBe(0);
   });

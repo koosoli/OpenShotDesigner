@@ -287,11 +287,29 @@ const cloneProductionCollections = (
     }));
   }
   if (project.breakdownItems) {
-    result.breakdownItems = project.breakdownItems.map((i) => ({
-      ...i,
-      id: remapRequired(itemMap, i.id),
-      sourceScriptLineIds: i.sourceScriptLineIds ? [...i.sourceScriptLineIds] : undefined,
-    }));
+    // The copied script has fresh line ids, so an element's pointers into it
+    // have to follow. They used to be copied verbatim, which left every tagged
+    // element in a duplicated project pointing at the original's lines: the
+    // breakdown looked intact but no element could say which scene it was in.
+    // A pointer at a line the copy does not include is dropped rather than
+    // kept dangling.
+    result.breakdownItems = project.breakdownItems.map((i) => {
+      const lineIds = i.sourceScriptLineIds
+        ?.map((id) => lineIdMap.get(id))
+        .filter((id): id is string => !!id);
+      const ranges = i.sourceRanges
+        ?.map((range) => {
+          const lineId = lineIdMap.get(range.lineId);
+          return lineId ? { ...range, lineId } : null;
+        })
+        .filter((range): range is NonNullable<typeof range> => !!range);
+      return {
+        ...i,
+        id: remapRequired(itemMap, i.id),
+        sourceScriptLineIds: lineIds,
+        ...(ranges ? { sourceRanges: ranges } : {}),
+      };
+    });
   }
   if (project.productionSegments) {
     result.productionSegments = project.productionSegments.map((s) => ({

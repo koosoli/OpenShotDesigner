@@ -2,8 +2,6 @@ import React, { useRef, useState } from 'react';
 import {
   ArrowRight,
   Camera,
-  Check,
-  Eye,
   EyeOff,
   GripVertical,
   Image as ImageIcon,
@@ -210,6 +208,7 @@ export const StoryboardPanel: React.FC = () => {
                 fileInputRef.current?.click();
               }}
               title="Replace image"
+              aria-label="Replace image"
               className="p-1 rounded-md bg-black/60 text-white"
             >
               <Upload className="w-3 h-3" />
@@ -221,6 +220,7 @@ export const StoryboardPanel: React.FC = () => {
                   updateShot(shot.id, setSlotOmittedPatch(shot, slot.key, true, camera, hideBlankWaypoints));
                 }}
                 title="Omit this waypoint picture from storyboard (keeps artwork safe)"
+                aria-label="Omit this waypoint picture from storyboard (keeps artwork safe)"
                 className="p-1 rounded-md bg-black/60 hover:bg-black/80 text-white"
               >
                 <EyeOff className="w-3 h-3" />
@@ -232,6 +232,7 @@ export const StoryboardPanel: React.FC = () => {
                 setImage(shot, slot.key, undefined);
               }}
               title="Remove image"
+              aria-label="Remove image"
               className="p-1 rounded-md bg-black/60 text-white"
             >
               <X className="w-3 h-3" />
@@ -282,6 +283,7 @@ export const StoryboardPanel: React.FC = () => {
               ? 'Currently omitting blank waypoint frames across all shots. Click to show all unboarded keyframes.'
               : 'Click to omit unboarded waypoint frames from the storyboard.'
           }
+          aria-pressed={hideBlankWaypoints}
           className={`px-2 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
             hideBlankWaypoints
               ? 'bg-violet-600 text-white border-violet-500 shadow-xs'
@@ -376,6 +378,8 @@ export const StoryboardPanel: React.FC = () => {
                         </div>
                         <button
                           onClick={() => setOpenWaypointsShotId(null)}
+                          title="Close the framing beats panel"
+                          aria-label="Close the framing beats panel"
                           className="p-1 rounded-md text-slate-400 hover:text-slate-200"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -551,6 +555,8 @@ export const StoryboardPanel: React.FC = () => {
                             setOpenWaypointsShotId(isWaypointsOpen ? null : shot.id);
                           }}
                           title={`Manage waypoint frames (${slots.length}/${allSlots.length} active)`}
+                          aria-label={`Manage waypoint frames (${slots.length}/${allSlots.length} active)`}
+                          aria-expanded={isWaypointsOpen}
                           className={`p-1 rounded-md text-[10px] font-mono font-bold flex items-center gap-1 transition-colors ${
                             slots.length < allSlots.length
                               ? 'bg-amber-500 text-black shadow-xs'
@@ -571,6 +577,7 @@ export const StoryboardPanel: React.FC = () => {
                             openViewfinder(shot.cameraId);
                           }}
                           title="Open the viewfinder for this shot — take a storyboard photo with this device's camera"
+                          aria-label="Open the viewfinder for this shot — take a storyboard photo with this device's camera"
                           className="p-1 rounded-md bg-black/60 text-white hover:bg-black/80"
                         >
                           <Video className="w-3.5 h-3.5" />
@@ -633,6 +640,7 @@ export const StoryboardPanel: React.FC = () => {
                           deleteShot(shot.id);
                         }}
                         title="Delete this shot (removes it from the shot list and its camera from the plan)"
+                        aria-label="Delete this shot (removes it from the shot list and its camera from the plan)"
                         className="p-1 rounded text-rose-500 hover:bg-rose-500/10"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

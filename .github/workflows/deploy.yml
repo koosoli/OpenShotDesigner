@@ -21,7 +21,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Kept in sync with ci.yml: jsdom 30 -> undici 8 needs Node >= 22, and
+          # a deploy that builds on a different major than CI verified is a
+          # difference nobody would notice until the published bundle broke.
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: GH_PAGES=true npm run build

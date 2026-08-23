@@ -261,7 +261,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
                 onChange={(e) => onUpdateEvent(event.id, { color: e.target.value })}
                 className="w-4 h-4 p-0 border-0 rounded-full cursor-pointer bg-transparent shrink-0"
               />
-              <button onClick={() => onDeleteEvent(event.id)} className={`${mutedText} hover:text-red-500 shrink-0`} title="Delete line">
+              <button onClick={() => onDeleteEvent(event.id)} className={`${mutedText} hover:text-red-500 shrink-0`} title="Delete line" aria-label="Delete line">
                 <Trash2 className="w-3 h-3" />
               </button>
             </>,

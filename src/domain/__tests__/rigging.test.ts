@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createId } from '../ids';
 import type { RiggingItem, SuspendedLoad, TrussElement, TrussProfile } from '../rigging/types';
-import { calculateTrussLoad, SAFETY_DISCLAIMER } from '../rigging/logic';
+import { calculateTrussLoad, evaluateTrussCapacity, SAFETY_DISCLAIMER } from '../rigging/logic';
 
 const truss = (id: string): TrussElement => ({
   id,
@@ -105,5 +105,76 @@ describe('calculateTrussLoad', () => {
     expect(typeof SAFETY_DISCLAIMER).toBe('string');
     expect(SAFETY_DISCLAIMER.length).toBeGreaterThan(0);
     expect(SAFETY_DISCLAIMER).toMatch(/not a structural safety certification/i);
+  });
+});
+
+describe('evaluateTrussCapacity', () => {
+  const profile: TrussProfile = { id: 'profile-1', geometry: 'box', selfWeightKg: 10 };
+  const load = (weightKg: number): SuspendedLoad => ({
+    id: createId('load'),
+    trussElementId: 'truss-1',
+    label: 'Fixture',
+    weightKg,
+    quantity: 1,
+    source: 'manual',
+  });
+
+  it('adds up motor and hang-point capacity and calls a load within it', () => {
+    const t = truss('truss-1');
+    const items: RiggingItem[] = [
+      { id: createId('rig'), kind: 'motor', trussElementId: 'truss-1', capacityKg: 250 },
+      { id: createId('rig'), kind: 'hang_point', trussElementId: 'truss-1', capacityKg: 150 },
+      { id: createId('rig'), kind: 'clamp', trussElementId: 'truss-1' },
+      { id: createId('rig'), kind: 'motor', trussElementId: 'other-truss', capacityKg: 1000 },
+    ];
+    const breakdown = calculateTrussLoad(t, profile, [load(90)], items);
+    const verdict = evaluateTrussCapacity(breakdown, items);
+    expect(verdict.pointCount).toBe(2);
+    expect(verdict.capacityKg).toBe(400);
+    expect(verdict.utilization).toBeCloseTo(100 / 400, 10);
+    expect(verdict.verdict).toBe('within');
+  });
+
+  it('flags a run whose planned load exceeds its rated points', () => {
+    const t = truss('truss-1');
+    const items: RiggingItem[] = [
+      { id: createId('rig'), kind: 'motor', trussElementId: 'truss-1', capacityKg: 50 },
+    ];
+    const breakdown = calculateTrussLoad(t, profile, [load(80)], items);
+    expect(evaluateTrussCapacity(breakdown, items).verdict).toBe('over');
+  });
+
+  it('keeps capacity unknown when any single point has no rating', () => {
+    const t = truss('truss-1');
+    const items: RiggingItem[] = [
+      { id: createId('rig'), kind: 'motor', trussElementId: 'truss-1', capacityKg: 250 },
+      { id: createId('rig'), kind: 'motor', trussElementId: 'truss-1' },
+    ];
+    const breakdown = calculateTrussLoad(t, profile, [load(80)], items);
+    const verdict = evaluateTrussCapacity(breakdown, items);
+    expect(verdict.unknownCapacityPointCount).toBe(1);
+    expect(verdict.capacityKg).toBeNull();
+    expect(verdict.utilization).toBeNull();
+    expect(verdict.verdict).toBe('unknown');
+  });
+
+  it('stays unknown with no rigging points at all, and when the load total is unknown', () => {
+    const t = truss('truss-1');
+    const noPoints = evaluateTrussCapacity(calculateTrussLoad(t, profile, [load(10)], []), []);
+    expect(noPoints.pointCount).toBe(0);
+    expect(noPoints.capacityKg).toBeNull();
+    expect(noPoints.verdict).toBe('unknown');
+
+    const items: RiggingItem[] = [
+      { id: createId('rig'), kind: 'motor', trussElementId: 'truss-1', capacityKg: 250 },
+    ];
+    // No profile -> self-weight unknown -> total unknown -> no verdict.
+    const unknownTotal = evaluateTrussCapacity(
+      calculateTrussLoad(t, undefined, [load(10)], items),
+      items,
+    );
+    expect(unknownTotal.capacityKg).toBe(250);
+    expect(unknownTotal.utilization).toBeNull();
+    expect(unknownTotal.verdict).toBe('unknown');
   });
 });

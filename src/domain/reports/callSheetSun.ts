@@ -15,7 +15,7 @@
  * mistakes a typed time for an astronomical one.
  */
 
-import { sunTimes } from '../sun';
+import { clockInZone, resolveTimeZone, sunTimes, wallClockToUtc } from '../sun';
 
 export interface DaylightSource {
   /** ISO date (YYYY-MM-DD) of the shooting day. */
@@ -23,6 +23,12 @@ export interface DaylightSource {
   /** Coordinates of the day's shooting location, when it has a pin. */
   lat?: number;
   lng?: number;
+  /**
+   * IANA zone of the shooting location. A producer scheduling from another
+   * continent is the normal case, not the exception, and without this the sheet
+   * prints the sun in whatever zone the laptop happens to be in.
+   */
+  timeZone?: string;
   /** Explicit entries that beat the calculation. Free text, stored verbatim. */
   sunriseOverride?: string;
   sunsetOverride?: string;
@@ -36,29 +42,45 @@ export type DaylightOrigin =
   /** No pin, no date, or a polar day where the event does not occur. */
   | 'unknown';
 
+/** Where the zone the times are printed in came from. */
+export type DaylightTimeZoneOrigin =
+  /** The shooting location declares its zone; the times are the unit's own. */
+  | 'location'
+  /** No zone on the location, so the machine's zone stands in, as it always did. */
+  | 'machine'
+  /** A zone was set that this machine cannot read; the machine's zone stood in. */
+  | 'fallback';
+
 export interface CallSheetDaylight {
   sunrise?: string;
   sunset?: string;
   sunriseOrigin: DaylightOrigin;
   sunsetOrigin: DaylightOrigin;
+  /** The IANA zone the printed times are in, whichever way it was arrived at. */
+  timeZone: string;
+  timeZoneOrigin: DaylightTimeZoneOrigin;
   /**
-   * Set when the sun does not rise or set at all at this latitude on this date.
-   * Printing "—" for a Tromsø shoot in December is technically true and
-   * useless; the sheet should say why (rule 13).
+   * Why the times are not the plain derived pair a reader expects: the sun does
+   * not rise or set at all at this latitude on this date, or the location's zone
+   * could not be read. Printing "—" for a Tromsø shoot in December is
+   * technically true and useless; the sheet should say why (rule 13).
    */
   note?: string;
 }
 
-/** Local wall-clock "HH:MM". Call sheets are read in local time, always. */
-const clock = (date: Date): string =>
-  `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-
-/** A date-only ISO string parsed as local noon, so the day never slips a zone. */
-const localNoon = (iso: string): Date | null => {
+/**
+ * A date-only ISO string as noon *at the location*, so the day never slips a
+ * zone. Noon rather than midnight because it is the furthest an hour of DST or
+ * a date-line neighbour can push the instant without landing on another date.
+ */
+const noonInZone = (iso: string, timeZone: string): Date | null => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
   if (!match) return null;
   const [, year, month, day] = match;
-  const date = new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0, 0);
+  const date = wallClockToUtc(
+    { year: Number(year), month: Number(month), day: Number(day), hour: 12, minute: 0, second: 0 },
+    timeZone,
+  );
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -73,19 +95,35 @@ export const deriveDaylight = (source: DaylightSource): CallSheetDaylight => {
   const sunriseOverride = source.sunriseOverride?.trim();
   const sunsetOverride = source.sunsetOverride?.trim();
 
+  // Resolved before anything else, and whether or not there is a pin: an
+  // unreadable zone is worth saying on a sheet that has only overrides on it.
+  const zone = resolveTimeZone(source.timeZone);
+
   const hasPin = typeof source.lat === 'number' && typeof source.lng === 'number';
-  const date = source.date ? localNoon(source.date) : null;
+  const date = source.date ? noonInZone(source.date, zone.id) : null;
 
   let derivedSunrise: string | undefined;
   let derivedSunset: string | undefined;
-  let note: string | undefined;
+  const notes: string[] = [];
 
   if (hasPin && date) {
-    const times = sunTimes({ lat: source.lat as number, lng: source.lng as number, date });
-    if (times.polarNight) note = 'Polar night — the sun does not rise at this location today.';
-    else if (times.midnightSun) note = 'Midnight sun — the sun does not set at this location today.';
-    if (times.sunrise) derivedSunrise = clock(times.sunrise);
-    if (times.sunset) derivedSunset = clock(times.sunset);
+    const times = sunTimes({
+      lat: source.lat as number,
+      lng: source.lng as number,
+      date,
+      timeZone: zone.id,
+    });
+    if (times.polarNight) notes.push('Polar night — the sun does not rise at this location today.');
+    else if (times.midnightSun) notes.push('Midnight sun — the sun does not set at this location today.');
+    if (times.sunrise) derivedSunrise = clockInZone(times.sunrise, zone.id);
+    if (times.sunset) derivedSunset = clockInZone(times.sunset, zone.id);
+  }
+
+  // Rule 13: a zone we cannot read is not quietly swapped for a plausible one.
+  if (zone.origin === 'fallback') {
+    notes.push(
+      `Time zone “${zone.requested}” is not recognised here — times are shown in ${zone.id}, this machine’s zone.`,
+    );
   }
 
   const resolve = (
@@ -99,12 +137,15 @@ export const deriveDaylight = (source: DaylightSource): CallSheetDaylight => {
 
   const sunrise = resolve(sunriseOverride, derivedSunrise);
   const sunset = resolve(sunsetOverride, derivedSunset);
+  const note = notes.join(' ');
 
   return {
     ...(sunrise.value ? { sunrise: sunrise.value } : {}),
     ...(sunset.value ? { sunset: sunset.value } : {}),
     sunriseOrigin: sunrise.origin,
     sunsetOrigin: sunset.origin,
+    timeZone: zone.id,
+    timeZoneOrigin: zone.origin === 'requested' ? 'location' : zone.origin,
     ...(note ? { note } : {}),
   };
 };

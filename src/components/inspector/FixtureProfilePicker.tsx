@@ -145,6 +145,8 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
         <button
           onClick={() => setShowCustomForm((v) => !v)}
           title={showCustomForm ? 'Close custom fixture editor' : 'Author a fixture that is not in OFL'}
+          aria-label={showCustomForm ? 'Close custom fixture editor' : 'Author a fixture that is not in OFL'}
+          aria-expanded={showCustomForm}
           className={`p-1 rounded ${isLight ? 'hover:bg-slate-200' : 'hover:bg-slate-800'} ${mutedCls}`}
         >
           {showCustomForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}

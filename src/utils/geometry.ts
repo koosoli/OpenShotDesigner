@@ -1,6 +1,4 @@
 import {
-  AspectRatio,
-  FloorPlanElement,
   SensorFormat,
   Vector2D,
   Waypoint,

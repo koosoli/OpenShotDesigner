@@ -21,7 +21,7 @@ interface FreehandStrokeLayerProps {
 }
 
 /** Shared stroke renderer used by both the editor canvas and printable exports. */
-export const FreehandStrokeLayer: React.FC<FreehandStrokeLayerProps> = ({
+const FreehandStrokeLayerImpl: React.FC<FreehandStrokeLayerProps> = ({
   strokes,
   liveStroke,
   liveColor = '#0ea5e9',
@@ -97,3 +97,13 @@ export const FreehandStrokeLayer: React.FC<FreehandStrokeLayerProps> = ({
     </g>
   );
 };
+
+/**
+ * Memoised because the canvas re-renders on every pointer move — hovering the
+ * plan used to redraw every layer, glyph by glyph. The props are stable by
+ * construction on the canvas side (element buckets come from one memoised
+ * pass, callbacks are `useCallback`ed), so a shallow compare is enough and a
+ * custom comparator would only hide a prop that is not stable yet.
+ */
+export const FreehandStrokeLayer = React.memo(FreehandStrokeLayerImpl);
+FreehandStrokeLayerImpl.displayName = 'FreehandStrokeLayer';

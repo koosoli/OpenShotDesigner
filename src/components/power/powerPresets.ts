@@ -4,7 +4,7 @@
  * Pure data only — no React, no business logic beyond label/typical-value
  * lookup (rules 4 & 11: shared presets, not one-off symbols in components).
  */
-import type { PowerConsumer, PowerPlan, PowerSourceKind } from '../../domain/power';
+import type { PlanPowerConsumer, PowerConsumer, PowerPlan, PowerSourceKind } from '../../domain/power';
 
 export interface PowerSourcePreset {
   label: string;
@@ -54,9 +54,12 @@ export interface PowerPanelPlan extends PowerPlan {
 }
 
 /** Consumer created from a scene light; keeps provenance for de-duplication. */
-export interface ScenePowerConsumer extends PowerConsumer {
-  sourceElementId?: string;
-}
+/**
+ * A consumer as the power panel works with it. `sourceElementId` links it to
+ * the floor-plan light it stands for; the two derivation markers are working
+ * state added by `derivePlanConsumers` and stripped before saving.
+ */
+export type ScenePowerConsumer = PlanPowerConsumer;
 
 export const EMPTY_PLAN: PowerPanelPlan = { sources: [], circuits: [], consumers: [] };
 

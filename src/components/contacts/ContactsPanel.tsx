@@ -29,7 +29,6 @@ import {
   groupPeopleByDepartment,
   parsePeopleCsv,
   peopleToCsv,
-  personInitials,
   removePerson,
   unassignCast,
   upsertPerson,
@@ -387,7 +386,14 @@ export const ContactsPanel: React.FC = () => {
       {importMessage && (
         <p className={`text-[11px] flex items-center gap-2 ${mutedCls}`}>
           {importMessage}
-          <button onClick={() => setImportMessage(null)} className="p-0.5"><X className="w-3 h-3" /></button>
+          <button
+            onClick={() => setImportMessage(null)}
+            className="p-0.5"
+            title="Dismiss this import message"
+            aria-label="Dismiss this import message"
+          >
+            <X className="w-3 h-3" />
+          </button>
         </p>
       )}
 

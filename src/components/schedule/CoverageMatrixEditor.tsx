@@ -76,7 +76,6 @@ export const CoverageMatrixEditor: React.FC = () => {
     setNewRowLabel('');
   };
 
-  const cardClass = isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700';
   const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
   const headingText = isLight ? 'text-slate-700' : 'text-slate-300';
   const inputClass = `min-h-[36px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${

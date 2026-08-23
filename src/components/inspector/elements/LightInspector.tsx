@@ -184,7 +184,9 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                       key={s.color}
                       type="button"
                       title={s.label}
+                      aria-label={s.label}
                       onClick={() => updateElement(light.id, { roleColor: s.color })}
+                      aria-pressed={light.roleColor?.toLowerCase() === s.color.toLowerCase()}
                       className={`w-4 h-4 rounded-full border transition-transform hover:scale-110 ${
                         light.roleColor?.toLowerCase() === s.color.toLowerCase()
                           ? 'ring-2 ring-sky-500 scale-110'
@@ -960,7 +962,9 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     key={s.color}
                     type="button"
                     title={s.label}
+                    aria-label={s.label}
                     onClick={() => updateElement(light.id, { labelColor: s.color })}
+                    aria-pressed={light.labelColor?.toLowerCase() === s.color.toLowerCase()}
                     className={`w-4 h-4 rounded-full border transition-transform hover:scale-110 ${
                       light.labelColor?.toLowerCase() === s.color.toLowerCase()
                         ? 'ring-2 ring-sky-500 scale-110'

@@ -9,6 +9,7 @@ import {
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { Shot, ShotStatus } from '../../types';
 import { sortCues } from '../../domain/scheduling';
+import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 
 /**
  * On-set / show-day mode (plan §35, standalone core).
@@ -62,6 +63,9 @@ interface OnSetModeOverlayProps {
 export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) => {
   const { project, activeSetup, theme, updateShot, selectShot } = useFloorPlan();
   const isLight = theme === 'light';
+  // The overlay covers the workspace without unmounting it, so without a trap
+  // Tab would walk the shot list underneath — mounted here means always open.
+  const dialogRef = useDialogFocusTrap(true);
 
   // Shots in setup order (same order the shot list shows them in).
   const shots: Shot[] = activeSetup.shots;
@@ -148,6 +152,11 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
   return (
     <div
       id="on-set-mode-overlay"
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="on-set-mode-title"
+      tabIndex={-1}
       className={`fixed inset-0 z-[70] overflow-y-auto ${isLight ? 'bg-slate-100' : 'bg-slate-950'} ${
         isLight ? 'text-slate-900' : 'text-slate-100'
       }`}
@@ -160,7 +169,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               <Clapperboard className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-black tracking-tight uppercase">On-set mode</h1>
+              <h1 id="on-set-mode-title" className="text-base sm:text-lg font-black tracking-tight uppercase">On-set mode</h1>
               <p className={`text-xs ${subtextClass}`}>
                 Scene {activeSetup.sceneNumber}: {activeSetup.name}
               </p>
@@ -178,6 +187,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
             <button
               onClick={onClose}
               title="Exit on-set mode (Esc)"
+              aria-label="Exit on-set mode (Esc)"
               className={`p-3 rounded-xl border transition-colors ${
                 isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'
               }`}

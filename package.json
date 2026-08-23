@@ -14,7 +14,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit && eslint . --max-warnings=400 && node scripts/check-encoding.mjs",
+    "lint": "tsc --noEmit && eslint . --max-warnings=149 && node scripts/check-encoding.mjs",
     "lint:fix": "eslint . --fix",
     "check:encoding": "node scripts/check-encoding.mjs",
     "typecheck": "tsc --noEmit",
@@ -23,17 +23,17 @@
     "fixtures:build": "npx --yes tsx scripts/build-fixture-db.ts"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.4",
     "lucide-react": "^0.546.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@tailwindcss/vite": "^4.1.14",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^5.0.4",
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9.39.5",
     "eslint-plugin-jsx-a11y": "^6.10.2",

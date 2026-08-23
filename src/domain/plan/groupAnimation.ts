@@ -397,7 +397,11 @@ export function transformMemberElement(el: FloorPlanElement, xf: RigidTransform)
       rotation: normalizeAngleDeg(el.rotation + xf.deltaDeg),
       // Rotate movement-waypoint positions only; keep each waypoint's own
       // rotation value (they describe the subject, not the group move).
-      path: el.path ? transformWaypoints(el.path, xf) : el.path,
+      //
+      // Spread conditionally rather than writing `path: undefined`: an actor's
+      // path is required and a prop's is not, so assigning the absent case
+      // back would widen a required field to undefined.
+      ...(el.path ? { path: transformWaypoints(el.path, xf) } : null),
     };
   }
 

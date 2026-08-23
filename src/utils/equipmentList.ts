@@ -1039,7 +1039,7 @@ const formatFixtureType = (type: string): { brand?: string; model: string } => {
 export const formatCameraRigEquipment = (
   rigType: string,
   camLabel: string,
-  camId: string
+  _camId: string
 ): EquipmentItem | null => {
   const norm = rigType.trim();
   switch (norm) {

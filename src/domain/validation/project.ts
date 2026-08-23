@@ -8,7 +8,6 @@ import type {
   FloorPlanElement,
   Project,
   SceneSetup,
-  Shot,
 } from '../../types';
 import { issue, type ValidationIssue } from './types';
 

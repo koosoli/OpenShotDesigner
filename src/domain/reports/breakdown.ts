@@ -105,11 +105,44 @@ export const deriveDepartmentReport = (
 };
 
 /**
- * Numeric-aware scene-number comparison: runs of digits compare numerically,
- * everything else lexicographically, so '10' sorts after '9' and '2A' sorts
- * after '2' but before '3'.
+ * Scene-number comparison that understands both halves of the production
+ * numbering convention.
+ *
+ * A *suffix* means "inserted after": 3, 3A, 3AA, 3B. A *prefix* means
+ * "inserted before": A1 is the scene added ahead of scene 1, and A3A the one
+ * added ahead of 3A. The two are not symmetric, and the generic token walk
+ * below cannot see the difference — it sorted every prefixed number to the very
+ * end of the report, so `A1` printed after the last scene of the film rather
+ * than before scene 1. That was wrong for numbers this app has generated since
+ * prefixes were introduced (`insertedSceneNumber` mints them), which is why it
+ * is worth a dedicated path rather than a note.
+ *
+ * Within one base number the order is therefore: the bare number, then each
+ * suffix in string order ("" < "A" < "AA" < "B"), with a prefixed number
+ * immediately ahead of the number it was inserted before, and prefixes among
+ * themselves in letter order (A1 before B1, both before 1).
+ *
+ * Anything that is not a production number — an empty string, "OMITTED", a
+ * free-text label — falls through to the original numeric-aware token walk, so
+ * '10' still sorts after '9'.
  */
+const SCENE_NUMBER = /^([A-Z]*)(\d+)([A-Z]*)$/;
+
 export const compareSceneNumbers = (a: string, b: string): number => {
+  const parsedA = SCENE_NUMBER.exec(a.trim().toUpperCase());
+  const parsedB = SCENE_NUMBER.exec(b.trim().toUpperCase());
+  if (parsedA && parsedB) {
+    const [, prefixA, baseA, suffixA] = parsedA;
+    const [, prefixB, baseB, suffixB] = parsedB;
+    if (baseA !== baseB) return Number(baseA) - Number(baseB);
+    if (suffixA !== suffixB) return suffixA < suffixB ? -1 : 1;
+    // Same slot: a prefixed number was inserted ahead of the unprefixed one.
+    if (prefixA === prefixB) return 0;
+    if (prefixA === '') return 1;
+    if (prefixB === '') return -1;
+    return prefixA < prefixB ? -1 : 1;
+  }
+
   const tokensA = a.match(/\d+|\D+/g) ?? [a];
   const tokensB = b.match(/\d+|\D+/g) ?? [b];
   const len = Math.min(tokensA.length, tokensB.length);

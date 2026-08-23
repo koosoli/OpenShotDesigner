@@ -79,7 +79,11 @@ export const roundMoney = (value: number): number => {
  * full weeks regardless enters the rate as a flat fee instead.
  */
 export const rateNet = (rate: RateCard, units: number, quantity: number, weekDays: number): number => {
-  const qty = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+  // A quantity of 0 is a decision — a line struck for this budget version, a
+  // role not being cast — and has to price as nothing. Only a missing or
+  // nonsensical quantity falls back to one; treating an explicit 0 as 1 put
+  // money back into a line the producer had just taken out.
+  const qty = Number.isFinite(quantity) && quantity >= 0 ? quantity : 1;
   const days = Number.isFinite(units) && units > 0 ? units : 0;
   const week = Number.isFinite(weekDays) && weekDays > 0 ? weekDays : 5;
   switch (rate.basis) {

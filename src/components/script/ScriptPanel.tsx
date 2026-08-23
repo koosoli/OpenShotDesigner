@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   BarChart3,
@@ -6,7 +6,6 @@ import {
   ClipboardPaste,
   Code2,
   Download,
-  Edit3,
   FileText,
   ImagePlus,
   Layers,
@@ -25,7 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { AVScriptRow, ScriptElementType, ScriptFormatMode, ScriptLine, ScriptMark, Shot, ShotSize } from '../../types';
+import { AVScriptRow, ScriptElementType, ScriptFormatMode, ScriptLine, Shot, ShotSize } from '../../types';
 import { loadStoryboardImageFile } from '../../utils/image';
 import {
   formatParenthetical,
@@ -52,7 +51,13 @@ import {
   removeLineOrOmit,
   restoreScene,
   rowsForMissingShots,
+  breakdownCategoryLabel,
+  breakdownCategoryTint,
+  breakdownItemsForLines,
+  pruneBreakdownScriptLines,
+  untagScriptLine,
 } from '../../domain/script';
+import type { BreakdownSourceRange, ScreenplayTitlePage } from '../../domain/script';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
 import { TitlePageEditor } from './TitlePageEditor';
 import { SetLocationLink } from '../locations/SetLocationLink';
@@ -151,6 +156,16 @@ const ELEMENT_STYLES: Record<ScriptElementType, { label: string; shortcut: strin
   'page-break': { label: 'Page Break', shortcut: '===', color: 'text-slate-500 border-slate-700/40', indentClass: 'text-center opacity-40 text-xs py-2' },
 };
 
+/**
+ * The suggestion dropdown's contents, tagged by which catalogue produced them.
+ * Item types are derived from the suggestion functions so they cannot drift
+ * from the catalogues they come out of.
+ */
+type SuggestionList =
+  | { kind: 'character'; items: ReturnType<typeof suggestCharacters> }
+  | { kind: 'location'; items: ReturnType<typeof suggestLocations> }
+  | { kind: 'none'; items: [] };
+
 export const ScriptPanel: React.FC = () => {
   const {
     activeSetup,
@@ -169,7 +184,7 @@ export const ScriptPanel: React.FC = () => {
     updateScriptMark,
     setLiningDescription,
     deleteScriptMark,
-    setScriptLines,
+    setScriptLines: setScriptLinesRaw,
     setSceneNumbersLocked,
     avScriptRows,
     setAVScriptRows,
@@ -183,7 +198,40 @@ export const ScriptPanel: React.FC = () => {
     displaySettings,
     theme,
     project,
+    updateProjectMeta,
   } = useFloorPlan();
+
+  /**
+   * Every write to the script goes through here so breakdown elements cannot
+   * outlive the lines they were tagged from.
+   *
+   * Wrapping the context action rather than pruning at each of the dozen call
+   * sites (delete a line, omit a scene, re-import, paste over the lot) is what
+   * makes this hold for the next one somebody adds. Lines parked inside an
+   * omitted scene's `omittedBody` count as alive: the scene can be restored,
+   * and losing its props on the way out and back would be a silent edit.
+   */
+  const setScriptLines = useCallback(
+    (next: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string; titlePage?: ScreenplayTitlePage }) => {
+      setScriptLinesRaw(next, meta);
+      updateProjectMeta((prev) => {
+        const items = prev.breakdownItems ?? [];
+        if (items.length === 0) return {};
+        const live = new Set<string>();
+        const walk = (candidates: ScriptLine[]) => {
+          for (const line of candidates) {
+            live.add(line.id);
+            if (line.omittedBody) walk(line.omittedBody);
+          }
+        };
+        walk(next);
+        const pruned = pruneBreakdownScriptLines(items, live);
+        const unchanged = pruned.every((item, index) => item === items[index]);
+        return unchanged ? {} : { breakdownItems: pruned };
+      });
+    },
+    [setScriptLinesRaw, updateProjectMeta],
+  );
 
   const isLight = theme === 'light';
   const lines = scriptLines;
@@ -257,21 +305,33 @@ export const ScriptPanel: React.FC = () => {
     return Array.from(seen.values());
   }, [lines, project.locations]);
   const [suggest, setSuggest] = useState<{ lineId: string; kind: 'character' | 'location' } | null>(null);
-  const activeSuggestions = useMemo(() => {
+  // Tagged by kind rather than returned as a bare array. The two suggestion
+  // lists hold different shapes — a character has a canonical name and
+  // aliases, a location has a name — and a plain union leaves every render
+  // site asserting which one it got. The tag makes the narrowing real.
+  const activeSuggestions = useMemo((): SuggestionList => {
     // The list belongs to the line being edited. Without this it kept pointing
     // at the line it was opened on: pressing Enter to start an action line left
     // the location suggestions hanging under the scene heading above, with no
     // way to dismiss them short of Escape on a field no longer focused.
-    if (!suggest || suggest.lineId !== activeEditingLineId) return [];
+    if (!suggest || suggest.lineId !== activeEditingLineId) return { kind: 'none', items: [] };
     const line = lines.find((l) => l.id === suggest.lineId);
-    if (!line) return [];
+    if (!line) return { kind: 'none', items: [] };
     if (suggest.kind === 'character') {
-      return suggestCharacters(characterCatalog, line.text || '').filter((c) => c.canonicalName !== (line.text || '').trim().toUpperCase());
+      return {
+        kind: 'character',
+        items: suggestCharacters(characterCatalog, line.text || '').filter(
+          (c) => c.canonicalName !== (line.text || '').trim().toUpperCase(),
+        ),
+      };
     }
     const query = sceneHeadingLocationQuery(line.text || '');
-    return suggestLocations(locationCatalog, query).filter(
-      (l) => l.name.toLowerCase() !== query.trim().toLowerCase()
-    );
+    return {
+      kind: 'location',
+      items: suggestLocations(locationCatalog, query).filter(
+        (l) => l.name.toLowerCase() !== query.trim().toLowerCase()
+      ),
+    };
   }, [suggest, activeEditingLineId, lines, characterCatalog, locationCatalog]);
 
   useEffect(() => {
@@ -431,6 +491,51 @@ export const ScriptPanel: React.FC = () => {
     return lines.slice(effectiveRange.from, effectiveRange.to + 1).map((line) => line.id);
   }, [effectiveRange, lines]);
 
+  /**
+   * The selection as one range per line, which is what a breakdown tag stores.
+   *
+   * Only the first and last line of a multi-line selection are partial; the
+   * ones between are covered end to end, so they carry no offsets and read as
+   * "the whole line". A whole-line selection (dragging down the gutter rather
+   * than through the text) yields no offsets at all, which is honest — the
+   * user picked lines, not words.
+   */
+  const selectedRanges = useMemo<BreakdownSourceRange[]>(() => {
+    if (!effectiveRange) return [];
+    return lines.slice(effectiveRange.from, effectiveRange.to + 1).map((line, offsetIndex) => {
+      const index = effectiveRange.from + offsetIndex;
+      if (!effectiveRange.partial) return { lineId: line.id };
+      const start = index === effectiveRange.from ? effectiveRange.startOffset ?? 0 : 0;
+      const end = index === effectiveRange.to ? effectiveRange.endOffset ?? line.text.length : line.text.length;
+      return start <= 0 && end >= line.text.length
+        ? { lineId: line.id }
+        : { lineId: line.id, startOffset: start, endOffset: end };
+    });
+  }, [effectiveRange, lines]);
+
+  const breakdownItems = useMemo(() => project.breakdownItems ?? [], [project.breakdownItems]);
+
+  /** Elements already tagged anywhere in the selection — the untag list. */
+  const taggedInSelection = useMemo(
+    () => breakdownItemsForLines(breakdownItems, selectedLineIds),
+    [breakdownItems, selectedLineIds],
+  );
+
+  const [highlightedBreakdownItemId, setHighlightedBreakdownItemId] = useState<string | null>(null);
+
+  /**
+   * Untag every line of the selection at once. Untagging one line of a phrase
+   * that spans two would leave half a mark on the page, which reads as a bug
+   * rather than a partial edit.
+   */
+  const untagFromSelection = (itemId: string) => {
+    updateProjectMeta((prev) => {
+      let next = prev.breakdownItems ?? [];
+      for (const lineId of selectedLineIds) next = untagScriptLine(next, itemId, lineId);
+      return { breakdownItems: next };
+    });
+  };
+
   const selectedSceneNumber = useMemo(() => {
     if (!effectiveRange) return undefined;
     for (let i = effectiveRange.from; i >= 0; i -= 1) {
@@ -532,9 +637,27 @@ export const ScriptPanel: React.FC = () => {
       }
     };
 
-    const target = scrollRef.current;
-    target?.addEventListener('mouseup', handleMouseUp);
-    return () => target?.removeEventListener('mouseup', handleMouseUp);
+    // Listen on the document, not on `scrollRef.current`. The ref is bound to
+    // two different conditionally-rendered containers, so a tab switch
+    // remounts the node and a listener attached to the old one goes with it —
+    // lining a speech silently stopped working until the panel was reopened.
+    // `handleMouseUp` reads `scrollRef.current` at event time and ignores
+    // selections outside it, so document-level is safe. `pointerup` also
+    // covers touch and pen, which `mouseup` did not; the frame of delay lets
+    // the browser settle the selection first (touch selection handles land
+    // after the pointer is up).
+    let frame = 0;
+    const handlePointerUp = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(handleMouseUp);
+    };
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('keyup', handlePointerUp);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener('keyup', handlePointerUp);
+    };
   }, []);
 
   const stripParentheses = (text: string): string => {
@@ -819,6 +942,7 @@ export const ScriptPanel: React.FC = () => {
           <div className={`flex items-center p-0.5 rounded-lg border ${isLight ? 'bg-slate-200/70 border-slate-300' : 'bg-slate-900 border-slate-700'}`}>
             <button
               onClick={() => handleTabSwitch('lined_coverage')}
+              aria-pressed={activeTab === 'lined_coverage'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'lined_coverage'
                   ? 'bg-violet-600 text-white shadow-sm'
@@ -830,6 +954,7 @@ export const ScriptPanel: React.FC = () => {
             </button>
             <button
               onClick={() => handleTabSwitch('screenplay')}
+              aria-pressed={activeTab === 'screenplay'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'screenplay'
                   ? 'bg-violet-600 text-white shadow-sm'
@@ -842,6 +967,7 @@ export const ScriptPanel: React.FC = () => {
             </button>
             <button
               onClick={() => handleTabSwitch('av_script')}
+              aria-pressed={activeTab === 'av_script'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'av_script'
                   ? 'bg-violet-600 text-white shadow-sm'
@@ -853,6 +979,7 @@ export const ScriptPanel: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('title_page')}
+              aria-pressed={activeTab === 'title_page'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'title_page'
                   ? 'bg-violet-600 text-white shadow-sm'
@@ -865,6 +992,7 @@ export const ScriptPanel: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('reports')}
+              aria-pressed={activeTab === 'reports'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'reports'
                   ? 'bg-violet-600 text-white shadow-sm'
@@ -894,6 +1022,7 @@ export const ScriptPanel: React.FC = () => {
               <div className={`flex items-center rounded-lg border mr-1 ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
                 <button
                   onClick={() => setFountainViewMode('page')}
+                  aria-pressed={fountainViewMode === 'page'}
                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-l-md ${
                     fountainViewMode === 'page' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200'
                   }`}
@@ -903,6 +1032,7 @@ export const ScriptPanel: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setFountainViewMode('raw')}
+                  aria-pressed={fountainViewMode === 'raw'}
                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-r-md flex items-center gap-1 ${
                     fountainViewMode === 'raw' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200'
                   }`}
@@ -953,7 +1083,7 @@ export const ScriptPanel: React.FC = () => {
               </button>
             )}
 
-            <button onClick={() => setPasteOpen((open) => !open)} className={headerButton} title="Paste screenplay or AV script text">
+            <button onClick={() => setPasteOpen((open) => !open)} className={headerButton} title="Paste screenplay or AV script text" aria-expanded={pasteOpen}>
               <ClipboardPaste className="w-3.5 h-3.5" /> Paste
             </button>
 
@@ -1024,7 +1154,7 @@ export const ScriptPanel: React.FC = () => {
             )}
 
             {activeTab !== 'reports' && activeTab !== 'title_page' && <div className={`flex items-center rounded-lg border ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
-              <button onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))} className="px-1.5 py-1.5" title="Smaller font">
+              <button onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))} className="px-1.5 py-1.5" title="Smaller font" aria-label="Smaller font">
                 <Minus className="w-3 h-3" />
               </button>
               <button
@@ -1034,7 +1164,7 @@ export const ScriptPanel: React.FC = () => {
               >
                 {Math.round(zoom * 100)}%
               </button>
-              <button onClick={() => setZoom((z) => Math.min(2.0, +(z + 0.1).toFixed(2)))} className="px-1.5 py-1.5" title="Larger font">
+              <button onClick={() => setZoom((z) => Math.min(2.0, +(z + 0.1).toFixed(2)))} className="px-1.5 py-1.5" title="Larger font" aria-label="Larger font">
                 <Plus className="w-3 h-3" />
               </button>
             </div>}
@@ -1274,9 +1404,9 @@ export const ScriptPanel: React.FC = () => {
                                   className="w-full bg-transparent outline-none uppercase font-bold text-amber-300 focus:bg-amber-950/20 px-1 rounded"
                                   placeholder="INT. LOCATION - TIME"
                                 />
-                                {suggest?.lineId === line.id && suggest.kind === 'location' && activeSuggestions.length > 0 && (
+                                {suggest?.lineId === line.id && activeSuggestions.kind === 'location' && activeSuggestions.items.length > 0 && (
                                   <ul className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-amber-700/50 bg-slate-900 shadow-xl overflow-hidden text-[11px]">
-                                    {activeSuggestions.map((loc) => (
+                                    {activeSuggestions.items.map((loc) => (
                                       <li key={loc.name}>
                                         <button
                                           type="button"
@@ -1344,9 +1474,9 @@ export const ScriptPanel: React.FC = () => {
                                 className="w-full bg-transparent outline-none uppercase font-bold text-emerald-300 focus:bg-emerald-950/20 px-1 rounded"
                                 placeholder="CHARACTER NAME"
                               />
-                              {suggest?.lineId === line.id && suggest.kind === 'character' && activeSuggestions.length > 0 && (
+                              {suggest?.lineId === line.id && activeSuggestions.kind === 'character' && activeSuggestions.items.length > 0 && (
                                 <ul className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-emerald-700/50 bg-slate-900 shadow-xl overflow-hidden text-[11px]">
-                                  {activeSuggestions.map((c) => (
+                                  {activeSuggestions.items.map((c) => (
                                     <li key={c.id}>
                                       <button
                                         type="button"
@@ -1358,8 +1488,8 @@ export const ScriptPanel: React.FC = () => {
                                         className="w-full text-left px-2 py-1 uppercase font-bold text-emerald-300 hover:bg-emerald-950/60"
                                       >
                                         {c.canonicalName}
-                                        {c.aliases.length > 0 && (
-                                          <span className="ml-2 opacity-50 font-normal normal-case">aka {c.aliases[0]}</span>
+                                        {(c.aliases?.length ?? 0) > 0 && (
+                                          <span className="ml-2 opacity-50 font-normal normal-case">aka {c.aliases?.[0]}</span>
                                         )}
                                       </button>
                                     </li>
@@ -1388,6 +1518,13 @@ export const ScriptPanel: React.FC = () => {
                           }}
                           className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-1 text-slate-500 hover:text-rose-400"
                           title={
+                            line.type === 'scene'
+                              ? line.omitted
+                                ? 'Delete the omitted scene permanently'
+                                : 'Omit scene (keeps the number as OMITTED; delete again to remove)'
+                              : 'Delete line'
+                          }
+                          aria-label={
                             line.type === 'scene'
                               ? line.omitted
                                 ? 'Delete the omitted scene permanently'
@@ -1594,6 +1731,7 @@ export const ScriptPanel: React.FC = () => {
                           onClick={() => deleteAVScriptRow(row.id)}
                           className="p-1 rounded text-slate-500 hover:text-rose-400 opacity-60 hover:opacity-100"
                           title="Delete AV row"
+                          aria-label="Delete AV row"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1666,6 +1804,7 @@ export const ScriptPanel: React.FC = () => {
                 <button
                   onClick={cancelScriptLinking}
                   title="Cancel"
+                  aria-label="Cancel"
                   className="p-1 rounded opacity-70 hover:opacity-100"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -1716,6 +1855,9 @@ export const ScriptPanel: React.FC = () => {
                   showShotSize={displaySettings.showShotSizeInScript !== false}
                   selection={effectiveRange}
                   selectedShotId={selectedShotId}
+                  breakdownItems={breakdownItems}
+                  highlightedBreakdownItemId={highlightedBreakdownItemId}
+                  onSelectBreakdownItem={setHighlightedBreakdownItemId}
                   onLinePointerDown={handleLinePointerDown}
                   onSelectMark={(mark) => {
                     const owner = setupIdForMark(mark.id);
@@ -1825,7 +1967,7 @@ export const ScriptPanel: React.FC = () => {
                     </span>
                   )}
                 </p>
-                <button onClick={clearSelection} className="p-1 rounded opacity-60 hover:opacity-100" title="Clear selection">
+                <button onClick={clearSelection} className="p-1 rounded opacity-60 hover:opacity-100" title="Clear selection" aria-label="Clear selection">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -1881,10 +2023,45 @@ export const ScriptPanel: React.FC = () => {
               <div className="flex flex-wrap gap-1.5">
                 <BreakdownTagControl
                   lineIds={selectedLineIds}
+                  ranges={selectedRanges}
                   selectedText={effectiveRange.text}
                   isLight={isLight}
                 />
               </div>
+
+              {/* What is already tagged here, and the way back out. Without
+                  this the only place to see a tag was the elements list, which
+                  does not say which words carry it. */}
+              {taggedInSelection.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className={`text-[10px] uppercase tracking-wider font-semibold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Tagged here
+                  </span>
+                  {taggedInSelection.map((item) => (
+                    <span
+                      key={item.id}
+                      title={`${breakdownCategoryLabel(item.category)} — click the cross to untag these lines`}
+                      onMouseEnter={() => setHighlightedBreakdownItemId(item.id)}
+                      onMouseLeave={() => setHighlightedBreakdownItemId(null)}
+                      className={`inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border text-[10px] font-semibold ${
+                        isLight ? 'bg-white' : 'bg-slate-900'
+                      }`}
+                      style={{ borderColor: breakdownCategoryTint(item.category), color: breakdownCategoryTint(item.category) }}
+                    >
+                      {item.name}
+                      <button
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => untagFromSelection(item.id)}
+                        title={`Untag “${item.name}” from the highlighted lines (the element itself stays)`}
+                        aria-label={`Untag ${item.name}`}
+                        className="p-0.5 rounded-full opacity-70 hover:opacity-100 hover:bg-rose-500/20"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

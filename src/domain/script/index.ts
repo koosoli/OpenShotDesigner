@@ -1,4 +1,10 @@
-export type { Character, ScriptScene, BreakdownItem, BreakdownCategory } from './types';
+export type {
+  Character,
+  ScriptScene,
+  BreakdownItem,
+  BreakdownCategory,
+  BreakdownSourceRange,
+} from './types';
 export {
   isOmittedHeading,
   omitScene,
@@ -20,7 +26,10 @@ export {
   breakdownCategoryTint,
   breakdownForScene,
   breakdownItemKey,
+  breakdownItemsForLines,
+  breakdownTagsForLine,
   groupBreakdownItems,
+  pruneBreakdownScriptLines,
   removeBreakdownItem,
   sceneNumbersForBreakdownItem,
   scenesForBreakdownItem,
@@ -28,7 +37,7 @@ export {
   untagScriptLine,
   updateBreakdownItem,
 } from './breakdownTags';
-export type { BreakdownCategoryGroup, BreakdownSourceLine } from './breakdownTags';
+export type { BreakdownCategoryGroup, BreakdownLineTag, BreakdownSourceLine } from './breakdownTags';
 export {
   avCoverage,
   avRowNumber,

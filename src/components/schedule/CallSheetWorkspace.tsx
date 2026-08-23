@@ -146,7 +146,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
             const active = day.id === selectedDay.id;
             const ready = Boolean(day.date && day.crewCall && day.callSheet?.nearestHospital && day.scheduleBlockIds.length);
             return (
-              <button key={day.id} onClick={() => onSelectDay(day.id)} className={`w-full rounded-lg px-2.5 py-2.5 text-left border transition-colors ${active ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-950' : isLight ? 'bg-white border-slate-200 hover:border-slate-400' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`}>
+              <button key={day.id} onClick={() => onSelectDay(day.id)} aria-pressed={active} className={`w-full rounded-lg px-2.5 py-2.5 text-left border transition-colors ${active ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-950' : isLight ? 'bg-white border-slate-200 hover:border-slate-400' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`}>
                 <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-wider">Day {index + 1}</span>{ready ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}</div>
                 <div className="mt-1 text-[11px] font-bold truncate">{day.name}</div>
                 <div className={`mt-0.5 text-[9px] font-mono ${active ? 'opacity-70' : 'text-slate-500'}`}>{day.date || 'Date not set'}</div>

@@ -10,6 +10,7 @@
 import type {
   PowerConsumer,
   PowerCircuit,
+  PowerSource,
   PowerEstimateSource,
   PowerLoadResult,
 } from './types';
@@ -62,18 +63,46 @@ export const calculatePowerLoad = (
 export interface CircuitHeadroomOptions {
   /** Supply voltage in volts; unknown stays undefined. */
   voltageV?: number;
+  /** Overrides the circuit's own power factor. 0 < pf ≤ 1; anything else is ignored. */
+  powerFactor?: number;
 }
+
+/**
+ * The power factor to price a circuit's current at: the caller's override, then
+ * the circuit's own, then 1. A value outside 0 < pf ≤ 1 is nonsense — a stored
+ * 0 would divide by zero and a pf above 1 does not exist — so it is ignored
+ * rather than propagated as an Infinity that would read as a fake overload.
+ *
+ * Every place amps are derived from watts goes through here, so a circuit's
+ * headroom, its leg's line current and its source's apparent load all agree
+ * about the same circuit instead of one of them quietly dividing by volts alone.
+ */
+export const circuitPowerFactor = (circuit: PowerCircuit, override?: number): number => {
+  const declared = override ?? circuit.powerFactor;
+  return declared !== undefined && Number.isFinite(declared) && declared > 0 && declared <= 1
+    ? declared
+    : 1;
+};
 
 export interface CircuitHeadroomResult {
   usedA: number | null;
   headroomA: number | null;
   overloaded: boolean | null;
+  /** The power factor the current was computed with (1 when none is set). */
+  powerFactor: number;
 }
 
 /**
  * Compare a known load against a circuit's rating. Returns `null` results
  * whenever the circuit limit or the supply voltage is unknown — never
  * fabricates 0 or a fake "not overloaded" verdict (plan rule 13).
+ *
+ * Current is `W / (V × pf)`, not `W / V`. A breaker trips on current, and a
+ * magnetic ballast at pf 0.6 pulls two thirds again as many amps as its
+ * wattage implies — dividing by volts alone reported "not overloaded" for a
+ * circuit that would trip on the first take. `pf` defaults to 1, which is
+ * correct for tungsten and PFC LED and leaves every existing plan's numbers
+ * exactly as they were.
  */
 export const circuitHeadroom = (
   circuit: PowerCircuit,
@@ -82,12 +111,13 @@ export const circuitHeadroom = (
 ): CircuitHeadroomResult => {
   const { maxAmperesA } = circuit;
   const { voltageV } = options;
+  const powerFactor = circuitPowerFactor(circuit, options.powerFactor);
   if (maxAmperesA === undefined || voltageV === undefined || voltageV <= 0) {
-    return { usedA: null, headroomA: null, overloaded: null };
+    return { usedA: null, headroomA: null, overloaded: null, powerFactor };
   }
-  const usedA = loadWatts / voltageV;
+  const usedA = loadWatts / (voltageV * powerFactor);
   const headroomA = maxAmperesA - usedA;
-  return { usedA, headroomA, overloaded: usedA > maxAmperesA };
+  return { usedA, headroomA, overloaded: usedA > maxAmperesA, powerFactor };
 };
 
 export interface PowerGroupLoad {
@@ -152,7 +182,12 @@ export const powerLoadByGroup = (
 export interface PhaseLegLoad {
   leg: 1 | 2 | 3;
   watts: number;
-  /** Line current on this leg, or null when the supply voltage is unknown. */
+  /**
+   * Line current on this leg, or null when the supply voltage is unknown.
+   * Derived per circuit as W/(V·pf) and then summed, so a leg's amps are the
+   * same figure the circuits on it report rather than the leg's watts divided
+   * by volts alone.
+   */
   ampsA: number | null;
 }
 
@@ -182,10 +217,17 @@ export const phaseBalance = (
   options: { voltageV?: number } = {},
 ): PhaseBalanceResult => {
   const totals: Record<1 | 2 | 3, number> = { 1: 0, 2: 0, 3: 0 };
+  // Apparent power per leg, W/pf summed circuit by circuit. It is accumulated
+  // here rather than derived from the leg's watts afterwards because a leg
+  // carrying a tungsten circuit and a magnetic-ballast one has no single power
+  // factor: averaging the two, or ignoring them, is how the same screen came to
+  // show a circuit at 21.7 A while its leg reported 13 A.
+  const apparent: Record<1 | 2 | 3, number> = { 1: 0, 2: 0, 3: 0 };
   let unassignedWatts = 0;
   for (const { circuit, watts } of circuitWatts) {
     if (circuit.phaseLeg === 1 || circuit.phaseLeg === 2 || circuit.phaseLeg === 3) {
       totals[circuit.phaseLeg] += watts;
+      apparent[circuit.phaseLeg] += watts / circuitPowerFactor(circuit);
     } else {
       unassignedWatts += watts;
     }
@@ -196,7 +238,7 @@ export const phaseBalance = (
   const legs: PhaseLegLoad[] = ([1, 2, 3] as const).map((leg) => ({
     leg,
     watts: totals[leg],
-    ampsA: voltageV !== undefined && voltageV > 0 ? totals[leg] / voltageV : null,
+    ampsA: voltageV !== undefined && voltageV > 0 ? apparent[leg] / voltageV : null,
   }));
 
   const max = Math.max(...legs.map((entry) => entry.watts));
@@ -206,6 +248,54 @@ export const phaseBalance = (
     unassignedWatts,
     imbalanceRatio: max > 0 ? (max - min) / max : null,
     busiestLeg: max > 0 ? (legs.find((entry) => entry.watts === max)?.leg ?? null) : null,
+  };
+};
+
+export interface SourceLoadResult {
+  /** Real power on this source's circuits, in watts — what the load consumes. */
+  knownWatts: number;
+  /**
+   * Apparent power, Σ W/pf taken circuit by circuit — what the supply has to
+   * deliver. Equals {@link SourceLoadResult.knownWatts} while every circuit is
+   * at pf 1, so a plan that never touched power factor reads exactly as before.
+   */
+  apparentVA: number;
+  /** Rated V×A×phases, or null while any part of the rating is unknown. */
+  capacityVA: number | null;
+  /** null when the rating is unknown — never a fabricated "within capacity". */
+  overCapacity: boolean | null;
+}
+
+/**
+ * What one supply is being asked for, against what it is rated to give.
+ *
+ * The comparison is apparent power on both sides, not watts against volt-amps.
+ * A generator and a breaker are sized in kVA and amps; a rig of magnetic
+ * ballasts drawing 9 kW at pf 0.6 asks 15 kVA of a supply, and a panel that
+ * compared 9 kW with an 11 kVA rating called that comfortable. The sum is taken
+ * per circuit because the circuits on one source rarely share a power factor,
+ * and an averaged one would be a number nobody could check against a fixture.
+ */
+export const sourceLoad = (
+  source: Pick<PowerSource, 'voltageV' | 'ampsPerPhaseA' | 'phases'>,
+  circuitWatts: Array<{ circuit: PowerCircuit; watts: number }>,
+): SourceLoadResult => {
+  let knownWatts = 0;
+  let apparentVA = 0;
+  for (const { circuit, watts } of circuitWatts) {
+    knownWatts += watts;
+    apparentVA += watts / circuitPowerFactor(circuit);
+  }
+  const { voltageV, ampsPerPhaseA, phases } = source;
+  const capacityVA =
+    voltageV !== undefined && ampsPerPhaseA !== undefined && phases !== undefined
+      ? voltageV * ampsPerPhaseA * phases
+      : null;
+  return {
+    knownWatts,
+    apparentVA,
+    capacityVA,
+    overCapacity: capacityVA === null ? null : apparentVA > capacityVA,
   };
 };
 

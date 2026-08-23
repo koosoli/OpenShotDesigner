@@ -401,11 +401,17 @@ npm install
 # start the dev server (http://localhost:3000)
 npm run dev
 
-# type-check
+# type-check, lint (ESLint) and verify source encoding
 npm run lint
+
+# run the test suite once
+npm test
 
 # production build
 npm run build
+
+# regenerate the bundled fixture snapshot in src/generated/
+npm run fixtures:build
 
 # regenerate the README screenshots (needs the dev server running)
 node scripts/capture-screenshots.mjs

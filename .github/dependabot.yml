@@ -1,0 +1,33 @@
+version: 2
+
+updates:
+  # One grouped PR a week rather than a dozen single-package ones: the whole
+  # dependency set is verified together by CI anyway, and a single PR is the
+  # only shape a solo maintainer actually reviews.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 1
+    groups:
+      npm-dependencies:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: deps
+
+  # The workflows pin actions by major tag, so this only moves when an action
+  # publishes a new major — rare, but silent breakage otherwise.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: ci

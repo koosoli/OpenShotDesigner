@@ -16,6 +16,9 @@
  * Planning aid only — not a substitute for a site recce (rule 15).
  */
 
+import type { ResolvedTimeZone } from './timeZone';
+import { clockInZone, resolveTimeZone, startOfDayInZone, startOfNextDayInZone } from './timeZone';
+
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
 
@@ -122,6 +125,13 @@ export interface SunInput {
   lng: number;
   /** The instant to compute for. */
   date: Date;
+  /**
+   * IANA zone of the shoot ("America/Los_Angeles"), for the day's boundaries and
+   * for printing. Absent means the machine's zone, which is right only when the
+   * unit and the laptop are in the same place. Ignored by `sunPosition`, which
+   * works on an instant and has no notion of a local day.
+   */
+  timeZone?: string;
 }
 
 /** Where the sun is for a place and a moment. */
@@ -169,7 +179,7 @@ export const sunPosition = ({ lat, lng, date }: SunInput): SunPosition => {
 };
 
 export interface SunTimes {
-  /** Local Date of each event, or null when it does not occur that day. */
+  /** The instant of each event, or null when it does not occur that day. */
   sunrise: Date | null;
   sunset: Date | null;
   solarNoon: Date;
@@ -182,6 +192,12 @@ export interface SunTimes {
   /** True when the sun never rises (polar night) or never sets (midnight sun). */
   polarNight: boolean;
   midnightSun: boolean;
+  /**
+   * The zone whose calendar day these events were found in, and which they
+   * should be printed in. Carries how it was arrived at so a caller can say
+   * "shown in the machine's zone" instead of implying the location's.
+   */
+  timeZone: ResolvedTimeZone;
 }
 
 /**
@@ -189,13 +205,20 @@ export interface SunTimes {
  * closed-form hour-angle solution, but it handles the polar cases and the
  * golden/civil thresholds with the same code path instead of four variants that
  * each need their own edge-case handling.
+ *
+ * The day runs from midnight to midnight in the shoot's zone, and it is measured
+ * rather than assumed: a fall-back day is twenty-five hours long, and a fixed
+ * 1440-minute sweep would never reach the last local hour of it — losing a
+ * sunset on the one October Sunday a unit is most likely to be chasing it.
  */
-export const sunTimes = ({ lat, lng, date }: SunInput): SunTimes => {
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
+export const sunTimes = ({ lat, lng, date, timeZone }: SunInput): SunTimes => {
+  const zone = resolveTimeZone(timeZone);
+  const startOfDay = startOfDayInZone(date, zone.id);
+  const endOfDay = startOfNextDayInZone(date, zone.id);
+  const minutesInDay = Math.max(1, Math.round((endOfDay.getTime() - startOfDay.getTime()) / 60000));
 
   const samples: Array<{ at: Date; elevation: number }> = [];
-  for (let minute = 0; minute <= 1440; minute += 1) {
+  for (let minute = 0; minute <= minutesInDay; minute += 1) {
     const at = new Date(startOfDay.getTime() + minute * 60000);
     samples.push({ at, elevation: sunPosition({ lat, lng, date: at }).elevationDeg });
   }
@@ -229,14 +252,17 @@ export const sunTimes = ({ lat, lng, date }: SunInput): SunTimes => {
     goldenHourEveningStart: crossing(6, false),
     polarNight: maxElevation < 0,
     midnightSun: minElevation > 0,
+    timeZone: zone,
   };
 };
 
-/** "HH:MM" in local time, or "—" when the event does not occur. */
-export const formatSunTime = (value: Date | null): string =>
-  value
-    ? `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`
-    : '—';
+/**
+ * "HH:MM" as the clocks read it where the unit is, or "—" when the event does
+ * not occur. Pass the shoot's zone; without one this prints in the machine's
+ * zone, which is what every caller did before zones were threaded through.
+ */
+export const formatSunTime = (value: Date | null, timeZone?: string): string =>
+  value ? clockInZone(value, resolveTimeZone(timeZone).id) : '—';
 
 /** Compass point for an azimuth, for labels that read faster than a number. */
 export const compassPoint = (azimuthDeg: number): string => {

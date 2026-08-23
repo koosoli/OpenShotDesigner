@@ -30,6 +30,8 @@ export interface CallSheetLocation {
   /** Optional pin (WGS84) so paperwork can link out to a map provider. */
   lat?: number;
   lng?: number;
+  /** IANA zone of the location, when it declares one; the sun times print in it. */
+  timeZone?: string;
 }
 
 /** One captured map and the location it belongs to. */
@@ -477,6 +479,10 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
       date: day.date,
       lat: resolvedLocations.find((location) => typeof location.lat === 'number')?.lat,
       lng: resolvedLocations.find((location) => typeof location.lng === 'number')?.lng,
+      // The zone belongs to the same pin the times are calculated from, so it is
+      // read off the first pinned entry rather than the first entry that happens
+      // to declare one.
+      timeZone: resolvedLocations.find((location) => typeof location.lat === 'number')?.timeZone,
       sunriseOverride: day.callSheet?.sunriseOverride,
       sunsetOverride: day.callSheet?.sunsetOverride,
     }),

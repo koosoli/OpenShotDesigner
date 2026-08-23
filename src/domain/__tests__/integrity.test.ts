@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   removePowerCircuit,
   removePowerSource,
+  removeBreakdownItemReferences,
   removeRunOfShowCue,
+  removeScriptLineReferences,
   removeTrussElement,
   removeSetupReferences,
   removeShotReferences,
 } from '../integrity';
 import type { PowerPlan } from '../power';
+import type { ScriptScene } from '../script';
 import type { RiggingItem, SuspendedLoad, TrussElement } from '../rigging';
 
 const truss = (id: string): TrussElement => ({ id, x: 0, y: 0, rotation: 0 });
@@ -212,6 +215,29 @@ describe('removeShotReferences', () => {
     const original = refs();
     expect(removeShotReferences(original, [])).toBe(original);
   });
+
+  /**
+   * The result is spread straight into project state, so a key the caller never
+   * passed must not come back. An injected `scriptLines: []` turned "this
+   * project has no screenplay" into "this project has an empty screenplay",
+   * which is how a script disappears from a project that still has one.
+   */
+  it('leaves out the keys the caller did not pass, rather than emptying them', () => {
+    const next = removeShotReferences(
+      { scheduleBlocks: [{ id: 'b1', kind: 'shots' as const, shotIds: ['s1'] }] },
+      's1',
+    );
+    expect('scriptLines' in next).toBe(false);
+    expect('productionDays' in next).toBe(false);
+    // The work it was actually asked to do still happens.
+    expect(next.scheduleBlocks).toEqual([]);
+  });
+
+  it('cleans the script for a caller that passes no schedule at all', () => {
+    const next = removeShotReferences({ scriptLines: [{ id: 'l1', linkedShotId: 's1' }] }, 's1');
+    expect('scheduleBlocks' in next).toBe(false);
+    expect(next.scriptLines[0].linkedShotId).toBeUndefined();
+  });
 });
 
 describe('removeSetupReferences', () => {
@@ -251,5 +277,90 @@ describe('removeSetupReferences', () => {
     const original = refs();
     const next = removeSetupReferences(original, 'setup-never', []);
     expect(next.scheduleBlocks).toHaveLength(4);
+  });
+
+  /**
+   * Deleting the setup used to clear only the schedule, so the script kept its
+   * lining strokes for shots that no longer existed — the exact dangling
+   * reference `deleteShot` has always prevented.
+   */
+  it('clears the lining marks for the shots that lived on the setup', () => {
+    const next = removeSetupReferences(
+      {
+        ...refs(),
+        scriptLines: [
+          { id: 'l1', linkedShotId: 's1' },
+          { id: 'l2', linkedShotId: 'other' },
+          { id: 'l3' },
+        ],
+      },
+      'setup-1',
+      ['s1', 's2'],
+    );
+    expect(next.scriptLines).toEqual([
+      { id: 'l1', linkedShotId: undefined },
+      { id: 'l2', linkedShotId: 'other' },
+      { id: 'l3' },
+    ]);
+  });
+});
+
+describe('removeBreakdownItemReferences', () => {
+  const scene = (id: string, breakdownItemIds: string[]): ScriptScene => ({
+    id,
+    sceneNumber: id,
+    heading: `INT. ROOM ${id}`,
+    characterIds: [],
+    breakdownItemIds,
+  });
+  const refs = () => ({
+    breakdownItems: [
+      { id: 'b1', category: 'prop' as const, name: 'Ledger' },
+      { id: 'b2', category: 'vehicle' as const, name: 'Taxi' },
+    ],
+    scriptScenes: [scene('4', ['b1', 'b2']), scene('9', ['b2'])],
+  });
+
+  it('deletes the element and clears it off every scene that cached it', () => {
+    const next = removeBreakdownItemReferences(refs(), 'b1');
+    expect(next.breakdownItems.map((i) => i.id)).toEqual(['b2']);
+    expect(next.scriptScenes.map((s) => s.breakdownItemIds)).toEqual([['b2'], ['b2']]);
+  });
+
+  it('leaves scenes that never referenced it untouched', () => {
+    const before = refs();
+    const next = removeBreakdownItemReferences(before, 'b1');
+    expect(next.scriptScenes[1]).toBe(before.scriptScenes[1]);
+  });
+
+  it('copes with a project that has no script', () => {
+    const next = removeBreakdownItemReferences({ breakdownItems: refs().breakdownItems }, 'b2');
+    expect(next.breakdownItems.map((i) => i.id)).toEqual(['b1']);
+  });
+});
+
+describe('removeScriptLineReferences', () => {
+  it('drops element pointers at lines the script no longer has', () => {
+    const next = removeScriptLineReferences(
+      {
+        breakdownItems: [
+          {
+            id: 'b1',
+            category: 'prop' as const,
+            name: 'Ledger',
+            sourceScriptLineIds: ['l1', 'l2'],
+            sourceRanges: [{ lineId: 'l1' }, { lineId: 'l2' }],
+          },
+        ],
+      },
+      ['l1'],
+    );
+    expect(next.breakdownItems[0].sourceScriptLineIds).toEqual(['l1']);
+    expect(next.breakdownItems[0].sourceRanges).toEqual([{ lineId: 'l1' }]);
+  });
+
+  it('is a no-op when there are no elements to rewrite', () => {
+    const refs = { breakdownItems: [] };
+    expect(removeScriptLineReferences(refs, [])).toBe(refs);
   });
 });

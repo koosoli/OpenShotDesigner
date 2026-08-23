@@ -84,7 +84,7 @@ export const HeadshotField: React.FC<HeadshotFieldProps> = ({ draft, onChange, i
             </span>
           </button>
           {draft.headshotAssetId && (
-            <button type="button" onClick={remove} className={button} title="Remove this headshot">
+            <button type="button" onClick={remove} className={button} title="Remove this headshot" aria-label="Remove this headshot">
               <Trash2 className="w-3 h-3" />
             </button>
           )}

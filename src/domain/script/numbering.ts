@@ -50,6 +50,32 @@ const nextSuffix = (suffix: string): string => {
 };
 
 /**
+ * The first letter run at or after `previous` that is free and still sorts
+ * below `limit` (null = unbounded), or null when no such run exists.
+ *
+ * Two stages, because the obvious increment usually works and the fallback is
+ * the interesting case: `3A` next to `3B` cannot take `3B`, so it extends into
+ * `3AA`, which sorts between them. Termination is guaranteed in both
+ * directions — `nextSuffix` is strictly increasing, so the search either
+ * passes `limit` and stops, or runs out of `taken`, which is finite.
+ */
+const squeezeLetters = (
+  previous: string,
+  limit: string | null,
+  free: (letters: string) => boolean,
+): string | null => {
+  const ordered = (value: string): boolean => limit === null || value < limit;
+  const simple = nextSuffix(previous);
+  if (ordered(simple) && free(simple)) return simple;
+  let extended = `${previous}A`;
+  while (ordered(extended)) {
+    if (free(extended)) return extended;
+    extended = nextSuffix(extended);
+  }
+  return null;
+};
+
+/**
  * The number for a heading inserted between `previous` and `next`, avoiding
  * anything in `taken`. After the last scene the number simply counts on;
  * before the first it takes an A-prefix ("A1"), the script convention for a
@@ -84,19 +110,53 @@ export const insertedSceneNumber = (
     }
     return String(n);
   }
-  // Suffixes order as plain strings: A < AA < AB < B, which is exactly the
-  // script convention (3AA sits between 3A and 3B). When the next heading
-  // shares the base, the new suffix must also sort before its suffix.
-  const sameBase = after.base === prev.base && after.prefix === prev.prefix;
-  const valid = (suffix: string): boolean =>
-    free(`${prev.prefix}${prev.base}${suffix}`) && (!sameBase || suffix < after.suffix);
-  let suffix = nextSuffix(prev.suffix);
-  if (!valid(suffix)) {
-    // Squeeze in by extending the previous suffix: 3A → 3AA, 3AB, …
-    suffix = `${prev.suffix}A`;
-    while (!valid(suffix)) suffix = nextSuffix(suffix);
+  // A number has two letter runs and they mean opposite things. A SUFFIX means
+  // "inserted after": 3, 3A, 3AA, 3B. A PREFIX means "inserted before": A1 is
+  // the scene added ahead of 1, and A3A the one added ahead of 3A. Both run in
+  // plain string order (A < AA < AB < B), which is exactly the script
+  // convention, and `compareSceneNumbers` in the reports orders by the same
+  // rules.
+
+  // Prefixes first: when the two neighbours describe the SAME slot and differ
+  // only in prefix, the insert belongs in the prefix run. Between A1 and 1 the
+  // answer is B1 — reaching for a suffix here produced A1A, which sorts after
+  // 1 and printed the scene in the wrong place in the breakdown.
+  if (after.base === prev.base && after.suffix === prev.suffix && prev.prefix !== after.prefix) {
+    // An unprefixed neighbour is the slot itself, so there is no upper bound
+    // to stay below — every prefixed number sorts before it.
+    const limit = after.prefix === '' ? null : after.prefix;
+    const prefix = squeezeLetters(prev.prefix, limit, (value) =>
+      free(`${value}${prev.base}${prev.suffix}`),
+    );
+    if (prefix !== null) return `${prefix}${prev.base}${prev.suffix}`;
   }
-  return `${prev.prefix}${prev.base}${suffix}`;
+
+  // Otherwise walk the suffix run. Only a neighbour in the same slot bounds it.
+  const sameSlot = after.base === prev.base && after.prefix === prev.prefix;
+  const suffix = squeezeLetters(prev.suffix, sameSlot ? after.suffix : null, (value) =>
+    free(`${prev.prefix}${prev.base}${value}`),
+  );
+  if (suffix !== null) return `${prev.prefix}${prev.base}${suffix}`;
+
+  // No suffix fits. Between 3 and 3A there is none by construction: every
+  // suffix of 3 sorts at or above "A". So use the other run and insert
+  // immediately BEFORE the next heading instead: 3, A3A, 3A.
+  //
+  // This is also where the scheme runs out. Asked to insert between 3 and an
+  // already-squeezed A3A there is no number at all: the suffix run has no room
+  // between "" and "A", and anything prefixed sorts ahead of 3 rather than
+  // after it. The number returned is still unique and still sorts after
+  // `previous`, but it will sit after `next` in a report ordered by number.
+  // Once a script carries prefixed numbers this is not exotic — every later
+  // insert placed immediately ahead of one lands here — so it is documented
+  // and tested rather than hidden. The honest answer at that point is that the
+  // script wants renumbering, which is a decision for the production office,
+  // not something to fake here by inventing a number that does not order
+  // (plan rule 13).
+  const nextNumber = `${after.prefix}${after.base}${after.suffix}`;
+  let prefix = 'A';
+  while (!free(`${prefix}${nextNumber}`)) prefix = nextSuffix(prefix);
+  return `${prefix}${nextNumber}`;
 };
 
 /** Copy each heading's number onto the body lines beneath it. */

@@ -52,7 +52,7 @@ const polygonPoints = (shape: ShapeElement): string => {
  * Free-form shapes on the floor plan: blocking zones, set pieces, light pools,
  * callout boxes. Drawn under the elements so they read as background graphics.
  */
-export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSelect, onDoubleClick, canvasScale, categoryOpacity, showHiddenGhosts }) => (
+const ShapesLayerImpl: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSelect, onDoubleClick, canvasScale, categoryOpacity, showHiddenGhosts }) => (
   <g className="shapes-layer" opacity={categoryOpacity?.shapes ?? 1.0}>
     {shapes.map((shape) => {
       const hidden = shape.visible === false;
@@ -189,3 +189,13 @@ export const ShapesLayer: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, o
     })}
   </g>
 );
+
+/**
+ * Memoised because the canvas re-renders on every pointer move — hovering the
+ * plan used to redraw every layer, glyph by glyph. The props are stable by
+ * construction on the canvas side (element buckets come from one memoised
+ * pass, callbacks are `useCallback`ed), so a shallow compare is enough and a
+ * custom comparator would only hide a prop that is not stable yet.
+ */
+export const ShapesLayer = React.memo(ShapesLayerImpl);
+ShapesLayerImpl.displayName = 'ShapesLayer';

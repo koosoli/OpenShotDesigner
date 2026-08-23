@@ -55,6 +55,7 @@ export const resolveDayLocations = (
     if (entity.address) entry.address = entity.address;
     if (typeof entity.lat === 'number') entry.lat = entity.lat;
     if (typeof entity.lng === 'number') entry.lng = entity.lng;
+    if (entity.timeZone) entry.timeZone = entity.timeZone;
     out.push(entry);
   };
   const pushText = (text: string | undefined) => {

@@ -2,8 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { deriveDaylight } from '../reports';
 
 // Berlin, mid-summer and mid-winter. The same coordinates the sun domain was
-// verified against, so a change in the astronomy shows up here too.
+// verified against, so a change in the astronomy shows up here too. Cases that
+// assert a printed clock name their zone as well, so the expectation does not
+// move when the machine running the suite does.
 const BERLIN = { lat: 52.52, lng: 13.405 };
+
+/**
+ * The machine's zone read straight from `Intl`, not from the sun domain's own
+ * `machineTimeZone()`: an expectation built out of the function under test
+ * passes whatever that function returns, including a hard-coded 'UTC'.
+ */
+const MACHINE_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/**
+ * A sheet that fell back has to have printed in the machine's zone, not merely
+ * to have named it: naming that same zone deliberately must produce the same
+ * clock for the same Berlin day.
+ */
+const expectPrintedInTheMachineZone = (daylight: ReturnType<typeof deriveDaylight>) => {
+  expect(daylight.timeZone).toBe(MACHINE_ZONE);
+  const named = deriveDaylight({ ...BERLIN, date: '2026-06-21', timeZone: MACHINE_ZONE });
+  expect(named.timeZoneOrigin).toBe('location');
+  expect(daylight.sunrise).toBe(named.sunrise);
+  expect(daylight.sunset).toBe(named.sunset);
+};
 
 describe('deriveDaylight', () => {
   it('calculates both ends from the location pin and the date', () => {
@@ -73,6 +95,76 @@ describe('deriveDaylight', () => {
     const daylight = deriveDaylight({ lat: 69.65, lng: 18.96, date: '2026-06-21' });
     expect(daylight.note).toMatch(/midnight sun/i);
     expect(daylight.sunsetOrigin).toBe('unknown');
+  });
+
+  /**
+   * The bug that made this worth threading a zone through: a producer in
+   * Luxembourg scheduling a Los Angeles day. Before, the sheet printed the LA
+   * sun in CEST — 14:44 and 05:07 — and looked entirely plausible while being
+   * nine hours wrong on the one document the crew turns up on.
+   */
+  it('prints an LA shoot day in LA time, wherever it was scheduled from', () => {
+    const daylight = deriveDaylight({
+      lat: 34.0522,
+      lng: -118.2437,
+      date: '2026-06-21',
+      timeZone: 'America/Los_Angeles',
+    });
+    expect(daylight.sunrise).toBe('05:44');
+    expect(daylight.sunset).toBe('20:07');
+    expect(daylight.timeZone).toBe('America/Los_Angeles');
+    expect(daylight.timeZoneOrigin).toBe('location');
+  });
+
+  it('gives the same instants a different clock when the location is in Berlin', () => {
+    const la = deriveDaylight({ lat: 34.0522, lng: -118.2437, date: '2026-06-21', timeZone: 'America/Los_Angeles' });
+    const berlin = deriveDaylight({ lat: 52.52, lng: 13.405, date: '2026-06-21', timeZone: 'Europe/Berlin' });
+    expect(berlin.sunrise).toBe('04:46');
+    expect(berlin.sunset).toBe('21:32');
+    expect(berlin.sunrise).not.toBe(la.sunrise);
+  });
+
+  it('crosses a spring-forward day without losing an hour', () => {
+    const daylight = deriveDaylight({
+      lat: 40.7128,
+      lng: -74.006,
+      date: '2026-03-08',
+      timeZone: 'America/New_York',
+    });
+    expect(daylight.sunrise).toBe('07:21');
+    expect(daylight.sunset).toBe('18:54');
+  });
+
+  it('crosses a fall-back day without gaining one', () => {
+    const daylight = deriveDaylight({
+      lat: 40.7128,
+      lng: -74.006,
+      date: '2026-11-01',
+      timeZone: 'America/New_York',
+    });
+    expect(daylight.sunrise).toBe('06:28');
+    expect(daylight.sunset).toBe('16:51');
+  });
+
+  /** Rule 13: the sheet says the zone it could not read rather than implying one. */
+  it('falls back visibly when the location names a zone nobody knows', () => {
+    const daylight = deriveDaylight({ ...BERLIN, date: '2026-06-21', timeZone: 'Mars/Olympus_Mons' });
+    expect(daylight.timeZoneOrigin).toBe('fallback');
+    expect(daylight.note).toMatch(/Mars\/Olympus_Mons/);
+    expect(daylight.note).toMatch(/not recognised/i);
+    expectPrintedInTheMachineZone(daylight);
+  });
+
+  it('says the zone came from the machine when the location has none', () => {
+    const daylight = deriveDaylight({ ...BERLIN, date: '2026-06-21' });
+    expect(daylight.timeZoneOrigin).toBe('machine');
+    expectPrintedInTheMachineZone(daylight);
+  });
+
+  it('reports an unreadable zone even on a sheet with no pin to calculate from', () => {
+    const daylight = deriveDaylight({ date: '2026-06-21', timeZone: 'Mars/Olympus_Mons' });
+    expect(daylight.timeZoneOrigin).toBe('fallback');
+    expect(daylight.note).toMatch(/not recognised/i);
   });
 
   it('still honours an override during a polar night', () => {

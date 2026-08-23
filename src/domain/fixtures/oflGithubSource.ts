@@ -12,7 +12,6 @@
  * snapshot, so a later refresh only downloads fixtures that actually changed.
  */
 
-import type { FixtureProfile } from './types';
 
 const TREE_URL = 'https://api.github.com/repos/OpenLightingProject/open-fixture-library/git/trees/master?recursive=1';
 const RAW_BASE = 'https://cdn.jsdelivr.net/gh/OpenLightingProject/open-fixture-library@master/';

@@ -12,6 +12,7 @@ import {
   Anchor,
   Info,
   Plus,
+  Printer,
   Ruler,
   Trash2,
   Weight,
@@ -22,9 +23,11 @@ import { removeTrussElement } from '../../domain';
 import {
   SAFETY_DISCLAIMER,
   calculateTrussLoad,
+  evaluateTrussCapacity,
   type RiggingItem,
   type RiggingItemKind,
   type SuspendedLoad,
+  type TrussCapacityVerdict,
   type TrussElement,
   type TrussProfile,
 } from '../../domain/rigging';
@@ -59,6 +62,13 @@ const RIGGING_KIND_LABELS: Record<RiggingItemKind, string> = {
 
 const LOAD_SOURCE_ORDER = ['manual', 'profile', 'unknown'] as const;
 
+/**
+ * The kinds a rated capacity is quoted for. Everything else on a run is
+ * hardware that hangs from those points rather than carrying the run, so
+ * asking for its capacity would only invite a meaningless number.
+ */
+const CAPACITY_BEARING_KINDS: ReadonlySet<RiggingItemKind> = new Set(['motor', 'hang_point']);
+
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
 const parseOptionalNumber = (raw: string): number | undefined => {
   if (raw.trim() === '') return undefined;
@@ -67,6 +77,24 @@ const parseOptionalNumber = (raw: string): number | undefined => {
 };
 
 const formatKg = (kg: number): string => `${Number(kg.toFixed(2))} kg`;
+
+/** Why there is no verdict matters as much as the verdict, so it is spelled out. */
+const capacityText = (capacity: TrussCapacityVerdict): string => {
+  const percent =
+    capacity.utilization === null ? '—' : `${Math.round(capacity.utilization * 100)}%`;
+  const rated = capacity.capacityKg === null ? '—' : formatKg(capacity.capacityKg);
+  if (capacity.verdict === 'over') {
+    return `Over capacity — ${percent} of ${rated} rated`;
+  }
+  if (capacity.verdict === 'within') {
+    return `Within capacity — ${percent} of ${rated} rated`;
+  }
+  if (capacity.pointCount === 0) return 'No capacity check — no motors or hang points on this run';
+  if (capacity.unknownCapacityPointCount > 0) {
+    return `No capacity check — ${capacity.unknownCapacityPointCount} of ${capacity.pointCount} rigging points unrated`;
+  }
+  return 'No capacity check — planned load unknown';
+};
 
 /** Two built-in starter profiles, clearly labeled generic (plan §11.3). */
 const makeStarterProfiles = (): TrussProfile[] => [
@@ -89,7 +117,7 @@ const makeStarterProfiles = (): TrussProfile[] => [
 ];
 
 export const RiggingPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta } = useFloorPlan();
+  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
   const isLight = theme === 'light';
 
   const profiles = useMemo(() => project.trussProfiles ?? [], [project.trussProfiles]);
@@ -317,7 +345,17 @@ export const RiggingPanel: React.FC = () => {
 
       {/* Hardware weight assumptions (rule 13: blank stays unknown, never 0) */}
       <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        {sectionHeading(<Info className="w-3.5 h-3.5" />, 'Weight Assumptions')}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {sectionHeading(<Info className="w-3.5 h-3.5" />, 'Weight Assumptions')}
+          {/* The rigging plot is checked on the deck, off paper. */}
+          <button
+            onClick={() => openExportModal('rigging')}
+            title="Printable rigging plot with load and capacity per truss run"
+            className={secondaryBtnClass}
+          >
+            <Printer className="w-3.5 h-3.5" /> Print
+          </button>
+        </div>
         <div className="grid grid-cols-3 gap-1.5">
           <label className="flex flex-col gap-0.5">
             <span className={`text-[10px] ${mutedText}`}>Clamp kg (assumption)</span>
@@ -535,6 +573,7 @@ export const RiggingPanel: React.FC = () => {
               items,
               loadOptions
             );
+            const capacity = evaluateTrussCapacity(breakdown, items);
             const displayName =
               element.label?.trim() ||
               (profile ? profileLabel(profile) : 'Truss section');
@@ -702,7 +741,7 @@ export const RiggingPanel: React.FC = () => {
                   )}
                   <ul className="flex flex-col gap-1.5">
                     {elementItems.map((item) => (
-                      <li key={item.id} className="flex items-center gap-1.5">
+                      <li key={item.id} className="flex items-center gap-1.5 flex-wrap">
                         <select
                           value={item.kind}
                           onChange={(e) =>
@@ -724,6 +763,31 @@ export const RiggingPanel: React.FC = () => {
                           aria-label={`Label for rigging item on ${displayName}`}
                           className={`${inputClass} flex-1 min-w-[100px]`}
                         />
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.positionMm ?? ''}
+                          onChange={(e) =>
+                            updateItem(item.id, { positionMm: parseOptionalNumber(e.target.value) })
+                          }
+                          placeholder="Pos mm"
+                          aria-label={`Position along the run in mm for rigging item on ${displayName}; blank means unknown`}
+                          className={`${inputClass} !w-24`}
+                        />
+                        {CAPACITY_BEARING_KINDS.has(item.kind) && (
+                          <input
+                            type="number"
+                            min={0}
+                            step="1"
+                            value={item.capacityKg ?? ''}
+                            onChange={(e) =>
+                              updateItem(item.id, { capacityKg: parseOptionalNumber(e.target.value) })
+                            }
+                            placeholder="Rated kg"
+                            aria-label={`Rated capacity in kg for rigging item on ${displayName}; blank means unknown`}
+                            className={`${inputClass} !w-28`}
+                          />
+                        )}
                         <button
                           onClick={() => removeItem(item.id)}
                           title="Remove rigging item"
@@ -791,6 +855,18 @@ export const RiggingPanel: React.FC = () => {
                       </dd>
                     </div>
                   </dl>
+                  {/* Planned load against what the motors and hang points are rated for. */}
+                  <div
+                    className={`text-[10px] font-semibold rounded px-2 py-1 ${
+                      capacity.verdict === 'over'
+                        ? isLight ? 'bg-red-100 text-red-800' : 'bg-red-950/60 text-red-300'
+                        : capacity.verdict === 'within'
+                          ? isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-950/60 text-emerald-300'
+                          : isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-950/60 text-amber-300'
+                    }`}
+                  >
+                    {capacityText(capacity)}
+                  </div>
                   <p className={disclaimerClass}>{SAFETY_DISCLAIMER}</p>
                 </div>
               </li>

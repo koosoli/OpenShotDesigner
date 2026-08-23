@@ -34,7 +34,12 @@ export type {
   SceneReport,
 } from './breakdown';
 export { deriveDaylight } from './callSheetSun';
-export type { CallSheetDaylight, DaylightOrigin, DaylightSource } from './callSheetSun';
+export type {
+  CallSheetDaylight,
+  DaylightOrigin,
+  DaylightSource,
+  DaylightTimeZoneOrigin,
+} from './callSheetSun';
 export { deriveDepartmentHeads, groupDepartmentHeads } from './departmentHeads';
 export type { CallSheetDepartmentHead } from './departmentHeads';
 export {

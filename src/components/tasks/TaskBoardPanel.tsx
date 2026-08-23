@@ -73,7 +73,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
     <div className={`rounded-xl border p-3 space-y-2.5 ${isLight ? 'border-sky-200 bg-sky-50/60' : 'border-sky-900/60 bg-sky-950/20'}`}>
       <div className="flex items-start gap-2">
         <input value={task.title} onChange={(e) => onChange({ title: e.target.value })} className={`${inputCls} font-semibold text-sm`} placeholder="Task title" />
-        <button onClick={onClose} className={`p-1.5 rounded-md ${isLight ? 'hover:bg-slate-200' : 'hover:bg-slate-800'}`} title="Close"><X className="w-4 h-4" /></button>
+        <button onClick={onClose} className={`p-1.5 rounded-md ${isLight ? 'hover:bg-slate-200' : 'hover:bg-slate-800'}`} title="Close" aria-label="Close"><X className="w-4 h-4" /></button>
       </div>
       <textarea value={task.description ?? ''} onChange={(e) => onChange({ description: e.target.value || undefined })} rows={2} className={`${inputCls} resize-y`} placeholder="Details, links, what “done” means…" />
       <div className="grid grid-cols-2 gap-2">
@@ -150,7 +150,14 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
           <div key={item.id} className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={item.done} onChange={() => onChecklistToggle(item.id)} className="accent-sky-600" />
             <span className={`flex-1 ${item.done ? 'line-through opacity-50' : ''}`}>{item.text}</span>
-            <button onClick={() => onChecklistRemove(item.id)} className="p-0.5 text-slate-400 hover:text-rose-500"><X className="w-3 h-3" /></button>
+            <button
+              onClick={() => onChecklistRemove(item.id)}
+              className="p-0.5 text-slate-400 hover:text-rose-500"
+              title={`Remove checklist item “${item.text}”`}
+              aria-label={`Remove checklist item “${item.text}”`}
+            >
+              <X className="w-3 h-3" />
+            </button>
           </div>
         ))}
         <form
@@ -163,7 +170,15 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
           className="flex items-center gap-1.5"
         >
           <input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="Add checklist item…" className={inputCls} />
-          <button type="submit" disabled={!newItem.trim()} className="px-2 min-h-[32px] rounded-md bg-sky-600 text-white text-xs font-bold disabled:opacity-40"><Plus className="w-3.5 h-3.5" /></button>
+          <button
+            type="submit"
+            disabled={!newItem.trim()}
+            className="px-2 min-h-[32px] rounded-md bg-sky-600 text-white text-xs font-bold disabled:opacity-40"
+            title="Add checklist item"
+            aria-label="Add checklist item"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
         </form>
       </div>
       <div className="flex items-center justify-between pt-1">
@@ -286,7 +301,7 @@ export const TaskBoardPanel: React.FC = () => {
           </select>
           <input value={board.title} onChange={(e) => renameBoard(e.target.value)} className={`${inputCls} w-44`} title="Board name" />
           <button onClick={createBoard} className={btnCls}><Plus className="w-3.5 h-3.5" /> New board</button>
-          <button onClick={deleteBoard} className={`min-h-[34px] min-w-[34px] grid place-items-center rounded-md ${isLight ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-red-950/40 hover:text-red-400'}`} title="Delete board"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={deleteBoard} className={`min-h-[34px] min-w-[34px] grid place-items-center rounded-md ${isLight ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-red-950/40 hover:text-red-400'}`} title="Delete board" aria-label="Delete board"><Trash2 className="w-4 h-4" /></button>
           {summary && (
             <span className={`ml-auto text-[10px] font-mono flex items-center gap-2 ${mutedCls}`}>
               <span>{summary.done}/{summary.total} done</span>
@@ -424,6 +439,7 @@ export const TaskBoardPanel: React.FC = () => {
                             disabled={columnIndex === 0}
                             className={`p-0.5 rounded disabled:opacity-20 ${mutedCls}`}
                             title="Move to previous column"
+                            aria-label="Move to previous column"
                           >
                             <ChevronLeft className="w-3.5 h-3.5" />
                           </button>
@@ -435,6 +451,7 @@ export const TaskBoardPanel: React.FC = () => {
                             disabled={columnIndex === columns.length - 1}
                             className={`p-0.5 rounded disabled:opacity-20 ${mutedCls}`}
                             title="Move to next column"
+                            aria-label="Move to next column"
                           >
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
@@ -456,7 +473,7 @@ export const TaskBoardPanel: React.FC = () => {
                     placeholder="Add a task…"
                     className={`${inputCls} flex-1 min-w-0 !min-h-[30px]`}
                   />
-                  <button type="submit" disabled={!(drafts[column.id] ?? '').trim()} className="min-h-[30px] px-2 rounded-md bg-sky-600 text-white disabled:opacity-40" title="Add task">
+                  <button type="submit" disabled={!(drafts[column.id] ?? '').trim()} className="min-h-[30px] px-2 rounded-md bg-sky-600 text-white disabled:opacity-40" title="Add task" aria-label="Add task">
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </form>

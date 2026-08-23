@@ -5,11 +5,11 @@ import {
   BREAKDOWN_CATEGORIES,
   breakdownCategoryTint,
   groupBreakdownItems,
-  removeBreakdownItem,
   scenesForBreakdownItem,
   tagBreakdownItem,
   updateBreakdownItem,
 } from '../../domain/script';
+import { removeBreakdownItemReferences } from '../../domain/integrity';
 import type { BreakdownCategory, BreakdownItem, ScriptScene } from '../../domain/script';
 import type { ScriptLine } from '../../types';
 
@@ -49,11 +49,17 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
       breakdownItems: updateBreakdownItem(prev.breakdownItems ?? [], itemId, updates),
     }));
 
+  // Deleting goes through the integrity helper rather than filtering the list,
+  // so the scenes that cached this element's id lose it too instead of
+  // printing a blank row on the breakdown sheet (see domain/integrity.ts).
   const remove = (item: BreakdownItem) => {
     if (!window.confirm(`Remove “${item.name}” from the breakdown?`)) return;
-    updateProjectMeta((prev) => ({
-      breakdownItems: removeBreakdownItem(prev.breakdownItems ?? [], item.id),
-    }));
+    updateProjectMeta((prev) =>
+      removeBreakdownItemReferences(
+        { breakdownItems: prev.breakdownItems ?? [], scriptScenes: prev.scriptScenes },
+        item.id,
+      ),
+    );
   };
 
   const add = () => {

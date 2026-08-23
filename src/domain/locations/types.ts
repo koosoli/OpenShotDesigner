@@ -26,6 +26,13 @@ export interface Location {
   /** Optional map pin (WGS84 decimal degrees) resolved via the map adapter. */
   lat?: number;
   lng?: number;
+  /**
+   * Optional IANA time zone ("America/Los_Angeles"). Absent means the machine's
+   * zone, which is what every project stored before this existed, so nothing
+   * needs migrating. Set it and the call sheet's sun times are the unit's own
+   * wall clock rather than the producer's.
+   */
+  timeZone?: string;
   /** References to people-domain contacts (people.Person ids). */
   contactIds?: string[];
   notes?: string;

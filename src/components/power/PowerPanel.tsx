@@ -6,6 +6,7 @@ import {
   Lightbulb,
   Plug,
   Plus,
+  Printer,
   Trash2,
   Zap,
 } from 'lucide-react';
@@ -18,8 +19,11 @@ import {
   POWER_DISCLAIMER,
   calculatePowerLoad,
   circuitHeadroom,
+  derivePlanConsumers,
   phaseBalance,
+  savablePlanConsumers,
   powerLoadByGroup,
+  sourceLoad,
   type PowerCircuit,
   type PowerConsumer,
   type PowerSource,
@@ -35,6 +39,13 @@ import {
   type ScenePowerConsumer,
 } from './powerPresets';
 
+/**
+ * "12,500 VA" — apparent power. A supply is rated in volt-amps and a load that
+ * is not at unity power factor asks for more of them than it consumes watts,
+ * so the two units are shown apart rather than one standing in for the other.
+ */
+const formatVA = (va: number): string => `${Math.round(va).toLocaleString()} VA`;
+
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
 const parseOptionalNumber = (raw: string): number | undefined => {
   if (raw.trim() === '') return undefined;
@@ -43,21 +54,57 @@ const parseOptionalNumber = (raw: string): number | undefined => {
 };
 
 export const PowerPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta, activeSetup } = useFloorPlan();
+  const { project, theme, updateProjectMeta, activeSetup, openExportModal } = useFloorPlan();
   // Re-render when the fixture catalog changes: the bundled snapshot arrives
   // asynchronously and an online refresh can replace it, and both change the
   // wattage and specs derived below.
-  useFixtureCatalog();
+  const catalog = useFixtureCatalog();
   const isLight = theme === 'light';
+
+  /**
+   * Wattage for a consumer's fixture, out of the live catalogue.
+   *
+   * This used to be `() => undefined`, which meant the estimation chain in
+   * `calculatePowerLoad` could never reach its "authoritative profile" tier: a
+   * fixture specified exactly in the inspector still reported an unknown load,
+   * and the whole page could only total what had been typed into it by hand.
+   */
+  const profileWatts = useMemo(() => {
+    const byId = new Map(catalog.profiles.map((profile) => [profile.id, profile]));
+    return (equipmentProfileId: string): number | undefined =>
+      byId.get(equipmentProfileId)?.powerWatts;
+  }, [catalog.profiles]);
 
   const plan = getPowerPlan(project);
   const sources = plan.sources;
   const circuits = plan.circuits;
   // Memoised: a fresh `?? []` each render defeated the load report's memo.
-  const consumers: ScenePowerConsumer[] = useMemo(
+  const savedConsumers: ScenePowerConsumer[] = useMemo(
     () => (plan.consumers ?? []) as ScenePowerConsumer[],
     [plan.consumers],
   );
+
+  const sceneLights = useMemo(
+    () => activeSetup.elements.filter((e): e is LightElement => e.type === 'light'),
+    [activeSetup.elements],
+  );
+
+  /**
+   * What the page shows: every light on the plan, plus anything added here by
+   * hand. The plan owns which fixtures exist and what they are; this panel
+   * persists only the decisions the plan cannot know — circuit, quantity,
+   * truss, distro zone, and an explicit wattage where the operator knows
+   * better than the catalogue. See `derivePlanConsumers`.
+   */
+  const consumers: ScenePowerConsumer[] = useMemo(
+    () => derivePlanConsumers(sceneLights, savedConsumers),
+    [sceneLights, savedConsumers],
+  );
+
+  /** Persist the decision-carrying rows only; a bare plan light stays derived. */
+  const commitConsumers = (next: ScenePowerConsumer[]) => {
+    commit({ ...plan, consumers: savablePlanConsumers(next) });
+  };
 
   // Inline add-form state
   const [newCircuitName, setNewCircuitName] = useState('');
@@ -74,7 +121,7 @@ export const PowerPanel: React.FC = () => {
   // --- Derived report (pure domain logic; profiles arrive later) ---
 
   const report = useMemo(() => {
-    const load = calculatePowerLoad(consumers, () => undefined);
+    const load = calculatePowerLoad(consumers, profileWatts);
     const wattsByConsumerId = new Map(
       load.perConsumer.map((p) => [p.consumerId, p.watts])
     );
@@ -86,21 +133,22 @@ export const PowerPanel: React.FC = () => {
       const headroom = circuitHeadroom(circuit, watts, { voltageV: source?.voltageV });
       return { circuit, watts, headroom };
     });
-    const sourceRows = sources.map((source) => {
-      const watts = circuitRows
-        .filter((r) => r.circuit.sourceId === source.id)
-        .reduce((sum, r) => sum + r.watts, 0);
-      const { voltageV, ampsPerPhaseA, phases } = source;
-      const capacityWatts =
-        voltageV !== undefined && ampsPerPhaseA !== undefined && phases !== undefined
-          ? voltageV * ampsPerPhaseA * phases
-          : null;
-      return { source, watts, capacityWatts };
-    });
+    // What each supply is asked for, in the volt-amps its rating is written in:
+    // the domain sums W/pf circuit by circuit, so a distro of magnetic ballasts
+    // is not reported as comfortable because its watts fit inside its kVA.
+    const sourceRows = sources.map((source) => ({
+      source,
+      load: sourceLoad(
+        source,
+        circuitRows
+          .filter((row) => row.circuit.sourceId === source.id)
+          .map(({ circuit, watts }) => ({ circuit, watts })),
+      ),
+    }));
     // Load per truss run and per distribution zone: the same estimation path
     // as the flat total, only regrouped (domain does the maths, rule 4).
-    const trussLoads = powerLoadByGroup(consumers, () => undefined, (c) => c.trussElementId);
-    const zoneLoads = powerLoadByGroup(consumers, () => undefined, (c) => c.distroZone?.trim() || undefined);
+    const trussLoads = powerLoadByGroup(consumers, profileWatts, (c) => c.trussElementId);
+    const zoneLoads = powerLoadByGroup(consumers, profileWatts, (c) => c.distroZone?.trim() || undefined);
 
     // Phase balance is only meaningful on a 3-phase supply, and only for the
     // circuits fed by that supply.
@@ -117,7 +165,7 @@ export const PowerPanel: React.FC = () => {
       }));
 
     return { load, circuitRows, sourceRows, trussLoads, zoneLoads, phaseRows };
-  }, [consumers, circuits, sources]);
+  }, [consumers, circuits, sources, profileWatts]);
 
   const trussElements = project.trussElements ?? [];
   const trussLabel = (trussId: string): string => {
@@ -125,11 +173,6 @@ export const PowerPanel: React.FC = () => {
     if (!truss) return 'Truss no longer on the rig';
     return truss.label?.trim() || `Truss ${trussElements.indexOf(truss) + 1}`;
   };
-
-  const sceneLights = useMemo(
-    () => activeSetup.elements.filter((e): e is LightElement => e.type === 'light'),
-    [activeSetup.elements]
-  );
 
   // --- Source mutations ---
 
@@ -199,47 +242,47 @@ export const PowerPanel: React.FC = () => {
 
   // --- Consumer mutations ---
 
-  const addAllSceneLights = () => {
-    const alreadyAdded = new Set(
-      consumers
-        .map((c) => c.sourceElementId)
-        .filter((id): id is string => id !== undefined)
-    );
-    const fresh: ScenePowerConsumer[] = sceneLights
-      .filter((light) => !alreadyAdded.has(light.id))
-      .map((light) => ({
-        id: createId('pcons'),
-        name: light.name || light.fixtureType,
-        quantity: 1,
-        sourceElementId: light.id,
-      }));
-    if (fresh.length === 0) return;
-    commit({ ...plan, consumers: [...consumers, ...fresh] });
-  };
-
   const addManualConsumer = () => {
     const consumer: ScenePowerConsumer = {
       id: createId('pcons'),
       name: newConsumerName.trim() || 'Consumer',
       quantity: Math.max(1, Math.round(Number(newConsumerQty) || 1)),
     };
-    commit({ ...plan, consumers: [...consumers, consumer] });
+    commitConsumers([...consumers, consumer]);
     setNewConsumerName('');
     setNewConsumerQty('1');
   };
 
   const updateConsumer = (consumerId: string, updates: Partial<PowerConsumer>) => {
-    commit({
-      ...plan,
-      consumers: consumers.map((c) => (c.id === consumerId ? { ...c, ...updates } : c)),
-    });
+    commitConsumers(consumers.map((c) => (c.id === consumerId ? { ...c, ...updates } : c)));
   };
 
+  /**
+   * Removing a row that came from the plan only clears what this page decided
+   * about it — the fixture itself is on the floor plan and is deleted there.
+   * Dropping it from the list here would make it reappear on the next render
+   * looking untouched, which is worse than either outcome.
+   */
   const removeConsumer = (consumerId: string) => {
-    commit({
-      ...plan,
-      consumers: consumers.filter((c) => c.id !== consumerId),
-    });
+    const target = consumers.find((c) => c.id === consumerId);
+    if (target?.derivedFromPlan) {
+      commitConsumers(
+        consumers.map((c) =>
+          c.id === consumerId
+            ? {
+                ...c,
+                circuitId: undefined,
+                powerWattsOverride: undefined,
+                trussElementId: undefined,
+                distroZone: undefined,
+                quantity: 1,
+              }
+            : c,
+        ),
+      );
+      return;
+    }
+    commitConsumers(consumers.filter((c) => c.id !== consumerId));
   };
 
   // --- Shared styles (SchedulePanel conventions) ---
@@ -299,7 +342,17 @@ export const PowerPanel: React.FC = () => {
 
       {/* Derived report strip */}
       <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        {sectionHeading(<Gauge className="w-3.5 h-3.5" />, 'Estimated Load')}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {sectionHeading(<Gauge className="w-3.5 h-3.5" />, 'Estimated Load')}
+          {/* The distro sheet goes to the floor, where there is no laptop. */}
+          <button
+            onClick={() => openExportModal('power')}
+            title="Printable power and distribution sheet"
+            className={secondaryBtnClass}
+          >
+            <Printer className="w-3.5 h-3.5" /> Print
+          </button>
+        </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           <span className="font-semibold">
             Total known:{' '}
@@ -330,6 +383,9 @@ export const PowerPanel: React.FC = () => {
                     {headroom.overloaded
                       ? 'OVERLOAD'
                       : `${formatAmps(headroom.headroomA)} free`}
+                    {/* Shown only when it is not 1, so the number is never a
+                        mystery: these amps are higher than watts/volts. */}
+                    {headroom.powerFactor !== 1 && ` · pf ${headroom.powerFactor}`}
                   </span>
                 ) : (
                   <span className={`${mutedText} italic`}>
@@ -451,17 +507,29 @@ export const PowerPanel: React.FC = () => {
               isLight ? 'border-slate-200' : 'border-slate-800'
             }`}
           >
-            {sourceRows.map(({ source, watts, capacityWatts }) => (
+            {sourceRows.map(({ source, load }) => (
               <li key={source.id} className="flex items-center gap-2 text-[11px] flex-wrap">
                 <Zap className="w-3 h-3 flex-shrink-0 text-amber-500" />
                 <span className="font-medium truncate max-w-[45%]">{source.name}</span>
-                <span className={`font-mono ${mutedText}`}>{formatWatts(watts)}</span>
-                {capacityWatts !== null ? (
-                  <span className={`font-mono ${mutedText}`}>
-                    of ~{formatWatts(capacityWatts)} supply
+                <span className={`font-mono ${mutedText}`}>{formatWatts(load.knownWatts)}</span>
+                {/* The volt-amps only appear once a power factor makes them
+                    differ from the watts, so a rig of tungsten and PFC LED
+                    still reads as one number. */}
+                {Math.round(load.apparentVA) !== Math.round(load.knownWatts) && (
+                  <span className={`font-mono ${mutedText}`}>= {formatVA(load.apparentVA)} drawn</span>
+                )}
+                {load.capacityVA !== null ? (
+                  <span
+                    className={`font-mono ${load.overCapacity ? 'text-red-500 font-bold' : mutedText}`}
+                  >
+                    of ~{formatVA(load.capacityVA)} supply
+                    {load.overCapacity ? ' · OVER CAPACITY' : ''}
                   </span>
                 ) : (
                   <span className={`${mutedText} italic`}>supply capacity unknown</span>
+                )}
+                {load.overCapacity && (
+                  <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" />
                 )}
               </li>
             ))}
@@ -667,6 +735,31 @@ export const PowerPanel: React.FC = () => {
                 aria-label={`Maximum amperes for ${circuit.name}`}
                 className={`${inputClass} !w-20`}
               />
+              {/* Power factor. A breaker trips on current, and current is
+                  W/(V·pf) — a magnetic HMI or fluorescent ballast at 0.6 pulls
+                  two thirds again the amps its wattage suggests. Left unset it
+                  is 1, which is the truth for tungsten and PFC LED, so no
+                  existing plan's numbers move. */}
+              <select
+                value={circuit.powerFactor ?? ''}
+                onChange={(e) =>
+                  updateCircuit(circuit.id, {
+                    powerFactor: e.target.value === '' ? undefined : Number(e.target.value),
+                  })
+                }
+                aria-label={`Power factor for ${circuit.name}`}
+                title="Power factor of the load: 1 for tungsten and PFC LED, lower for magnetic ballasts"
+                className={`${inputClass} !w-24`}
+              >
+                <option value="">pf 1.0</option>
+                <option value="0.95">pf 0.95</option>
+                <option value="0.9">pf 0.9</option>
+                <option value="0.85">pf 0.85</option>
+                <option value="0.8">pf 0.8</option>
+                <option value="0.7">pf 0.7</option>
+                <option value="0.6">pf 0.6</option>
+                <option value="0.5">pf 0.5</option>
+              </select>
               {/* Only a 3-phase supply has legs to pick from; leaving it unset
                   keeps the circuit out of the balance report rather than
                   loading it onto L1 by default. */}
@@ -710,19 +803,18 @@ export const PowerPanel: React.FC = () => {
       <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {sectionHeading(<Lightbulb className="w-3.5 h-3.5" />, 'Consumers', consumers.length)}
-          <button
-            onClick={addAllSceneLights}
-            disabled={sceneLights.length === 0}
-            title={
-              sceneLights.length === 0
-                ? 'No lights in the current scene'
-                : 'Create one consumer per light in the current scene'
-            }
-            className={secondaryBtnClass}
-          >
-            <Lightbulb className="w-3.5 h-3.5" />
-            Add all lights from current scene ({sceneLights.length})
-          </button>
+          {/* No "add all lights" button any more: every light on the plan is
+              already listed. What the gaffer needs to know instead is where
+              the list came from, so the count is stated rather than implied. */}
+          <span className={`text-[11px] ${mutedText}`}>
+            {sceneLights.length === 0
+              ? 'No lights on the plan for this scene — add fixtures on the floor plan, or a consumer by hand below.'
+              : `${sceneLights.length} from the floor plan${
+                  consumers.length > sceneLights.length
+                    ? ` · ${consumers.length - sceneLights.length} added here`
+                    : ''
+                }`}
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <input
@@ -755,13 +847,26 @@ export const PowerPanel: React.FC = () => {
             return (
               <li key={consumer.id} className={`rounded-lg border p-2 flex flex-col gap-1.5 ${cardClass}`}>
                 <div className="flex items-center gap-1.5">
-                  <input
-                    value={consumer.name}
-                    onChange={(e) => updateConsumer(consumer.id, { name: e.target.value })}
-                    placeholder="Consumer name"
-                    aria-label={`Name for ${consumer.name}`}
-                    className={`${inputClass} font-semibold flex-1 min-w-[100px]`}
-                  />
+                  {consumer.derivedFromPlan ? (
+                    // The plan owns this fixture's name. Editing it here would
+                    // be overwritten on the next render, so it reads instead of
+                    // pretending to be a field — and says where it comes from.
+                    <span
+                      title="This fixture is on the floor plan; rename it there"
+                      className={`font-semibold flex-1 min-w-[100px] text-xs flex items-center gap-1.5 min-h-[36px] px-2`}
+                    >
+                      <Lightbulb className={`w-3 h-3 flex-shrink-0 ${mutedText}`} />
+                      {consumer.name}
+                    </span>
+                  ) : (
+                    <input
+                      value={consumer.name}
+                      onChange={(e) => updateConsumer(consumer.id, { name: e.target.value })}
+                      placeholder="Consumer name"
+                      aria-label={`Name for ${consumer.name}`}
+                      className={`${inputClass} font-semibold flex-1 min-w-[100px]`}
+                    />
+                  )}
                   <input
                     type="number"
                     min={1}
@@ -817,6 +922,23 @@ export const PowerPanel: React.FC = () => {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                </div>
+                {/* Where the number came from. A load report is only worth
+                    reading if you can tell a catalogue figure from a typed one
+                    from a guess that was never made — so each row says. */}
+                <div className={`text-[10px] flex items-center gap-2 flex-wrap ${mutedText}`}>
+                  <span>
+                    {perConsumer?.source === 'override'
+                      ? 'Wattage entered here'
+                      : perConsumer?.source === 'profile'
+                      ? 'Wattage from the fixture catalogue'
+                      : 'Wattage unknown — pick a fixture in the inspector, or enter W'}
+                  </span>
+                  {consumer.orphanedFromPlan && (
+                    <span className="text-amber-500 font-semibold">
+                      No longer on the floor plan
+                    </span>
+                  )}
                 </div>
                 {/* Where this load physically hangs / is distributed from.
                     Both are optional: a plan with no rig still totals fine. */}

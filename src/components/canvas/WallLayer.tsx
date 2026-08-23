@@ -16,7 +16,7 @@ interface WallLayerProps {
   labelColor?: string | null;
 }
 
-export const WallLayer: React.FC<WallLayerProps> = ({
+const WallLayerImpl: React.FC<WallLayerProps> = ({
   walls,
   doors,
   windows,
@@ -284,3 +284,13 @@ export const WallLayer: React.FC<WallLayerProps> = ({
     </g>
   );
 };
+
+/**
+ * Memoised because the canvas re-renders on every pointer move — hovering the
+ * plan used to redraw every layer, glyph by glyph. The props are stable by
+ * construction on the canvas side (element buckets come from one memoised
+ * pass, callbacks are `useCallback`ed), so a shallow compare is enough and a
+ * custom comparator would only hide a prop that is not stable yet.
+ */
+export const WallLayer = React.memo(WallLayerImpl);
+WallLayerImpl.displayName = 'WallLayer';

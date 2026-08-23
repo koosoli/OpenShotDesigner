@@ -194,6 +194,7 @@ export const StoryboardField: React.FC<{
               </button>
               <button
                 onClick={() => setShowLinkInput((v) => !v)}
+                aria-expanded={showLinkInput}
                 className={`flex-1 py-1.5 text-[10px] font-semibold border-t border-l ${
                   showLinkInput
                     ? 'text-violet-600 dark:text-violet-300'
@@ -246,6 +247,7 @@ export const StoryboardField: React.FC<{
           </button>
           <button
             onClick={() => setShowLinkInput((v) => !v)}
+            aria-expanded={showLinkInput}
             className={`w-full py-2 rounded-lg border border-dashed text-[10px] font-semibold transition-colors ${
               isLight ? 'text-violet-600 border-violet-300 hover:bg-violet-50' : 'text-violet-300 border-violet-800 hover:bg-slate-800'
             }`}

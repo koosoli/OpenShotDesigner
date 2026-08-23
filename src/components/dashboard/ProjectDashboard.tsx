@@ -19,6 +19,7 @@ import { listUnreadableProjects, readProject } from '../../utils/projectLibrary'
 import { WORKSPACE_PRESETS, getPreset, type WorkspacePresetId } from '../../domain/workspace';
 import { BRANDING } from '../../config/branding';
 import { exportProjectPackage, importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
+import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 
 const triggerDownload = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
@@ -81,6 +82,9 @@ export const ProjectDashboard: React.FC = () => {
   const [revisionsProjectId, setRevisionsProjectId] = useState<string | null>(null);
   /** Revision id awaiting restore confirmation. */
   const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
+  // The revisions list is the one true modal on this screen — it dims the
+  // dashboard behind it — so keyboard focus has to stay inside it while open.
+  const revisionsDialogRef = useDialogFocusTrap(revisionsProjectId !== null);
 
   if (!isDashboardOpen) return null;
 
@@ -182,6 +186,7 @@ export const ProjectDashboard: React.FC = () => {
             <button
               onClick={closeDashboard}
               title="Back to the workspace"
+              aria-label="Back to the workspace"
               className={`p-2 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
             >
               <X className="w-4 h-4" />
@@ -382,19 +387,21 @@ export const ProjectDashboard: React.FC = () => {
                         setRenameValue(entry.title);
                       }}
                       title="Rename"
+                      aria-label="Rename"
                       className={ghostButton}
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
-                    <button onClick={() => duplicateProject(entry.id)} title="Duplicate" className={ghostButton}>
+                    <button onClick={() => duplicateProject(entry.id)} title="Duplicate" aria-label="Duplicate" className={ghostButton}>
                       <Copy className="w-3 h-3" />
                     </button>
-                    <button onClick={() => downloadProject(entry.id)} title="Download project file" className={ghostButton}>
+                    <button onClick={() => downloadProject(entry.id)} title="Download project file" aria-label="Download project file" className={ghostButton}>
                       <Download className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => downloadProjectPackage(entry.id)}
                       title="Download package (project + attached media)"
+                      aria-label="Download package (project + attached media)"
                       className={ghostButton}
                     >
                       <Package className="w-3 h-3" />
@@ -405,6 +412,7 @@ export const ProjectDashboard: React.FC = () => {
                         setConfirmRestoreId(null);
                       }}
                       title="Named revisions"
+                      aria-label="Named revisions"
                       className={ghostButton}
                     >
                       <History className="w-3 h-3" />
@@ -432,6 +440,7 @@ export const ProjectDashboard: React.FC = () => {
                       <button
                         onClick={() => setConfirmDeleteId(entry.id)}
                         title="Delete project"
+                        aria-label="Delete project"
                         className={`${ghostButton} ml-auto text-rose-500`}
                       >
                         <Trash2 className="w-3 h-3" />
@@ -454,10 +463,17 @@ export const ProjectDashboard: React.FC = () => {
                 setConfirmRestoreId(null);
               }}
             />
-            <div className={`relative w-full max-w-md border rounded-2xl shadow-2xl p-4 ${panel}`}>
+            <div
+              ref={revisionsDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="dashboard-revisions-title"
+              tabIndex={-1}
+              className={`relative w-full max-w-md border rounded-2xl shadow-2xl p-4 ${panel}`}
+            >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
-                  <h3 className="text-sm font-bold flex items-center gap-1.5">
+                  <h3 id="dashboard-revisions-title" className="text-sm font-bold flex items-center gap-1.5">
                     <History className="w-4 h-4 text-sky-500" /> Revisions — {revisionsProject.title}
                   </h3>
                   <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -470,6 +486,7 @@ export const ProjectDashboard: React.FC = () => {
                     setConfirmRestoreId(null);
                   }}
                   title="Close"
+                  aria-label="Close"
                   className={`p-1.5 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
                 >
                   <X className="w-3.5 h-3.5" />

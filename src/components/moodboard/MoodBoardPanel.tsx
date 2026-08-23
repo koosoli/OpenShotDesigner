@@ -176,6 +176,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
         <button
           onClick={() => onDelete(card)}
           title="Delete card"
+          aria-label="Delete card"
           className={`min-h-[36px] min-w-[36px] flex items-center justify-center rounded-md transition-colors ${
             isLight ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-red-950/40 hover:text-red-400'
           }`}
@@ -186,6 +187,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
 
       <button
         onClick={() => setShowNotes((v) => !v)}
+        aria-expanded={showNotes}
         className={`min-h-[36px] w-full flex items-center gap-1 px-1 text-[11px] font-semibold transition-colors rounded-md ${
           isLight ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/60' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
         }`}
@@ -250,6 +252,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
               <button
                 onClick={() => commitLink('', '')}
                 title="Clear link"
+                aria-label="Clear link"
                 className={`min-h-[36px] min-w-[36px] flex items-center justify-center rounded-md transition-colors ${
                   isLight ? 'hover:bg-slate-200/60' : 'hover:bg-slate-800'
                 }`}
@@ -606,6 +609,7 @@ export const MoodBoardPanel: React.FC = () => {
             <div className={`flex p-0.5 rounded-md border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-950/60'}`}>
               <button
                 onClick={() => setView('sections')}
+                aria-pressed={view === 'sections'}
                 title="Sections board view"
                 className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
                   view === 'sections' ? (isLight ? 'bg-sky-600 text-white' : 'bg-sky-600 text-white') : mutedCls
@@ -615,6 +619,7 @@ export const MoodBoardPanel: React.FC = () => {
               </button>
               <button
                 onClick={() => setView('collage')}
+                aria-pressed={view === 'collage'}
                 title="Collage of all images"
                 className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
                   view === 'collage' ? 'bg-sky-600 text-white' : mutedCls
@@ -629,6 +634,7 @@ export const MoodBoardPanel: React.FC = () => {
             <button
               onClick={handleDeleteBoard}
               title="Delete this board"
+              aria-label="Delete this board"
               className={`min-h-[36px] min-w-[36px] flex items-center justify-center rounded-md transition-colors ${
                 isLight ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-red-950/40 hover:text-red-400'
               }`}

@@ -100,6 +100,45 @@ describe('compareSceneNumbers / numeric ordering', () => {
     const input = ['10', '2A', '2', '1', '9B', '9'];
     expect([...input].sort(compareSceneNumbers)).toEqual(['1', '2', '2A', '9', '9B', '10']);
   });
+
+  /**
+   * A prefix means "inserted BEFORE": A1 is the scene added ahead of scene 1.
+   * The generic token walk sorted every prefixed number to the end of the
+   * report, so a scene the app itself had numbered `A1` printed after the last
+   * scene of the film.
+   */
+  it('puts a prefixed scene ahead of the scene it was inserted before', () => {
+    expect(['1', 'A1', '2'].sort(compareSceneNumbers)).toEqual(['A1', '1', '2']);
+    expect(['1', 'B1', 'A1'].sort(compareSceneNumbers)).toEqual(['A1', 'B1', '1']);
+  });
+
+  it('places a scene squeezed between 3 and 3A between them', () => {
+    expect(['3A', '3', 'A3A', '3B', '4'].sort(compareSceneNumbers)).toEqual([
+      '3',
+      'A3A',
+      '3A',
+      '3B',
+      '4',
+    ]);
+  });
+
+  it('orders double-letter suffixes the way the script convention does', () => {
+    expect(['3B', '3AA', '3A', '3'].sort(compareSceneNumbers)).toEqual(['3', '3A', '3AA', '3B']);
+  });
+
+  it('still falls back to the token walk for anything that is not a number', () => {
+    expect(['10', 'OMITTED', '9'].sort(compareSceneNumbers)).toEqual(['9', '10', 'OMITTED']);
+  });
+
+  it('is a consistent ordering — comparing either way agrees', () => {
+    const numbers = ['1', 'A1', 'B1', '2', '3', '3A', '3AA', '3B', 'A3A', '10', 'OMITTED', ''];
+    for (const x of numbers) {
+      for (const y of numbers) {
+        // `|| 0` normalises -0, which `toBe` distinguishes from 0.
+        expect(Math.sign(compareSceneNumbers(x, y)) || 0).toBe(-Math.sign(compareSceneNumbers(y, x)) || 0);
+      }
+    }
+  });
 });
 
 describe('deriveCharacterReport', () => {

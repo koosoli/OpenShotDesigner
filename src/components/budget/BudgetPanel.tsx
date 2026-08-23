@@ -108,10 +108,14 @@ export const BudgetPanel: React.FC = () => {
 
   const exportCsv = () => downloadText(`Budget_${project.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`, budgetToCsv(summary));
 
+  // A quantity of nought is a decision, not a missing number, so the row says
+  // so: struck through and priced at nothing, the way a producer would put a
+  // pencil through a line they are not buying this time round.
   const entryRow = (entry: BudgetEntry) => (
-    <tr key={entry.id} className={`border-t ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>
+    <tr key={entry.id} className={`border-t ${isLight ? 'border-slate-100' : 'border-slate-800'} ${entry.quantity === 0 ? 'opacity-60' : ''}`}>
       <td className="py-1.5 pr-2">
-        <div className="font-semibold">{entry.label}</div>
+        <div className={`font-semibold ${entry.quantity === 0 ? 'line-through' : ''}`}>{entry.label}</div>
+        {entry.quantity === 0 && <div className={`text-[10px] ${mutedCls}`}>Struck — quantity 0, not counted in the totals</div>}
         {entry.detail && <div className={`text-[10px] ${mutedCls}`}>{entry.detail}</div>}
         {entry.warning && (
           <div className="text-[10px] text-amber-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{entry.warning}</div>
@@ -120,7 +124,7 @@ export const BudgetPanel: React.FC = () => {
       <td className={`py-1.5 pr-2 text-right font-mono whitespace-nowrap ${mutedCls}`}>
         {money(entry.rate)} {RATE_BASIS_LABELS[entry.basis]}
       </td>
-      <td className="py-1.5 pr-2 text-right font-mono">{entry.basis === 'flat' ? '' : `${entry.units} d`}{entry.quantity > 1 ? ` ×${entry.quantity}` : ''}</td>
+      <td className="py-1.5 pr-2 text-right font-mono">{entry.basis === 'flat' ? '' : `${entry.units} d`}{entry.quantity === 1 ? '' : ` ×${entry.quantity}`}</td>
       <td className="py-1.5 pr-2 text-right font-mono">{money(entry.net)}</td>
       <td className={`py-1.5 pr-2 text-right font-mono ${mutedCls}`}>{entry.vatPercent}%</td>
       <td className="py-1.5 text-right font-mono font-bold">{money(entry.gross)}</td>
@@ -372,7 +376,12 @@ export const BudgetPanel: React.FC = () => {
                       {line.basis !== 'flat' && (
                         <input type="number" min={0} value={line.units ?? ''} placeholder={String(shootDays)} title="Blank = every shooting day" onChange={(e) => patchLine(line.id, { units: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) })} className={`${inputCls} !w-16`} />
                       )}
-                      <input type="number" min={1} value={line.quantity ?? 1} onChange={(e) => patchLine(line.id, { quantity: Math.max(1, Number(e.target.value) || 1) })} className={`${inputCls} !w-14`} />
+                      {/* Zero is allowed, and means it: a line struck for this
+                          version of the budget prices as nothing rather than
+                          being silently put back at one. Negatives are not a
+                          quantity, and a cleared field is "unspecified", which
+                          the domain reads as one. */}
+                      <input type="number" min={0} value={line.quantity ?? 1} title="Quantity — 0 strikes the line from the totals" onChange={(e) => patchLine(line.id, { quantity: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} className={`${inputCls} !w-14`} />
                     </div>
                   </label>
                   <div className="flex items-end gap-1">

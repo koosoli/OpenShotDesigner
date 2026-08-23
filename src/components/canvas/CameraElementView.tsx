@@ -19,7 +19,7 @@ interface CameraElementViewProps {
   shot?: Shot | null;
 }
 
-export const CameraElementView: React.FC<CameraElementViewProps> = ({
+const CameraElementViewImpl: React.FC<CameraElementViewProps> = ({
   camera,
   isSelected,
   isHighlighted,
@@ -550,3 +550,13 @@ export const CameraElementView: React.FC<CameraElementViewProps> = ({
     </g>
   );
 };
+
+/**
+ * Memoised because the canvas re-renders on every pointer move — hovering the
+ * plan used to redraw every layer, glyph by glyph. The props are stable by
+ * construction on the canvas side (element buckets come from one memoised
+ * pass, callbacks are `useCallback`ed), so a shallow compare is enough and a
+ * custom comparator would only hide a prop that is not stable yet.
+ */
+export const CameraElementView = React.memo(CameraElementViewImpl);
+CameraElementViewImpl.displayName = 'CameraElementView';

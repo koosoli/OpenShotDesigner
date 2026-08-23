@@ -18,6 +18,7 @@ import {
   SHUTTER_ANGLES,
 } from '../../constants/presets';
 import { ProjectImage } from '../common/ProjectImage';
+import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import {
   Camera,
   ChevronLeft,
@@ -25,9 +26,6 @@ import {
   Crosshair,
   Eye,
   Grid,
-  Layers,
-  Maximize2,
-  Minimize2,
   PenTool,
   RotateCw,
   Image as ImageIcon,
@@ -37,8 +35,6 @@ import {
   Video,
   VideoOff,
   Shield,
-  Sliders,
-  Sparkles,
   User,
   X,
 } from 'lucide-react';
@@ -93,6 +89,10 @@ export const ViewfinderModal: React.FC = () => {
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  // The finder is painted over the workspace rather than replacing it, so
+  // keyboard focus has to be held inside its panel while it is open. Only one
+  // of the two panels below is ever mounted, so they can share the one ref.
+  const dialogRef = useDialogFocusTrap(isViewfinderOpen);
 
   const stopLiveCamera = () => {
     setFrozenFrame(null);
@@ -177,9 +177,16 @@ export const ViewfinderModal: React.FC = () => {
   if (!selectedCamera) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center max-w-md shadow-2xl">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="viewfinder-no-cameras-title"
+          tabIndex={-1}
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center max-w-md shadow-2xl"
+        >
           <Camera className="w-12 h-12 mx-auto text-slate-500 mb-3" />
-          <h3 className="text-base font-bold text-white mb-1">No Cameras on Floor Plan</h3>
+          <h3 id="viewfinder-no-cameras-title" className="text-base font-bold text-white mb-1">No Cameras on Floor Plan</h3>
           <p className="text-xs text-slate-400 mb-4">
             Add a camera to your scene setup to view the simulated optical viewfinder.
           </p>
@@ -582,7 +589,14 @@ export const ViewfinderModal: React.FC = () => {
       id="viewfinder-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-3 sm:p-6 select-none animate-in fade-in duration-200"
     >
-      <div className="relative w-full max-w-5xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95dvh]">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="viewfinder-title"
+        tabIndex={-1}
+        className="relative w-full max-w-5xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95dvh]"
+      >
         {/* 1. Modal Header Bar */}
         <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -591,7 +605,7 @@ export const ViewfinderModal: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white tracking-wide uppercase">
+                <h3 id="viewfinder-title" className="text-sm font-bold text-white tracking-wide uppercase">
                   Director's Optical Viewfinder
                 </h3>
                 <span className="px-2 py-0.5 text-xs font-mono font-bold bg-sky-600 text-white rounded">
@@ -614,6 +628,7 @@ export const ViewfinderModal: React.FC = () => {
                 <button
                   onClick={() => openViewfinder(prevCamera.id)}
                   title={`Previous Camera (${prevCamera.cameraLabel})`}
+                  aria-label={`Previous Camera (${prevCamera.cameraLabel})`}
                   className="p-1.5 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -632,6 +647,7 @@ export const ViewfinderModal: React.FC = () => {
                 <button
                   onClick={() => openViewfinder(nextCamera.id)}
                   title={`Next Camera (${nextCamera.cameraLabel})`}
+                  aria-label={`Next Camera (${nextCamera.cameraLabel})`}
                   className="p-1.5 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -641,6 +657,8 @@ export const ViewfinderModal: React.FC = () => {
 
             <button
               onClick={closeViewfinder}
+              title="Close the viewfinder"
+              aria-label="Close the viewfinder"
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors ml-2"
             >
               <X className="w-5 h-5" />
@@ -827,6 +845,7 @@ export const ViewfinderModal: React.FC = () => {
                 <button
                   onClick={captureLiveFrame}
                   title="Take this frame as the storyboard (Space)"
+                  aria-label="Take this frame as the storyboard (Space)"
                   className={`w-14 h-14 rounded-full border-4 shadow-2xl flex items-center justify-center transition-transform active:scale-95 ${
                     videoReady
                       ? 'border-white bg-red-600 hover:bg-red-500'
@@ -903,7 +922,12 @@ export const ViewfinderModal: React.FC = () => {
         {saveNote && !liveError && (
           <div className="px-4 py-2 bg-emerald-950/70 border-t border-emerald-800 text-[11px] text-emerald-200 flex items-center justify-between gap-2">
             <span>{saveNote}</span>
-            <button onClick={() => setSaveNote(null)} className="opacity-70 hover:opacity-100">
+            <button
+              onClick={() => setSaveNote(null)}
+              title="Dismiss this message"
+              aria-label="Dismiss this message"
+              className="opacity-70 hover:opacity-100"
+            >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -1153,6 +1177,7 @@ export const ViewfinderModal: React.FC = () => {
                 <button
                   onClick={() => startLiveCamera(facingMode === 'environment' ? 'user' : 'environment')}
                   title="Switch between the front and rear camera"
+                  aria-label="Switch between the front and rear camera"
                   className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border bg-slate-950 text-slate-300 border-slate-800 hover:text-white"
                 >
                   <SwitchCamera className="w-3.5 h-3.5" />
@@ -1211,6 +1236,7 @@ export const ViewfinderModal: React.FC = () => {
               <button
                 onClick={() => setShowStoryboard((shown) => !shown)}
                 title="Show or hide the attached storyboard inside the finder"
+                aria-pressed={showStoryboard}
                 className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                   showStoryboard
                     ? 'bg-slate-800 text-violet-300 border-violet-500/50'
@@ -1223,6 +1249,7 @@ export const ViewfinderModal: React.FC = () => {
             )}
             <button
               onClick={() => setShowRuleOfThirds(!showRuleOfThirds)}
+              aria-pressed={showRuleOfThirds}
               className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 showRuleOfThirds
                   ? 'bg-slate-800 text-sky-400 border-sky-500/50'
@@ -1235,6 +1262,7 @@ export const ViewfinderModal: React.FC = () => {
 
             <button
               onClick={() => setShowCrosshair(!showCrosshair)}
+              aria-pressed={showCrosshair}
               className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 showCrosshair
                   ? 'bg-slate-800 text-sky-400 border-sky-500/50'
@@ -1247,6 +1275,7 @@ export const ViewfinderModal: React.FC = () => {
 
             <button
               onClick={() => setShowSafeAreas(!showSafeAreas)}
+              aria-pressed={showSafeAreas}
               className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 showSafeAreas
                   ? 'bg-slate-800 text-sky-400 border-sky-500/50'

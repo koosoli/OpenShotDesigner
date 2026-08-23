@@ -55,6 +55,18 @@ export interface PowerCircuit {
    * than silently loading it onto L1 (plan rule 13).
    */
   phaseLeg?: 1 | 2 | 3;
+  /**
+   * Power factor of the load on this circuit, 0 < pf ≤ 1. Absent = 1, which is
+   * the truth for tungsten, heaters and any LED fixture with active PFC.
+   *
+   * It matters because a breaker trips on *current*, not on watts: a magnetic
+   * HMI ballast at pf 0.6 draws 1/0.6 as many amps as its wattage suggests, so
+   * a circuit reported at 80% on watts alone is already over. Set per circuit
+   * rather than per fixture because a circuit is normally one department's
+   * gear, and because a guessed per-fixture pf would be exactly the kind of
+   * invented number the rest of this app refuses to produce.
+   */
+  powerFactor?: number;
 }
 
 /**

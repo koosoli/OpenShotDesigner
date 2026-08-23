@@ -5,8 +5,6 @@ import { LeftToolbar } from './components/toolbar/LeftToolbar';
 import { FloorPlanCanvas } from './components/canvas/FloorPlanCanvas';
 import { TimelineBar } from './components/timeline/TimelineBar';
 import { ShotListPanel } from './components/shotlist/ShotListPanel';
-import { StoryboardPanel } from './components/storyboard/StoryboardPanel';
-import { ScriptPanel } from './components/script/ScriptPanel';
 import { InspectorPanel } from './components/inspector/InspectorPanel';
 import { QuickAssetSearch } from './components/toolbar/QuickAssetSearch';
 import { ensureBundledFixtureSnapshot } from './domain/fixtures';
@@ -15,9 +13,10 @@ import { ensureBundledFixtureSnapshot } from './domain/fixtures';
  * Code-split surfaces (plan §5.3 first-load budget).
  *
  * None of these is on the first-paint path: the export studio and the
- * viewfinder are modals, and every production/technical panel is behind a tab
- * the user has to choose. Loading them eagerly put the print stack (a dozen
- * report views), the camera stack and nine panels into the entry chunk that
+ * viewfinder are modals, and every panel here — production, technical, and the
+ * heavy script/storyboard surfaces — is behind a tab the user has to choose.
+ * Loading them eagerly put the print stack (a dozen report views), the camera
+ * stack, the screenplay parser and eleven panels into the entry chunk that
  * everyone downloads before they can see their floor plan.
  *
  * Each is rendered inside <Suspense> with a quiet fallback, and the modals are
@@ -62,6 +61,12 @@ const BudgetPanel = React.lazy(() =>
 );
 const TaskBoardPanel = React.lazy(() =>
   import('./components/tasks/TaskBoardPanel').then((m) => ({ default: m.TaskBoardPanel })),
+);
+const StoryboardPanel = React.lazy(() =>
+  import('./components/storyboard/StoryboardPanel').then((m) => ({ default: m.StoryboardPanel })),
+);
+const ScriptPanel = React.lazy(() =>
+  import('./components/script/ScriptPanel').then((m) => ({ default: m.ScriptPanel })),
 );
 
 /** Quiet placeholder while a panel chunk arrives; never a layout jump. */
@@ -319,6 +324,7 @@ const MainLayout: React.FC = () => {
                     <button
                       onClick={() => setSheetSize((prev) => (prev === 'full' ? 'half' : 'peek'))}
                       title="Shrink panel"
+                      aria-label="Shrink the side panel"
                       className={`p-1.5 rounded-lg transition-colors ${
                         isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
                       }`}
@@ -328,6 +334,7 @@ const MainLayout: React.FC = () => {
                     <button
                       onClick={() => setSheetSize((prev) => (prev === 'peek' ? 'half' : 'full'))}
                       title="Enlarge panel"
+                      aria-label="Enlarge the side panel"
                       className={`p-1.5 rounded-lg transition-colors ${
                         isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
                       }`}
@@ -356,6 +363,7 @@ const MainLayout: React.FC = () => {
                     setIsRightPanelOpen(false);
                   }}
                   title={isMobile ? 'Hide panel' : 'Collapse sidebar'}
+                  aria-label={isMobile ? 'Hide the side panel' : 'Collapse the sidebar'}
                   className={`p-1.5 rounded-lg transition-colors ${
                     isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}

@@ -314,6 +314,7 @@ export const LeftToolbar: React.FC = () => {
           id="tool-btn-quick-search"
           onClick={() => setQuickSearchOpen(true)}
           title="Quick Search Assets (Shift+Space)"
+          aria-label="Quick Search Assets (Shift+Space)"
           className={`${buttonSize} rounded-xl flex items-center justify-center transition-all ring-1 ring-inset ${
             isLight
               ? 'text-slate-500 hover:text-sky-600 hover:bg-sky-50 ring-slate-200'
@@ -341,6 +342,8 @@ export const LeftToolbar: React.FC = () => {
               id={`tool-btn-${tool.id}`}
               onClick={() => toggleSubmenu(tool)}
               title={`${tool.label} (${tool.shortcut})`}
+              aria-label={`${tool.label} (${tool.shortcut})`}
+              aria-pressed={isActive}
               className={`${buttonSize} ${iconScale} rounded-xl flex items-center justify-center transition-all ${
                 isActive
                   ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 scale-105'
@@ -613,7 +616,9 @@ export const LeftToolbar: React.FC = () => {
           <button
             id="tool-btn-more"
             onClick={() => setOpenSubmenu((prev) => (prev === 'overflow' ? null : 'overflow'))}
+            aria-expanded={openSubmenu === 'overflow'}
             title="More tools"
+            aria-label="More tools"
             className={`${buttonSize} rounded-xl flex items-center justify-center transition-all ${
               overflowTools.some((tool) => tool.id === activeTool)
                 ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
@@ -666,6 +671,7 @@ export const LeftToolbar: React.FC = () => {
           id="tool-btn-upload-floorplan"
           onClick={() => floorplanInputRef.current?.click()}
           title="Upload Floorplan / Screenshot"
+          aria-label="Upload Floorplan / Screenshot"
           className={`${buttonSize} rounded-xl flex items-center justify-center transition-all border-t pt-2.5 mt-1 ${
             isLight
               ? 'text-teal-600 hover:text-teal-700 hover:bg-teal-50 border-slate-200'

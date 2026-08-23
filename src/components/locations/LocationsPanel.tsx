@@ -18,8 +18,8 @@ import {
   locationQuery,
   reverseGeocode,
 } from '../../domain/locations';
-import type { GeoPoint } from '../../domain/locations';
 import type { LocationType } from '../../domain/locations';
+import { machineTimeZone, supportedTimeZones } from '../../domain/sun';
 import { OsmMiniMap } from './OsmMiniMap';
 
 const LOCATION_TYPES: LocationType[] = ['location', 'studio', 'stage', 'venue', 'arena', 'outdoor', 'other'];
@@ -33,6 +33,16 @@ const TYPE_LABELS: Record<LocationType, string> = {
   outdoor: 'Outdoor',
   other: 'Other',
 };
+
+/**
+ * The zones this browser can offer, read once. Engines without
+ * `Intl.supportedValuesOf` return nothing and the field becomes a text input —
+ * better than a short hand-written list that would omit the shoot's own zone.
+ */
+const TIME_ZONES = supportedTimeZones();
+
+/** What the times fall back to when a location declares no zone of its own. */
+const MACHINE_TIME_ZONE = machineTimeZone();
 
 export const LocationsPanel: React.FC = () => {
   const {
@@ -102,7 +112,7 @@ export const LocationsPanel: React.FC = () => {
    * this after an await, where the render-time `locations` array is stale —
    * building the patch from `prev` keeps edits made during the request.
    */
-  const updateLocation = (id: string, updates: Partial<{ name: string; type: LocationType; address?: string; parentLocationId?: string; notes?: string; lat?: number; lng?: number }>) => {
+  const updateLocation = (id: string, updates: Partial<{ name: string; type: LocationType; address?: string; parentLocationId?: string; notes?: string; lat?: number; lng?: number; timeZone?: string }>) => {
     updateProjectMeta((prev) => ({
       locations: (prev.locations ?? []).map((l) => (l.id === id ? { ...l, ...updates } : l)),
     }));
@@ -310,6 +320,39 @@ export const LocationsPanel: React.FC = () => {
                       <option key={l.id} value={l.id}>{l.name}</option>
                     ))}
                   </select>
+                </label>
+                {/* Time zone (plan §37): the sun times on a call sheet are the
+                    unit's wall clock, not the producer's. Left unset they stay
+                    in this machine's zone, which is what they always were. */}
+                <label className="flex flex-col gap-1">
+                  <span className={`text-[10px] font-medium ${mutedText}`}>Time zone</span>
+                  {TIME_ZONES.length > 0 ? (
+                    <select
+                      value={loc.timeZone ?? ''}
+                      onChange={(e) => updateLocation(loc.id, { timeZone: e.target.value || undefined })}
+                      aria-label={`Time zone for ${loc.name}`}
+                      className={inputClass}
+                    >
+                      <option value="">— this machine ({MACHINE_TIME_ZONE}) —</option>
+                      {/* A zone stored by another browser that this one does not
+                          know still has to be selectable, or opening the panel
+                          would quietly discard it. */}
+                      {loc.timeZone && !TIME_ZONES.includes(loc.timeZone) && (
+                        <option value={loc.timeZone}>{loc.timeZone} (not recognised here)</option>
+                      )}
+                      {TIME_ZONES.map((zone) => (
+                        <option key={zone} value={zone}>{zone}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={loc.timeZone ?? ''}
+                      onChange={(e) => updateLocation(loc.id, { timeZone: e.target.value.trim() || undefined })}
+                      placeholder={MACHINE_TIME_ZONE}
+                      aria-label={`Time zone for ${loc.name}`}
+                      className={inputClass}
+                    />
+                  )}
                 </label>
               </div>
 
