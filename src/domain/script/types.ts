@@ -30,6 +30,17 @@ export interface ScriptScene {
   synopsis?: string;
   /** Page length in eighths, as used by classic breakdowns. */
   pageLengthEighths?: number;
+  /**
+   * The STORY day this scene happens on — "D1", "N3", "Day 4 — cont.".
+   *
+   * Free text, because productions write it their own way and a fixed format
+   * would be one more thing to fight. It is what makes out-of-order shooting
+   * checkable: scene 4 and scene 51 can be the same afternoon in the story and
+   * three weeks apart on the schedule, and the costume that has to match is
+   * the one from the same script day, not the adjacent scene number. See
+   * `domain/continuity/binder.ts`.
+   */
+  scriptDay?: string;
 
   characterIds: string[];
   breakdownItemIds: string[];

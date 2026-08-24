@@ -1083,6 +1083,13 @@ export interface Project {
    * takes, which is not the same as an empty day.
    */
   takes?: import('../domain/continuity').Take[];
+  /**
+   * The continuity binder: wardrobe, hair, make-up and props notes, keyed on
+   * script day so out-of-order shooting stays checkable (plan §36). Optional
+   * and absent-safe — a project that keeps no binder has none, which is not
+   * the same as an empty one.
+   */
+  continuityNotes?: import('../domain/continuity').ContinuityNote[];
   /** Multi-camera coverage plan (plan §15.3). Optional and absent-safe. */
   coverageMatrix?: import('../domain/scheduling').CoverageMatrix;
   /**

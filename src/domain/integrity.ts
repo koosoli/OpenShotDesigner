@@ -23,7 +23,7 @@ import type { BreakdownItem, ScriptScene } from './script/types';
 import type { PowerPlan } from './power';
 import type { ProductionDay, ScheduleBlock } from './scheduling';
 import type { RiggingItem, SuspendedLoad, TrussElement } from './rigging';
-import type { Take } from './continuity';
+import type { ContinuityNote, Take } from './continuity';
 
 export interface TrussReferences {
   trussElements: TrussElement[];
@@ -194,6 +194,8 @@ export interface ShotReferences extends ScheduleReferences {
   scriptLines?: Array<{ id: string; linkedShotId?: string }>;
   /** Continuity takes carry the shot they cover. */
   takes?: Take[];
+  /** Binder notes carry the setups a look was established on. */
+  continuityNotes?: ContinuityNote[];
 }
 
 /**
@@ -347,5 +349,34 @@ export const removeSetupReferences = <R extends ShotReferences>(
   for (const block of withoutShots.scheduleBlocks ?? []) {
     if (block.kind === 'setup' && block.setupId === setupId) removed.add(block.id);
   }
-  return dropBlocks(withoutShots, removed);
+  return unlinkSetupFromNotes(dropBlocks(withoutShots, removed), setupId);
+};
+
+/**
+ * Unhook a deleted setup from the binder notes that cited it.
+ *
+ * The NOTE SURVIVES, unlike a take whose shot is deleted. A take is a record of
+ * one piece of footage and is meaningless without it; a continuity note is a
+ * record of how a character looked, and the setup is only a convenience link
+ * back to the plan. Deleting the notes with the setup would throw away the
+ * costume department's binder because someone reorganised the floor plans.
+ *
+ * A note left with an empty `setupIds` loses the field entirely rather than
+ * keeping `[]`, so "never linked" and "linked to something now gone" do not
+ * end up looking identical in storage.
+ */
+const unlinkSetupFromNotes = <R extends ShotReferences>(refs: R, setupId: string): R => {
+  // Same rule as `dropTakes`: a caller that keeps no binder must not be handed
+  // an empty one, which would read as "the production keeps no continuity".
+  if (refs.continuityNotes === undefined) return refs;
+  if (!refs.continuityNotes.some((note) => note.setupIds?.includes(setupId))) return refs;
+  return {
+    ...refs,
+    continuityNotes: refs.continuityNotes.map((note) => {
+      if (!note.setupIds?.includes(setupId)) return note;
+      const setupIds = note.setupIds.filter((id) => id !== setupId);
+      const { setupIds: _dropped, ...rest } = note;
+      return setupIds.length > 0 ? { ...rest, setupIds } : rest;
+    }),
+  };
 };

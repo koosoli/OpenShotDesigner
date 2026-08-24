@@ -144,6 +144,23 @@ two places they are meant to.
 - [ ] A take with no roll recorded appears under "Roll not recorded" rather
       than being dropped or filed under the previous card
 
+## Continuity binder (wardrobe / hair / make-up / props)
+
+The conflict check is only as good as the script days, so the first two items
+are the ones that matter.
+
+- [ ] Two notes for one character, same department, same script day, different
+      descriptions → one warning naming both scenes
+- [ ] The same pair with DIFFERENT script days → no warning (wardrobe is
+      supposed to change between story days)
+- [ ] A note with no script day inherits the one its scene declares
+- [ ] Attach a photo, reload, and confirm it still renders — it is an asset id
+      in the store, never inlined in the project
+- [ ] Duplicate the project: the copy's notes point at the copy's characters
+      and setups, not the original's
+- [ ] Delete a setup a note cited: the NOTE SURVIVES with the link removed
+      (unlike a take, which goes with its shot)
+
 ## End-of-day production report
 
 - [ ] Schedule a day, cover some of it, and confirm scenes / setups / shots

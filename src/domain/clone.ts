@@ -440,10 +440,12 @@ export const cloneProjectWithNewIds = (
     ...cloneProductionCollections(project, lineIdMap),
   };
 
-  // Actor markers reference project-level script characters; follow the
-  // character id remap (same collection order, so zip old → new ids).
+  // Actor markers and binder notes both reference project-level script
+  // characters; follow the character id remap (same collection order, so zip
+  // old → new ids). Hoisted out of the block below because the binder needs it
+  // too — two consumers of one map, not two maps.
+  const characterIdMap = new Map<string, string>();
   if (project.characters && next.characters) {
-    const characterIdMap = new Map<string, string>();
     project.characters.forEach((character, index) => {
       const cloned = next.characters?.[index];
       if (cloned) characterIdMap.set(character.id, cloned.id);
@@ -484,6 +486,25 @@ export const cloneProjectWithNewIds = (
       ...(take.keywords ? { keywords: [...take.keywords] } : {}),
       ...(take.cameraOverrides ? { cameraOverrides: { ...take.cameraOverrides } } : {}),
       ...(take.slateOverrides ? { slateOverrides: { ...take.slateOverrides } } : {}),
+    }));
+  }
+
+  /**
+   * Binder notes point at a character and at the setups a look was established
+   * on, both reissued above. Carried through by the spread they would name the
+   * ORIGINAL project's records, so the duplicate's wardrobe notes would attach
+   * to nothing — the same defect `takes` shipped with.
+   */
+  if (project.continuityNotes) {
+    next.continuityNotes = project.continuityNotes.map((note) => ({
+      ...note,
+      id: createId('cnote'),
+      ...(note.characterId ? { characterId: remap(characterIdMap, note.characterId) } : {}),
+      ...(note.setupIds
+        ? { setupIds: note.setupIds.map((setupId) => remapRequired(setupIdMap, setupId)) }
+        : {}),
+      // Copied, not shared: an edit in the duplicate must not reach the original.
+      ...(note.photoAssetIds ? { photoAssetIds: [...note.photoAssetIds] } : {}),
     }));
   }
 

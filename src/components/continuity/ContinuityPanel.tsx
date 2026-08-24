@@ -56,6 +56,7 @@ import {
 } from '../../domain/continuity';
 import { keyCrewMember } from '../../domain/people';
 import { nextShotNumberAfter } from '../../domain/shots/numbering';
+import { ContinuityBinder } from './ContinuityBinder';
 import {
   continuitySourcesFrom,
   exportContinuityAle,
@@ -92,6 +93,7 @@ export const ContinuityPanel: React.FC = () => {
   const productionDays = useMemo(() => project.productionDays ?? [], [project.productionDays]);
   const setups = useMemo(() => project.setups ?? [], [project.setups]);
 
+  const [view, setView] = useState<'log' | 'binder'>('log');
   const [reconcileText, setReconcileText] = useState('');
   /** Takes whose full column editor is open. */
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -447,6 +449,37 @@ export const ContinuityPanel: React.FC = () => {
         </button>
       </div>
 
+      {/*
+        Two jobs, one person, two documents. The log records what was SHOT; the
+        binder records what it LOOKED LIKE. Tabs rather than one scroll because
+        they are used at different moments — the log during the take, the
+        binder between setups — and stacking them means whichever is second is
+        never reached.
+      */}
+      <div role="tablist" aria-label="Continuity view" className="flex items-center gap-1">
+        {(['log', 'binder'] as const).map((value) => (
+          <button
+            key={value}
+            role="tab"
+            aria-selected={view === value}
+            onClick={() => setView(value)}
+            className={`px-3 min-h-[32px] rounded-lg text-xs font-semibold transition-colors ${
+              view === value
+                ? 'bg-sky-600 text-white'
+                : isLight
+                  ? 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                  : 'bg-slate-800 text-slate-300 hover:text-white'
+            }`}
+          >
+            {value === 'log' ? 'Take log' : 'Binder'}
+          </button>
+        ))}
+      </div>
+
+      {view === 'binder' && <ContinuityBinder isLight={isLight} />}
+
+      {view === 'log' && (
+        <>
       {/*
         Production-level columns. Each field writes to its real home on the
         project — title, company, director, DOP — so nothing is stored twice
@@ -1014,6 +1047,8 @@ export const ContinuityPanel: React.FC = () => {
             exists. They still export, with their slate columns blank.
           </span>
         </div>
+      )}
+        </>
       )}
     </div>
   );

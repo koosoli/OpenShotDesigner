@@ -43,6 +43,7 @@ const ID_BEARING_COLLECTIONS = [
   'suspendedLoads',
   'riggingItems',
   'takes',
+  'continuityNotes',
 ] as const;
 
 type CollectionName = (typeof ID_BEARING_COLLECTIONS)[number];
@@ -68,6 +69,8 @@ const seedRecord = (name: CollectionName, id: string): Record<string, unknown> =
       return { id, kind: 'motor', trussElementId: 'trussElements-seed' };
     case 'takes':
       return { id, shotId: 'shot-seed', takeNumber: 1 };
+    case 'continuityNotes':
+      return { id, department: 'wardrobe', description: 'Navy overcoat' };
     case 'people':
       return { id, displayName: 'Someone' };
     case 'characters':
