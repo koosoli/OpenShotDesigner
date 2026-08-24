@@ -107,6 +107,7 @@ describe('CoverageWarnings', () => {
           setup('s2', '1', [actor('a2', 'CHARACTER C')], [shot('1B', '1', 'CU')]),
         ],
       }),
+      { displaySettings: { showPlanningWarnings: true } },
     );
 
     const items = await openAndRead(user);
@@ -125,6 +126,7 @@ describe('CoverageWarnings', () => {
           setup('s2', '1', [actor('a2', 'JENNA (double)', 'char-1')], [shot('1B', '1', 'CU')]),
         ],
       }),
+      { displaySettings: { showPlanningWarnings: true } },
     );
 
     const items = await openAndRead(user);
@@ -145,6 +147,7 @@ describe('CoverageWarnings', () => {
           ),
         ],
       }),
+      { displaySettings: { showPlanningWarnings: true } },
     );
 
     const items = await openAndRead(user);
@@ -165,6 +168,7 @@ describe('CoverageWarnings', () => {
           setup('s2', '1', [actor('a2', 'JENNA')], [shot('1B', '1', 'CU', ['a2'])]),
         ],
       }),
+      { displaySettings: { showPlanningWarnings: true } },
     );
 
     const items = await openAndRead(user);
@@ -181,6 +185,7 @@ describe('CoverageWarnings', () => {
       projectFixture({
         setups: [setup('s1', '1', [], [shot('1A', '1', 'WS'), shot('1B', '1', 'CU')])],
       }),
+      { displaySettings: { showPlanningWarnings: true } },
     );
 
     await user.click(screen.getByRole('button', { name: /Coverage/ }));
@@ -197,9 +202,36 @@ describe('CoverageWarnings', () => {
       projectFixture({
         setups: [setup('s1', '1', [actor('a1', 'JENNA')], [shot('1A', '1', 'WS')])],
       }),
+      { displaySettings: { showPlanningWarnings: true } },
     );
 
     const items = await openAndRead(user);
     expect(items.filter((text) => text.includes('appears in no shot'))).toHaveLength(0);
+  });
+
+  /**
+   * The checker is advice, and advice nobody asked for earns less patience
+   * than advice they switched on. It stays quiet until someone turns it on in
+   * Viewing Options.
+   */
+  it('renders nothing at all until it is switched on', () => {
+    const { container } = renderWithProject(
+      <CoverageWarnings scope="project" isLight={false} />,
+      projectFixture({
+        setups: [setup('s1', '1', [actor('a1', 'CHARACTER C')], [shot('1A', '1', 'WS')])],
+      }),
+    );
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('stays quiet when the setting is explicitly off', () => {
+    const { container } = renderWithProject(
+      <CoverageWarnings scope="project" isLight={false} />,
+      projectFixture({
+        setups: [setup('s1', '1', [actor('a1', 'CHARACTER C')], [shot('1A', '1', 'WS')])],
+      }),
+      { displaySettings: { showPlanningWarnings: false } },
+    );
+    expect(container.innerHTML).toBe('');
   });
 });

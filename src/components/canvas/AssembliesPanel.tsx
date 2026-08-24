@@ -219,7 +219,10 @@ export const AssembliesPanel: React.FC = () => {
   const { activeSetup, updateSetupMeta, getCanvasCenterPosition, selectElements } = useFloorPlan();
   const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Collapsed by default. This is a library you reach for occasionally, and
+  // expanded it pushes the inspector's actual controls — the ones for whatever
+  // is selected right now — below the fold.
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [search, setSearch] = useState('');
   const [customVersion, setCustomVersion] = useState(0);
 

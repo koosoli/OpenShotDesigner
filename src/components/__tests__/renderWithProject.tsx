@@ -124,6 +124,10 @@ export const renderWithProject = (
             return next;
           }),
         activeSetup: project.setups[0],
+        // The real provider always merges these over its defaults, so a stub
+        // that omits them is the stub lying rather than the component being
+        // careless about an optional field.
+        displaySettings: {},
         ...extra,
       }),
       [project],

@@ -511,6 +511,20 @@ export const TopNavbar: React.FC = () => {
                       />
                     </label>
 
+                    {/* Derived planning warnings — off unless asked for */}
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-semibold">Show Planning Warnings</span>
+                      <input
+                        type="checkbox"
+                        checked={displaySettings.showPlanningWarnings === true}
+                        onChange={(e) => updateDisplaySettings({ showPlanningWarnings: e.target.checked })}
+                        className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
+                      />
+                    </label>
+                    <p className={`text-[10px] -mt-1 mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Coverage gaps on the shot list and schedule health on the stripboard.
+                    </p>
+
                     {/* Waypoint dialogue/action cues */}
                     <label className="flex items-center justify-between cursor-pointer">
                       <span className="font-semibold">Show Waypoint Cues / Dialogue</span>

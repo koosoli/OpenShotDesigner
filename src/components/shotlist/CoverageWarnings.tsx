@@ -43,7 +43,7 @@ export interface CoverageWarningsProps {
 }
 
 export const CoverageWarnings: React.FC<CoverageWarningsProps> = ({ scope, isLight }) => {
-  const { project, activeSetup } = useFloorPlan();
+  const { project, activeSetup, displaySettings } = useFloorPlan();
 
   const issues = React.useMemo(() => {
     const setups = scope === 'scene' ? [activeSetup] : project.setups;
@@ -106,6 +106,13 @@ export const CoverageWarnings: React.FC<CoverageWarningsProps> = ({ scope, isLig
       ...(sceneActorIds ? { sceneActorIds } : {}),
     });
   }, [scope, activeSetup, project.setups]);
+
+  // Off unless asked for. These sit above the content someone opened the panel
+  // to read, and advice nobody requested earns less patience than advice they
+  // switched on — so the toggle lives in Viewing Options and the default is
+  // quiet. The hook above still runs: the checks are cheap and keeping them
+  // unconditional keeps this a display decision, not a behavioural one.
+  if (displaySettings.showPlanningWarnings !== true) return null;
 
   return (
     <PlanningWarnings

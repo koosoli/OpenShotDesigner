@@ -422,6 +422,16 @@ export interface DisplaySettings {
     cables?: number;
     measurements?: number;
   };
+  /**
+   * The derived planning warnings — coverage on the shot list, health on the
+   * schedule.
+   *
+   * OFF by default. They sit above the content people came to the panel for,
+   * and a checker nobody asked for that is wrong even occasionally is worse
+   * than one they turned on deliberately. Anyone who wants them switches them
+   * on in Viewing Options and keeps them.
+   */
+  showPlanningWarnings?: boolean;
   // Decluttering toggles
   showWaypoints: boolean;
   showWaypointCues: boolean; // toggle dialogue / action cues on floorplan waypoints (default true)
@@ -489,6 +499,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     cables: 1.0,
     measurements: 1.0,
   },
+  showPlanningWarnings: false,
   showWaypoints: true,
   showWaypointCues: false,
   showSpeechBubbles: false,

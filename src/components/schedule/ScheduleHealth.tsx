@@ -24,7 +24,7 @@ export interface ScheduleHealthProps {
 }
 
 export const ScheduleHealth: React.FC<ScheduleHealthProps> = ({ isLight }) => {
-  const { project } = useFloorPlan();
+  const { project, displaySettings } = useFloorPlan();
 
   const issues = React.useMemo(() => {
     const days = project.productionDays ?? [];
@@ -63,6 +63,13 @@ export const ScheduleHealth: React.FC<ScheduleHealthProps> = ({ isLight }) => {
     project.castAssignments,
     project.people,
   ]);
+
+  // Off unless asked for. These sit above the content someone opened the panel
+  // to read, and advice nobody requested earns less patience than advice they
+  // switched on — so the toggle lives in Viewing Options and the default is
+  // quiet. The hook above still runs: the checks are cheap and keeping them
+  // unconditional keeps this a display decision, not a behavioural one.
+  if (displaySettings.showPlanningWarnings !== true) return null;
 
   return (
     <PlanningWarnings
