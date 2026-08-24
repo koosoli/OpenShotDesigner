@@ -17,7 +17,7 @@ of this one.
 | Lint | 0 errors, 111 warnings, budget 111 | **0 errors, 0 warnings, budget 0** |
 | `any` in `src/` | 96 | **0** |
 | Schema | v24 | v24 (unchanged; every field added is absent-safe) |
-| Entry chunk | 880 kB (235 kB gzip) | 888 kB (238 kB gzip) |
+| Entry chunk | 880 kB (235 kB gzip) | 894 kB (240 kB gzip) |
 | Panels with behaviour coverage | continuity, shot list, schedule, equipment | + **inspector, coverage warnings, binder** |
 | Context actions under contract | elements, shots | + **script** |
 
@@ -311,7 +311,7 @@ nothing walks.
 
 | Item | Now |
 | --- | --- |
-| 1. Entry chunk 880 kB | **Open.** 888 kB. Nothing in this pass addressed it; the three new print views are inside the already-split `PrintableShotPlan` chunk. |
+| 1. Entry chunk 880 kB | **Open**, and 894 kB — this pass added to it. Nothing in this pass addressed it; the three new print views are inside the already-split `PrintableShotPlan` chunk. |
 | 2. 149 lint warnings | **Closed.** 0, budget 0. |
 | 3. `FloorPlanContext` 4,406 lines | **Open**, and 4,363 now. One action moved IN (breakdown pruning, because that is where it belongs); nothing moved out. |
 | 4. `handleElementSelect` encloses two group helpers | **Open.** |
