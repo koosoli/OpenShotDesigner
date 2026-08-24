@@ -263,6 +263,41 @@ export const dayChecklist = (
 };
 
 /**
+ * The whole production's checklist: every shot in the film against every take
+ * ever logged.
+ *
+ * Not a union of the days. A shot nobody scheduled would be invisible in that
+ * union, and "did we schedule it" is a different question from "do we have
+ * it" — which is the one being asked at this scope. So `planned` is every
+ * shot that exists, in scene order, and coverage counts takes from any day: a
+ * shot got on Day 1 and re-shot on Day 4 is covered, even though neither day's
+ * own checklist would say so on its own.
+ *
+ * `unscheduled` is therefore always empty. Nothing can be off-plan when the
+ * plan is everything, and shots added on the day are ordinary members here,
+ * flagged by their own `unplanned` field. Takes pointing at deleted shots stay
+ * with `orphanedTakes`, exactly as in the per-day view.
+ */
+export const productionChecklist = (
+  sources: ChecklistSources,
+  allTakes: readonly Take[],
+): DayChecklist => {
+  const shotsById = indexShots(sources);
+  const takesByShot = groupTakesByShot(allTakes);
+
+  const planned = [...shotsById.keys()]
+    .map((shotId) => describeShot(shotId, shotsById, takesByShot))
+    .filter((entry): entry is ChecklistShot => entry !== null);
+
+  return {
+    planned,
+    unscheduled: [],
+    notShot: planned.filter((entry) => entry.takeCount === 0),
+    noGoodTake: planned.filter((entry) => entry.attemptedNotCovered),
+  };
+};
+
+/**
  * Takes whose shot has been deleted. Flagged rather than dropped, the way the
  * power page flags a consumer whose light was struck: the log records
  * something that physically happened, and discarding it silently loses

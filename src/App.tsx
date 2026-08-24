@@ -90,8 +90,8 @@ type WorkspaceGroup = 'creative' | 'production' | 'technical';
 
 const MainLayout: React.FC = () => {
   const { project, activeSetup, selectedElementIds, storageWarning, dismissStorageWarning, isModuleVisible, isViewfinderOpen } = useFloorPlan();
-  const { activeRightTab, setActiveRightTab, theme, isExportModalOpen } = useWorkspaceUI();
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const { activeRightTab, setActiveRightTab, theme, isExportModalOpen, isRightPanelOpen, setRightPanelOpen } = useWorkspaceUI();
+
 
   // Pull the bundled fixture snapshot in after first paint. It is a dynamic
   // import so it stays out of the entry chunk; starting it here means it has
@@ -380,7 +380,7 @@ const MainLayout: React.FC = () => {
                 <button
                   onClick={() => {
                     setIsSidebarFullscreen(false);
-                    setIsRightPanelOpen(false);
+                    setRightPanelOpen(false);
                   }}
                   title={isMobile ? 'Hide panel' : 'Collapse sidebar'}
                   aria-label={isMobile ? 'Hide the side panel' : 'Collapse the sidebar'}
@@ -438,7 +438,7 @@ const MainLayout: React.FC = () => {
           /* Collapsed Reopen Button */
           <button
             onClick={() => {
-              setIsRightPanelOpen(true);
+              setRightPanelOpen(true);
               if (isMobile) setSheetSize('half');
             }}
             title="Expand Shot List, Script & Inspector"

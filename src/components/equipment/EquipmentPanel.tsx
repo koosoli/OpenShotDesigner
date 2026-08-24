@@ -1208,7 +1208,10 @@ export const EquipmentPanel: React.FC = () => {
                         }`}
                       >
                         <span className={`w-2 h-2 rounded-full shrink-0 ${p.universe && p.address ? (p.conflict ? 'bg-rose-500' : 'bg-emerald-500') : 'bg-slate-400'}`} />
-                        <span className="truncate font-semibold flex-1">{p.label}</span>
+                        <span className="truncate flex-1 min-w-0">
+                          <span className="font-semibold">{p.label}</span>
+                          {p.role && <span className="opacity-50 font-normal"> · {p.role}</span>}
+                        </span>
                         <span className="opacity-50 font-mono text-[10px]">{p.channels}ch</span>
                         <span className={`font-mono font-bold ${p.conflict ? 'text-rose-600 dark:text-rose-400' : ''}`}>
                           {p.universe && p.address ? `U${p.universe}:${String(p.address).padStart(3, '0')}` : '—'}

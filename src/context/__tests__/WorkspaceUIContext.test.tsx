@@ -147,8 +147,8 @@ describe('the export modal', () => {
 });
 
 describe('panels and the dashboard', () => {
-  it('opens on the shots tab', () => {
-    expect(renderUI().result.current.activeRightTab).toBe('shots');
+  it('opens on the inspector tab, the one tab no preset can hide', () => {
+    expect(renderUI().result.current.activeRightTab).toBe('inspector');
   });
 
   it('switches tab', () => {

@@ -95,6 +95,15 @@ export interface WorkspaceUIContextType {
   activeRightTab: RightTab;
   setActiveRightTab: (tab: RightTab) => void;
 
+  /**
+   * Whether the right panel is expanded. It lives here rather than in `App`
+   * because things outside the panel open it — double-clicking bare canvas
+   * asks for the scene settings, and switching the tab behind a collapsed
+   * panel would be a silent no-op.
+   */
+  isRightPanelOpen: boolean;
+  setRightPanelOpen: (open: boolean) => void;
+
   quickSearchOpen: boolean;
   setQuickSearchOpen: (open: boolean) => void;
 
@@ -168,7 +177,11 @@ export const WorkspaceUIProvider = ({
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
-  const [activeRightTab, setActiveRightTab] = useState<RightTab>('shots');
+  // Inspector is the landing tab: it is the only one no workspace preset can
+  // hide, so it is the single choice that is valid for every project — a
+  // Blank Floor Plan has no shot list to open onto.
+  const [activeRightTab, setActiveRightTab] = useState<RightTab>('inspector');
+  const [isRightPanelOpen, setRightPanelOpen] = useState(true);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(startOnDashboard);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -193,6 +206,8 @@ export const WorkspaceUIProvider = ({
       toggleTheme,
       activeRightTab,
       setActiveRightTab,
+      isRightPanelOpen,
+      setRightPanelOpen,
       quickSearchOpen,
       setQuickSearchOpen,
       isDashboardOpen,
@@ -209,6 +224,7 @@ export const WorkspaceUIProvider = ({
       setTheme,
       toggleTheme,
       activeRightTab,
+      isRightPanelOpen,
       quickSearchOpen,
       isDashboardOpen,
       openDashboard,

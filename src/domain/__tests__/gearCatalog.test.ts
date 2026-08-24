@@ -109,3 +109,31 @@ describe('fixture specs and updates', () => {
     expect(gearProfileUpdates(PROFILES[0]).fixtureProfileId).toBe(PROFILES[0].id);
   });
 });
+
+/**
+ * A stored fixtureModeId outlives the profile it points into: the user can
+ * delete a custom profile, and an OFL refresh can re-author a fixture's modes
+ * under ids that no longer match. What matters is that a stale id degrades to
+ * UNKNOWN rather than to a confident wrong answer.
+ */
+describe('a mode id whose profile has changed under it', () => {
+  const renamed = profile('ARRI', 'SkyPanel S60-C', {
+    powerWatts: 450,
+    modes: [{ id: 'p01-cct-rgbw', name: 'P01: CCT & RGBW', channelCount: 12 }],
+  });
+
+  it('reports no footprint rather than falling back to the first mode', () => {
+    expect(gearProfileUpdates(renamed, 'std')).toMatchObject({ fixtureModeId: undefined });
+  });
+
+  it('keeps the measured data it can still vouch for', () => {
+    // Watts and weight belong to the fixture, not to the personality, so a
+    // stale mode must not take them down with it.
+    expect(fixtureSpecsLine(renamed, 'std')).toBe('450 W');
+    expect(fixtureSpecsLine(renamed, 'std')).not.toContain('DMX');
+  });
+
+  it('still defaults to the first mode when nothing was ever chosen', () => {
+    expect(gearProfileUpdates(renamed, undefined).fixtureModeId).toBe('p01-cct-rgbw');
+  });
+});

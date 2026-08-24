@@ -66,7 +66,10 @@ describe('migrateV23ToV24', () => {
     const { project, migratedFrom } = migrateProject(v23Fixture());
     expect(migratedFrom).toBe(23);
     expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
-    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(24);
+    // The step this file covers must stay ON the chain, not AT its end — the
+    // pin used to read `toBe(24)`, which turned every later schema bump into a
+    // failure here rather than in whatever it actually broke.
+    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBeGreaterThanOrEqual(24);
   });
 
   it('is deterministic', () => {

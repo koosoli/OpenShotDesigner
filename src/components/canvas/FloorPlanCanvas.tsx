@@ -117,7 +117,7 @@ const ATTACHABLE_DEVICE_TYPES: ReadonlyArray<FloorPlanElement['type']> = ['camer
 
 export const FloorPlanCanvas: React.FC = () => {
   const { activeSetup, project, selectedElementIds, selectedShotId, highlightedElementId, activeTool, activeShapeType, activeCableType, playback, selectElement, selectElements, clearSelection, addElement, updateElement, updateShot, updateSetupMeta, updateMultipleElements, deleteSelectedElements, updateBackgroundImage, removeBackgroundImage, updateProjectMeta, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, calibratingBackgroundId, cancelBackgroundCalibration, undo, redo, setTool, setCanvasOffset, setCanvasTransform, zoomIn, zoomOut, resetZoom, openViewfinder, displaySettings, updateDisplaySettings, setGridSettings, duplicateSelected, copySelectedElements, pasteElements, commitCurrentState, setCanvasViewport } = useFloorPlan();
-  const { theme, setActiveRightTab } = useWorkspaceUI();
+  const { theme, setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -2723,9 +2723,21 @@ export const FloorPlanCanvas: React.FC = () => {
         const hit = findElementAtPoint(screenToCanvas(e.clientX, e.clientY));
         setContextMenu({ x: e.clientX, y: e.clientY, elementId: hit?.id ?? null });
       }}
-      onDoubleClick={() => {
+      onDoubleClick={(e) => {
         finishConnectedWalls();
         finishConnectedCable();
+        // Double-clicking bare canvas opens the scene's own settings: the
+        // Inspector with nothing selected IS the plan / scene panel, and it
+        // already opens on Scene & Environment. Same "hit nothing" test the
+        // box-select path uses — an element or a background image is a real
+        // target and only the bare svg is not — so this cannot fire on the
+        // double-click that opens an element's inspector.
+        if (activeTool !== 'select') return;
+        const target = e.target as HTMLElement;
+        if (target.tagName !== 'svg' && target.id !== 'floor-plan-svg') return;
+        clearSelection();
+        setActiveRightTab('inspector');
+        setRightPanelOpen(true);
       }}
     >
       <svg

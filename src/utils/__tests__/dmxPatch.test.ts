@@ -5,6 +5,8 @@ import {
   dmxChannelsForFixture,
   findConflicts,
   findFreeRange,
+  fixtureLabel,
+  fixtureRoleLabel,
   isDmxFixture,
   nextFreeAddress,
   previewFixturePlacement,
@@ -71,6 +73,50 @@ describe('dmxChannelsForFixture', () => {
     const bounce = { ...makeLight('reflector'), dmxChannelCount: 8 };
     expect(dmxChannelsForFixture(bounce)).toBe(8);
     expect(isDmxFixture(bounce)).toBe(true);
+  });
+});
+
+describe('fixtureLabel', () => {
+  /**
+   * A patch sheet is read at a console by somebody deciding what a footprint
+   * belongs to. "Key" does not say whether that is 8 channels of L7-C or 20 of
+   * Orbiter, so the fixture itself leads and the production's nickname follows.
+   */
+  it('names the fixture, not the nickname the production gave it', () => {
+    const light = { ...makeLight('led_panel'), name: 'Key', brand: 'ARRI', fixtureModel: 'SkyPanel S60-C' };
+    expect(fixtureLabel(light)).toBe('ARRI SkyPanel S60-C');
+    expect(fixtureRoleLabel(light)).toBe('Key');
+  });
+
+  it('uses the model alone when no brand is recorded', () => {
+    const light = { ...makeLight('led_panel'), name: 'Rim', brand: undefined, fixtureModel: 'Titan Tube' };
+    expect(fixtureLabel(light)).toBe('Titan Tube');
+  });
+
+  it('falls back to the plan label when no catalogue fixture was chosen', () => {
+    const light = { ...makeLight('led_panel'), name: 'Practical 3', brand: undefined, fixtureModel: undefined };
+    expect(fixtureLabel(light)).toBe('Practical 3');
+    // Nothing extra to add: the label IS the name, so a row never prints it twice.
+    expect(fixtureRoleLabel(light)).toBeUndefined();
+  });
+
+  it('falls back to the fixture type for a light with no name at all', () => {
+    const light = { ...makeLight('led_panel'), name: '', brand: undefined, fixtureModel: undefined };
+    expect(fixtureLabel(light)).toBe('led_panel');
+    expect(fixtureRoleLabel(light)).toBeUndefined();
+  });
+
+  it('ignores a brand with no model rather than naming a row "ARRI"', () => {
+    const light = { ...makeLight('led_panel'), name: 'Key', brand: 'ARRI', fixtureModel: undefined };
+    expect(fixtureLabel(light)).toBe('Key');
+  });
+
+  it('carries both onto the patch row', () => {
+    const [patch] = collectFixturePatches([
+      { ...makeLight('spotlight'), name: 'Key', brand: 'ARRI', fixtureModel: 'L7-C' },
+    ]);
+    expect(patch).toMatchObject({ label: 'ARRI L7-C', role: 'Key' });
+    expect(sortedPatchRows([patch])[0]).toMatchObject({ label: 'ARRI L7-C', role: 'Key' });
   });
 });
 

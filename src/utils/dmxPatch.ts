@@ -46,8 +46,10 @@ export interface FixturePatch {
   address?: number;
   channels?: number;
   dmxable: boolean;
-  /** Human-readable fixture label (name, model or fixture type). */
+  /** The fixture itself — "ARRI SkyPanel S60-C" — falling back to its label. */
   label: string;
+  /** The production's own name for it ("Key"), when that says something extra. */
+  role?: string;
   /** True when this fixture's universe+address range overlaps another's or is invalid. */
   conflict: boolean;
 }
@@ -63,11 +65,37 @@ export interface FixturePlacementPreview {
   issue?: FixturePlacementIssue;
 }
 
+/** "ARRI SkyPanel S60-C" — what the fixture IS, ignoring what it was nicknamed. */
+const fixtureIdentity = (light: LightElement): string | undefined => {
+  const brand = light.brand?.trim();
+  const model = light.fixtureModel?.trim();
+  if (brand && model) return `${brand} ${model}`;
+  return model || undefined;
+};
+
+/**
+ * How a fixture is named on the patch.
+ *
+ * The real fixture first — brand and model — because a patch sheet is read by
+ * somebody standing at a console deciding what a footprint belongs to, and
+ * "Key" does not say whether that is 8 channels of L7-C or 20 of Orbiter.
+ * The plan label is the fallback for a fixture no catalogue entry has been
+ * chosen for, and it stays available separately as {@link fixtureRoleLabel}
+ * so a sheet with room can print both.
+ */
 export const fixtureLabel = (light: LightElement): string =>
-  light.name ||
-  light.fixtureModel ||
-  (light.brand ? `${light.brand} ${light.fixtureModel || ''}`.trim() : light.fixtureType) ||
-  light.fixtureType;
+  fixtureIdentity(light) || light.name || light.fixtureType;
+
+/**
+ * The name the production gave this fixture — "Key", "Rim", "Practical 3" —
+ * when it adds something the fixture name does not already say. Undefined when
+ * the label IS the fixture name, so a row never prints the same text twice.
+ */
+export const fixtureRoleLabel = (light: LightElement): string | undefined => {
+  const name = light.name?.trim();
+  if (!name) return undefined;
+  return name === fixtureLabel(light) ? undefined : name;
+};
 
 export const collectFixturePatches = (elements: LightElement[]): FixturePatch[] => {
   return elements.map((light) => {
@@ -79,6 +107,7 @@ export const collectFixturePatches = (elements: LightElement[]): FixturePatch[] 
       channels,
       dmxable: channels !== 0,
       label: fixtureLabel(light),
+      role: fixtureRoleLabel(light),
       conflict: false,
     };
   });
@@ -283,6 +312,8 @@ export const previewFixturePlacement = (
 export interface DmxPatchSheetRow {
   id: string;
   label: string;
+  /** The production's own name for the fixture, when it differs from `label`. */
+  role?: string;
   universe?: number;
   address?: number;
   /** Inclusive last channel of the footprint; undefined when unknown. */
@@ -304,6 +335,7 @@ export const sortedPatchRows = (patches: FixturePatch[]): DmxPatchSheetRow[] => 
     .map((patch) => ({
       id: patch.light.id,
       label: patch.label,
+      role: patch.role,
       universe: patch.universe,
       address: patch.address,
       endAddress:

@@ -17,6 +17,7 @@ import {
   applyReconciliation,
   buildResolveRows,
   dayChecklist,
+  productionChecklist,
   escapeCsvField,
   fillSequentialFileNames,
   formatRecordedDate,
@@ -554,5 +555,63 @@ describe('buildResolveRows', () => {
     expect(row['File Name']).toBe('X.mov');
     expect(row.Shot).toBe('');
     expect(row['Production Company']).toBe('LAM');
+  });
+});
+
+describe('productionChecklist', () => {
+  const sources = {
+    setups: [
+      {
+        id: 'setup1',
+        sceneNumber: '2',
+        shots: [
+          { id: 'shot1', shotNumber: '2A', name: 'Master' },
+          { id: 'shot2', shotNumber: '2B', name: 'Single' },
+          { id: 'pickup', shotNumber: '2D', name: 'Pickup', unplanned: true },
+        ],
+      },
+      {
+        id: 'setup2',
+        sceneNumber: '7',
+        shots: [{ id: 'shot9', shotNumber: '7A', name: 'Wide' }],
+      },
+    ],
+  };
+
+  it('covers every shot in the film, including scenes no day scheduled', () => {
+    const checklist = productionChecklist(sources, []);
+    expect(checklist.planned.map((entry) => entry.shotNumber)).toEqual(['2A', '2B', '2D', '7A']);
+    expect(checklist.notShot).toHaveLength(4);
+  });
+
+  /**
+   * The question at this scope is "do we have it", not "did we get it that
+   * day" — so a shot got on one day and re-shot on another counts as covered,
+   * which neither day's own checklist would say on its own.
+   */
+  it('counts coverage across days rather than within one', () => {
+    const checklist = productionChecklist(sources, [
+      take({ id: 't1', shotId: 'shot1', productionDayId: 'day1', isGoodTake: true }),
+      take({ id: 't2', shotId: 'shot9', productionDayId: 'day4', isGoodTake: true }),
+      take({ id: 't3', shotId: 'shot2', productionDayId: 'day4', isGoodTake: false }),
+    ]);
+    expect(checklist.planned.filter((entry) => entry.covered).map((e) => e.shotNumber)).toEqual(['2A', '7A']);
+    expect(checklist.noGoodTake.map((entry) => entry.shotNumber)).toEqual(['2B']);
+    expect(checklist.notShot.map((entry) => entry.shotNumber)).toEqual(['2D']);
+  });
+
+  /** Nothing can be off-plan when the plan is everything. */
+  it('files a shot added on the day as an ordinary member, flagged unplanned', () => {
+    const checklist = productionChecklist(sources, []);
+    expect(checklist.unscheduled).toEqual([]);
+    expect(checklist.planned.find((entry) => entry.shotId === 'pickup')?.unplanned).toBe(true);
+  });
+
+  it('ignores takes whose shot has been deleted, leaving them to orphanedTakes', () => {
+    const checklist = productionChecklist(sources, [
+      take({ id: 't9', shotId: 'a-shot-that-was-deleted', isGoodTake: true }),
+    ]);
+    expect(checklist.planned).toHaveLength(4);
+    expect(checklist.planned.every((entry) => entry.takeCount === 0)).toBe(true);
   });
 });

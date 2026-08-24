@@ -649,6 +649,19 @@ const cloneProjectForSnapshot = (source: Project): Project => {
 const NO_SCRIPT_LINES: ScriptLine[] = [];
 const NO_REVISIONS: ProjectRevision[] = [];
 
+/**
+ * Right-panel tabs a canvas selection must NOT navigate away from.
+ *
+ * These are the panels people work *in* while pointing at the plan — reading
+ * the lined script, ordering the board, filling in the shot list, pricing the
+ * gear. Yanking them to the Inspector on a single click loses their scroll
+ * position and whatever field they were typing in. Double-click still opens
+ * the Inspector from anywhere: the canvas handlers set the tab themselves,
+ * which is what makes it the deliberate gesture rather than a side effect of
+ * clicking something.
+ */
+const READING_TABS: ReadonlySet<string> = new Set(['script', 'storyboard', 'equipment', 'shots']);
+
 const MAX_REVISIONS = 20;
 
 const capRevisions = (list: ProjectRevision[]): ProjectRevision[] => {
@@ -1108,9 +1121,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const isCamera = el?.type === 'camera';
 
     // Selecting on the canvas opens the inspector — unless:
-    // 1. The user is reading the lined script, storyboard, or equipment list.
+    // 1. The user is working in a panel that a tab switch would interrupt
+    //    (READING_TABS above): clicking a light to see where it is should not
+    //    close the shot list you were filling in.
     // 2. The element is a camera, which only opens inspector on double-click unless inspector is already open.
-    if (activeRightTab !== 'script' && activeRightTab !== 'storyboard' && activeRightTab !== 'equipment') {
+    // Double-click is unaffected either way: the canvas handlers switch tabs
+    // themselves, so it stays the deliberate way to reach the inspector.
+    if (!READING_TABS.has(activeRightTab)) {
       if (!isCamera || activeRightTab === 'inspector') {
         setActiveRightTab('inspector');
       }
@@ -1145,7 +1162,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedElementIds(filtered);
     if (filtered.length > 0) {
       const allCameras = filtered.every((id) => activeSetup.elements.find((e) => e.id === id)?.type === 'camera');
-      if (activeRightTab !== 'script' && activeRightTab !== 'storyboard' && activeRightTab !== 'equipment') {
+      if (!READING_TABS.has(activeRightTab)) {
         if (!allCameras || activeRightTab === 'inspector') {
           setActiveRightTab('inspector');
         }
@@ -3724,7 +3741,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedShotId(null);
     setSelectedBackgroundId(null);
     setCalibratingBackgroundId(null);
-    setActiveRightTab('shots');
+    setActiveRightTab('inspector');
     closeDashboard();
   };
 

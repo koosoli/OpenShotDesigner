@@ -26,6 +26,7 @@ export {
 export type { InheritedField, NextTakeSeed, SeededTake } from './sticky';
 export {
   dayChecklist,
+  productionChecklist,
   orphanedTakes,
   shotIdsScheduledOn,
   takesCountFor,

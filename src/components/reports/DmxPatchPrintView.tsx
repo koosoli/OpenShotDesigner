@@ -92,6 +92,7 @@ export const DmxPatchPrintView: React.FC<DmxPatchPrintViewProps> = ({ rows, prod
                 <th className="num">Range</th>
                 <th className="num">Ch</th>
                 <th>Fixture</th>
+                <th>Label</th>
                 <th>Type</th>
                 <th>Mode</th>
               </tr>
@@ -105,12 +106,13 @@ export const DmxPatchPrintView: React.FC<DmxPatchPrintViewProps> = ({ rows, prod
                     <td className="num">{row.endAddress !== undefined ? `${pad(row.address)}–${pad(row.endAddress)}` : '—'}</td>
                     <td className="num">{row.channels ?? '?'}</td>
                     <td>{row.label}{row.conflict ? ' ⚠ CONFLICT' : ''}</td>
+                    <td>{row.role ?? '—'}</td>
                     <td>{row.fixtureType ?? '—'}</td>
                     <td>{row.dmxModeName ?? '—'}</td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan={7}>No fixtures patched yet.</td></tr>
+                <tr><td colSpan={8}>No fixtures patched yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -124,6 +126,7 @@ export const DmxPatchPrintView: React.FC<DmxPatchPrintViewProps> = ({ rows, prod
                 {unpatched.map((row) => (
                   <tr key={row.id}>
                     <td>{row.label}</td>
+                    <td>{row.role ?? '—'}</td>
                     <td>{row.fixtureType ?? '—'}</td>
                     <td className="num">{row.channels === undefined ? 'channels unknown — set in fixture inspector' : `${row.channels} ch`}</td>
                   </tr>

@@ -42,6 +42,7 @@ import {
   applyReconciliation,
   buildResolveRows,
   dayChecklist,
+  productionChecklist,
   orphanedTakes,
   parseCardListing,
   reconcileFileNames,
@@ -132,6 +133,11 @@ export const ContinuityPanel: React.FC = () => {
     [takes, day],
   );
 
+  /**
+   * One day's checklist, or the whole production's. "Whole production" used to
+   * render no checklist at all — an option that showed strictly less than any
+   * single day, which is backwards for the widest scope on the page.
+   */
   const checklist = useMemo(
     () =>
       day
@@ -142,7 +148,7 @@ export const ContinuityPanel: React.FC = () => {
             takes,
             day.id,
           )
-        : null,
+        : productionChecklist(sources, takes),
     [day, project.scheduleBlocks, sources, takes],
   );
 
@@ -580,17 +586,18 @@ export const ContinuityPanel: React.FC = () => {
       </div>
 
       {/* Checklist half */}
-      {day ? (
+      {(
         <div className={`flex flex-col gap-2 p-2 rounded-xl border ${surfaceClass}`}>
           {sectionHeading(
             <ClipboardList className="w-3.5 h-3.5" />,
-            'Shooting-day checklist',
+            day ? 'Shooting-day checklist' : 'Whole-production checklist',
             checklist?.planned.length ?? 0,
           )}
           {checklist && checklist.planned.length === 0 ? (
             <p className={`text-[11px] ${mutedText}`}>
-              Nothing scheduled for this day yet — schedule scenes, setups or shots and they appear
-              here.
+              {day
+                ? 'Nothing scheduled for this day yet — schedule scenes, setups or shots and they appear here.'
+                : 'No shots in this production yet — add shots to a scene and they appear here.'}
             </p>
           ) : (
             <div className="flex flex-col gap-1">{checklist?.planned.map(checklistRow)}</div>
@@ -644,10 +651,6 @@ export const ContinuityPanel: React.FC = () => {
             ))}
           </div>
         </div>
-      ) : (
-        <p className={`text-[11px] ${mutedText} px-1`}>
-          Pick a shooting day to see the checklist. The log below covers the whole production.
-        </p>
       )}
 
       {/* The log */}
