@@ -23,52 +23,52 @@ import { ensureBundledFixtureSnapshot } from './domain/fixtures';
  * additionally gated on their open flag so the chunk is not even requested
  * until the user opens them.
  */
-const ViewfinderModal = React.lazy(() =>
+const ViewfinderModal = lazyWithRetry(() =>
   import('./components/viewfinder/ViewfinderModal').then((m) => ({ default: m.ViewfinderModal })),
 );
-const PrintableShotPlan = React.lazy(() =>
+const PrintableShotPlan = lazyWithRetry(() =>
   import('./components/export/PrintableShotPlan').then((m) => ({ default: m.PrintableShotPlan })),
 );
-const EquipmentPanel = React.lazy(() =>
+const EquipmentPanel = lazyWithRetry(() =>
   import('./components/equipment/EquipmentPanel').then((m) => ({ default: m.EquipmentPanel })),
 );
-const SchedulePanel = React.lazy(() =>
+const SchedulePanel = lazyWithRetry(() =>
   import('./components/schedule/SchedulePanel').then((m) => ({ default: m.SchedulePanel })),
 );
-const MoodBoardPanel = React.lazy(() =>
+const MoodBoardPanel = lazyWithRetry(() =>
   import('./components/moodboard/MoodBoardPanel').then((m) => ({ default: m.MoodBoardPanel })),
 );
-const LocationsPanel = React.lazy(() =>
+const LocationsPanel = lazyWithRetry(() =>
   import('./components/locations/LocationsPanel').then((m) => ({ default: m.LocationsPanel })),
 );
-const PowerPanel = React.lazy(() =>
+const PowerPanel = lazyWithRetry(() =>
   import('./components/power/PowerPanel').then((m) => ({ default: m.PowerPanel })),
 );
-const LogisticsPanel = React.lazy(() =>
+const LogisticsPanel = lazyWithRetry(() =>
   import('./components/logistics/LogisticsPanel').then((m) => ({ default: m.LogisticsPanel })),
 );
-const RunOfShowPanel = React.lazy(() =>
+const RunOfShowPanel = lazyWithRetry(() =>
   import('./components/runofshow/RunOfShowPanel').then((m) => ({ default: m.RunOfShowPanel })),
 );
-const ContinuityPanel = React.lazy(() =>
+const ContinuityPanel = lazyWithRetry(() =>
   import('./components/continuity/ContinuityPanel').then((m) => ({ default: m.ContinuityPanel })),
 );
-const RiggingPanel = React.lazy(() =>
+const RiggingPanel = lazyWithRetry(() =>
   import('./components/rigging/RiggingPanel').then((m) => ({ default: m.RiggingPanel })),
 );
-const ContactsPanel = React.lazy(() =>
+const ContactsPanel = lazyWithRetry(() =>
   import('./components/contacts/ContactsPanel').then((m) => ({ default: m.ContactsPanel })),
 );
-const BudgetPanel = React.lazy(() =>
+const BudgetPanel = lazyWithRetry(() =>
   import('./components/budget/BudgetPanel').then((module) => ({ default: module.BudgetPanel })),
 );
-const TaskBoardPanel = React.lazy(() =>
+const TaskBoardPanel = lazyWithRetry(() =>
   import('./components/tasks/TaskBoardPanel').then((m) => ({ default: m.TaskBoardPanel })),
 );
-const StoryboardPanel = React.lazy(() =>
+const StoryboardPanel = lazyWithRetry(() =>
   import('./components/storyboard/StoryboardPanel').then((m) => ({ default: m.StoryboardPanel })),
 );
-const ScriptPanel = React.lazy(() =>
+const ScriptPanel = lazyWithRetry(() =>
   import('./components/script/ScriptPanel').then((m) => ({ default: m.ScriptPanel })),
 );
 
@@ -83,6 +83,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { deriveSceneEquipment } from './utils/equipmentList';
 import { useWorkspaceUI, WorkspaceUIProvider } from './context/WorkspaceUIContext';
 import { loadLibrary } from './utils/projectLibrary';
+import { lazyWithRetry, prefetchLazyChunks } from './utils/lazyChunks';
 
 type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
 type WorkspaceGroup = 'creative' | 'production' | 'technical';
@@ -98,6 +99,10 @@ const MainLayout: React.FC = () => {
   // app is already interactive.
   useEffect(() => {
     void ensureBundledFixtureSnapshot();
+    // Warm the split panel chunks on the same principle, once the browser is
+    // idle. Splitting keeps them out of the first paint; prefetching means
+    // opening a tab does not then sit and wait for its download.
+    prefetchLazyChunks();
   }, []);
   const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
   const calculateDefaultSidebarWidth = (): number => {
