@@ -105,3 +105,32 @@ export const hasPath = (
     )
   );
 };
+
+/** An element drawn as a curve rather than a straight run: tracks and roads. */
+export type CurvableElement = FloorPlanElement & { isCurved?: boolean; curveOffset?: number };
+
+/**
+ * How far the curve control sits from the straight chord between the endpoints.
+ *
+ * Deliberately independent of `isCurved`. A straight run still shows its handle
+ * bowed out by the fallback, which is what gives the user something to grab in
+ * order to MAKE it curve — returning 0 for a straight run would drop the handle
+ * onto the line itself and make curving one nearly impossible to discover.
+ *
+ * The fallback also covers a malformed stored offset, so no caller can be
+ * handed NaN and place the handle nowhere.
+ */
+export const curveOffsetOf = (element: FloorPlanElement, fallback = 60): number => {
+  const stored = (element as CurvableElement).curveOffset;
+  return isFiniteNumber(stored) ? stored : fallback;
+};
+
+/** True when the element is drawn as a curve. */
+export const isCurved = (element: FloorPlanElement): boolean =>
+  (element as CurvableElement).isCurved === true;
+
+/** An element's own colour, when it has one. */
+export const colorOf = (element: FloorPlanElement): string | undefined => {
+  const color = (element as { color?: unknown }).color;
+  return typeof color === 'string' && color.trim() !== '' ? color : undefined;
+};

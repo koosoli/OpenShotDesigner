@@ -13,11 +13,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  colorOf,
+  curveOffsetOf,
   elementLength,
   endpointsOf,
   hasEndpoints,
   hasPath,
   hasSize,
+  isCurved,
 } from '../plan/elementGuards';
 import type { FloorPlanElement } from '../../types';
 
@@ -110,5 +113,51 @@ describe('elementLength', () => {
    */
   it('reports zero, not NaN, when there are no endpoints', () => {
     expect(elementLength(element({}))).toBe(0);
+  });
+});
+
+describe('curveOffsetOf', () => {
+  it('reports the stored bow', () => {
+    expect(curveOffsetOf(element({ isCurved: true, curveOffset: 90 }))).toBe(90);
+  });
+
+  /**
+   * Independent of `isCurved` on purpose: a straight run still shows its curve
+   * handle bowed out by the fallback, and that handle is what the user grabs to
+   * make it curve. Returning 0 here would drop the handle onto the line and
+   * make curving a track nearly impossible to discover.
+   */
+  it('still reports an offset for a straight run', () => {
+    expect(curveOffsetOf(element({}))).toBe(60);
+    expect(curveOffsetOf(element({ isCurved: false }))).toBe(60);
+    expect(curveOffsetOf(element({ curveOffset: 90 }))).toBe(90);
+  });
+
+  it('falls back when the stored offset is unusable', () => {
+    expect(curveOffsetOf(element({ curveOffset: NaN }))).toBe(60);
+    expect(curveOffsetOf(element({ curveOffset: null }))).toBe(60);
+    expect(curveOffsetOf(element({}), 25)).toBe(25);
+  });
+
+  it('keeps a deliberate zero, which is a flat curve rather than a missing one', () => {
+    expect(curveOffsetOf(element({ curveOffset: 0 }))).toBe(0);
+  });
+});
+
+describe('isCurved', () => {
+  it('is true only for an explicit flag', () => {
+    expect(isCurved(element({ isCurved: true }))).toBe(true);
+    expect(isCurved(element({ isCurved: 'yes' }))).toBe(false);
+    expect(isCurved(element({}))).toBe(false);
+  });
+});
+
+describe('colorOf', () => {
+  it('reports a usable colour and nothing else', () => {
+    expect(colorOf(element({ color: '#38bdf8' }))).toBe('#38bdf8');
+    // Blank rather than undefined is the case that matters: `?? fallback`
+    // would keep an empty string and render an invisible stroke.
+    expect(colorOf(element({ color: '   ' }))).toBeUndefined();
+    expect(colorOf(element({}))).toBeUndefined();
   });
 });

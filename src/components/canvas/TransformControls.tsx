@@ -1,4 +1,11 @@
 import React from 'react';
+import {
+  colorOf,
+  curveOffsetOf,
+  endpointsOf,
+  hasSize,
+  isCurved as isCurvedElement,
+} from '../../domain/plan/elementGuards';
 import { FloorPlanElement, ShapeElement, StrokeElement } from '../../types';
 import { boundsCenterOfPoints, boundsHalfExtentsOfPoints } from '../../utils/geometry';
 
@@ -43,8 +50,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
     if (isLinear) {
       const x1 = el.x;
       const y1 = el.y;
-      const x2 = (el as any).x2 ?? el.x + 200;
-      const y2 = (el as any).y2 ?? el.y;
+      const { x2, y2 } = endpointsOf(el, 200);
       const midX = (x1 + x2) / 2;
       const midY = (y1 + y2) / 2;
 
@@ -132,8 +138,9 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
   if (isLinear && onEndpointDragStart) {
     let x1 = el.x;
     let y1 = el.y;
-    let x2 = (el as any).x2 ?? el.x + 200;
-    let y2 = (el as any).y2 ?? el.y;
+    const ends = endpointsOf(el, 200);
+    let x2 = ends.x2;
+    let y2 = ends.y2;
 
     if (isLineShape) {
       const shape = el as ShapeElement;
@@ -160,7 +167,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
       ? `${Math.round(lengthPx)}px`
       : `${(lengthPx / 50).toFixed(2)}m`;
     const badgeWidth = isMeasurement || isLineShape ? 58 : 48;
-    const badgeColor = isMeasurement ? '#f59e0b' : isCable ? (el as any).color || '#38bdf8' : '#38bdf8';
+    const badgeColor = isMeasurement ? '#f59e0b' : isCable ? colorOf(el) || '#38bdf8' : '#38bdf8';
 
     return (
       <g className="transform-controls pointer-events-auto">
@@ -229,8 +236,8 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
             const normalY = (x2 - x1) / dist;
             const midX = (x1 + x2) / 2;
             const midY = (y1 + y2) / 2;
-            const isCurved = !!(el as any).isCurved;
-            const offset = (el as any).curveOffset ?? 60;
+            const curved = isCurvedElement(el);
+            const offset = curveOffsetOf(el);
             const ctrlX = midX + normalX * offset;
             const ctrlY = midY + normalY * offset;
 
@@ -248,7 +255,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                   y1={midY}
                   x2={ctrlX}
                   y2={ctrlY}
-                  stroke={isCurved ? '#f59e0b' : '#94a3b8'}
+                  stroke={curved ? '#f59e0b' : '#94a3b8'}
                   strokeWidth={1.5 / canvasScale}
                   strokeDasharray={`${4 / canvasScale} ${4 / canvasScale}`}
                 />
@@ -257,10 +264,10 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
                   cx={ctrlX}
                   cy={ctrlY}
                   r={9 / canvasScale}
-                  fill={isCurved ? '#f59e0b' : '#334155'}
-                  stroke={isCurved ? '#0f172a' : '#38bdf8'}
+                  fill={curved ? '#f59e0b' : '#334155'}
+                  stroke={curved ? '#0f172a' : '#38bdf8'}
                   strokeWidth={2 / canvasScale}
-                  strokeDasharray={isCurved ? undefined : `${4 / canvasScale} ${3 / canvasScale}`}
+                  strokeDasharray={curved ? undefined : `${4 / canvasScale} ${3 / canvasScale}`}
                 />
                 <circle cx={ctrlX} cy={ctrlY} r={3 / canvasScale} fill="#ffffff" />
                 {/* Offset badge */}
@@ -385,8 +392,8 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
 
   // 2D Shapes & Props: show bounding box + corner/edge resize handles
   const is2DResizable = el.type === 'shape' || el.type === 'prop';
-  const width = (el as any).width || 80;
-  const height = (el as any).height || 60;
+  const width = hasSize(el) ? el.width : 80;
+  const height = hasSize(el) ? el.height : 60;
   const halfW = width / 2;
   const halfH = height / 2;
 
