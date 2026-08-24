@@ -24,6 +24,9 @@ import {
   Type,
   User,
   MoreHorizontal,
+  Mic2,
+  Clapperboard,
+  DoorOpen,
 } from 'lucide-react';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
@@ -33,9 +36,52 @@ interface ToolItem {
   shortcut: string;
   icon: React.ReactNode;
   hasSubmenu?: boolean;
+  /**
+   * Which panel this button opens, when that is not simply `id`.
+   *
+   * Props, staging, grip and architecture are four buttons that all place a
+   * `prop` — they differ only in which slice of the catalogue they show. Giving
+   * them one tool and four submenus keeps placement a single code path: adding
+   * an `ActiveTool` per category would mean the canvas learning four names for
+   * one behaviour.
+   */
+  submenuKey?: Submenu;
+  /** Catalogue categories this button's submenu lists. */
+  propCategories?: readonly string[];
 }
 
-type Submenu = 'prop' | 'light' | 'camera' | 'shape' | 'cable' | 'overflow';
+type Submenu =
+  | 'prop'
+  | 'staging'
+  | 'grip'
+  | 'architecture'
+  | 'light'
+  | 'camera'
+  | 'shape'
+  | 'cable'
+  | 'overflow';
+
+/**
+ * The catalogue's categories, split the way people reach for them.
+ *
+ * Staging was the change that mattered: it is a third of the catalogue and it
+ * used to sit inside "Props", where nobody would look for a speaker array.
+ * Grip stays separate from it because a C-stand and a PA stack belong to
+ * different departments at different moments.
+ */
+const SET_DRESSING_CATEGORIES = [
+  'Living',
+  'Dining & Office',
+  'Bedroom',
+  'Weapons & Explosives',
+  'Documents & Hand Props',
+  'Vehicles',
+  'Landscape',
+  'Generic',
+] as const;
+const STAGING_CATEGORIES = ['Concert & Stage', 'Broadcast & Production'] as const;
+const GRIP_CATEGORIES = ['Studio & Stage'] as const;
+const ARCHITECTURE_CATEGORIES = ['Architecture'] as const;
 
 const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
   { value: 'rectangle', label: 'Rectangle' },
@@ -117,8 +163,9 @@ export const LeftToolbar: React.FC = () => {
 
   const toggleSubmenu = (tool: ToolItem) => {
     setTool(tool.id);
+    const key = tool.submenuKey ?? (tool.id as Submenu);
     if (tool.hasSubmenu) {
-      setOpenSubmenu((prev) => (prev === tool.id ? null : (tool.id as Submenu)));
+      setOpenSubmenu((prev) => (prev === key ? null : key));
     } else {
       setOpenSubmenu(null);
     }
@@ -181,6 +228,35 @@ export const LeftToolbar: React.FC = () => {
       shortcut: 'P',
       icon: <Armchair className="w-4 h-4 text-purple-500" />,
       hasSubmenu: true,
+      submenuKey: 'prop',
+      propCategories: SET_DRESSING_CATEGORIES,
+    },
+    {
+      id: 'prop',
+      label: 'Staging & Live',
+      shortcut: 'E',
+      icon: <Mic2 className="w-4 h-4 text-fuchsia-500" />,
+      hasSubmenu: true,
+      submenuKey: 'staging',
+      propCategories: STAGING_CATEGORIES,
+    },
+    {
+      id: 'prop',
+      label: 'Studio & Grip',
+      shortcut: 'U',
+      icon: <Clapperboard className="w-4 h-4 text-amber-500" />,
+      hasSubmenu: true,
+      submenuKey: 'grip',
+      propCategories: GRIP_CATEGORIES,
+    },
+    {
+      id: 'prop',
+      label: 'Architecture & Fixtures',
+      shortcut: 'F',
+      icon: <DoorOpen className="w-4 h-4 text-emerald-500" />,
+      hasSubmenu: true,
+      submenuKey: 'architecture',
+      propCategories: ARCHITECTURE_CATEGORIES,
     },
     {
       id: 'shape',
@@ -279,6 +355,12 @@ export const LeftToolbar: React.FC = () => {
     return qTokens.every((tok) => textToMatch.includes(tok));
   });
 
+  /** The search-filtered catalogue, narrowed to one toolbar button's slice. */
+  const propsForTool = (tool: ToolItem) =>
+    tool.propCategories
+      ? filteredProps.filter((prop) => tool.propCategories!.includes(prop.category))
+      : filteredProps;
+
   const filteredLights = LIGHT_FIXTURES.filter((f) => {
     if (!lightSearch) return true;
     const qTokens = normalizeQuery(lightSearch).split(' ').filter(Boolean);
@@ -323,9 +405,9 @@ export const LeftToolbar: React.FC = () => {
         const isActive = activeTool === tool.id;
 
         return (
-          <div key={tool.id} className="relative group">
+          <div key={tool.submenuKey ?? tool.id} className="relative group">
             <button
-              id={`tool-btn-${tool.id}`}
+              id={`tool-btn-${tool.submenuKey ?? tool.id}`}
               onClick={() => toggleSubmenu(tool)}
               title={`${tool.label} (${tool.shortcut})`}
               aria-label={`${tool.label} (${tool.shortcut})`}
@@ -350,11 +432,13 @@ export const LeftToolbar: React.FC = () => {
             </div>
 
             {/* ---- PROPS FLYOUT ---- */}
-            {tool.id === 'prop' && openSubmenu === 'prop' && (
+            {tool.id === 'prop' && openSubmenu === (tool.submenuKey ?? 'prop') && (
               <div className={`${flyoutBase} w-68 pb-6`}>
                 <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1 tracking-wider border-b border-slate-700/50 pb-1.5 flex items-center justify-between">
-                  <span>Props & Set Dressing</span>
-                  <span className="font-mono text-[9px] text-sky-400">{filteredProps.length} items</span>
+                  <span>{tool.label}</span>
+                  <span className="font-mono text-[9px] text-sky-400">
+                    {propsForTool(tool).length} items
+                  </span>
                 </div>
 
                 {/* Filter input */}
@@ -375,7 +459,7 @@ export const LeftToolbar: React.FC = () => {
 
                 <div className="space-y-3 py-1">
                   {Object.entries(
-                    filteredProps.reduce<Record<string, typeof filteredProps>>((acc, prop) => {
+                    propsForTool(tool).reduce<Record<string, typeof filteredProps>>((acc, prop) => {
                       (acc[prop.category] = acc[prop.category] || []).push(prop);
                       return acc;
                     }, {})
