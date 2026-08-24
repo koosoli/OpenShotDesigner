@@ -491,9 +491,14 @@ Documented in full in [`testing-layers.md`](testing-layers.md).
 | Persistence & recovery | Work reaching durable storage, and the app still starting when storage has gone bad. |
 | Scale (720-shot project) | Accidental quadratics, with budgets ~50x measured time. |
 
-Suite: 1,558 tests. The contract layer proved itself immediately — the
-shot-builder extraction silently stopped creating a camera in single-camera
-mode, and the contract suite failed while every unit test stayed green.
+Suite: 1,579 tests across 115 files, up from 1,386. The contract layer proved
+itself immediately — the shot-builder extraction silently stopped creating a
+camera in single-camera mode, and the contract suite failed while every unit
+test stayed green.
+
+Panel behaviour is covered deeply for continuity, the shot list, the schedule
+and equipment; the rest are smoke-only. Script and Inspector are the notable
+gaps.
 
 ### Correctness fixes
 
@@ -523,9 +528,17 @@ mode, and the contract suite failed while every unit test stayed green.
   could not see which numbers were taken, so inserting twice in the same place
   handed out the same number twice. Called inside the state updater, so neither
   the number nor the letter can be read from a stale render closure.
-- `domain/plan/elementGuards.ts` replaces 14 of `FloorPlanCanvas`'s 25 `any`
-  casts with guards that check values are usable rather than merely present.
-  Lint budget 149 → 133.
+- `domain/plan/elementGuards.ts` replaces the element-narrowing casts in
+  `FloorPlanCanvas`, `TransformControls` and the context with guards that check
+  values are usable rather than merely present. `TransformControls` has none
+  left. Lint budget 149 → 111.
+
+  Worth recording because it nearly went wrong: `curveOffsetOf` was first
+  written to return 0 for a straight run — tidier, and wrong. The offset
+  positions the curve HANDLE, so a straight track still shows it bowed out to
+  give the user something to grab; returning 0 would have dropped the handle
+  onto the line and made curving a track nearly undiscoverable, with every test
+  still green because nothing asserted where the handle sits.
 
 ### Still open
 
