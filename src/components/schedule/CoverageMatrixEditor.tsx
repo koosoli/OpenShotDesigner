@@ -11,6 +11,7 @@ import {
   setCoverageCell,
   type CoverageMatrix,
 } from '../../domain/scheduling';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /**
  * Multi-camera coverage matrix editor (plan §15.3): rows plan what each
@@ -19,7 +20,8 @@ import {
  * without a screenplay or cue sheet (plan rule 1).
  */
 export const CoverageMatrixEditor: React.FC = () => {
-  const { project, updateProjectMeta, activeSetup, theme } = useFloorPlan();
+  const { project, updateProjectMeta, activeSetup } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   const [newCamera, setNewCamera] = useState('');

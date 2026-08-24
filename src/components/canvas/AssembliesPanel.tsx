@@ -10,6 +10,7 @@ import {
   WallElement,
 } from '../../types';
 import { Package, Plus, Search, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /**
  * Reusable assemblies (plan §6.5): named, workspace-level element templates
@@ -215,7 +216,8 @@ const assemblyBounds = (elements: FloorPlanElement[]) => {
  * visible canvas center, and inserts it as one plan group (plan §6.4).
  */
 export const AssembliesPanel: React.FC = () => {
-  const { activeSetup, updateSetupMeta, getCanvasCenterPosition, selectElements, theme } = useFloorPlan();
+  const { activeSetup, updateSetupMeta, getCanvasCenterPosition, selectElements } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [search, setSearch] = useState('');

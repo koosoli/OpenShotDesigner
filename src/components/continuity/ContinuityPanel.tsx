@@ -63,6 +63,7 @@ import {
   exportContinuityCsv,
 } from '../../utils/exportContinuityCsv';
 import type { Shot } from '../../types';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
 const parseOptionalNumber = (raw: string): number | undefined => {
@@ -86,7 +87,8 @@ const numberLabel = (sceneNumber: string | undefined, shotNumber: string | undef
 };
 
 export const ContinuityPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
+  const { project, updateProjectMeta } = useFloorPlan();
+  const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   const takes = useMemo(() => project.takes ?? [], [project.takes]);

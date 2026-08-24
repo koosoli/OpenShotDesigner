@@ -30,6 +30,7 @@ import { createId } from '../../domain/ids';
 import { useMoodboardImageSrcs, moodboardAssetStore } from './moodboardAssets';
 import { CollageFreeform, CollageGrid } from './MoodboardCollage';
 import { extractBoardPalette } from './paletteClient';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 type LinkKind = NonNullable<MoodBoardCard['linkedEntity']>['kind'];
 
@@ -273,7 +274,8 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
 };
 
 export const MoodBoardPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
+  const { project, updateProjectMeta } = useFloorPlan();
+  const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   const boards = useMemo(() => project.moodBoards ?? [], [project.moodBoards]);

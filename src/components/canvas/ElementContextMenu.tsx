@@ -15,6 +15,7 @@ import {
   Unlock,
 } from 'lucide-react';
 import { promptSaveAssemblyFromIds } from './AssembliesPanel';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 export interface ElementContextMenuState {
   /** Viewport (client) coordinates of the pointer that opened the menu. */
@@ -39,21 +40,8 @@ interface ElementContextMenuProps {
  * scroll/wheel, and Escape. Styling mirrors the TopNavbar dropdown menus.
  */
 export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, onClose }) => {
-  const {
-    activeSetup,
-    theme,
-    selectedElementIds,
-    selectElement,
-    setActiveRightTab,
-    updateMultipleElements,
-    deleteSelectedElements,
-    duplicateSelected,
-    copySelectedElements,
-    pasteElements,
-    updateSetupMeta,
-    groupSelection,
-    ungroupSelection,
-  } = useFloorPlan();
+  const { activeSetup, selectedElementIds, selectElement, updateMultipleElements, deleteSelectedElements, duplicateSelected, copySelectedElements, pasteElements, updateSetupMeta, groupSelection, ungroupSelection } = useFloorPlan();
+  const { theme, setActiveRightTab } = useWorkspaceUI();
 
   const isLight = theme === 'light';
   const menuRef = useRef<HTMLDivElement>(null);

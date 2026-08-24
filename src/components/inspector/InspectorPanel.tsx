@@ -117,6 +117,7 @@ import { CableInspector } from './elements/CableInspector';
 import { LightInspector } from './elements/LightInspector';
 import { compassPoint, formatSunTime, sceneSunPlan } from '../../domain/sun';
 import { ProjectImage } from '../common/ProjectImage';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import {
   ColorField,
   PillToggle,
@@ -130,31 +131,8 @@ export const InspectorPanel: React.FC = () => {
   // readers announced every one of these inputs unlabelled.
   const fieldId = useId();
   const logoInputRef = React.useRef<HTMLInputElement>(null);
-  const {
-    activeSetup,
-    project,
-    updateProjectMeta,
-    selectedElementIds,
-    updateElement,
-    deleteSelectedElements,
-    duplicateSelected,
-    updateSetupMeta,
-    setActiveSetupId,
-    rotateElementBy,
-    theme,
-    backgroundImages,
-    selectedBackgroundId,
-    setSelectedBackgroundId,
-    updateBackgroundImage,
-    removeBackgroundImage,
-    displaySettings,
-    updateDisplaySettings,
-    updateMultipleElements,
-    setGridSettings,
-    calibratingBackgroundId,
-    startBackgroundCalibration,
-    cancelBackgroundCalibration,
-  } = useFloorPlan();
+  const { activeSetup, project, updateProjectMeta, selectedElementIds, updateElement, deleteSelectedElements, duplicateSelected, updateSetupMeta, setActiveSetupId, rotateElementBy, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, updateBackgroundImage, removeBackgroundImage, displaySettings, updateDisplaySettings, updateMultipleElements, setGridSettings, calibratingBackgroundId, startBackgroundCalibration, cancelBackgroundCalibration } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
 
   /**
    * Sun planning for this scene (plan §37). Everything derives from the linked

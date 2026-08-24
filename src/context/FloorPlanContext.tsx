@@ -37,6 +37,7 @@ import { endpointsOf, hasEndpoints, hasSize } from '../domain/plan/elementGuards
 import { buildShotForSetup } from '../domain/shots/createShot';
 import { insertedShotNumber, takenShotNumbers } from '../domain/shots/numbering';
 import { useStableContextValue } from './stableContextValue';
+import { useWorkspaceUI } from './WorkspaceUIContext';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
 import { pruneBreakdownScriptLines, rowsAfterShotRemoval } from '../domain/script';
@@ -96,7 +97,9 @@ import {
 } from '../domain/workspace';
 
 /** Sections available in the export / print studio. */
-export type ExportSection = 'floorplan' | 'shotlist' | 'storyboard' | 'linedscript' | 'avscript' | 'sides' | 'scriptreports' | 'equipment' | 'dmx' | 'power' | 'rigging' | 'logistics' | 'runofshow' | 'continuity' | 'camerareport' | 'soundreport' | 'dailyprogress' | 'moodboard' | 'crew' | 'combined';
+// `ExportSection` moved to WorkspaceUIContext, with the export-modal state
+// it describes. Re-exported here so existing importers keep working.
+export type { ExportSection, RightTab } from './WorkspaceUIContext';
 
 /**
  * Collision-proof ids. `Date.now()` alone repeats when two shots are created
@@ -130,17 +133,12 @@ interface FloorPlanContextType {
   };
   isViewfinderOpen: boolean;
   viewfinderCameraId: string | null;
-  isExportModalOpen: boolean;
   /** Which tab the export modal opens on (floor plan, shot list, lined script, equipment). */
-  exportSection: ExportSection;
-  theme: 'dark' | 'light';
   displaySettings: DisplaySettings;
   storageWarning: string | null;
   dismissStorageWarning: () => void;
 
   // Actions
-  toggleTheme: () => void;
-  setTheme: (theme: 'dark' | 'light') => void;
   updateDisplaySettings: (updates: Partial<DisplaySettings>) => void;
   setTool: (tool: ActiveTool) => void;
   setPropSubtype: (type: PropType) => void;
@@ -148,10 +146,6 @@ interface FloorPlanContextType {
   setCameraRig: (rig: CameraRigType) => void;
   setShapeType: (shape: ShapeType) => void;
   setCableType: (cable: CableType) => void;
-  quickSearchOpen: boolean;
-  setQuickSearchOpen: (open: boolean) => void;
-  activeRightTab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
-  setActiveRightTab: (tab: 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector') => void;
   /** Workspace profile of the open project (module visibility, plan §1.2). */
   workspaceProfile: WorkspaceProfile;
   isModuleVisible: (moduleId: ModuleId) => boolean;
@@ -326,9 +320,6 @@ interface FloorPlanContextType {
   // Project library (dashboard): several productions in one browser
   projects: ProjectSummary[];
   activeProjectId: string;
-  isDashboardOpen: boolean;
-  openDashboard: () => void;
-  closeDashboard: () => void;
   createNewProject: (options?: NewProjectOptions) => void;
   openProjectById: (id: string) => void;
   duplicateProject: (id: string) => void;
@@ -361,9 +352,6 @@ interface FloorPlanContextType {
   openViewfinder: (cameraId?: string) => void;
   closeViewfinder: () => void;
   setViewfinderCameraId: (id: string | null) => void;
-  openExportModal: (section?: ExportSection) => void;
-  setExportSection: (section: ExportSection) => void;
-  closeExportModal: () => void;
   setCanvasTransform: (scale: number, offset: Vector2D) => void;
   setCanvasViewport: (width: number, height: number) => void;
 }
@@ -725,13 +713,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
   // First run (nothing saved yet) opens on the dashboard so the first thing the
   // user does is name their production.
-  const [isDashboardOpen, setIsDashboardOpen] = useState(() => {
-    try {
-      return loadLibrary().length === 0;
-    } catch {
-      return false;
-    }
-  });
+  // Workspace chrome lives in its own context now (rule 38): the theme, which
+  // panel is open, and the dashboard belong to this browser tab, not to the
+  // production. `FloorPlanProvider` still DRIVES some of it — selecting an
+  // element on the canvas opens the inspector — which is why
+  // `WorkspaceUIProvider` is mounted outside this one.
+  const { activeRightTab, setActiveRightTab, closeDashboard } = useWorkspaceUI();
 
   const activeSetup =
     project.setups.find((s) => s.id === project.activeSetupId) || project.setups[0];
@@ -759,39 +746,11 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [selectedShotId, setSelectedShotId] = useState<string | null>(null);
   const [highlightedElementId, setHighlightedElementId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<ActiveTool>('select');
-  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [activePropSubtype, setActivePropSubtype] = useState<PropType>('table_rect');
   const [activeLightFixture, setActiveLightFixture] = useState<LightFixtureType>('fresnel');
   const [activeCameraRig, setActiveCameraRig] = useState<CameraRigType>('Tripod');
   const [activeShapeType, setActiveShapeType] = useState<ShapeType>('rectangle');
   const [activeCableType, setActiveCableType] = useState<CableType>('sdi_12g');
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try {
-      const savedTheme = migrateStorageKey(LEGACY_STORAGE_KEYS.theme, STORAGE_KEYS.theme);
-      if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
-    } catch {}
-    return 'light'; // Default to light mode
-  });
-
-  const toggleTheme = () => {
-    setTheme((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark';
-      try {
-        localStorage.setItem(STORAGE_KEYS.theme, next);
-      } catch {}
-      return next;
-    });
-  };
-
-  // Sync theme class to document element for Tailwind dark mode classes
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
   // Display / label preferences (UI-only, persisted separately from scene data)
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(() => {
     try {
@@ -835,11 +794,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Viewfinder & Modals
   const [isViewfinderOpen, setIsViewfinderOpen] = useState(false);
   const [viewfinderCameraId, setViewfinderCameraId] = useState<string | null>(null);
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportSection, setExportSection] = useState<ExportSection>('floorplan');
 
   // Right Sidebar Tab State
-  const [activeRightTab, setActiveRightTab] = useState<'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector'>('shots');
   const [scriptLinkShotId, setScriptLinkShotId] = useState<string | null>(null);
 
   // If the open project's workspace hides the current tab's module, fall back
@@ -866,7 +822,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (mod && !isModuleEnabledIn(workspaceProfile, mod)) {
       setActiveRightTab('inspector');
     }
-  }, [workspaceProfile, activeRightTab]);
+  }, [workspaceProfile, activeRightTab, setActiveRightTab]);
 
   // Playback engine
   const [isPlaying, setIsPlaying] = useState(false);
@@ -3758,11 +3714,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSelectedBackgroundId(null);
     setCalibratingBackgroundId(null);
     setActiveRightTab('shots');
-    setIsDashboardOpen(false);
+    closeDashboard();
   };
 
-  const openDashboard = () => setIsDashboardOpen(true);
-  const closeDashboard = () => setIsDashboardOpen(false);
 
   const createNewProject = (options?: NewProjectOptions) => {
     const created = buildProject(options);
@@ -3778,7 +3732,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const openProjectById = (id: string) => {
     if (id === project.id) {
-      setIsDashboardOpen(false);
+      closeDashboard();
       return;
     }
     const next = readProject(id);
@@ -4084,11 +4038,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsViewfinderOpen(false);
   };
 
-  const openExportModal = (section?: ExportSection) => {
-    if (section) setExportSection(section);
-    setIsExportModalOpen(true);
-  };
-  const closeExportModal = () => setIsExportModalOpen(false);
 
   // Equipment Management
   const addCustomEquipmentItem = (item: Omit<EquipmentItem, 'id'>) => {
@@ -4219,13 +4168,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         playback,
         isViewfinderOpen,
         viewfinderCameraId,
-        isExportModalOpen,
-        exportSection,
-        setExportSection,
-        theme,
 
-        activeRightTab,
-        setActiveRightTab,
         workspaceProfile,
         isModuleVisible,
         setModuleVisible,
@@ -4238,8 +4181,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updatePackageItem,
         deletePackageItem,
 
-        toggleTheme,
-        setTheme,
         setTool: setActiveTool,
         setPropSubtype: setActivePropSubtype,
         setLightFixture: setActiveLightFixture,
@@ -4248,8 +4189,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setShapeType: setActiveShapeType,
         activeCableType,
         setCableType: setActiveCableType,
-        quickSearchOpen,
-        setQuickSearchOpen,
         selectElement,
         selectElements,
         clearSelection,
@@ -4336,9 +4275,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         restoreRevision,
         projects,
         activeProjectId: project.id,
-        isDashboardOpen,
-        openDashboard,
-        closeDashboard,
         createNewProject,
         openProjectById,
         duplicateProject,
@@ -4370,8 +4306,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         openViewfinder,
         closeViewfinder,
         setViewfinderCameraId,
-        openExportModal,
-        closeExportModal,
 
         displaySettings,
         updateDisplaySettings,

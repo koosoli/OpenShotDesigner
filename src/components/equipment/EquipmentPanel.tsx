@@ -53,6 +53,7 @@ import { autoPatchFixtures, collectFixturePatches, findConflicts, sortedPatchRow
 import { DmxPatchPrintView } from '../reports/DmxPatchPrintView';
 import { DmxUniverseView } from './DmxUniverseView';
 import { SignalFlowView } from './SignalFlowView';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 export const EquipmentPanel: React.FC = () => {
   // Prefix for pairing each caption with its control (`htmlFor`/`id`). From
@@ -60,23 +61,8 @@ export const EquipmentPanel: React.FC = () => {
   // captions used to be plain siblings with no `htmlFor`, which meant screen
   // readers announced every one of these inputs unlabelled.
   const fieldId = useId();
-  const {
-    activeSetup,
-    project,
-    addCustomEquipmentItem,
-    updateEquipmentItem,
-    deleteEquipmentItem,
-    resetSceneEquipment,
-    addPackageItem,
-    updatePackageItem,
-    deletePackageItem,
-    openExportModal,
-    theme,
-    updateElement,
-    selectElement,
-    selectedElementIds,
-    setHighlightedElement,
-  } = useFloorPlan();
+  const { activeSetup, project, addCustomEquipmentItem, updateEquipmentItem, deleteEquipmentItem, resetSceneEquipment, addPackageItem, updatePackageItem, deletePackageItem, updateElement, selectElement, selectedElementIds, setHighlightedElement } = useFloorPlan();
+  const { openExportModal, theme } = useWorkspaceUI();
   // Re-render when the fixture catalog changes: the bundled snapshot arrives
   // asynchronously and an online refresh can replace it, and both change the
   // wattage and specs derived below.

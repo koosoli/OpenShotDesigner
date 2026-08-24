@@ -40,6 +40,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { downloadText, safeFileName } from '../../utils/download';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const WORKSPACE_TAB_MODULES: Array<{ id: ModuleId; label: string }> = [
   { id: 'shots', label: 'Shot list' },
@@ -60,33 +61,8 @@ const WORKSPACE_TAB_MODULES: Array<{ id: ModuleId; label: string }> = [
 ];
 
 export const TopNavbar: React.FC = () => {
-  const {
-    project,
-    activeSetup,
-    historyIndex,
-    historyLength,
-    theme,
-    toggleTheme,
-    undo,
-    redo,
-    setActiveSetupId,
-    addSetup,
-    duplicateCurrentSetup,
-    deleteSetup,
-    updateProjectMeta,
-    saveRevision,
-    loadTemplateScene,
-    loadExampleProductionData,
-    loadProjectFromJson,
-    setGridSettings,
-    openViewfinder,
-    openExportModal,
-    openDashboard,
-    displaySettings,
-    updateDisplaySettings,
-    isModuleVisible,
-    setModuleVisible,
-  } = useFloorPlan();
+  const { project, activeSetup, historyIndex, historyLength, undo, redo, setActiveSetupId, addSetup, duplicateCurrentSetup, deleteSetup, updateProjectMeta, saveRevision, loadTemplateScene, loadExampleProductionData, loadProjectFromJson, setGridSettings, openViewfinder, displaySettings, updateDisplaySettings, isModuleVisible, setModuleVisible } = useFloorPlan();
+  const { theme, toggleTheme, openExportModal, openDashboard } = useWorkspaceUI();
 
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   /** Transient confirmation after filling empty modules with examples. */

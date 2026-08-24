@@ -21,6 +21,7 @@ import {
 import type { LocationType } from '../../domain/locations';
 import { machineTimeZone, supportedTimeZones } from '../../domain/sun';
 import { OsmMiniMap } from './OsmMiniMap';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const LOCATION_TYPES: LocationType[] = ['location', 'studio', 'stage', 'venue', 'arena', 'outdoor', 'other'];
 
@@ -45,13 +46,8 @@ const TIME_ZONES = supportedTimeZones();
 const MACHINE_TIME_ZONE = machineTimeZone();
 
 export const LocationsPanel: React.FC = () => {
-  const {
-    project,
-    theme,
-    updateProjectMeta,
-    setActiveSetupId,
-    setActiveRightTab,
-  } = useFloorPlan();
+  const { project, updateProjectMeta, setActiveSetupId } = useFloorPlan();
+  const { theme, setActiveRightTab } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   const locations = useMemo(() => project.locations ?? [], [project.locations]);

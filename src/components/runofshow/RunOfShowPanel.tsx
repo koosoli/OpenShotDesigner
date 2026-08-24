@@ -27,6 +27,7 @@ import {
   sortAndRenumberCues,
 } from '../../domain/scheduling/runOfShow';
 import { removeRunOfShowCue } from '../../domain';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 
 const parseClockToSeconds = (value: string): number | null => {
@@ -62,7 +63,8 @@ const formatDuration = (seconds: number): string => {
 };
 
 export const RunOfShowPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta, openExportModal } = useFloorPlan();
+  const { project, updateProjectMeta } = useFloorPlan();
+  const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   // Memoised so the cue-timing memos below actually memoise.

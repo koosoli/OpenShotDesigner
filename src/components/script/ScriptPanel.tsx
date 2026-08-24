@@ -65,6 +65,7 @@ import { BreakdownTagControl } from './BreakdownTagControl';
 import { ProjectImage } from '../common/ProjectImage';
 import { keyFrameImage } from '../../utils/storyboardFrames';
 import { downloadCsv, downloadText, safeFileName } from '../../utils/download';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 type ScriptWorkspaceView = ScriptFormatMode | 'reports' | 'title_page';
 
@@ -167,39 +168,8 @@ type SuggestionList =
   | { kind: 'none'; items: [] };
 
 export const ScriptPanel: React.FC = () => {
-  const {
-    activeSetup,
-    scriptLines,
-    scriptTitle,
-    allScriptMarks,
-    allShots,
-    setupIdForMark,
-    setActiveSetupId,
-    selectedShotId,
-    selectShot,
-    createShotFromScriptRange,
-    linkShotToScriptRange,
-    scriptLinkShotId,
-    cancelScriptLinking,
-    updateScriptMark,
-    setLiningDescription,
-    deleteScriptMark,
-    setScriptLines,
-    setSceneNumbersLocked,
-    avScriptRows,
-    setAVScriptRows,
-    updateAVScriptRow,
-    addAVScriptRow,
-    deleteAVScriptRow,
-    scriptFormatMode,
-    setScriptFormatMode,
-    syncAVRowToShot,
-    openExportModal,
-    displaySettings,
-    theme,
-    project,
-    updateProjectMeta,
-  } = useFloorPlan();
+  const { activeSetup, scriptLines, scriptTitle, allScriptMarks, allShots, setupIdForMark, setActiveSetupId, selectedShotId, selectShot, createShotFromScriptRange, linkShotToScriptRange, scriptLinkShotId, cancelScriptLinking, updateScriptMark, setLiningDescription, deleteScriptMark, setScriptLines, setSceneNumbersLocked, avScriptRows, setAVScriptRows, updateAVScriptRow, addAVScriptRow, deleteAVScriptRow, scriptFormatMode, setScriptFormatMode, syncAVRowToShot, displaySettings, project, updateProjectMeta } = useFloorPlan();
+  const { openExportModal, theme } = useWorkspaceUI();
 
   /**
    * Every write to the script goes through here so breakdown elements cannot

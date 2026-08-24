@@ -38,6 +38,7 @@ import {
   toggleChecklistItem,
   updateTask,
 } from '../../domain/tasks';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const PRIORITY_DOT: Record<TaskPriority, string> = {
   low: 'bg-slate-400',
@@ -199,7 +200,8 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
  * mutations go through the pure `domain/tasks` logic.
  */
 export const TaskBoardPanel: React.FC = () => {
-  const { project, updateProjectMeta, theme } = useFloorPlan();
+  const { project, updateProjectMeta } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
   const boards = useMemo(() => project.taskBoards ?? [], [project.taskBoards]);
   const allTasks = useMemo(() => project.tasks ?? [], [project.tasks]);

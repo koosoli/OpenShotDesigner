@@ -21,6 +21,7 @@ import { RateCardFields, VatSelect } from './RateCardFields';
 import { useProductionNeeds } from './useProductionNeeds';
 import { DayNeedsView } from './DayNeedsView';
 import { downloadCsv } from '../../utils/download';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /** The budget CSV keeps its BOM: Excel guesses wrong on the euro signs without one. */
 const downloadText = (filename: string, text: string) =>
@@ -36,7 +37,8 @@ const downloadText = (filename: string, text: string) =>
  * follow the schedule as it changes.
  */
 export const BudgetPanel: React.FC = () => {
-  const { project, updateProjectMeta, theme, setActiveRightTab } = useFloorPlan();
+  const { project, updateProjectMeta } = useFloorPlan();
+  const { theme, setActiveRightTab } = useWorkspaceUI();
   const isLight = theme === 'light';
   const [view, setView] = useState<'budget' | 'needs'>('budget');
   const [printing, setPrinting] = useState(false);

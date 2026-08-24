@@ -81,12 +81,15 @@ import { useBreakpoint } from './utils/useMediaQuery';
 import { AlertTriangle, Zap, Package, ListOrdered, ClipboardList, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, KanbanSquare, Coins, MapPin, Maximize2, Minimize2, Users } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { deriveSceneEquipment } from './utils/equipmentList';
+import { useWorkspaceUI, WorkspaceUIProvider } from './context/WorkspaceUIContext';
+import { loadLibrary } from './utils/projectLibrary';
 
 type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
 type WorkspaceGroup = 'creative' | 'production' | 'technical';
 
 const MainLayout: React.FC = () => {
-  const { project, activeSetup, selectedElementIds, activeRightTab, setActiveRightTab, theme, storageWarning, dismissStorageWarning, isModuleVisible, isViewfinderOpen, isExportModalOpen } = useFloorPlan();
+  const { project, activeSetup, selectedElementIds, storageWarning, dismissStorageWarning, isModuleVisible, isViewfinderOpen } = useFloorPlan();
+  const { activeRightTab, setActiveRightTab, theme, isExportModalOpen } = useWorkspaceUI();
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   // Pull the bundled fixture snapshot in after first paint. It is a dynamic
@@ -461,12 +464,26 @@ const MainLayout: React.FC = () => {
 };
 
 
+/** Nothing saved yet means a first run, which opens on the dashboard so the
+ *  first thing anyone does is name their production. */
+const startOnDashboard = (): boolean => {
+  try {
+    return loadLibrary().length === 0;
+  } catch {
+    return false;
+  }
+};
+
 export default function App() {
   return (
     <ErrorBoundary>
-      <FloorPlanProvider>
-        <MainLayout />
-      </FloorPlanProvider>
+      {/* Outside FloorPlanProvider: selecting an element opens the inspector,
+          so the project context drives workspace state and not the reverse. */}
+      <WorkspaceUIProvider startOnDashboard={startOnDashboard()}>
+        <FloorPlanProvider>
+          <MainLayout />
+        </FloorPlanProvider>
+      </WorkspaceUIProvider>
     </ErrorBoundary>
   );
 }

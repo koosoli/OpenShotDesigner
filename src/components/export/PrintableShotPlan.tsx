@@ -107,21 +107,11 @@ import { attachBreakdownItemsToScenes } from '../../domain/script';
 import { ProjectImage } from '../common/ProjectImage';
 import { useImageRefSrcs } from '../../utils/assetImages';
 import { keyFrameImage } from '../../utils/storyboardFrames';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 export const PrintableShotPlan: React.FC = () => {
-  const {
-    project,
-    activeSetup,
-    isExportModalOpen,
-    closeExportModal,
-    exportSection,
-    setExportSection,
-    scriptLines,
-    allScriptMarks,
-    allShots,
-    avScriptRows,
-    displaySettings,
-  } = useFloorPlan();
+  const { project, activeSetup, scriptLines, allScriptMarks, allShots, avScriptRows, displaySettings } = useFloorPlan();
+  const { isExportModalOpen, closeExportModal, exportSection, setExportSection } = useWorkspaceUI();
   // The power sheet reads the same two things the power panel does: the lights
   // standing on the plan, and the live fixture catalogue that gives them a
   // rated draw.

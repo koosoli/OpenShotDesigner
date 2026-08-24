@@ -54,6 +54,7 @@ import type { PrintableCalendarDay, PrintableCalendarEvent } from '../reports/Sc
 import { CoverageMatrixPrintView } from '../reports/CoverageMatrixPrintView';
 import type { PrintableCoverageRow } from '../reports/CoverageMatrixPrintView';
 import { CallSheetWorkspace } from './CallSheetWorkspace';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const MANUAL_TYPES: ManualType[] = [
   'meal',
@@ -73,7 +74,8 @@ const formatMinutes = (total: number): string => {
 };
 
 export const SchedulePanel: React.FC = () => {
-  const { project, theme, updateProjectMeta } = useFloorPlan();
+  const { project, updateProjectMeta } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   // Memoised: `?? []` mints a fresh array every render, which made every memo

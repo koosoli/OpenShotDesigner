@@ -41,6 +41,7 @@ import { RateCardFields } from '../budget/RateCardFields';
 import { DEFAULT_BUDGET_SETTINGS } from '../../domain/budget';
 import { createId } from '../../domain/ids';
 import { downloadCsv, safeFileName } from '../../utils/download';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const KIND_TINT: Record<PersonKind, string> = {
   crew: 'bg-sky-500/15 text-sky-500',
@@ -190,7 +191,8 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
  * works without a screenplay — the cast section simply stays empty.
  */
 export const ContactsPanel: React.FC = () => {
-  const { project, updateProjectMeta, scriptLines, theme, openExportModal } = useFloorPlan();
+  const { project, updateProjectMeta, scriptLines } = useFloorPlan();
+  const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
   const people = useMemo(() => project.people ?? [], [project.people]);
   const castAssignments = useMemo(() => project.castAssignments ?? [], [project.castAssignments]);

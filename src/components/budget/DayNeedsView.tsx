@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { groupPeopleByDepartment } from '../../domain/people';
 import { useProductionNeeds } from './useProductionNeeds';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 interface DayNeedsViewProps {
   isLight: boolean;
@@ -22,7 +23,8 @@ const DAY_KIND_LABEL = { shoot: 'Shoot', rehearsal: 'Rehearsal', scout: 'Scout',
  * question, answered from the schedule rather than from memory.
  */
 export const DayNeedsView: React.FC<DayNeedsViewProps> = ({ isLight }) => {
-  const { project, setActiveRightTab } = useFloorPlan();
+  const { project } = useFloorPlan();
+  const { setActiveRightTab } = useWorkspaceUI();
   const { needs, shootDays } = useProductionNeeds();
   const people = useMemo(() => project.people ?? [], [project.people]);
   const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';

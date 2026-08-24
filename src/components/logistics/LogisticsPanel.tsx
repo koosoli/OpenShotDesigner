@@ -26,6 +26,7 @@ import {
 } from '../../domain/logistics';
 import { deriveAllScenesEquipment, deriveSceneEquipment } from '../../utils/equipmentList';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const CONTAINER_KINDS: LogisticsContainerKind[] = ['case', 'rack', 'cart', 'pallet', 'van', 'truck'];
 const KIND_LABELS: Record<LogisticsContainerKind, string> = {
@@ -74,7 +75,8 @@ const EMPTY_ITEM_DRAFT: ItemDraft = {
 type PackScope = 'scene' | 'production';
 
 export const LogisticsPanel: React.FC = () => {
-  const { project, activeSetup, theme, updateProjectMeta, openExportModal } = useFloorPlan();
+  const { project, activeSetup, updateProjectMeta } = useFloorPlan();
+  const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
   const catalog = useFixtureCatalog();
 

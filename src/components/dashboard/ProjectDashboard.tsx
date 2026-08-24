@@ -21,6 +21,7 @@ import { BRANDING } from '../../config/branding';
 import { exportProjectPackage, importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { downloadBlob } from '../../utils/download';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const triggerDownload = (blob: Blob, filename: string) => downloadBlob(blob, filename);
 
@@ -43,20 +44,8 @@ const formatUpdated = (iso: string): string => {
  * first run and whenever the user opens "Projects" from the top bar.
  */
 export const ProjectDashboard: React.FC = () => {
-  const {
-    projects,
-    activeProjectId,
-    isDashboardOpen,
-    closeDashboard,
-    createNewProject,
-    openProjectById,
-    duplicateProject,
-    renameProject,
-    deleteProjectById,
-    loadProjectFromJson,
-    restoreRevision,
-    theme,
-  } = useFloorPlan();
+  const { projects, activeProjectId, createNewProject, openProjectById, duplicateProject, renameProject, deleteProjectById, loadProjectFromJson, restoreRevision } = useFloorPlan();
+  const { isDashboardOpen, closeDashboard, theme } = useWorkspaceUI();
 
   const isLight = theme === 'light';
   const fileInputRef = useRef<HTMLInputElement>(null);

@@ -32,6 +32,7 @@ import {
 } from '../../utils/storyboardFrames';
 import { loadStoryboardImageFile } from '../../utils/image';
 import { ProjectImage } from '../common/ProjectImage';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /** A moving shot is boarded on each of its camera's keyframes. */
 export const shotHasMove = (shot: Shot): boolean =>
@@ -47,21 +48,8 @@ export const shotHasMove = (shot: Shot): boolean =>
  * order and their description is editable in place.
  */
 export const StoryboardPanel: React.FC = () => {
-  const {
-    activeSetup,
-    selectedShotId,
-    selectShot,
-    updateShot,
-    deleteShot,
-    setStoryboardOrder,
-    createCameraAndShot,
-    openExportModal,
-    openViewfinder,
-    updateSetupMeta,
-    displaySettings,
-    updateDisplaySettings,
-    theme,
-  } = useFloorPlan();
+  const { activeSetup, selectedShotId, selectShot, updateShot, deleteShot, setStoryboardOrder, createCameraAndShot, openViewfinder, updateSetupMeta, displaySettings, updateDisplaySettings } = useFloorPlan();
+  const { openExportModal, theme } = useWorkspaceUI();
 
   const isLight = theme === 'light';
   const hideBlankWaypoints = displaySettings.hideBlankStoryboardWaypoints ?? false;

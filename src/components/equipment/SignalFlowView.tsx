@@ -11,6 +11,7 @@ import {
   FlowLayerEntry,
   FlowNode,
 } from '../../domain/cable/signalFlow';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 interface SignalFlowNode extends FlowNode {
   kind: 'element' | 'label';
@@ -28,7 +29,8 @@ interface SignalFlowViewProps {
 const LABEL_PREFIX = 'label:';
 
 export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
-  const { activeSetup, theme, selectElement } = useFloorPlan();
+  const { activeSetup, selectElement } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   const cables = useMemo(

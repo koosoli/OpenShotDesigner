@@ -13,7 +13,7 @@ of this one.
 
 | | Start of pass | End of pass |
 | --- | --- | --- |
-| Tests | 1,579 across 115 files | **1,816 across 130 files** |
+| Tests | 1,579 across 115 files | **1,837 across 131 files** |
 | Lint | 0 errors, 111 warnings, budget 111 | **0 errors, 0 warnings, budget 0** |
 | `any` in `src/` | 96 | **0** |
 | Schema | v24 | v24 (unchanged; every field added is absent-safe) |
@@ -368,12 +368,62 @@ whitespace-only sanitiser turns 7 red.
 
 ---
 
+## Part 6 — Workspace chrome out of the project context
+
+Open item 1 argued against decomposing `FloorPlanContext` on the evidence: the
+audit's own success test — "adding something like Camera Reports stops
+requiring edits to six unrelated systems" — was already passing, seven features
+having cost one line between them.
+
+One piece was worth moving anyway, for a reason that is not about size. Rule 38
+asks that session UI state and shared project state be kept distinct, and they
+were not. `WorkspaceUIContext` now owns the theme, the active panel, quick
+search, the dashboard and the export modal — everything describing **this
+browser tab** rather than the production.
+
+The payoff is not the line count (4,395 → 4,329, and 181 context members →
+166). It is that when sync lands, the thing that must converge and the thing
+that must NOT are now separate objects rather than two kinds of field in one,
+told apart by remembering which is which.
+
+### Three candidates turned out to be project state
+
+Worth recording, because each would have made the split worse:
+
+- **The viewfinder.** `openViewfinder()` picks a camera out of
+  `activeSetup.elements` when not given one. The flag could move; the action
+  could not, and splitting one action across two contexts is worse than
+  leaving both.
+- **`workspaceProfile` / `isModuleVisible`.** Keyed by project id and reloaded
+  on project change — moving them means handing the new context a project.
+- **`displaySettings`.** Reads as preference, consumed by canvas rendering.
+
+### The dependency points one way
+
+`WorkspaceUIProvider` mounts OUTSIDE `FloorPlanProvider`, because selecting an
+element on the canvas opens the inspector — project state driving workspace
+state. That only works in this nesting order, and it is the order with no
+cycle: nothing in the workspace context reads a project.
+
+The test harnesses needed care for a non-obvious reason. Both call
+`vi.resetModules()` and import the context dynamically; a STATIC import of
+`WorkspaceUIProvider` would have handed its value to the pre-reset context
+object, so the freshly imported `FloorPlanProvider` would look up a context
+nobody provided. Both now import it after the reset.
+
+Verified in a real browser: the theme toggles and persists, selecting on the
+canvas flips the tab to the inspector across the new provider boundary, and the
+rule that reading the lined script is not interrupted by a selection still
+holds.
+
+---
+
 ## Still open
 
-1. **`FloorPlanContext` decomposition.** Unchanged in substance. The contract
-   layer that makes it safe now covers elements, shots and script; equipment,
-   AV and revisions do not. Worth restating what success is not — the file
-   getting shorter.
+1. **`FloorPlanContext` decomposition.** Workspace chrome is out (Part 6); the
+   rest stays, on the evidence in that section. The contract layer that makes
+   it safe covers elements, shots and script; equipment, AV and revisions do
+   not. Worth restating what success is not — the file getting shorter.
 2. **No browser-driving end-to-end layer.** The money path is guarded by the
    golden-workflow test at the domain level, by the download tests at the file
    level (Part 5), and by `regression-checklist.md` in a real browser. What is

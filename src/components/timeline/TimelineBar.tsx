@@ -11,21 +11,11 @@ import {
   SkipBack,
   SkipForward,
 } from 'lucide-react';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 export const TimelineBar: React.FC = () => {
-  const {
-    playback,
-    togglePlayback,
-    setCurrentBeat,
-    setPlaybackSpeed,
-    setIsLooping,
-    addBeat,
-    removeBeat,
-    activeSetup,
-    theme,
-    displaySettings,
-    updateDisplaySettings,
-  } = useFloorPlan();
+  const { playback, togglePlayback, setCurrentBeat, setPlaybackSpeed, setIsLooping, addBeat, removeBeat, activeSetup, displaySettings, updateDisplaySettings } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
 
   const isLight = theme === 'light';
   const { isPlaying, currentBeat, totalBeats, speed, isLooping } = playback;

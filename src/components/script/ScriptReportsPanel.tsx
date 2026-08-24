@@ -17,6 +17,7 @@ import { emptySetup } from '../../utils/projectLibrary';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { SetLocationLink } from '../locations/SetLocationLink';
 import { BreakdownElementsPanel } from './BreakdownElementsPanel';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 interface ScriptReportsPanelProps {
   lines: ScriptLine[];
@@ -30,12 +31,8 @@ const setupTimeOfDay = (scene: ScriptScene): SceneSetup['timeOfDay'] => {
 };
 
 export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, isLight }) => {
-  const {
-    project,
-    updateProjectMeta,
-    setActiveSetupId,
-    setActiveRightTab,
-  } = useFloorPlan();
+  const { project, updateProjectMeta, setActiveSetupId } = useFloorPlan();
+  const { setActiveRightTab } = useWorkspaceUI();
   const [report, setReport] = useState<'characters' | 'locations' | 'elements' | 'dood'>('characters');
 
   const breakdown = useMemo(

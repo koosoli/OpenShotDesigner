@@ -10,6 +10,7 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { Shot, ShotStatus } from '../../types';
 import { sortCues } from '../../domain/scheduling';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /**
  * On-set / show-day mode (plan §35, standalone core).
@@ -61,7 +62,8 @@ interface OnSetModeOverlayProps {
 }
 
 export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) => {
-  const { project, activeSetup, theme, updateShot, selectShot } = useFloorPlan();
+  const { project, activeSetup, updateShot, selectShot } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
   // The overlay covers the workspace without unmounting it, so without a trap
   // Tab would walk the shot list underneath — mounted here means always open.

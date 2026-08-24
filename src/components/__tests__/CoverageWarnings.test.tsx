@@ -19,6 +19,13 @@ vi.mock('../../context/FloorPlanContext', async () => {
   const harness = await import('./renderWithProject');
   return { useFloorPlan: () => harness.currentDeps() };
 });
+// Theme and the export modal live in their own context now, so the stub does
+// too — a panel reaching for them through `useFloorPlan` fails here as it
+// would in the app.
+vi.mock('../../context/WorkspaceUIContext', async () => {
+  const harness = await import('./renderWithProject');
+  return { useWorkspaceUI: () => harness.currentWorkspaceUI() };
+});
 
 import { CoverageWarnings } from '../shotlist/CoverageWarnings';
 import { projectFixture, renderWithProject } from './renderWithProject';

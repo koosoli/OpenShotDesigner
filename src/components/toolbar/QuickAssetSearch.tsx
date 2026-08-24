@@ -25,6 +25,7 @@ import {
   Zap,
   Mic2,
 } from 'lucide-react';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-sky-500' }) => (
   <svg
@@ -429,7 +430,8 @@ type ResultItem =
   | { kind: 'symbol'; key: string; symbol: PlanSymbolDefinition };
 
 export const QuickAssetSearch: React.FC = () => {
-  const { quickSearchOpen, setQuickSearchOpen, quickAddElement, theme } = useFloorPlan();
+  const { quickAddElement } = useFloorPlan();
+  const { quickSearchOpen, setQuickSearchOpen, theme } = useWorkspaceUI();
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | QuickAsset['categoryTag']>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);

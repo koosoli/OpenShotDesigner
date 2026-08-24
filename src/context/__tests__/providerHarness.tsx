@@ -69,10 +69,15 @@ export const mountProvider = async ({ preserveStorage = false }: MountOptions = 
   // without adding test-only reset hooks to production code.
   vi.resetModules();
   const { FloorPlanProvider, useFloorPlan } = await import('../FloorPlanContext');
+  // Same module instance as the one FloorPlanProvider consumes — a static
+  // import would provide to the pre-reset context object.
+  const { WorkspaceUIProvider } = await import('../WorkspaceUIContext');
 
   const rendered = renderHook(() => useFloorPlan(), {
     wrapper: ({ children }: { children: React.ReactNode }) => (
-      <FloorPlanProvider>{children}</FloorPlanProvider>
+      <WorkspaceUIProvider>
+        <FloorPlanProvider>{children}</FloorPlanProvider>
+      </WorkspaceUIProvider>
     ),
   });
   await waitFor(() => expect(rendered.result.current.project).toBeTruthy());

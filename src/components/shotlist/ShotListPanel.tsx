@@ -34,6 +34,7 @@ import {
   Video,
   SlidersHorizontal,
 } from 'lucide-react';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 interface CamPickerOption {
   id: string;
@@ -108,28 +109,8 @@ export const ShotListPanel: React.FC = () => {
   // captions used to be plain siblings with no `htmlFor`, which meant screen
   // readers announced every one of these inputs unlabelled.
   const fieldId = useId();
-  const {
-    project,
-    activeSetup,
-    selectedShotId,
-    selectedElementIds,
-    selectShot,
-    updateShot,
-    deleteShot,
-    insertShotAfter,
-    reorderShots,
-    renumberAllShots,
-    sortShotsBy,
-    createCameraAndShot,
-    assignCameraToShot,
-    addCameraForShot,
-    openViewfinder,
-    openExportModal,
-    setActiveSetupId,
-    startScriptLinking,
-    allScriptMarks,
-    theme,
-  } = useFloorPlan();
+  const { project, activeSetup, selectedShotId, selectedElementIds, selectShot, updateShot, deleteShot, insertShotAfter, reorderShots, renumberAllShots, sortShotsBy, createCameraAndShot, assignCameraToShot, addCameraForShot, openViewfinder, setActiveSetupId, startScriptLinking, allScriptMarks } = useFloorPlan();
+  const { openExportModal, theme } = useWorkspaceUI();
 
   const isLight = theme === 'light';
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');

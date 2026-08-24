@@ -2,6 +2,7 @@ import React from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import type { PlanLayer } from '../../types';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /**
  * Compact layer stack editor (plan §6.1). Lists the active setup's layers in
@@ -11,7 +12,8 @@ import type { PlanLayer } from '../../types';
  * setup data. Elements without a `layerId` are unlayered and always render.
  */
 export const LayersPanel: React.FC = () => {
-  const { activeSetup, theme, updateSetupMeta } = useFloorPlan();
+  const { activeSetup, updateSetupMeta } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   const layers = [...(activeSetup.layers || [])].sort((a, b) => a.order - b.order);

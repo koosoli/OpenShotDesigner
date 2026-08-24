@@ -52,6 +52,9 @@ export const renderPanel = async ({ module, exportName }: RenderPanelOptions) =>
   vi.resetModules();
 
   const contextModule = await import('../../context/FloorPlanContext');
+  // Imported after the reset, so it is the same module instance the freshly
+  // imported FloorPlanProvider consumes.
+  const { WorkspaceUIProvider } = await import('../../context/WorkspaceUIContext');
   const panelModule = (await import(`../${module}`)) as Record<string, React.ComponentType>;
   const Panel = panelModule[exportName];
   if (!Panel) throw new Error(`${module} has no export named ${exportName}`);
@@ -65,10 +68,12 @@ export const renderPanel = async ({ module, exportName }: RenderPanelOptions) =>
   };
 
   const result = render(
-    <FloorPlanProvider>
-      <Probe />
-      <Panel />
-    </FloorPlanProvider>,
+    <WorkspaceUIProvider>
+      <FloorPlanProvider>
+        <Probe />
+        <Panel />
+      </FloorPlanProvider>
+    </WorkspaceUIProvider>,
   );
 
   await waitFor(() => expect(api).toBeTruthy());

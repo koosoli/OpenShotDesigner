@@ -43,6 +43,7 @@ import {
   type TrussElement,
   type TrussProfile,
 } from '../../domain/rigging';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const GEOMETRY_ORDER = ['box', 'triangle', 'ladder', 'other'] as const;
 type TrussGeometry = (typeof GEOMETRY_ORDER)[number];
@@ -138,7 +139,8 @@ const makeStarterProfiles = (): TrussProfile[] => [
 ];
 
 export const RiggingPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta, openExportModal, activeSetup } = useFloorPlan();
+  const { project, updateProjectMeta, activeSetup } = useFloorPlan();
+  const { theme, openExportModal } = useWorkspaceUI();
   // The bundled fixture snapshot arrives asynchronously and an online refresh
   // can replace it; both change the weights resolved below, so the panel has
   // to re-render when the catalogue does.

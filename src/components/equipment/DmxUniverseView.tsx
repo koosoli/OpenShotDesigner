@@ -4,6 +4,7 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { LightElement } from '../../types';
 import { DMX_CHANNELS_PER_UNIVERSE, FixturePatch, FixturePlacementPreview, collectFixturePatches, findConflicts, findFreeRange, previewFixturePlacement, universeOccupancy } from '../../utils/dmxPatch';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const CHANNELS_PER_ROW = 32;
 const CHANNEL_ROWS = DMX_CHANNELS_PER_UNIVERSE / CHANNELS_PER_ROW;
@@ -40,7 +41,8 @@ const placementMessage = (preview: FixturePlacementPreview): string => {
 };
 
 export const DmxUniverseView: React.FC<DmxUniverseViewProps> = ({ onClose, focusFixtureId }) => {
-  const { activeSetup, theme, updateElement, selectElement, selectedElementIds } = useFloorPlan();
+  const { activeSetup, updateElement, selectElement, selectedElementIds } = useFloorPlan();
+  const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
   const selectedId = selectedElementIds.length > 0 ? selectedElementIds[selectedElementIds.length - 1] : null;
   const [activeFixtureId, setActiveFixtureId] = useState<string | null>(focusFixtureId ?? selectedId);

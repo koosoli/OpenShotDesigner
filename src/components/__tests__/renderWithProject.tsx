@@ -30,9 +30,18 @@ type UpdateProjectMeta = (
 interface FloorPlanDeps {
   project: Project;
   updateProjectMeta: UpdateProjectMeta;
+  activeSetup?: unknown;
+}
+
+/**
+ * The workspace-chrome half, stubbed separately because it now IS separate:
+ * theme and the export modal moved to `WorkspaceUIContext`. Keeping the two
+ * stubs apart is the point — a panel that reaches for `theme` through
+ * `useFloorPlan` no longer compiles, here as in the app.
+ */
+interface WorkspaceUIDeps {
   theme: string;
   openExportModal: (section?: string) => void;
-  activeSetup?: unknown;
 }
 
 /**
@@ -40,16 +49,23 @@ interface FloorPlanDeps {
  * rather than a React context because the mock factory has to reach it from
  * outside the tree.
  */
-const holder: { deps: FloorPlanDeps | null; latest: Project | null; exportsOpened: string[] } = {
-  deps: null,
-  latest: null,
-  exportsOpened: [],
-};
+const holder: {
+  deps: FloorPlanDeps | null;
+  ui: WorkspaceUIDeps | null;
+  latest: Project | null;
+  exportsOpened: string[];
+} = { deps: null, ui: null, latest: null, exportsOpened: [] };
 
 /** What the mocked `useFloorPlan` returns. */
 export const currentDeps = (): FloorPlanDeps => {
   if (!holder.deps) throw new Error('renderWithProject has not run yet');
   return holder.deps;
+};
+
+/** What the mocked `useWorkspaceUI` returns. */
+export const currentWorkspaceUI = (): WorkspaceUIDeps => {
+  if (!holder.ui) throw new Error('renderWithProject has not run yet');
+  return holder.ui;
 };
 
 /** The project as it stands after the interactions so far. */
@@ -95,17 +111,23 @@ export const renderWithProject = (element: React.ReactElement, initial: Project)
             holder.latest = next;
             return next;
           }),
-        theme: 'dark',
-        openExportModal: (section?: string) => {
-          holder.exportsOpened.push(section ?? '');
-        },
         activeSetup: project.setups[0],
       }),
       [project],
     );
+    const ui = useMemo<WorkspaceUIDeps>(
+      () => ({
+        theme: 'dark',
+        openExportModal: (section?: string) => {
+          holder.exportsOpened.push(section ?? '');
+        },
+      }),
+      [],
+    );
     // Assigned during the parent's render, so the child sees it on its own
     // first render — React renders parent before child, synchronously.
     holder.deps = deps;
+    holder.ui = ui;
     // Cloned rather than returned as-is: React bails out of re-rendering a
     // child whose element is referentially identical to the previous render,
     // so handing back the same object would freeze the panel on its first

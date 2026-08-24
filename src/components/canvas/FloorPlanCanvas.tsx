@@ -71,6 +71,7 @@ import { TrussLayer, type TrussRunOnPlan } from './TrussLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
 import { Move, ZoomIn, ZoomOut, Check, X, Keyboard, Scan, Grid } from 'lucide-react';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 interface DragState {
   type:
@@ -115,53 +116,8 @@ const EMPTY_ELEMENTS: FloorPlanElement[] = [];
 const ATTACHABLE_DEVICE_TYPES: ReadonlyArray<FloorPlanElement['type']> = ['camera', 'light', 'actor', 'prop'];
 
 export const FloorPlanCanvas: React.FC = () => {
-  const {
-    activeSetup,
-    project,
-    selectedElementIds,
-    selectedShotId,
-    highlightedElementId,
-    activeTool,
-    activeShapeType,
-    activeCableType,
-    playback,
-    theme,
-    selectElement,
-    selectElements,
-    clearSelection,
-    addElement,
-    updateElement,
-    updateShot,
-    updateSetupMeta,
-    updateMultipleElements,
-    deleteSelectedElements,
-    updateBackgroundImage,
-    removeBackgroundImage,
-    updateProjectMeta,
-    backgroundImages,
-    selectedBackgroundId,
-    setSelectedBackgroundId,
-    calibratingBackgroundId,
-    cancelBackgroundCalibration,
-    undo,
-    redo,
-    setTool,
-    setCanvasOffset,
-    setCanvasTransform,
-    zoomIn,
-    zoomOut,
-    resetZoom,
-    openViewfinder,
-    setActiveRightTab,
-    displaySettings,
-    updateDisplaySettings,
-    setGridSettings,
-    duplicateSelected,
-    copySelectedElements,
-    pasteElements,
-    commitCurrentState,
-    setCanvasViewport,
-  } = useFloorPlan();
+  const { activeSetup, project, selectedElementIds, selectedShotId, highlightedElementId, activeTool, activeShapeType, activeCableType, playback, selectElement, selectElements, clearSelection, addElement, updateElement, updateShot, updateSetupMeta, updateMultipleElements, deleteSelectedElements, updateBackgroundImage, removeBackgroundImage, updateProjectMeta, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, calibratingBackgroundId, cancelBackgroundCalibration, undo, redo, setTool, setCanvasOffset, setCanvasTransform, zoomIn, zoomOut, resetZoom, openViewfinder, displaySettings, updateDisplaySettings, setGridSettings, duplicateSelected, copySelectedElements, pasteElements, commitCurrentState, setCanvasViewport } = useFloorPlan();
+  const { theme, setActiveRightTab } = useWorkspaceUI();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);

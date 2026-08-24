@@ -25,6 +25,7 @@ import {
   User,
   MoreHorizontal,
 } from 'lucide-react';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 interface ToolItem {
   id: ActiveTool;
@@ -69,23 +70,8 @@ const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className =
 );
 
 export const LeftToolbar: React.FC = () => {
-  const {
-    activeTool,
-    setTool,
-    activePropSubtype,
-    setPropSubtype,
-    activeLightFixture,
-    setLightFixture,
-    activeCameraRig,
-    setCameraRig,
-    activeShapeType,
-    setShapeType,
-    activeCableType,
-    setCableType,
-    setQuickSearchOpen,
-    theme,
-    addBackgroundImage,
-  } = useFloorPlan();
+  const { activeTool, setTool, activePropSubtype, setPropSubtype, activeLightFixture, setLightFixture, activeCameraRig, setCameraRig, activeShapeType, setShapeType, activeCableType, setCableType, addBackgroundImage } = useFloorPlan();
+  const { setQuickSearchOpen, theme } = useWorkspaceUI();
   const [openSubmenu, setOpenSubmenu] = useState<Submenu | null>(null);
   const floorplanInputRef = useRef<HTMLInputElement>(null);
   const asideRef = useRef<HTMLElement>(null);

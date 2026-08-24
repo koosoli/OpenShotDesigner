@@ -38,6 +38,7 @@ import {
   type PowerPanelPlan,
   type ScenePowerConsumer,
 } from './powerPresets';
+import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /**
  * "12,500 VA" — apparent power. A supply is rated in volt-amps and a load that
@@ -54,7 +55,8 @@ const parseOptionalNumber = (raw: string): number | undefined => {
 };
 
 export const PowerPanel: React.FC = () => {
-  const { project, theme, updateProjectMeta, activeSetup, openExportModal } = useFloorPlan();
+  const { project, updateProjectMeta, activeSetup } = useFloorPlan();
+  const { theme, openExportModal } = useWorkspaceUI();
   // Re-render when the fixture catalog changes: the bundled snapshot arrives
   // asynchronously and an online refresh can replace it, and both change the
   // wattage and specs derived below.
