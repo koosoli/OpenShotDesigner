@@ -20,19 +20,11 @@ import type { BudgetCategory, BudgetEntry, BudgetLine, EquipmentRate, ProjectBud
 import { RateCardFields, VatSelect } from './RateCardFields';
 import { useProductionNeeds } from './useProductionNeeds';
 import { DayNeedsView } from './DayNeedsView';
+import { downloadCsv } from '../../utils/download';
 
-const downloadText = (filename: string, text: string) => {
-  // UTF-8 BOM, so Excel reads the € signs as UTF-8 rather than guessing.
-  const blob = new Blob([String.fromCharCode(0xfeff) + text], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
+/** The budget CSV keeps its BOM: Excel guesses wrong on the euro signs without one. */
+const downloadText = (filename: string, text: string) =>
+  downloadCsv(text, filename, { excelBom: true });
 
 /**
  * The production budget, derived from what the project already knows.

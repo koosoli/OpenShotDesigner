@@ -40,6 +40,7 @@ import { HeadshotField } from './HeadshotField';
 import { RateCardFields } from '../budget/RateCardFields';
 import { DEFAULT_BUDGET_SETTINGS } from '../../domain/budget';
 import { createId } from '../../domain/ids';
+import { downloadCsv, safeFileName } from '../../utils/download';
 
 const KIND_TINT: Record<PersonKind, string> = {
   crew: 'bg-sky-500/15 text-sky-500',
@@ -306,13 +307,14 @@ export const ContactsPanel: React.FC = () => {
   }, [people, legacyDirector, legacyCinematographer]);
 
   const exportCsv = () => {
-    const blob = new Blob([peopleToCsv(people)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${(project.title || 'production').replace(/[^a-z0-9]+/gi, '-')}-contacts.csv`;
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // Was a detached anchor, which downloads nothing at all in Firefox, and
+    // a BOM-less CSV, which mangles every accented name the moment Excel opens
+    // it — on the one export that is entirely people's names.
+    downloadCsv(
+      peopleToCsv(people),
+      `${safeFileName(project.title, 'production')}-contacts.csv`,
+      { excelBom: true },
+    );
   };
 
   const importCsv = (file: File) => {

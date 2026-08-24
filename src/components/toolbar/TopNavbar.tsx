@@ -39,6 +39,7 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
+import { downloadText, safeFileName } from '../../utils/download';
 
 const WORKSPACE_TAB_MODULES: Array<{ id: ModuleId; label: string }> = [
   { id: 'shots', label: 'Shot list' },
@@ -104,16 +105,14 @@ export const TopNavbar: React.FC = () => {
   // Uses a Blob download so projects with many embedded (base64 data-URL)
   // storyboard images export reliably regardless of size.
   const handleExportJson = () => {
-    const json = JSON.stringify(project, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', url);
-    downloadAnchor.setAttribute('download', `${project.title.toLowerCase().replace(/\s+/g, '_')}_openshotdesigner.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    URL.revokeObjectURL(url);
+    // The sanitiser here replaced whitespace only, so a project called
+    // `Ocean's 11: Director/Draft "2"` produced a download name containing a
+    // slash, a colon and quotes — illegal on Windows, and a path separator.
+    downloadText(
+      JSON.stringify(project, null, 2),
+      `${safeFileName(project.title, 'project').toLowerCase()}_openshotdesigner.json`,
+      { type: 'application/json' },
+    );
   };
 
   // Handle Import JSON Project file

@@ -64,6 +64,7 @@ import { createId } from '../../domain/ids';
 import { BreakdownTagControl } from './BreakdownTagControl';
 import { ProjectImage } from '../common/ProjectImage';
 import { keyFrameImage } from '../../utils/storyboardFrames';
+import { downloadCsv, downloadText, safeFileName } from '../../utils/download';
 
 type ScriptWorkspaceView = ScriptFormatMode | 'reports' | 'title_page';
 
@@ -360,13 +361,12 @@ export const ScriptPanel: React.FC = () => {
 
   const exportFountainFile = () => {
     const content = serializeToFountain(lines, scriptTitle || 'Untitled Screenplay', project.titlePage);
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${(scriptTitle || 'screenplay').replace(/\s+/g, '_').toLowerCase()}.fountain`;
-    link.click();
-    URL.revokeObjectURL(url);
+    // Was a detached anchor (nothing downloads in Firefox) with a sanitiser
+    // that replaced whitespace and nothing else, so a title with a colon or a
+    // slash in it produced a filename the filesystem refuses.
+    downloadText(content, `${safeFileName(scriptTitle, 'screenplay').toLowerCase()}.fountain`, {
+      type: 'text/plain;charset=utf-8',
+    });
   };
 
   const exportAVScriptCSV = () => {
@@ -377,13 +377,11 @@ export const ScriptPanel: React.FC = () => {
       const a = `"${(r.audio || '').replace(/"/g, '""')}"`;
       csv += `${avRowNumber(r, allShots)},"${r.shotName || ''}",${r.shotSize || ''},${v},${a},${r.durationSec || ''}\n`;
     });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `av_script_${Date.now()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    // Named after the production rather than a timestamp: three exports in a
+    // row used to produce three files nobody could tell apart.
+    downloadCsv(csv, `${safeFileName(project.title, 'production')}_AV_Script.csv`, {
+      excelBom: true,
+    });
   };
 
   const handleClearScreenplay = () => {

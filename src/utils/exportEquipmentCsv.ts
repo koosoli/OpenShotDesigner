@@ -5,6 +5,7 @@ import {
   deriveSceneEquipment,
   getCategoryMeta,
 } from './equipmentList';
+import { downloadCsv, safeFileName } from './download';
 
 /**
  * Escapes a field for CSV (wraps in quotes if it contains commas, newlines, or quotes).
@@ -109,21 +110,12 @@ export const exportEquipmentToCsv = (
     .map((row) => row.map(escapeCsvField).join(','))
     .join('\r\n');
 
-  // UTF-8 BOM for Microsoft Excel auto-encoding compatibility
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-
-  const cleanProject = projectTitle.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const cleanScene = (activeSetup.sceneNumber || '1').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const cleanProject = safeFileName(projectTitle, 'Production');
+  const cleanScene = safeFileName(activeSetup.sceneNumber, '1');
   const filename = isAll
     ? `Master_Equipment_Manifest_${cleanProject}_All_Scenes.csv`
     : `Equipment_Manifest_${cleanProject}_Scene_${cleanScene}.csv`;
 
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Opened in Excel, so it keeps its byte-order mark.
+  downloadCsv(csvContent, filename, { excelBom: true });
 };

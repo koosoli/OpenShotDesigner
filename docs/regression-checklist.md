@@ -82,6 +82,22 @@
 - [ ] Shot-list export; equipment CSV
 - [ ] Project JSON export/import round-trip
 
+## Downloads
+
+Now covered by `src/utils/__tests__/download.test.ts` and
+`exporters.download.test.ts` — filename safety, BOM policy per format, the
+anchor being attached before the click, and the object URL being revoked. What
+those cannot prove is what a real browser does with the file it is handed, and
+**Firefox is the one that matters here**: it is the browser that refuses to
+download from a detached anchor, which is the bug the helper exists to prevent.
+
+- [ ] In **Firefox**, run any export (shot list is quickest) and confirm a file
+      actually arrives
+- [ ] Open an exported CSV in Excel and confirm accented names and euro signs
+      read correctly — that is the byte-order mark doing its job
+- [ ] Export from a project whose title contains `:` or `/` and confirm the
+      saved filename is intact and openable
+
 ## Continuity & DaVinci Resolve metadata
 
 The CSV's header row is asserted byte-for-byte against

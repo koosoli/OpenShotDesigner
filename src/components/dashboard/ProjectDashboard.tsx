@@ -20,17 +20,9 @@ import { WORKSPACE_PRESETS, getPreset, type WorkspacePresetId } from '../../doma
 import { BRANDING } from '../../config/branding';
 import { exportProjectPackage, importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
+import { downloadBlob } from '../../utils/download';
 
-const triggerDownload = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-};
+const triggerDownload = (blob: Blob, filename: string) => downloadBlob(blob, filename);
 
 const formatUpdated = (iso: string): string => {
   if (!iso) return '—';

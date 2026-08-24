@@ -1,5 +1,6 @@
 import { CameraElement, Project, SceneSetup, Shot } from '../types';
 import { effectiveMovement } from './cameraMovement';
+import { downloadCsv, safeFileName } from './download';
 
 export function exportShotListToCsv(setup: SceneSetup, projectTitle: string): void {
   const cameras = (setup.elements || []).filter((e) => e.type === 'camera') as CameraElement[];
@@ -42,18 +43,12 @@ export function exportShotListToCsv(setup: SceneSetup, projectTitle: string): vo
     ...rows.map((row) => row.join(',')),
   ].join('\r\n');
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute(
-    'download',
-    `ShotList_Scene_${setup.sceneNumber || '1'}_${setup.name.replace(/[^a-zA-Z0-9]/g, '_')}.csv`
+  // A shot list is opened in Excel, so it carries the BOM.
+  downloadCsv(
+    csvContent,
+    `ShotList_Scene_${safeFileName(setup.sceneNumber, '1')}_${safeFileName(setup.name, 'Scene')}.csv`,
+    { excelBom: true },
   );
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 /** Exports every setup / scene in the project into a single CSV workbook. */
@@ -107,13 +102,7 @@ export function exportProjectToCsv(project: Project): void {
     ...rows,
   ].join('\r\n');
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', `${project.title.replace(/[^a-zA-Z0-9]/g, '_')}_Full_ShotList.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadCsv(csvContent, `${safeFileName(project.title, 'Production')}_Full_ShotList.csv`, {
+    excelBom: true,
+  });
 }

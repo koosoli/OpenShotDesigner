@@ -13,7 +13,7 @@ of this one.
 
 | | Start of pass | End of pass |
 | --- | --- | --- |
-| Tests | 1,579 across 115 files | **1,780 across 128 files** |
+| Tests | 1,579 across 115 files | **1,816 across 130 files** |
 | Lint | 0 errors, 111 warnings, budget 111 | **0 errors, 0 warnings, budget 0** |
 | `any` in `src/` | 96 | **0** |
 | Schema | v24 | v24 (unchanged; every field added is absent-safe) |
@@ -319,7 +319,54 @@ nothing walks.
 | 6. No character tagging from the breakdown tagger | **Open.** |
 | 7. Revision snapshots embed a whole project each | **Open.** |
 | 9. Asset-store ownership | **Open**, for the reason recorded there. The binder adds a second consumer of the store, which strengthens the case rather than changing it. |
-| 13. Component and end-to-end coverage | **Partly.** Inspector and the new panels now have behaviour coverage; script has contract coverage. There is still **no end-to-end layer** — rendering, layout and the download path are untested. |
+| 13. Component and end-to-end coverage | **Partly.** Inspector and the new panels now have behaviour coverage; script has contract coverage; the **download path is now covered** (Part 5). Rendering and layout are still untested, and there is no browser-driving end-to-end layer. |
+
+---
+
+## Part 5 — The download path (added after the pass)
+
+The open list's item 2 said the download path was "exercised by nothing". It is
+now, and covering it found two defects — both in code that had been shipping
+for as long as the exports have existed.
+
+Nine places built their own Blob-and-anchor. Comparing them side by side is
+what made the bugs visible; each one alone looked fine.
+
+### Three exports downloaded nothing in Firefox
+
+The contacts CSV, the Fountain screenplay and the AV-script CSV created a
+**detached** `<a>` and called `.click()` on it. Chrome tolerates that; Firefox
+does not fire the download at all. No error, no file — the button simply did
+nothing, which is not a symptom anyone can report usefully.
+
+### Two exports produced filenames the filesystem refuses
+
+The project JSON and the Fountain screenplay sanitised whitespace and nothing
+else, so a project called `Ocean's 11: Director/Draft "2"` produced a download
+name containing `/`, `:` and `"`. Those are illegal on Windows and `/` reads as
+a path separator.
+
+### And an inconsistency that was quietly costing data
+
+Three CSVs had a byte-order mark and three did not, with no stated rule. The
+BOM is not cosmetic: Excel needs one to read UTF-8, and Resolve breaks on one.
+The **contacts** export — the one file that is entirely people's names — had
+none, so every accented name came out as mojibake in Excel. The shot list had
+none either.
+
+`utils/download.ts` is now the single path, with `excelBom` a **required**
+argument for CSV so the choice cannot be defaulted into being wrong. Both
+failure modes are silent, which is exactly why the type makes you say it.
+
+Worth recording one thing the tests taught: `Blob.text()` runs the WHATWG UTF-8
+decode, which **strips a leading BOM**. A test asserting BOM behaviour through
+`.text()` can never see one and passes just as happily against code that writes
+none. The assertions read raw bytes.
+
+Mutation-tested: detaching the anchor turns 6 cases red; reverting to the
+whitespace-only sanitiser turns 7 red.
+
+---
 
 ## Still open
 
@@ -327,10 +374,11 @@ nothing walks.
    layer that makes it safe now covers elements, shots and script; equipment,
    AV and revisions do not. Worth restating what success is not — the file
    getting shorter.
-2. **No end-to-end layer.** The money path (block → schedule → shoot → export)
-   is guarded by the golden-workflow test at the domain level and by
-   `regression-checklist.md` at the browser level. The download path — the
-   actual `Blob`, the actual `<a download>` — is exercised by nothing.
+2. **No browser-driving end-to-end layer.** The money path is guarded by the
+   golden-workflow test at the domain level, by the download tests at the file
+   level (Part 5), and by `regression-checklist.md` in a real browser. What is
+   still untested is rendering and layout — that a print view lays out on
+   paper, that the canvas draws what the plan says.
 3. **The ALE contract is unverified.** See the checklist.
 4. **Entry chunk.** Below the point where further splitting is cheap; what
    remains is the app shell and the canvas.

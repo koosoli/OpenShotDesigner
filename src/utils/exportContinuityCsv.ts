@@ -14,6 +14,7 @@
  */
 import { exportAle, exportResolveCsv, type ContinuitySources, type Take } from '../domain/continuity';
 import type { Project } from '../types';
+import { downloadCsv, downloadText } from './download';
 
 /**
  * The project slice the continuity domain reads. One function, used by the
@@ -45,19 +46,14 @@ export const exportContinuityCsv = (
   takes: readonly Take[],
   dayLabel?: string,
 ): void => {
-  const csv = exportResolveCsv(takes, continuitySourcesFrom(project));
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute(
-    'download',
+  downloadCsv(
+    exportResolveCsv(takes, continuitySourcesFrom(project)),
     `${safeName(project.title)}_Continuity${dayLabel ? `_${safeName(dayLabel)}` : ''}.csv`,
+    // NOT for Excel. A byte-order mark here glues an invisible U+FEFF to
+    // "File Name", so Resolve matches nothing while reporting a successful
+    // import — the silent failure this whole feature is built to avoid.
+    { excelBom: false },
   );
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 };
 
 /**
@@ -76,17 +72,10 @@ export const exportContinuityAle = (
   takes: readonly Take[],
   dayLabel?: string,
 ): void => {
-  const ale = exportAle(takes, continuitySourcesFrom(project));
-  const blob = new Blob([ale], { type: 'text/plain;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute(
-    'download',
+  downloadText(
+    exportAle(takes, continuitySourcesFrom(project)),
     `${safeName(project.title)}_Continuity${dayLabel ? `_${safeName(dayLabel)}` : ''}.ale`,
+    // Avid matches the column row by exact name; a BOM breaks the first one.
+    { bom: false, type: 'text/plain;charset=utf-8;' },
   );
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 };
