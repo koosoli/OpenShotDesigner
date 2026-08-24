@@ -45,6 +45,7 @@ import type {
 } from '../../domain/reports';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
 import { buildStripContextResolver, castFilterForDay, deriveCallSheet, resolveDayLocations as resolveDayLocationsForBlocks } from '../../domain/reports';
+import { ScheduleHealth } from './ScheduleHealth';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { StripboardPrintView } from '../reports/StripboardPrintView';
 import type { PrintableStripboardDay } from '../reports/StripboardPrintView';
@@ -777,7 +778,7 @@ export const SchedulePanel: React.FC = () => {
           </div>
           <div className="p-2 border-t border-inherit space-y-1.5"><div className="flex gap-1"><select value={newBlockType} onChange={(event) => setNewBlockType(event.target.value as ManualType)} className={`${inputClass} !min-h-8 !w-[74px] !text-[9px]`}>{MANUAL_TYPES.map((type) => <option key={type} value={type}>{MANUAL_TYPE_LABELS[type]}</option>)}</select><input value={newBlockLabel} onChange={(event) => setNewBlockLabel(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addManualBlock()} placeholder="Banner label" className={`${inputClass} !min-h-8 !text-[9px]`} /><button onClick={addManualBlock} title="Add this banner to the schedule" aria-label="Add this banner to the schedule" className="w-8 h-8 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-950 flex items-center justify-center shrink-0"><Plus className="w-3.5 h-3.5" /></button></div><button onClick={addDay} className="w-full h-8 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" />Add shooting day</button></div>
         </aside>
-        <main className="flex-1 min-w-0 overflow-y-auto custom-scrollbar p-3 space-y-3">{days.map(renderDayBoard)}{!days.length && <div className={`h-40 rounded-lg border border-dashed flex flex-col items-center justify-center gap-2 ${mutedText} ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}><CalendarDays className="w-6 h-6" /><p className="text-[10px] font-bold">Add your first shooting day, then drag scenes onto the board.</p></div>}</main>
+        <main className="flex-1 min-w-0 overflow-y-auto custom-scrollbar p-3 space-y-3">{days.length > 0 && <ScheduleHealth isLight={isLight} />}{days.map(renderDayBoard)}{!days.length && <div className={`h-40 rounded-lg border border-dashed flex flex-col items-center justify-center gap-2 ${mutedText} ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}><CalendarDays className="w-6 h-6" /><p className="text-[10px] font-bold">Add your first shooting day, then drag scenes onto the board.</p></div>}</main>
       </div>}
 
       {workspaceView === 'calendar' && <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-3">

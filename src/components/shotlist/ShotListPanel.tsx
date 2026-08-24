@@ -12,6 +12,7 @@ import { keyFrameImage } from '../../utils/storyboardFrames';
 import { effectiveMovement, hasCameraMove } from '../../utils/cameraMovement';
 import { exportShotListToCsv } from '../../utils/exportShotList';
 import { ProjectImage } from '../common/ProjectImage';
+import { CoverageWarnings } from './CoverageWarnings';
 import {
   ArrowUpDown,
   Camera,
@@ -838,6 +839,10 @@ export const ShotListPanel: React.FC = () => {
         onDrop={handleDropEnd}
         className="flex-1 overflow-y-auto p-2.5 space-y-2 custom-scrollbar"
       >
+        {/* Coverage warnings, scoped to whatever the list is showing.
+            Collapsed by default: it sits above the thing people opened the
+            panel for. */}
+        <CoverageWarnings scope={showAllScenes ? 'project' : 'scene'} isLight={isLight} />
         {filteredShots.length === 0 ? (
           <div className={`p-8 text-center border border-dashed rounded-xl my-4 ${isLight ? 'border-slate-300' : 'border-slate-800'}`}>
             <Video className="w-8 h-8 mx-auto text-slate-400 mb-2" />

@@ -108,6 +108,53 @@ confirmation; before that the import path was untested).
 - [ ] A pickup logged on the day takes the next free number in the scene's own
       convention and does not renumber anything already planned
 
+## Continuity & Avid ALE
+
+**Not yet verified against a real Media Composer** (added 2026-08-24). The
+column names and the three-section structure are written from the published
+format; unlike the Resolve header, none of it has been confirmed by an actual
+import. Treat a failure here as a bug in the exporter, not in the checklist.
+
+ALE fails the same way the Resolve CSV does — Avid imports and populates
+nothing — so this is a manual gate for the same reason.
+
+- [ ] Export **Avid ALE** from the continuity panel
+- [ ] Import into a bin via **File → Import…** and confirm clips appear
+- [ ] Confirm `Name` matched existing clips, or that new master clips carry the
+      right `Tape` / `Source File`
+- [ ] Open a clip's bin columns and confirm Scene, Take, Descript, Camroll and
+      Soundroll are populated
+- [ ] Confirm the custom columns (Camera, Lens, Shutter, ISO, Circled) arrived
+      as bin columns rather than being dropped
+- [ ] Nothing populated → column-name mismatch. Rows split or columns shifted →
+      an unescaped tab or newline reached the file, which `sanitiseAleField`
+      exists to prevent
+
+## Camera & sound reports
+
+Both derive from the continuity log, so the check is that they DISAGREE in the
+two places they are meant to.
+
+- [ ] Log a take marked **MOS**: it appears on the camera report flagged MOS,
+      and on the sound report as a row saying no sound was recorded
+- [ ] Log a take marked **Wild track**: it appears on the sound report and is
+      absent from the camera report entirely
+- [ ] Give one take a camera card and a different sound roll: the two reports
+      group under their own roll, not a shared one
+- [ ] A take with no roll recorded appears under "Roll not recorded" rather
+      than being dropped or filed under the previous card
+
+## End-of-day production report
+
+- [ ] Schedule a day, cover some of it, and confirm scenes / setups / shots
+      read as covered-over-scheduled
+- [ ] Leave one scene without a page length and confirm PAGES reads "—" with
+      the reason, rather than a partial sum
+- [ ] Remove the estimate from a completed strip and confirm the schedule
+      verdict reads "—" rather than "on schedule"
+- [ ] A pickup appears under "shot but not scheduled", not among the planned
+      shots
+
 ## Build / deployment
 
 - [ ] `npm run build` succeeds at base `/`
