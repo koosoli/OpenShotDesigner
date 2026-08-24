@@ -151,6 +151,11 @@ const MainLayout: React.FC = () => {
     count?: number;
     visible: boolean;
   }> = [
+    // Inspector leads the strip deliberately: it is the one tab no preset can
+    // hide, so anchoring it first keeps its position identical in every
+    // workspace. When it sat last, it moved from slot 1 (Blank) to slot 5
+    // (Full Production) purely by how many optional modules happened to be on.
+    { id: 'inspector', group: 'technical', label: 'Inspector', icon: Sliders, visible: true },
     { id: 'shots', group: 'creative', label: 'Shot list', icon: Film, count: activeSetup.shots.length, visible: isModuleVisible('shots') },
     { id: 'storyboard', group: 'creative', label: 'Storyboard', icon: ImageIcon, visible: isModuleVisible('storyboard') },
     { id: 'script', group: 'creative', label: 'Script', icon: FileText, visible: isModuleVisible('script') },
@@ -166,7 +171,6 @@ const MainLayout: React.FC = () => {
     { id: 'budget', group: 'production', label: 'Budget', icon: Coins, visible: isModuleVisible('budget') },
     { id: 'power', group: 'technical', label: 'Power', icon: Zap, visible: isModuleVisible('power') },
     { id: 'rigging', group: 'technical', label: 'Rigging', icon: Anchor, visible: isModuleVisible('rigging') },
-    { id: 'inspector', group: 'technical', label: 'Inspector', icon: Sliders, visible: true },
   ];
 
   // Sidebar drag to resize
@@ -215,7 +219,7 @@ const MainLayout: React.FC = () => {
     });
   };
 
-  const primaryModuleIds: WorkspaceModule[] = ['shots', 'storyboard', 'script', 'equipment', 'inspector'];
+  const primaryModuleIds: WorkspaceModule[] = ['inspector', 'shots', 'storyboard', 'script', 'equipment'];
   const productionToolIds: WorkspaceModule[] = ['schedule', 'locations', 'moodboard', 'contacts', 'tasks', 'budget', 'logistics', 'run_of_show', 'continuity', 'power', 'rigging'];
   const activeProductionTool = workspaceModules.find((module) => module.id === activeRightTab && productionToolIds.includes(module.id));
   // The Production menu used to render unconditionally, so a workspace with

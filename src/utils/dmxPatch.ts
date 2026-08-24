@@ -24,10 +24,17 @@ const NON_DMX_TYPES = new Set<LightFixtureType>([
  */
 export const dmxChannelsForFixture = (fixture: LightElement | LightFixtureType): number | undefined => {
   const fixtureType = typeof fixture === 'string' ? fixture : fixture.fixtureType;
-  if (NON_DMX_TYPES.has(fixtureType)) return 0;
+  // An explicit footprint wins over the type default, in both directions.
+  // The grip list below is a default about what a type USUALLY is, while a
+  // channel count on the element is something a person stated — by choosing a
+  // DMX personality in the inspector or by linking a catalogue fixture. A
+  // bounce board relabelled as the ARRI L7-C now standing in its place is
+  // controllable, and silently dropping it from the patch bay is how a
+  // fixture ends up "not there to patch".
   if (typeof fixture !== 'string' && Number.isFinite(fixture.dmxChannelCount) && (fixture.dmxChannelCount ?? 0) > 0) {
     return Math.floor(fixture.dmxChannelCount!);
   }
+  if (NON_DMX_TYPES.has(fixtureType)) return 0;
   return undefined;
 };
 

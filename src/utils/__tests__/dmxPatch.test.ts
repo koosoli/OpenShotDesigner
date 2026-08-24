@@ -63,6 +63,15 @@ describe('dmxChannelsForFixture', () => {
     expect(dmxChannelsForFixture('reflector')).toBe(0);
     expect(isDmxFixture('flag_solid')).toBe(false);
   });
+
+  it('lets an explicit footprint override the non-DMX type default', () => {
+    // Linking a catalogue fixture to an element still typed as a bounce is a
+    // statement that it is now a controllable fixture; the patch bay has to
+    // see it rather than filtering it out on the stale type.
+    const bounce = { ...makeLight('reflector'), dmxChannelCount: 8 };
+    expect(dmxChannelsForFixture(bounce)).toBe(8);
+    expect(isDmxFixture(bounce)).toBe(true);
+  });
 });
 
 describe('collectFixturePatches', () => {

@@ -31,6 +31,14 @@ export {
 } from './brandCatalog';
 export type { BrandOption, BrandPreset, FixtureProfileLinkUpdates } from './brandCatalog';
 export { fixtureIdentityKey, mergeFixtureProfiles } from './catalogMerge';
+export {
+  fixtureModeLabel,
+  fixtureSpecsLine,
+  gearProfileUpdates,
+  mergeGearBrands,
+  mergeGearModels,
+} from './gearCatalog';
+export type { GearBrandOption, GearModelOption, GearProfileUpdates } from './gearCatalog';
 export { CURATED_FILM_FIXTURES } from './curatedFilmFixtures';
 export type { MergeReport } from './catalogMerge';
 export {

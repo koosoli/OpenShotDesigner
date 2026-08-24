@@ -894,6 +894,12 @@ export interface EquipmentItem {
    * are a description of it.
    */
   fixtureProfileId?: string;
+  /**
+   * The DMX personality chosen on that profile. Kept as an id beside the
+   * profile so the footprint stays a fact after `specs` is edited by hand —
+   * `specs` is a printed description, not the source of truth.
+   */
+  fixtureModeId?: string;
   isPackage?: boolean; // Whether this item is an expandable kit/package
   packageItems?: EquipmentPackageItem[]; // Nested accessories (batteries, cards, monitors, follow focus, etc.)
 }

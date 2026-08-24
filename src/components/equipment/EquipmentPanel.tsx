@@ -54,6 +54,99 @@ import { DmxPatchPrintView } from '../reports/DmxPatchPrintView';
 import { DmxUniverseView } from './DmxUniverseView';
 import { SignalFlowView } from './SignalFlowView';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import {
+  fixtureModeLabel,
+  fixtureProfileLinkUpdates,
+  fixtureSpecsLine,
+  gearProfileUpdates,
+  mergeGearBrands,
+  mergeGearModels,
+} from '../../domain/fixtures';
+import type { FixtureProfile, GearBrandOption, GearModelOption } from '../../domain/fixtures';
+
+/**
+ * Only the lighting department has a real-fixture database behind it. Every
+ * other category gets an empty profile list, which makes the merge helpers
+ * fall through to the curated department names unchanged.
+ */
+const usesFixtureDatabase = (category: EquipmentCategory): boolean => category === 'lighting';
+
+/** `<optgroup>`s separating the curated department names from database entries. */
+const BrandOptions: React.FC<{ options: GearBrandOption[] }> = ({ options }) => {
+  const department = options.filter((option) => option.fromDepartment);
+  const database = options.filter((option) => !option.fromDepartment);
+  const optionClass = 'bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold';
+  const label = (option: GearBrandOption) =>
+    option.profileCount > 0 ? `${option.brand} (${option.profileCount})` : option.brand;
+  if (database.length === 0) {
+    return (
+      <>
+        {department.map((option) => (
+          <option key={option.brand} value={option.brand} className={optionClass}>
+            {label(option)}
+          </option>
+        ))}
+      </>
+    );
+  }
+  return (
+    <>
+      <optgroup label="Department catalog">
+        {department.map((option) => (
+          <option key={option.brand} value={option.brand} className={optionClass}>
+            {label(option)}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label={`Fixture database (${database.length} makers)`}>
+        {database.map((option) => (
+          <option key={option.brand} value={option.brand} className={optionClass}>
+            {label(option)}
+          </option>
+        ))}
+      </optgroup>
+    </>
+  );
+};
+
+/** Model options, marking the ones that carry database data with a ◆. */
+const ModelOptions: React.FC<{ options: GearModelOption[] }> = ({ options }) => {
+  const optionClass = 'bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold';
+  const linked = options.filter((option) => option.profile);
+  const plain = options.filter((option) => !option.profile);
+  if (linked.length === 0) {
+    return (
+      <>
+        {plain.map((option) => (
+          <option key={option.model} value={option.model} className={optionClass}>
+            {option.model}
+          </option>
+        ))}
+      </>
+    );
+  }
+  return (
+    <>
+      <optgroup label="Fixture database — DMX & specs included">
+        {linked.map((option) => (
+          <option key={option.model} value={option.model} className={optionClass}>
+            ◆ {option.model}
+            {option.profile!.modes.length > 0 ? ` — ${option.profile!.modes.length} DMX mode${option.profile!.modes.length === 1 ? '' : 's'}` : ''}
+          </option>
+        ))}
+      </optgroup>
+      {plain.length > 0 && (
+        <optgroup label="Department catalog — name only">
+          {plain.map((option) => (
+            <option key={option.model} value={option.model} className={optionClass}>
+              {option.model}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+};
 
 export const EquipmentPanel: React.FC = () => {
   // Prefix for pairing each caption with its control (`htmlFor`/`id`). From
@@ -61,12 +154,85 @@ export const EquipmentPanel: React.FC = () => {
   // captions used to be plain siblings with no `htmlFor`, which meant screen
   // readers announced every one of these inputs unlabelled.
   const fieldId = useId();
-  const { activeSetup, project, addCustomEquipmentItem, updateEquipmentItem, deleteEquipmentItem, resetSceneEquipment, addPackageItem, updatePackageItem, deletePackageItem, updateElement, selectElement, selectedElementIds, setHighlightedElement } = useFloorPlan();
+  const { activeSetup, project, addCustomEquipmentItem, updateEquipmentItem, deleteEquipmentItem, resetSceneEquipment, addPackageItem, updatePackageItem, deletePackageItem, updateElement, quickAddElement, selectElement, selectedElementIds, setHighlightedElement } = useFloorPlan();
   const { openExportModal, theme } = useWorkspaceUI();
   // Re-render when the fixture catalog changes: the bundled snapshot arrives
   // asynchronously and an online refresh can replace it, and both change the
-  // wattage and specs derived below.
-  useFixtureCatalog();
+  // wattage and specs derived below — and the brand / model options offered
+  // for lighting rows.
+  const fixtureCatalog = useFixtureCatalog();
+  const fixtureProfiles = fixtureCatalog.profiles;
+
+  /** Brands offered for a department: curated names plus database makers. */
+  const brandOptionsFor = (category: EquipmentCategory): GearBrandOption[] =>
+    mergeGearBrands(getBrandsForCategory(category), usesFixtureDatabase(category) ? fixtureProfiles : []);
+
+  /** Models offered for a brand, with database profiles attached where they exist. */
+  const modelOptionsFor = (category: EquipmentCategory, brand: string | undefined): GearModelOption[] =>
+    mergeGearModels(
+      getModelsForBrand(category, brand || ''),
+      usesFixtureDatabase(category) ? fixtureProfiles : [],
+      brand,
+    );
+
+  const profileById = (id: string | undefined): FixtureProfile | undefined =>
+    id ? fixtureProfiles.find((profile) => profile.id === id) : undefined;
+
+  /**
+   * Whether the specs field may be overwritten when a new database model is
+   * chosen. Anything the user typed themselves is left alone; only an empty
+   * field or a line this code generated for the previous profile is replaced.
+   */
+  /**
+   * Push a fixture-database link onto the plan element a gear row stands for.
+   *
+   * The DMX patch bay addresses canvas fixtures — it reads `dmxChannelCount`
+   * off the light element, not off the equipment row. So a footprint recorded
+   * only on the row is a footprint the patch bay cannot see, which is exactly
+   * what "nothing to patch" meant: the gear list knew the fixture was an
+   * ARRI L7 with a 20-channel personality and the light on the plan did not.
+   * Both halves describe one physical fixture, so both get the link.
+   */
+  const syncFixtureLinkToElement = (
+    item: EquipmentItem,
+    profile: FixtureProfile | undefined,
+    modeId: string | undefined,
+  ) => {
+    const elementId = resolveItemElementId(item);
+    if (!elementId) return;
+    const element = activeSetup.elements.find((candidate) => candidate.id === elementId);
+    if (!element || element.type !== 'light') return;
+    updateElement(
+      elementId,
+      profile
+        ? fixtureProfileLinkUpdates(profile, modeId)
+        : { fixtureProfileId: undefined, fixtureModeId: undefined, dmxModeName: undefined, dmxChannelCount: undefined },
+    );
+  };
+
+  /**
+   * Put a gear-list fixture that is not on the plan onto it, carrying its
+   * database link. An off-plan row cannot be patched at all — the patch bay
+   * has no element to address — so this is the step that makes one patchable
+   * rather than a silent no-op.
+   */
+  const placeFixtureOnPlan = (item: EquipmentItem, profile: FixtureProfile) => {
+    const link = fixtureProfileLinkUpdates(profile, item.fixtureModeId);
+    const elementId = quickAddElement({
+      type: 'light',
+      fixtureType: 'led_panel',
+      name: item.name,
+      ...link,
+    });
+    updateEquipmentItem(item.id, { elementId });
+    selectElement(elementId);
+  };
+
+  const specsIsDerived = (specs: string | undefined, previousProfileId: string | undefined, previousModeId: string | undefined): boolean => {
+    if (!specs || !specs.trim()) return true;
+    const previous = profileById(previousProfileId);
+    return previous ? specs.trim() === fixtureSpecsLine(previous, previousModeId) : false;
+  };
 
   const isLight = theme === 'light';
 
@@ -115,6 +281,9 @@ export const EquipmentPanel: React.FC = () => {
     specs: string;
     notes: string;
     targetPackageId?: string; // Optional: target package to attach to
+    /** Set when the chosen model came from the fixture database (plan §17). */
+    fixtureProfileId?: string;
+    fixtureModeId?: string;
   }>({
     category: 'camera',
     name: '',
@@ -376,19 +545,22 @@ export const EquipmentPanel: React.FC = () => {
   const openAddModal = (presetCategory?: EquipmentCategory) => {
     const cat = presetCategory || (selectedCategory !== 'all' ? selectedCategory : 'lighting');
     const defaultBrand = getBrandsForCategory(cat)[0] || '';
-    const defaultModel = getModelsForBrand(cat, defaultBrand)[0] || '';
+    const defaultOption = modelOptionsFor(cat, defaultBrand)[0];
+    const linked = defaultOption && defaultOption.profile ? gearProfileUpdates(defaultOption.profile) : undefined;
 
     setEditingItem(null);
     setFormData({
       category: cat,
-      name: defaultModel || '',
+      name: (defaultOption && defaultOption.model) || '',
       brand: defaultBrand,
-      model: defaultModel,
+      model: (defaultOption && defaultOption.model) || '',
       quantity: 1,
       roleOrFunction: '',
-      specs: '',
+      specs: linked?.specs ?? '',
       notes: '',
       targetPackageId: '',
+      fixtureProfileId: linked?.fixtureProfileId,
+      fixtureModeId: linked?.fixtureModeId,
     });
     setIsAddModalOpen(true);
   };
@@ -405,6 +577,8 @@ export const EquipmentPanel: React.FC = () => {
       specs: item.specs || '',
       notes: item.notes || '',
       targetPackageId: '',
+      fixtureProfileId: item.fixtureProfileId,
+      fixtureModeId: item.fixtureModeId,
     });
     setIsAddModalOpen(true);
   };
@@ -450,7 +624,12 @@ export const EquipmentPanel: React.FC = () => {
         roleOrFunction: formData.roleOrFunction.trim() || undefined,
         specs: formData.specs.trim() || undefined,
         notes: formData.notes.trim() || undefined,
+        fixtureProfileId: formData.fixtureProfileId,
+        fixtureModeId: formData.fixtureModeId,
       });
+      // Keep the fixture on the plan in step with the row, so the DMX patch
+      // bay sees the footprint chosen here.
+      syncFixtureLinkToElement(editingItem, profileById(formData.fixtureProfileId), formData.fixtureModeId);
     } else {
       addCustomEquipmentItem({
         category: formData.category,
@@ -461,6 +640,8 @@ export const EquipmentPanel: React.FC = () => {
         roleOrFunction: formData.roleOrFunction.trim() || undefined,
         specs: formData.specs.trim() || undefined,
         notes: formData.notes.trim() || undefined,
+        fixtureProfileId: formData.fixtureProfileId,
+        fixtureModeId: formData.fixtureModeId,
       });
     }
 
@@ -1110,19 +1291,22 @@ export const EquipmentPanel: React.FC = () => {
                     const isExpanded = !!expandedPackages[item.id];
                     const packageItems = item.packageItems || [];
 
-                    // Brand + model options available for this item (kept in sync with department catalog)
-                    const brandOptions = getBrandsForCategory(item.category);
-                    const modelOptions = getModelsForBrand(item.category, item.brand || '');
-                    const brandSelectOptions = brandOptions.includes(item.brand || '')
-                      ? brandOptions
-                      : item.brand
-                        ? [item.brand, ...brandOptions]
-                        : brandOptions;
-                    const modelSelectOptions = modelOptions.includes(item.model || '')
-                      ? modelOptions
-                      : item.model
-                        ? [item.model, ...modelOptions]
-                        : modelOptions;
+                    // Brand + model options for this row: the department catalog
+                    // merged with the fixture database for lighting (plan §17),
+                    // plus whatever the row already holds so a hand-typed or
+                    // canvas-derived value is never silently dropped from its
+                    // own dropdown.
+                    const rowBrandOptions = brandOptionsFor(item.category);
+                    const brandSelectOptions =
+                      item.brand && !rowBrandOptions.some((option) => option.brand === item.brand)
+                        ? [{ brand: item.brand, fromDepartment: true, profileCount: 0 }, ...rowBrandOptions]
+                        : rowBrandOptions;
+                    const rowModelOptions = modelOptionsFor(item.category, item.brand);
+                    const modelSelectOptions =
+                      item.model && !rowModelOptions.some((option) => option.model === item.model)
+                        ? [{ model: item.model }, ...rowModelOptions]
+                        : rowModelOptions;
+                    const rowProfile = profileById(item.fixtureProfileId);
 
                     return (
                       <React.Fragment key={item.id}>
@@ -1268,21 +1452,28 @@ export const EquipmentPanel: React.FC = () => {
                                 value={item.brand || ''}
                                 onChange={(e) => {
                                   const newBrand = e.target.value;
-                                  const models = getModelsForBrand(item.category, newBrand);
+                                  const options = modelOptionsFor(item.category, newBrand);
+                                  const keepModel = options.some((option) => option.model === item.model);
+                                  const next = keepModel
+                                    ? options.find((option) => option.model === item.model)
+                                    : options[0];
+                                  const linked = next && next.profile ? gearProfileUpdates(next.profile) : undefined;
                                   updateEquipmentItem(item.id, {
                                     brand: newBrand,
-                                    model: models.length > 0 && !models.includes(item.model || '') ? models[0] : item.model,
+                                    model: next ? next.model : item.model,
+                                    fixtureProfileId: linked?.fixtureProfileId,
+                                    fixtureModeId: linked?.fixtureModeId,
+                                    ...(specsIsDerived(item.specs, item.fixtureProfileId, item.fixtureModeId)
+                                      ? { specs: linked?.specs || undefined }
+                                      : {}),
                                   });
+                                  syncFixtureLinkToElement(item, next?.profile, linked?.fixtureModeId);
                                 }}
-                                title="Select brand from department catalog"
+                                title="Select brand from the department catalog or fixture database"
                                 className={`${inputClass} cursor-pointer`}
                               >
                                 {!item.brand && <option value="" disabled>Select brand…</option>}
-                                {brandSelectOptions.map((b) => (
-                                  <option key={b} value={b} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                                    {b}
-                                  </option>
-                                ))}
+                                <BrandOptions options={brandSelectOptions} />
                               </select>
                             ) : (
                               <span className="font-bold text-slate-950 dark:text-slate-200">
@@ -1298,26 +1489,67 @@ export const EquipmentPanel: React.FC = () => {
                                 value={item.model || ''}
                                 onChange={(e) => {
                                   const newModel = e.target.value;
-                                  const updates: Partial<EquipmentItem> = { model: newModel };
+                                  const chosen = modelSelectOptions.find((option) => option.model === newModel);
+                                  const linked = chosen && chosen.profile ? gearProfileUpdates(chosen.profile) : undefined;
+                                  const updates: Partial<EquipmentItem> = {
+                                    model: newModel,
+                                    fixtureProfileId: linked?.fixtureProfileId,
+                                    fixtureModeId: linked?.fixtureModeId,
+                                  };
+                                  if (linked) updates.brand = linked.brand;
+                                  if (specsIsDerived(item.specs, item.fixtureProfileId, item.fixtureModeId)) {
+                                    updates.specs = linked?.specs || undefined;
+                                  }
                                   if (!item.name || item.name.includes('Package') || item.name.includes('Custom')) {
                                     updates.name = newModel;
                                   }
                                   updateEquipmentItem(item.id, updates);
+                                  syncFixtureLinkToElement(item, chosen?.profile, linked?.fixtureModeId);
                                 }}
-                                title="Select model for this brand"
+                                title="Select model for this brand — ◆ entries carry DMX modes and specs"
                                 className={`${inputClass} font-mono text-[11px] cursor-pointer`}
                               >
                                 {!item.model && <option value="" disabled>Select model…</option>}
-                                {modelSelectOptions.map((m) => (
-                                  <option key={m} value={m} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-mono font-bold">
-                                    {m}
-                                  </option>
-                                ))}
+                                <ModelOptions options={modelSelectOptions} />
                               </select>
                             ) : (
                               <span className="font-mono text-[11px] font-bold text-slate-950 dark:text-slate-300">
                                 {item.model || <span className="opacity-40 font-normal">—</span>}
                               </span>
+                            )}
+                            {rowProfile && (
+                              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                                <span
+                                  title={`Linked to fixture database: ${rowProfile.manufacturer} ${rowProfile.model} · ${fixtureSpecsLine(rowProfile, item.fixtureModeId) || 'no measured data'}`}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-black border ${
+                                    isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+                                  }`}
+                                >
+                                  ◆ {(() => {
+                                    const mode = rowProfile.modes.find((candidate) => candidate.id === item.fixtureModeId) ?? rowProfile.modes[0];
+                                    return mode ? fixtureModeLabel(mode) : 'DB';
+                                  })()}
+                                </span>
+                                {/* The patch bay addresses fixtures on the plan.
+                                    A row that is not on the plan therefore has
+                                    nothing to patch — say so, and offer the one
+                                    step that fixes it. */}
+                                {isEditable && !resolveItemElementId(item) && (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      placeFixtureOnPlan(item, rowProfile);
+                                    }}
+                                    title="Not on the floor plan, so the DMX patch cannot address it. Place it to make it patchable."
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black border ${
+                                      isLight ? 'bg-amber-100 text-amber-950 border-amber-300 hover:bg-amber-200' : 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                                    }`}
+                                  >
+                                    Place on plan to patch
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </td>
 
@@ -2256,6 +2488,12 @@ export const EquipmentPanel: React.FC = () => {
                       brand: defaultBrand,
                       model: defaultModel,
                       name: defaultModel || formData.name,
+                      // The old link belonged to a fixture in another department.
+                      fixtureProfileId: undefined,
+                      fixtureModeId: undefined,
+                      specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId)
+                        ? ''
+                        : formData.specs,
                     });
                   }}
                   className={`w-full p-2 text-xs rounded-lg border font-bold ${
@@ -2284,13 +2522,19 @@ export const EquipmentPanel: React.FC = () => {
                     value={formData.brand}
                     onChange={(e) => {
                       const newBrand = e.target.value;
-                      const models = getModelsForBrand(formData.category, newBrand);
-                      const firstModel = models[0] || '';
+                      const options = modelOptionsFor(formData.category, newBrand);
+                      const first = options[0];
+                      const linked = first && first.profile ? gearProfileUpdates(first.profile) : undefined;
                       setFormData({
                         ...formData,
                         brand: newBrand,
-                        model: firstModel,
-                        name: firstModel || formData.name,
+                        model: first ? first.model : '',
+                        name: (first && first.model) || formData.name,
+                        fixtureProfileId: linked?.fixtureProfileId,
+                        fixtureModeId: linked?.fixtureModeId,
+                        specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId)
+                          ? linked?.specs ?? ''
+                          : formData.specs,
                       });
                     }}
                     className={`w-full p-1.5 text-xs rounded-lg border font-bold ${
@@ -2298,11 +2542,7 @@ export const EquipmentPanel: React.FC = () => {
                     }`}
                   >
                     <option value="" className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">-- Custom Brand --</option>
-                    {getBrandsForCategory(formData.category).map((b) => (
-                      <option key={b} value={b} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                        {b}
-                      </option>
-                    ))}
+                    <BrandOptions options={brandOptionsFor(formData.category)} />
                   </select>
                 </div>
 
@@ -2318,10 +2558,22 @@ export const EquipmentPanel: React.FC = () => {
                     value={formData.model}
                     onChange={(e) => {
                       const newModel = e.target.value;
+                      const chosen = modelOptionsFor(formData.category, formData.brand).find(
+                        (option) => option.model === newModel,
+                      );
+                      const linked = chosen && chosen.profile ? gearProfileUpdates(chosen.profile) : undefined;
                       setFormData({
                         ...formData,
                         model: newModel,
                         name: newModel || formData.name,
+                        // Picking the database entry under a brand written as
+                        // a pairing ("Aputure / Amaran") also settles the brand.
+                        brand: linked?.brand ?? formData.brand,
+                        fixtureProfileId: linked?.fixtureProfileId,
+                        fixtureModeId: linked?.fixtureModeId,
+                        specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId)
+                          ? linked?.specs ?? ''
+                          : formData.specs,
                       });
                     }}
                     className={`w-full p-1.5 text-xs rounded-lg border font-mono text-[11px] font-bold ${
@@ -2329,14 +2581,92 @@ export const EquipmentPanel: React.FC = () => {
                     }`}
                   >
                     <option value="" className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">-- Custom Model --</option>
-                    {getModelsForBrand(formData.category, formData.brand).map((m) => (
-                      <option key={m} value={m} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                        {m}
-                      </option>
-                    ))}
+                    <ModelOptions options={modelOptionsFor(formData.category, formData.brand)} />
                   </select>
                 </div>
               </div>
+
+              {/* Linked database fixture: DMX personality + technical card */}
+              {(() => {
+                const profile = profileById(formData.fixtureProfileId);
+                if (!profile) {
+                  if (!usesFixtureDatabase(formData.category)) return null;
+                  return (
+                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 -mt-1">
+                      Models marked ◆ come from the fixture database and bring DMX modes, wattage and weight with them.
+                    </p>
+                  );
+                }
+                const mode = profile.modes.find((candidate) => candidate.id === formData.fixtureModeId) ?? profile.modes[0];
+                return (
+                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-violet-50 border-violet-300' : 'bg-violet-500/10 border-violet-500/30'}`}>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-violet-950 dark:text-violet-300">
+                        ◆ Fixture database
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            fixtureProfileId: undefined,
+                            fixtureModeId: undefined,
+                            specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId) ? '' : formData.specs,
+                          })
+                        }
+                        className="text-[10px] font-bold underline opacity-70 hover:opacity-100"
+                      >
+                        Unlink
+                      </button>
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-950 dark:text-slate-100">
+                      {profile.manufacturer} {profile.model}
+                    </p>
+                    {profile.modes.length > 0 ? (
+                      <>
+                        <label htmlFor={`${fieldId}-dmx-personality`} className="block text-[10px] font-black uppercase tracking-wider mt-2 mb-1 text-slate-950 dark:text-slate-300">
+                          DMX Personality
+                        </label>
+                        <select
+                          id={`${fieldId}-dmx-personality`}
+                          value={mode?.id ?? ''}
+                          onChange={(e) => {
+                            const updates = gearProfileUpdates(profile, e.target.value);
+                            setFormData({
+                              ...formData,
+                              fixtureModeId: updates.fixtureModeId,
+                              specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId)
+                                ? updates.specs
+                                : formData.specs,
+                            });
+                          }}
+                          className={`w-full p-1.5 text-xs rounded-lg border font-bold ${
+                            isLight ? 'bg-white text-slate-950 border-violet-300' : 'bg-slate-800 text-slate-100 border-violet-700'
+                          }`}
+                        >
+                          {profile.modes.map((candidate) => (
+                            <option key={candidate.id} value={candidate.id} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
+                              {fixtureModeLabel(candidate)}
+                            </option>
+                          ))}
+                        </select>
+                        {mode?.channels && mode.channels.length > 0 && (
+                          <p className="mt-1.5 text-[10px] font-mono leading-relaxed text-slate-700 dark:text-slate-300 max-h-16 overflow-y-auto custom-scrollbar">
+                            {mode.channels.map((channel) => `${channel.offset}. ${channel.name}`).join(' · ')}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-1 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+                        No DMX modes listed for this fixture.
+                      </p>
+                    )}
+                    <p className="mt-1.5 text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                      {fixtureSpecsLine(profile, mode?.id) || 'No measured data'}
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Item Name & Quantity */}
               <div className="grid grid-cols-3 gap-2">
