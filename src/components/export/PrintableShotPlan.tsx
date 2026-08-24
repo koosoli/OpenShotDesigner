@@ -83,6 +83,16 @@ import { PowerPrintView, buildPowerPrintModel } from '../reports/PowerPrintView'
 import { RiggingPrintView, buildRiggingPrintModel } from '../reports/RiggingPrintView';
 import { LogisticsPrintView, buildLogisticsPrintModel } from '../reports/LogisticsPrintView';
 import { ContinuityPrintView, buildContinuityPrintModel } from '../reports/ContinuityPrintView';
+import {
+  CameraReportPrintView,
+  SoundReportPrintView,
+  buildCameraReportPrintModel,
+  buildSoundReportPrintModel,
+} from '../reports/SetReportsPrintView';
+import {
+  DailyProgressPrintView,
+  buildDailyProgressPrintModel,
+} from '../reports/DailyProgressPrintView';
 import { RunOfShowPrintView, buildRunOfShowPrintModel } from '../reports/RunOfShowPrintView';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { CoverageMatrixPrintView } from '../reports/CoverageMatrixPrintView';
@@ -230,6 +240,16 @@ export const PrintableShotPlan: React.FC = () => {
       activeSetup.elements.filter((element): element is LightElement => element.type === 'light'),
     ))),
     [activeSetup.elements],
+  );
+
+  /**
+   * The daily progress report needs a shooting day; a project that has not
+   * scheduled one yet gets a null model and the section explains itself,
+   * rather than the sheet rendering with every figure blank.
+   */
+  const dailyProgressModel = React.useMemo(
+    () => buildDailyProgressPrintModel(project),
+    [project],
   );
 
   // When the export opens, default the storyboard toggle ON if any shot has a
@@ -789,6 +809,36 @@ export const PrintableShotPlan: React.FC = () => {
               }`}
             >
               Continuity
+            </button>
+            <button
+              onClick={() => setExportSection('camerareport')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'camerareport'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Camera Report
+            </button>
+            <button
+              onClick={() => setExportSection('soundreport')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'soundreport'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Sound Report
+            </button>
+            <button
+              onClick={() => setExportSection('dailyprogress')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                exportSection === 'dailyprogress'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Daily Report
             </button>
             <button
               onClick={() => setExportSection('runofshow')}
@@ -1381,6 +1431,28 @@ export const PrintableShotPlan: React.FC = () => {
 
           {exportSection === 'continuity' && (
             <ContinuityPrintView {...buildContinuityPrintModel(project)} />
+          )}
+
+          {/* The two sheets that travel with the media, and the sheet the
+              production office reads at wrap. All three derive from the
+              continuity log — nothing here is typed twice. */}
+          {exportSection === 'camerareport' && (
+            <CameraReportPrintView {...buildCameraReportPrintModel(project)} embedded />
+          )}
+
+          {exportSection === 'soundreport' && (
+            <SoundReportPrintView {...buildSoundReportPrintModel(project)} embedded />
+          )}
+
+          {exportSection === 'dailyprogress' && (
+            dailyProgressModel === null ? (
+              <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg p-4">
+                No production days yet — a daily progress report is about one shooting day.
+                Add a day in the Schedule module.
+              </p>
+            ) : (
+              <DailyProgressPrintView {...dailyProgressModel} embedded />
+            )
           )}
 
           {exportSection === 'runofshow' && (

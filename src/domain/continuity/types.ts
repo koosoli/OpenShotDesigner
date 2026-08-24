@@ -96,8 +96,39 @@ export interface Take {
   /** What happened in the take. Becomes the Resolve `Comments` column. */
   comments?: string;
   keywords?: string[];
-  /** Sound roll / camera card identifier — the `Roll Card #` column. */
+  /**
+   * The CAMERA card this take landed on — Resolve's `Roll Card #` column.
+   *
+   * Camera only, despite what this field's name suggests and what its comment
+   * used to say. Sound rolls over on its own schedule and its own numbering:
+   * a day can burn three camera cards against one sound roll, or record a
+   * wild track with no camera running at all. One field standing for both
+   * means the camera report and the sound report print the same number, which
+   * is exactly the mistake the two reports exist to catch.
+   */
   rollCard?: string;
+  /** The SOUND roll this take landed on. See `rollCard`. */
+  soundRoll?: string;
+  /**
+   * The audio file name on the recorder's card, where it is known. Filled in
+   * the same reconciliation pass as `fileName` and just as often left blank on
+   * set — the mixer has it, the person logging continuity does not.
+   */
+  soundFileName?: string;
+  /**
+   * MOS — picture with no sync sound. Absent means "sound was rolling", which
+   * is the normal case; recording the exception is what the sound report needs
+   * so a missing audio file reads as intended rather than as lost.
+   */
+  mos?: boolean;
+  /**
+   * Wild track — sound with no picture. The mirror of `mos`, and the reason the
+   * sound report cannot simply be the camera report with different columns: a
+   * wild track is a real row on one and no row at all on the other.
+   */
+  wildTrack?: boolean;
+  /** The mixer's note on this take, kept apart from `comments` (the scripty's). */
+  soundNotes?: string;
   cameraOverrides?: TakeCameraOverrides;
   slateOverrides?: TakeSlateOverrides;
   /** ISO timestamp the take was logged, for ordering within a day. */

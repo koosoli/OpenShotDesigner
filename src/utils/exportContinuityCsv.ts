@@ -12,7 +12,7 @@
  * no longer reads as "File Name" and matches nothing — the silent failure
  * this whole feature is built to avoid.
  */
-import { exportResolveCsv, type ContinuitySources, type Take } from '../domain/continuity';
+import { exportAle, exportResolveCsv, type ContinuitySources, type Take } from '../domain/continuity';
 import type { Project } from '../types';
 
 /**
@@ -53,6 +53,37 @@ export const exportContinuityCsv = (
   link.setAttribute(
     'download',
     `${safeName(project.title)}_Continuity${dayLabel ? `_${safeName(dayLabel)}` : ''}.csv`,
+  );
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+/**
+ * Write the ALE for `takes` and hand it to the browser.
+ *
+ * Beside the Resolve CSV rather than instead of it: the same log, the other
+ * editorial contract. Media Composer reads tab-separated sections, Resolve
+ * reads a comma-separated file with its own header names, and neither will
+ * open the other's.
+ *
+ * `.ale` and `text/plain`, because there is no registered MIME type for the
+ * format and browsers that guess turn an unknown one into a `.txt` download.
+ */
+export const exportContinuityAle = (
+  project: Project,
+  takes: readonly Take[],
+  dayLabel?: string,
+): void => {
+  const ale = exportAle(takes, continuitySourcesFrom(project));
+  const blob = new Blob([ale], { type: 'text/plain;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute(
+    'download',
+    `${safeName(project.title)}_Continuity${dayLabel ? `_${safeName(dayLabel)}` : ''}.ale`,
   );
   document.body.appendChild(link);
   link.click();

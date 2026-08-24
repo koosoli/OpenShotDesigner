@@ -319,3 +319,70 @@ describe('ContinuityPanel — export', () => {
     expect(exportsOpened()).toContain('continuity');
   });
 });
+
+/**
+ * The sound half of the log. These fields exist so the sound report can be
+ * anything other than the camera report with different column headings — see
+ * `domain/continuity/setReports.ts` for why the two documents disagree.
+ */
+describe('ContinuityPanel — sound', () => {
+  it('records a sound roll separately from the camera card', async () => {
+    const user = userEvent.setup();
+    renderWithProject(<ContinuityPanel />, dayProject());
+    await logTake(user);
+
+    await user.type(screen.getByPlaceholderText('Card'), 'A001');
+    await openDetails(user);
+    await user.type(screen.getByPlaceholderText('S01'), 'S03');
+
+    const take = currentProject().takes?.[0];
+    expect(take?.rollCard).toBe('A001');
+    expect(take?.soundRoll).toBe('S03');
+  });
+
+  it('carries the sound roll to the next take, like the camera card', async () => {
+    const user = userEvent.setup();
+    renderWithProject(<ContinuityPanel />, dayProject());
+    await logTake(user);
+    await openDetails(user);
+    await user.type(screen.getByPlaceholderText('S01'), 'S03');
+
+    await logTake(user);
+
+    expect(currentProject().takes?.[1].soundRoll).toBe('S03');
+  });
+
+  it('never carries MOS forward', async () => {
+    // Carrying it would mark the next take silent and send an assistant
+    // looking for audio that was in fact recorded.
+    const user = userEvent.setup();
+    renderWithProject(<ContinuityPanel />, dayProject());
+    await logTake(user);
+    await openDetails(user);
+    await user.click(screen.getByLabelText(/MOS/));
+
+    await logTake(user);
+
+    expect(currentProject().takes?.[0].mos).toBe(true);
+    expect(currentProject().takes?.[1].mos).toBeUndefined();
+  });
+
+  it('clears wild track when MOS is set, and the other way round', async () => {
+    // Picture with no sound and sound with no picture; a take cannot be both,
+    // and one that claimed to be would appear on the camera report as MOS and
+    // be excluded from it as a wild track at the same time.
+    const user = userEvent.setup();
+    renderWithProject(<ContinuityPanel />, dayProject());
+    await logTake(user);
+    await openDetails(user);
+
+    await user.click(screen.getByLabelText(/Wild track/));
+    expect(currentProject().takes?.[0].wildTrack).toBe(true);
+
+    await user.click(screen.getByLabelText(/MOS/));
+    const take = currentProject().takes?.[0];
+    expect(take?.mos).toBe(true);
+    expect(take?.wildTrack).toBeUndefined();
+  });
+});
+

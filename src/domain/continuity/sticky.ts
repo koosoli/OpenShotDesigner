@@ -27,13 +27,26 @@ import type { Take, TakeCameraOverrides, TakeSlateOverrides } from './types';
 /** The fields a fresh take inherits, named so the UI can badge them. */
 export const INHERITED_FIELDS = [
   'rollCard',
+  // Sound rolls over on its own schedule, so it carries independently of the
+  // camera card rather than alongside it.
+  'soundRoll',
   'keywords',
   'cameraOverrides',
   'slateOverrides',
 ] as const;
 
 /** The fields that always start empty, however the previous take was filled. */
-export const RESET_FIELDS = ['fileName', 'isGoodTake', 'comments'] as const;
+export const RESET_FIELDS = [
+  'fileName',
+  'soundFileName',
+  'isGoodTake',
+  'comments',
+  'soundNotes',
+  // MOS and wild track describe THIS take. Carrying MOS forward would mark the
+  // next take silent and send the editor looking for audio that was recorded.
+  'mos',
+  'wildTrack',
+] as const;
 
 export type InheritedField = (typeof INHERITED_FIELDS)[number];
 
@@ -106,6 +119,10 @@ export const seedNextTake = (takes: readonly Take[], seed: NextTakeSeed): Seeded
     if (!isEmpty(previous.rollCard)) {
       take.rollCard = previous.rollCard;
       inherited.push('rollCard');
+    }
+    if (!isEmpty(previous.soundRoll)) {
+      take.soundRoll = previous.soundRoll;
+      inherited.push('soundRoll');
     }
     if (!isEmpty(previous.keywords)) {
       take.keywords = [...(previous.keywords as string[])];

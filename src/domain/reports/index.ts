@@ -69,3 +69,15 @@ export { countNeedDays, deriveDayNeeds, equipmentKey, equipmentLabel, setupIdsSc
 export type { DayNeeds, DayNeedsEquipment, DeriveDayNeedsInput } from './dayNeeds';
 export { locationForText, resolveDayLocations, setNameFromLocationText } from './dayLocations';
 export type { DayLocationSources } from './dayLocations';
+export {
+  dailyProgressReport,
+  formatPageEighths,
+  formatSpan,
+  plannedDayMinutes,
+} from './dailyProgress';
+export type {
+  DailyProgressOptions,
+  DailyProgressReport,
+  DailyProgressScene,
+  DailyProgressSources,
+} from './dailyProgress';

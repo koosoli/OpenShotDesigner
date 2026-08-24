@@ -56,7 +56,11 @@ import {
 } from '../../domain/continuity';
 import { keyCrewMember } from '../../domain/people';
 import { nextShotNumberAfter } from '../../domain/shots/numbering';
-import { continuitySourcesFrom, exportContinuityCsv } from '../../utils/exportContinuityCsv';
+import {
+  continuitySourcesFrom,
+  exportContinuityAle,
+  exportContinuityCsv,
+} from '../../utils/exportContinuityCsv';
 import type { Shot } from '../../types';
 
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
@@ -422,6 +426,17 @@ export const ContinuityPanel: React.FC = () => {
         >
           <FileDown className="w-3.5 h-3.5" /> Resolve CSV
         </button>
+        {/* The same log for the other half of the editorial world. Beside the
+            CSV rather than behind a format dropdown: which one you need is
+            decided by which suite the edit is in, not by a preference. */}
+        <button
+          onClick={() => exportContinuityAle(project, visibleTakes, dayLabel)}
+          title="ALE for Avid Media Composer: bin → File → Import…"
+          className={secondaryBtnClass}
+          disabled={visibleTakes.length === 0}
+        >
+          <FileDown className="w-3.5 h-3.5" /> Avid ALE
+        </button>
         {/* The checklist is worked from paper at wrap. */}
         <button
           onClick={() => openExportModal('continuity')}
@@ -741,6 +756,89 @@ export const ContinuityPanel: React.FC = () => {
                             className={`${inputClass} mt-0.5 font-mono`}
                           />
                         </label>
+                        {/*
+                          Sound. Its own roll and its own file name, because
+                          sound rolls over on its own schedule: a day can burn
+                          three camera cards against one sound roll, and one
+                          field standing for both would make the camera report
+                          and the sound report print the same number.
+                        */}
+                        <label
+                          className={`text-[10px] font-semibold ${mutedText}`}
+                          title="The sound roll this take landed on. Separate from the camera card."
+                        >
+                          Sound Roll
+                          <input
+                            value={take.soundRoll ?? ''}
+                            onChange={(event) =>
+                              updateTake(take.id, { soundRoll: event.target.value || undefined })
+                            }
+                            placeholder="S01"
+                            className={`${inputClass} mt-0.5 font-mono`}
+                          />
+                        </label>
+                        <label
+                          className={`text-[10px] font-semibold ${mutedText}`}
+                          title="The audio file on the recorder's card, where it is known."
+                        >
+                          Audio File
+                          <input
+                            value={take.soundFileName ?? ''}
+                            onChange={(event) =>
+                              updateTake(take.id, { soundFileName: event.target.value || undefined })
+                            }
+                            placeholder="—"
+                            className={`${inputClass} mt-0.5 font-mono`}
+                          />
+                        </label>
+                        <label
+                          className={`text-[10px] font-semibold ${mutedText} col-span-2`}
+                          title="The mixer's note on this take, kept apart from the script supervisor's."
+                        >
+                          Sound Notes
+                          <input
+                            value={take.soundNotes ?? ''}
+                            onChange={(event) =>
+                              updateTake(take.id, { soundNotes: event.target.value || undefined })
+                            }
+                            placeholder="Aircraft over the last third"
+                            className={`${inputClass} mt-0.5`}
+                          />
+                        </label>
+                        <div className="col-span-2 flex items-center gap-3 text-[11px]">
+                          {/*
+                            MOS and wild track are mutually exclusive by
+                            meaning — picture with no sound, sound with no
+                            picture — so setting one clears the other rather
+                            than allowing a take that claims both.
+                          */}
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={take.mos === true}
+                              onChange={(event) =>
+                                updateTake(take.id, {
+                                  mos: event.target.checked ? true : undefined,
+                                  ...(event.target.checked ? { wildTrack: undefined } : {}),
+                                })
+                              }
+                            />
+                            <span className={mutedText}>MOS — no sound recorded</span>
+                          </label>
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={take.wildTrack === true}
+                              onChange={(event) =>
+                                updateTake(take.id, {
+                                  wildTrack: event.target.checked ? true : undefined,
+                                  ...(event.target.checked ? { mos: undefined } : {}),
+                                })
+                              }
+                            />
+                            <span className={mutedText}>Wild track — sound, no picture</span>
+                          </label>
+                        </div>
                         {field('Date Recorded', slate.dateRecorded, plan['Date Recorded'], (raw) =>
                           setSlateOverride(take.id, 'dateRecorded', raw || undefined),
                           { title: 'YYYY_MM_DD, as Resolve wants it' },

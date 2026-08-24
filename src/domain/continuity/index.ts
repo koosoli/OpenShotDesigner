@@ -47,3 +47,20 @@ export type {
   ResolveMetadataColumn,
   ResolveMetadataRow,
 } from './resolveCsv';
+export {
+  ALE_COLUMNS,
+  aleClipName,
+  buildAleRows,
+  dominantFps,
+  exportAle,
+  sanitiseAleField,
+  serialiseAle,
+} from './ale';
+export type { AleColumn, AleHeading, AleRow } from './ale';
+export { UNNAMED_ROLL, cameraReport, soundReport } from './setReports';
+export type {
+  CameraReportRow,
+  ReportRoll,
+  SetReport,
+  SoundReportRow,
+} from './setReports';
