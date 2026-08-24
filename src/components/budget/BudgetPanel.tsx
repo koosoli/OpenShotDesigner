@@ -20,7 +20,7 @@ import type { BudgetCategory, BudgetEntry, BudgetLine, EquipmentRate, ProjectBud
 import { RateCardFields, VatSelect } from './RateCardFields';
 import { useProductionNeeds } from './useProductionNeeds';
 import { DayNeedsView } from './DayNeedsView';
-import { downloadCsv } from '../../utils/download';
+import { downloadCsv, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /** The budget CSV keeps its BOM: Excel guesses wrong on the euro signs without one. */
@@ -100,7 +100,8 @@ export const BudgetPanel: React.FC = () => {
     patchBudget({ lines: budget.lines.map((line) => (line.id === id ? { ...line, ...updates } : line)) });
   const removeLine = (id: string) => patchBudget({ lines: budget.lines.filter((line) => line.id !== id) });
 
-  const exportCsv = () => downloadText(`Budget_${project.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`, budgetToCsv(summary));
+  const exportCsv = () =>
+    downloadText(`Budget_${safeFileName(project.title, 'Production')}.csv`, budgetToCsv(summary));
 
   // A quantity of nought is a decision, not a missing number, so the row says
   // so: struck through and priced at nothing, the way a producer would put a

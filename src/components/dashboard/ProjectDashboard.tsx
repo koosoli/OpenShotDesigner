@@ -20,7 +20,7 @@ import { WORKSPACE_PRESETS, getPreset, type WorkspacePresetId } from '../../doma
 import { BRANDING } from '../../config/branding';
 import { exportProjectPackage, importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
-import { downloadBlob } from '../../utils/download';
+import { downloadBlob, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 const triggerDownload = (blob: Blob, filename: string) => downloadBlob(blob, filename);
@@ -113,7 +113,7 @@ export const ProjectDashboard: React.FC = () => {
     const project = readProject(id);
     if (!project) return;
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
-    triggerDownload(blob, `${project.title.toLowerCase().replace(/\s+/g, '_')}_openshotdesigner.json`);
+    triggerDownload(blob, `${safeFileName(project.title, 'project').toLowerCase()}_openshotdesigner.json`);
   };
 
   /** Full portable package: project + referenced assets (plan §5.2.2). */
@@ -121,7 +121,7 @@ export const ProjectDashboard: React.FC = () => {
     const project = readProject(id);
     if (!project) return;
     void exportProjectPackage(project).then((blob) => {
-      triggerDownload(blob, `${project.title.toLowerCase().replace(/\s+/g, '_')}_package.json`);
+      triggerDownload(blob, `${safeFileName(project.title, 'project').toLowerCase()}_package.json`);
     });
   };
 

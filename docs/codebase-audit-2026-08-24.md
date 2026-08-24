@@ -13,7 +13,7 @@ of this one.
 
 | | Start of pass | End of pass |
 | --- | --- | --- |
-| Tests | 1,579 across 115 files | **1,837 across 131 files** |
+| Tests | 1,579 across 115 files | **1,864 across 135 files** |
 | Lint | 0 errors, 111 warnings, budget 111 | **0 errors, 0 warnings, budget 0** |
 | `any` in `src/` | 96 | **0** |
 | Schema | v24 | v24 (unchanged; every field added is absent-safe) |
@@ -415,6 +415,44 @@ Verified in a real browser: the theme toggles and persists, selecting on the
 canvas flips the tab to the inspector across the new provider boundary, and the
 rule that reading the lined script is not interrupted by a selection still
 holds.
+
+---
+
+## Part 7 — The download CALL SITES
+
+Part 5 covered the download path. Checking afterwards showed that was true of
+the path and not of the ways into it: `ContactsPanel`, `ScriptPanel`,
+`TopNavbar`, `BudgetPanel` and `ProjectDashboard` had no test files at all —
+and three of them were where the Firefox bug actually lived. A structural fix
+is not a guarded one; nothing stopped the next person re-inlining an anchor.
+
+Writing those tests found **two more live instances of the filename bug**, in
+`ProjectDashboard` (the JSON backup and the project package). Part 5 missed
+them because they call a local `triggerDownload` rather than
+`URL.createObjectURL`, so the grep that found the other nine did not reach
+them. Both used the same whitespace-only sanitiser, on the two files that ARE
+the project.
+
+`BudgetPanel` also still had its own filename sanitiser, so an untitled
+production exported as `Budget_.csv`.
+
+### Two things the tests needed from the environment
+
+`matchMedia` joins `scrollIntoView` and `ResizeObserver` in `vitest.setup.ts`.
+Note the guard: jsdom DEFINES the property and leaves it undefined, so an
+`in` check passes and the call still throws — it has to test for a function.
+
+### Two gaps left open on purpose
+
+Both are recorded rather than papered over:
+
+- **The AV-script CSV export.** The second of `ScriptPanel`'s two downloads and
+  the second Firefox site. Rendering with `scriptFormatMode: 'av_script'` does
+  not produce its button under the stub harness; the AV tab needs more of the
+  real provider. Worth closing with `renderPanel`.
+- **`ContactsPanel`'s editing flow.** Draft, save and delete. This pass was
+  about the download path, and a test written against a guess at the save
+  mechanics would be worse than none.
 
 ---
 

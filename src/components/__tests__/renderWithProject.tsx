@@ -93,8 +93,20 @@ export const projectFixture = (overrides: Partial<Project> = {}): Project =>
     ...overrides,
   }) as Project;
 
-/** Render a panel with a stateful project behind it. */
-export const renderWithProject = (element: React.ReactElement, initial: Project) => {
+/**
+ * Render a panel with a stateful project behind it.
+ *
+ * `extra` adds context members a particular panel needs beyond the common
+ * four. It is a per-test opt-in rather than a growing default so that each
+ * test states exactly what its panel depends on — a stub that quietly provides
+ * everything hides the coupling it is supposed to make visible.
+ */
+export const renderWithProject = (
+  element: React.ReactElement,
+  initial: Project,
+  extra: Record<string, unknown> = {},
+  extraUI: Record<string, unknown> = {},
+) => {
   holder.latest = initial;
   holder.exportsOpened = [];
 
@@ -112,6 +124,7 @@ export const renderWithProject = (element: React.ReactElement, initial: Project)
             return next;
           }),
         activeSetup: project.setups[0],
+        ...extra,
       }),
       [project],
     );
@@ -121,6 +134,7 @@ export const renderWithProject = (element: React.ReactElement, initial: Project)
         openExportModal: (section?: string) => {
           holder.exportsOpened.push(section ?? '');
         },
+        ...extraUI,
       }),
       [],
     );

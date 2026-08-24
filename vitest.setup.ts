@@ -20,3 +20,25 @@ if (!('ResizeObserver' in globalThis)) {
     disconnect() {}
   };
 }
+
+// jsdom implements no media queries, so it has no `matchMedia`. Components
+// that adapt to a breakpoint or to `prefers-reduced-motion` call it during
+// render; without this they throw before producing any DOM, which would make
+// them untestable for a reason unrelated to their behaviour. Reporting "does
+// not match" is the honest answer here: jsdom has no viewport to match, and a
+// component's default layout is the one worth testing by default.
+// Assigned on `window` rather than `globalThis`, and guarded on being a
+// FUNCTION rather than merely present: jsdom defines the property and leaves
+// it undefined, so an `in` check passes and the call still throws.
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  (window as Window & { matchMedia?: unknown }).matchMedia = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  });
+}
