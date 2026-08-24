@@ -19,3 +19,5 @@ export {
 } from './staticMap';
 export type { StaticMapOptions, StaticMapResult } from './staticMap';
 export { linkSetNameToLocation, locationAnswersTo, locationForSetName, unlinkSetName } from './linking';
+export { distanceKm, hasPin, widestSeparation } from './distance';
+export type { LatLng } from './distance';

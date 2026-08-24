@@ -177,4 +177,51 @@ describe('deriveDaylight', () => {
     expect(daylight.sunrise).toBe('no sunrise — work to lamps');
     expect(daylight.sunriseOrigin).toBe('override');
   });
+
+  describe('golden hour', () => {
+    it('runs from sunrise in the morning and to sunset in the evening', () => {
+      const daylight = deriveDaylight({ ...BERLIN, date: '2026-06-21', timeZone: 'Europe/Berlin' });
+      expect(daylight.goldenHourMorning?.from).toBe(daylight.sunrise);
+      expect(daylight.goldenHourEvening?.to).toBe(daylight.sunset);
+    });
+
+    it('gives Berlin midsummer an evening window ending near 21:30', () => {
+      const daylight = deriveDaylight({ ...BERLIN, date: '2026-06-21', timeZone: 'Europe/Berlin' });
+      expect(daylight.goldenHourEvening?.to).toMatch(/^21:3\d$/);
+      // Long, because the sun sinks at a shallow angle at this latitude in June.
+      expect(daylight.goldenHourEvening?.from).toMatch(/^20:\d\d$/);
+    });
+
+    it('is printed in the location zone, not the machine zone', () => {
+      const berlin = deriveDaylight({ ...BERLIN, date: '2026-06-21', timeZone: 'Europe/Berlin' });
+      const tokyo = deriveDaylight({ ...BERLIN, date: '2026-06-21', timeZone: 'Asia/Tokyo' });
+      expect(berlin.goldenHourEvening?.to).not.toBe(tokyo.goldenHourEvening?.to);
+    });
+
+    it('is absent when there is no pin to calculate from', () => {
+      const daylight = deriveDaylight({ date: '2026-06-21', sunsetOverride: '21:32' });
+      expect(daylight.goldenHourEvening).toBeUndefined();
+    });
+
+    it('is absent during a polar night rather than a plausible pair of times', () => {
+      const daylight = deriveDaylight({ lat: 69.65, lng: 18.96, date: '2026-12-21' });
+      expect(daylight.goldenHourMorning).toBeUndefined();
+      expect(daylight.goldenHourEvening).toBeUndefined();
+    });
+
+    it('stays astronomical when sunset has been corrected by hand', () => {
+      // The override says something about the horizon, not about the sun's
+      // elevation. Shifting the window to match would invent a second fact
+      // out of the first.
+      const plain = deriveDaylight({ ...BERLIN, date: '2026-06-21', timeZone: 'Europe/Berlin' });
+      const corrected = deriveDaylight({
+        ...BERLIN,
+        date: '2026-06-21',
+        timeZone: 'Europe/Berlin',
+        sunsetOverride: '20:15',
+      });
+      expect(corrected.sunset).toBe('20:15');
+      expect(corrected.goldenHourEvening).toEqual(plain.goldenHourEvening);
+    });
+  });
 });

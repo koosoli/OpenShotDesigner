@@ -19,3 +19,5 @@ export {
   wallClockToUtc,
 } from './timeZone';
 export type { ResolvedTimeZone, TimeZoneOrigin, ZonedParts } from './timeZone';
+export { DEFAULT_SUN_MINUTES, sceneSunPlan } from './scenePlan';
+export type { SunPlan, SunPlanInput } from './scenePlan';

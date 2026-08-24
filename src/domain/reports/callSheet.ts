@@ -15,6 +15,7 @@ import type { StripContext } from './stripContext';
 import type { CallSheetDepartmentHead } from './departmentHeads';
 import type { Person } from '../people';
 import type { ProductionDay, ScheduleBlock } from '../scheduling';
+import { formatClockMinutes, parseClockMinutes } from '../scheduling/clock';
 
 export type DocumentLifecycle = 'draft' | 'published' | 'superseded';
 
@@ -258,18 +259,6 @@ const labelForBlock = (block: ScheduleBlock, input: DeriveCallSheetInput): { lab
 
 const minutesOf = (block: ScheduleBlock): number | undefined =>
   'estimatedMinutes' in block ? block.estimatedMinutes : undefined;
-
-const parseClockMinutes = (clock: string | undefined): number | null => {
-  if (!clock || !/^\d{1,2}:\d{2}$/.test(clock)) return null;
-  const [hours, minutes] = clock.split(':').map(Number);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-  return hours * 60 + minutes;
-};
-
-const formatClockMinutes = (total: number): string => {
-  const wrapped = ((total % 1440) + 1440) % 1440;
-  return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
-};
 
 /**
  * Build the derived call-sheet data for one production day. Missing links and

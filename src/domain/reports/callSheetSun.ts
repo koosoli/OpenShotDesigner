@@ -56,6 +56,23 @@ export interface CallSheetDaylight {
   sunset?: string;
   sunriseOrigin: DaylightOrigin;
   sunsetOrigin: DaylightOrigin;
+  /**
+   * The two golden hours, as `{ from, to }` clock times in `timeZone`.
+   *
+   * On a sheet this is the line a DOP reads first for an exterior: sunrise
+   * says when there is light, magic hour says when there is the light. Absent
+   * when there is no pin or no date to calculate from, and absent at latitudes
+   * where the sun does not cross the threshold on this date — a blank is
+   * correct there, and a plausible time would not be.
+   *
+   * DERIVED ONLY, with no override pair of its own. A production that has
+   * corrected sunset for a ridge line has said something about the horizon,
+   * not about the sun's elevation, and quietly shifting magic hour to match
+   * would be inventing a second fact from the first. The `sunset` field
+   * carries the correction and this stays what the ephemeris says.
+   */
+  goldenHourMorning?: { from: string; to: string };
+  goldenHourEvening?: { from: string; to: string };
   /** The IANA zone the printed times are in, whichever way it was arrived at. */
   timeZone: string;
   timeZoneOrigin: DaylightTimeZoneOrigin;
@@ -104,6 +121,8 @@ export const deriveDaylight = (source: DaylightSource): CallSheetDaylight => {
 
   let derivedSunrise: string | undefined;
   let derivedSunset: string | undefined;
+  let goldenHourMorning: { from: string; to: string } | undefined;
+  let goldenHourEvening: { from: string; to: string } | undefined;
   const notes: string[] = [];
 
   if (hasPin && date) {
@@ -117,6 +136,21 @@ export const deriveDaylight = (source: DaylightSource): CallSheetDaylight => {
     else if (times.midnightSun) notes.push('Midnight sun — the sun does not set at this location today.');
     if (times.sunrise) derivedSunrise = clockInZone(times.sunrise, zone.id);
     if (times.sunset) derivedSunset = clockInZone(times.sunset, zone.id);
+    // Both ends of each window have to exist. A day where the sun rises but
+    // never climbs past six degrees has no morning golden hour, and printing
+    // "05:12–" would read as a missing value rather than as the fact it is.
+    if (times.sunrise && times.goldenHourMorningEnd) {
+      goldenHourMorning = {
+        from: clockInZone(times.sunrise, zone.id),
+        to: clockInZone(times.goldenHourMorningEnd, zone.id),
+      };
+    }
+    if (times.goldenHourEveningStart && times.sunset) {
+      goldenHourEvening = {
+        from: clockInZone(times.goldenHourEveningStart, zone.id),
+        to: clockInZone(times.sunset, zone.id),
+      };
+    }
   }
 
   // Rule 13: a zone we cannot read is not quietly swapped for a plausible one.
@@ -144,6 +178,8 @@ export const deriveDaylight = (source: DaylightSource): CallSheetDaylight => {
     ...(sunset.value ? { sunset: sunset.value } : {}),
     sunriseOrigin: sunrise.origin,
     sunsetOrigin: sunset.origin,
+    ...(goldenHourMorning ? { goldenHourMorning } : {}),
+    ...(goldenHourEvening ? { goldenHourEvening } : {}),
     timeZone: zone.id,
     timeZoneOrigin: zone.origin === 'requested' ? 'location' : zone.origin,
     ...(note ? { note } : {}),

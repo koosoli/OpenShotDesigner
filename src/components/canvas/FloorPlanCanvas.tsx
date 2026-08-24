@@ -65,7 +65,7 @@ import { createId } from '../../domain/ids';
 import { CableLayer } from './CableLayer';
 import { RoadLayer } from './RoadLayer';
 import { SunOverlay } from './SunOverlay';
-import { sunPosition } from '../../domain/sun';
+import { sceneSunPlan } from '../../domain/sun';
 import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { TrussLayer, type TrussRunOnPlan } from './TrussLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
@@ -585,23 +585,18 @@ export const FloorPlanCanvas: React.FC = () => {
   const sunView = useMemo(() => {
     if (!sunSettings?.enabled) return null;
     const location = (project.locations ?? []).find((entry) => entry.id === activeSetup.locationId);
-    if (location?.lat === undefined || location?.lng === undefined) return null;
-
-    const isoDate = sunSettings.date || project.date;
-    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate ?? '');
-    if (!parts) return null;
-    const minutes = sunSettings.timeMinutes ?? 12 * 60;
-    const when = new Date(
-      Number(parts[1]),
-      Number(parts[2]) - 1,
-      Number(parts[3]),
-      Math.floor(minutes / 60),
-      minutes % 60,
-    );
-    return {
-      sun: sunPosition({ lat: location.lat, lng: location.lng, date: when }),
-      planNorthDeg: sunSettings.planNorthDeg ?? 0,
-    };
+    // The scrubber's time is a time AT THE LOCATION, so the moment is built in
+    // the location's zone; `sceneSunPlan` owns that and the inspector reads the
+    // same answer.
+    const plan = sceneSunPlan({
+      lat: location?.lat,
+      lng: location?.lng,
+      timeZone: location?.timeZone,
+      date: sunSettings.date || project.date,
+      timeMinutes: sunSettings.timeMinutes,
+    });
+    if (!plan) return null;
+    return { sun: plan.position, planNorthDeg: sunSettings.planNorthDeg ?? 0 };
   }, [sunSettings, project.locations, project.date, activeSetup.locationId]);
 
   // One bucketing pass, memoised, instead of thirteen `.filter()` calls per

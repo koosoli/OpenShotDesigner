@@ -115,7 +115,7 @@ import { ShapeInspector } from './elements/ShapeInspector';
 import { ArrowInspector } from './elements/ArrowInspector';
 import { CableInspector } from './elements/CableInspector';
 import { LightInspector } from './elements/LightInspector';
-import { compassPoint, formatSunTime, sunPosition, sunTimes } from '../../domain/sun';
+import { compassPoint, formatSunTime, sceneSunPlan } from '../../domain/sun';
 import { ProjectImage } from '../common/ProjectImage';
 import {
   ColorField,
@@ -166,35 +166,35 @@ export const InspectorPanel: React.FC = () => {
     return location?.lat !== undefined && location?.lng !== undefined ? location : null;
   }, [project.locations, activeSetup.locationId]);
 
-  const sunMoment = React.useMemo(() => {
-    const iso = activeSetup.sunSettings?.date || project.date;
-    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
-    if (!parts) return null;
-    const minutes = activeSetup.sunSettings?.timeMinutes ?? 720;
-    return new Date(
-      Number(parts[1]),
-      Number(parts[2]) - 1,
-      Number(parts[3]),
-      Math.floor(minutes / 60),
-      minutes % 60,
-    );
-  }, [activeSetup.sunSettings?.date, activeSetup.sunSettings?.timeMinutes, project.date]);
-
-  const sunDayTimes = React.useMemo(
+  /**
+   * The scrubber's time is a time AT THE LOCATION. `sceneSunPlan` resolves it
+   * through the location's zone and returns the position and the day's events
+   * together, so this panel and the plan overlay cannot disagree about where
+   * the sun is.
+   */
+  const sunPlan = React.useMemo(
     () =>
-      sunLocation && sunMoment
-        ? sunTimes({ lat: sunLocation.lat!, lng: sunLocation.lng!, date: sunMoment })
-        : null,
-    [sunLocation, sunMoment],
+      sceneSunPlan({
+        lat: sunLocation?.lat,
+        lng: sunLocation?.lng,
+        timeZone: sunLocation?.timeZone,
+        date: activeSetup.sunSettings?.date || project.date,
+        timeMinutes: activeSetup.sunSettings?.timeMinutes,
+      }),
+    [sunLocation, activeSetup.sunSettings?.date, activeSetup.sunSettings?.timeMinutes, project.date],
   );
 
+  const sunDayTimes = sunPlan?.times ?? null;
+  /** Every printed clock below is in the location's zone, not the machine's. */
+  const sunZoneId = sunPlan?.timeZone.id;
+
   const sunReadout = React.useMemo(() => {
-    if (!sunLocation || !sunMoment) return null;
-    const sun = sunPosition({ lat: sunLocation.lat!, lng: sunLocation.lng!, date: sunMoment });
-    return sun.elevationDeg > 0
-      ? `${compassPoint(sun.azimuthDeg)} ${Math.round(sun.elevationDeg)}°`
+    if (!sunPlan) return null;
+    const { position } = sunPlan;
+    return position.elevationDeg > 0
+      ? `${compassPoint(position.azimuthDeg)} ${Math.round(position.elevationDeg)}°`
       : 'below horizon';
-  }, [sunLocation, sunMoment]);
+  }, [sunPlan]);
 
   const patchSunSettings = (updates: Partial<NonNullable<SceneSetup['sunSettings']>>) =>
     updateSetupMeta({ sunSettings: { ...(activeSetup.sunSettings ?? {}), ...updates } });
@@ -1113,25 +1113,31 @@ export const InspectorPanel: React.FC = () => {
                     ) : (
                       <>
                         <p>
-                          Sunrise <strong>{formatSunTime(sunDayTimes.sunrise)}</strong> · Solar noon{' '}
-                          <strong>{formatSunTime(sunDayTimes.solarNoon)}</strong> · Sunset{' '}
-                          <strong>{formatSunTime(sunDayTimes.sunset)}</strong>
+                          Sunrise <strong>{formatSunTime(sunDayTimes.sunrise, sunZoneId)}</strong> · Solar noon{' '}
+                          <strong>{formatSunTime(sunDayTimes.solarNoon, sunZoneId)}</strong> · Sunset{' '}
+                          <strong>{formatSunTime(sunDayTimes.sunset, sunZoneId)}</strong>
                         </p>
                         <p className="opacity-80">
-                          Golden hour {formatSunTime(sunDayTimes.sunrise)}–
-                          {formatSunTime(sunDayTimes.goldenHourMorningEnd)} and{' '}
-                          {formatSunTime(sunDayTimes.goldenHourEveningStart)}–
-                          {formatSunTime(sunDayTimes.sunset)}
+                          Golden hour {formatSunTime(sunDayTimes.sunrise, sunZoneId)}–
+                          {formatSunTime(sunDayTimes.goldenHourMorningEnd, sunZoneId)} and{' '}
+                          {formatSunTime(sunDayTimes.goldenHourEveningStart, sunZoneId)}–
+                          {formatSunTime(sunDayTimes.sunset, sunZoneId)}
                         </p>
                         <p className="opacity-80">
-                          Civil twilight from {formatSunTime(sunDayTimes.civilDawn)} to{' '}
-                          {formatSunTime(sunDayTimes.civilDusk)}
+                          Civil twilight from {formatSunTime(sunDayTimes.civilDawn, sunZoneId)} to{' '}
+                          {formatSunTime(sunDayTimes.civilDusk, sunZoneId)}
                         </p>
                       </>
                     )}
                     <p className="opacity-70 pt-1">
-                      Calculated for {sunLocation.name}. Planning aid — check the site for what
-                      actually blocks the light.
+                      Calculated for {sunLocation.name}, times in {sunZoneId}
+                      {sunPlan?.timeZone.origin !== 'requested' && (
+                        <>
+                          {' '}
+                          — this machine&rsquo;s zone, because the location has no time zone set
+                        </>
+                      )}
+                      . Planning aid — check the site for what actually blocks the light.
                     </p>
                   </div>
                 )}

@@ -55,3 +55,18 @@ export type {
   StripboardLabelContext,
   StripboardProjectLike,
 } from './stripboardPrint';
+export {
+  formatClockMinutes,
+  formatDurationHours,
+  minutesBetweenDays,
+  parseClockMinutes,
+} from './clock';
+export { scheduleHealthSummary, scheduleIssues } from './health';
+export type {
+  HealthLocation,
+  ScheduleHealthSources,
+  ScheduleHealthThresholds,
+  ScheduleIssue,
+  ScheduleIssueCode,
+  ScheduleIssueSeverity,
+} from './health';

@@ -203,6 +203,22 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
               <span style={{ fontSize: '7px', marginLeft: '2px', color: '#475569' }}>set</span>
             )}
           </div>
+          {/* Magic hour, where the day has a pin and a date to derive it from.
+              Always the calculated window, even when sunset was corrected by
+              hand: an override says something about the horizon, not about the
+              sun's elevation. */}
+          {sheet.daylight.goldenHourMorning && (
+            <div>
+              <b>Magic hour AM</b>
+              {sheet.daylight.goldenHourMorning.from}–{sheet.daylight.goldenHourMorning.to}
+            </div>
+          )}
+          {sheet.daylight.goldenHourEvening && (
+            <div>
+              <b>Magic hour PM</b>
+              {sheet.daylight.goldenHourEvening.from}–{sheet.daylight.goldenHourEvening.to}
+            </div>
+          )}
           <div><b>Parking / access</b>{sheet.parking ?? '—'}</div>
           {sheet.unitBase && <div><b>Unit base</b>{sheet.unitBase}</div>}
           {sheet.walkieChannels && <div><b>Walkies</b>{sheet.walkieChannels}</div>}
