@@ -4203,7 +4203,18 @@ This is especially important for:
 
 ---
 
-# 35. Future On-Set / Show-Day Mode
+# 35. On-Set / Show-Day Mode — **partly built (2026-08-24)**
+
+> **Built.** The take log and the shooting-day checklist landed with schema
+> v24 (`domain/continuity/`), and the end-of-day production report,
+> camera report and sound report landed on 2026-08-24
+> (`domain/reports/dailyProgress.ts`, `domain/continuity/setReports.ts`).
+> The DPR brackets the day by the first and last TAKE LOGGED and says so —
+> there is no camera-roll clock in the app, and inventing one would mean two
+> more button presses per take, which is how a log stops being kept.
+>
+> **Not built:** current/next shot, live shot status, cue tracking. Those are
+> the "operational view" half and need a running-order surface of their own.
 
 After scheduling is stable, introduce an operational view.
 
@@ -4230,7 +4241,17 @@ This bridges pre-production into production.
 
 ---
 
-# 36. Future Continuity Module
+# 36. Continuity Module — **built (2026-08-24)**
+
+> **Built.** `domain/continuity/binder.ts` and the Binder tab of the
+> continuity panel: wardrobe, hair, make-up and props notes with photographs,
+> linked to character, scene and setup, and keyed on SCRIPT DAY —
+> `ScriptScene.scriptDay` — so scenes shot weeks apart can be checked against
+> each other. `continuityConflicts` reports where the binder disagrees with
+> itself and deliberately does not judge whether two descriptions match.
+>
+> **Not built:** matching-shots comparison (two frames side by side), which
+> needs the storyboard/reference surface rather than the binder.
 
 Potential entities:
 
@@ -4246,7 +4267,25 @@ This should connect to character, scene, setup and shooting day data.
 
 ---
 
-# 37. Future Sun Planning
+# 37. Sun Planning — **built (2026-08-24)**
+
+> **Built.** `domain/sun/` with the NOAA position algorithm, the plan overlay
+> and its time-of-day scrubber, golden-hour and civil-twilight markers in the
+> inspector, and magic hour on the call sheet
+> (`CallSheetDaylight.goldenHourMorning` / `goldenHourEvening`). Sunrise and
+> sunset are derived-plus-override; magic hour is derived only, because an
+> override says something about the horizon rather than about the sun's
+> elevation.
+>
+> Everything resolves through the LOCATION's time zone
+> (`domain/sun/scenePlan.ts`). It did not until 2026-08-24: both the overlay
+> and the readout built their moment from the machine's wall clock, so
+> planning 18:00 for a location in Tokyo from Europe computed the sun for
+> 18:00 in Europe.
+>
+> **Not built:** an online ephemeris provider. None is needed — the
+> calculation is local, which is what keeps it working in the static build
+> (rules 3 and 30).
 
 Location/production-day data may later include:
 
