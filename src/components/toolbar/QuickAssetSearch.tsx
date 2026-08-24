@@ -56,6 +56,21 @@ const SHAPE_ASSETS: { value: ShapeType; label: string; keywords: string }[] = [
 ];
 
 const PROP_KEYWORDS: Record<PropType, string> = {
+  // Architecture & fixtures. Keywords lean on what people actually type —
+  // "wc" and "loo" for a toilet, "hob" for a stove — rather than the catalogue
+  // name, which is the one word they already know they could search for.
+  toilet: 'wc loo lavatory bathroom restroom water closet',
+  sink: 'basin washbasin vanity bathroom kitchen tap faucet',
+  bathtub: 'bath tub bathroom soak',
+  shower: 'cubicle stall wet room bathroom',
+  kitchen_counter: 'worktop countertop cabinets units galley kitchen',
+  kitchen_island: 'breakfast bar worktop kitchen',
+  fridge: 'refrigerator freezer fridge freezer kitchen appliance',
+  stove: 'hob cooker oven range kitchen appliance',
+  column: 'pillar post structural support pier',
+  railing: 'balustrade bannister handrail guard rail balcony',
+  radiator: 'heater heating panel',
+  fireplace: 'hearth chimney mantel mantelpiece stove wood burner',
   sofa: 'sofa couch 3-seat living room seating lounge furniture settee divan sofa couch sitting',
   sofa_sectional: 'sectional couch l-sectional l-shape sofa corner sofa corner couch living seating large sofa',
   armchair: 'armchair recliner easy chair club chair single seat lounge chair armchair chair sitting',
@@ -153,7 +168,17 @@ const RIG_KEYWORDS: Partial<Record<CameraRigType, string>> = {
 interface QuickAsset {
   id: string;
   label: string;
-  categoryTag: 'all' | 'props' | 'grip' | 'vehicles' | 'lighting' | 'cameras' | 'shapes' | 'elements' | 'cables';
+  categoryTag:
+    | 'all'
+    | 'props'
+    | 'staging'
+    | 'grip'
+    | 'vehicles'
+    | 'lighting'
+    | 'cameras'
+    | 'shapes'
+    | 'elements'
+    | 'cables';
   keywords: string;
   group: string;
   dimensions?: string;
@@ -187,19 +212,30 @@ function buildAssetList(): QuickAsset[] {
     const sharedSymbolId = SHARED_SYMBOL_BY_PROP_TYPE[p.type];
     const sharedSymbol = sharedSymbolId ? getSymbolById(sharedSymbolId) : undefined;
     const specificKw = PROP_KEYWORDS[p.type] || '';
+    // Staging and grip are separate on purpose. Nearly half the catalogue is
+    // staging, and it used to sit under a chip called "Furniture & Props"
+    // where nobody would look for a speaker array. But "Studio & Stage" is not
+    // staging — it is C-stands, apple boxes and carts, which the camera
+    // department reaches for at a different moment than anyone rigging a
+    // stage, so putting a PA stack next to an apple box makes both harder to
+    // find.
     let categoryTag: QuickAsset['categoryTag'] = 'props';
-    if (p.category === 'Studio & Stage' || p.category === 'Concert & Stage') categoryTag = 'grip';
-    else if (p.category === 'Vehicles' || p.category === 'Weapons & Explosives' || p.category === 'Broadcast & Production') categoryTag = 'vehicles';
-    else if (p.category === 'Architecture' || p.category === 'Generic') categoryTag = 'shapes';
+    if (p.category === 'Concert & Stage' || p.category === 'Broadcast & Production') {
+      categoryTag = 'staging';
+    } else if (p.category === 'Studio & Stage') categoryTag = 'grip';
+    else if (p.category === 'Vehicles' || p.category === 'Weapons & Explosives') categoryTag = 'vehicles';
+    else if (p.category === 'Architecture') categoryTag = 'elements';
+    else if (p.category === 'Generic' || p.category === 'Landscape') categoryTag = 'shapes';
 
-    let groupName = 'Furniture & Props';
+    let groupName = 'Props & Set Dressing';
     if (p.category === 'Studio & Stage') groupName = 'Studio & Grip Equipment';
     else if (p.category === 'Concert & Stage') groupName = 'Concert & Live Event';
     else if (p.category === 'Broadcast & Production') groupName = 'Broadcast & Production';
     else if (p.category === 'Vehicles') groupName = 'Vehicles & Transport';
     else if (p.category === 'Weapons & Explosives') groupName = 'Weapons & Explosives';
     else if (p.category === 'Documents & Hand Props') groupName = 'Documents & Hand Props';
-    else if (p.category === 'Architecture') groupName = 'Architecture & Landscape';
+    else if (p.category === 'Architecture') groupName = 'Architecture & Fixtures';
+    else if (p.category === 'Landscape') groupName = 'Landscape & Scenic';
     else if (p.category === 'Generic') groupName = 'Generic Props';
 
     assets.push({
@@ -413,12 +449,13 @@ function scoreAsset(asset: QuickAsset, rawQuery: string): number {
 
 const CATEGORY_TABS: { id: 'all' | QuickAsset['categoryTag']; label: string; icon: string }[] = [
   { id: 'all', label: 'All', icon: '✨' },
-  { id: 'props', label: 'Furniture & Props', icon: '🛋️' },
+  { id: 'props', label: 'Props', icon: '🛋️' },
+  { id: 'staging', label: 'Staging & Live', icon: '🎤' },
   { id: 'grip', label: 'Studio & Grip', icon: '🎬' },
   { id: 'lighting', label: 'Lighting & Flags', icon: '💡' },
   { id: 'cameras', label: 'Cameras & Rigs', icon: '🎥' },
   { id: 'vehicles', label: 'Vehicles & Action', icon: '🚗' },
-  { id: 'elements', label: 'Architecture', icon: '🚪' },
+  { id: 'elements', label: 'Architecture & Fixtures', icon: '🚪' },
   { id: 'cables', label: 'Cables & Power', icon: '🔌' },
   { id: 'shapes', label: 'Zones & Shapes', icon: '📐' },
 ];

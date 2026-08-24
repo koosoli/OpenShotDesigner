@@ -277,6 +277,22 @@ export type PropType =
   | 'bomb'
   | 'letter'
   | 'stairs'
+  // Architecture & fixtures: the built-in things a location HAS rather than
+  // things a set dresser brings. They do not move between setups, which is
+  // exactly why they belong on the plan — a bathroom's toilet decides where a
+  // camera can stand.
+  | 'toilet'
+  | 'sink'
+  | 'bathtub'
+  | 'shower'
+  | 'kitchen_counter'
+  | 'kitchen_island'
+  | 'fridge'
+  | 'stove'
+  | 'column'
+  | 'railing'
+  | 'radiator'
+  | 'fireplace'
   | 'plant'
   | 'tree'
   | 'tv'

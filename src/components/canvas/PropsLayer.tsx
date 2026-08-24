@@ -606,6 +606,33 @@ const measurementLabelScale = baseLabelScale * (catLabelScale.measurements ?? 1)
                 <circle cx={-w / 2} cy={0} r={6} fill="#0f172a" stroke="#22c55e" strokeWidth={2} />
                 <circle cx={w / 2} cy={0} r={6} fill="#0f172a" stroke="#22c55e" strokeWidth={2} />
               </g>
+            ) : prop.propType === 'toilet' ? (
+              /* Plan view: cistern against the wall, bowl in front. Drawn
+                 rather than left as a rectangle because a toilet is how you
+                 read which way a small bathroom faces. */
+              <g>
+                <rect x={-w / 2} y={-h / 2} width={w} height={h * 0.28} fill="#cbd5e1" stroke="#64748b" strokeWidth={2} rx={2} />
+                <ellipse cx={0} cy={h * 0.12} rx={w * 0.4} ry={h * 0.3} fill="#f1f5f9" stroke="#64748b" strokeWidth={2} />
+              </g>
+            ) : prop.propType === 'sink' ? (
+              <g>
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill="#e2e8f0" stroke="#64748b" strokeWidth={2} rx={4} />
+                <ellipse cx={0} cy={h * 0.08} rx={w * 0.32} ry={h * 0.28} fill="#f8fafc" stroke="#94a3b8" strokeWidth={1.5} />
+                <circle cx={0} cy={-h * 0.3} r={3} fill="#64748b" />
+              </g>
+            ) : prop.propType === 'bathtub' ? (
+              <g>
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill="#e2e8f0" stroke="#64748b" strokeWidth={2} rx={10} />
+                <rect x={-w / 2 + 6} y={-h / 2 + 6} width={w - 12} height={h - 12} fill="#f8fafc" stroke="#94a3b8" strokeWidth={1.5} rx={8} />
+                <circle cx={-w / 2 + 16} cy={0} r={3} fill="#64748b" />
+              </g>
+            ) : prop.propType === 'shower' ? (
+              <g>
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} fill="#cbd5e1" stroke="#64748b" strokeWidth={2} rx={2} />
+                <path d={`M ${-w / 2} ${-h / 2} L ${w / 2} ${h / 2}`} stroke="#94a3b8" strokeWidth={1.5} />
+                <path d={`M ${w / 2} ${-h / 2} L ${-w / 2} ${h / 2}`} stroke="#94a3b8" strokeWidth={1.5} />
+                <circle cx={0} cy={0} r={Math.min(w, h) * 0.18} fill="#f8fafc" stroke="#64748b" strokeWidth={1.5} />
+              </g>
             ) : prop.propType === 'stairs' ? (
               <g>
                 <rect x={-w / 2} y={-h / 2} width={w} height={h} fill="#1e293b" stroke="#64748b" strokeWidth={2} rx={2} />
@@ -622,7 +649,12 @@ const measurementLabelScale = baseLabelScale * (catLabelScale.measurements ?? 1)
                 ))}
                 {/* Arrow pointing up */}
                 <line x1={0} y1={h / 2 - 8} x2={0} y2={-h / 2 + 8} stroke="#38bdf8" strokeWidth={2} />
-                <polygon points="-4,-h/2+14 0,-h/2+6 4,-h/2+14" fill="#38bdf8" />
+                {/* Was a plain string, so `-h/2+14` reached the DOM literally: the
+                    arrowhead never drew, and every staircase logged an SVG error. */}
+                <polygon
+                  points={`-4,${-h / 2 + 14} 0,${-h / 2 + 6} 4,${-h / 2 + 14}`}
+                  fill="#38bdf8"
+                />
               </g>
             ) : prop.propType === 'plant' ? (
               <g>

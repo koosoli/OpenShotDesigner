@@ -10,7 +10,7 @@ const OPACITY_CATEGORIES: Array<{ key: keyof CategoryOpacitySettings; label: str
   { key: 'actors', label: 'Actors & Talent' },
   { key: 'cameras', label: 'Cameras & Cones' },
   { key: 'lights', label: 'Lights & Beams' },
-  { key: 'props', label: 'Props & Furniture' },
+  { key: 'props', label: 'Props' },
   { key: 'architecture', label: 'Walls & Doors' },
   { key: 'shapes', label: 'Basic Shapes' },
 ];

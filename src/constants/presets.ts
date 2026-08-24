@@ -551,7 +551,7 @@ export function getFlagPanelDims(light: {
 export const PROP_CATALOG: {
   type: PropType;
   name: string;
-  category: 'Living' | 'Dining & Office' | 'Bedroom' | 'Studio & Stage' | 'Concert & Stage' | 'Broadcast & Production' | 'Vehicles' | 'Weapons & Explosives' | 'Documents & Hand Props' | 'Architecture' | 'Generic';
+  category: 'Living' | 'Dining & Office' | 'Bedroom' | 'Studio & Stage' | 'Concert & Stage' | 'Broadcast & Production' | 'Vehicles' | 'Weapons & Explosives' | 'Documents & Hand Props' | 'Architecture' | 'Landscape' | 'Generic';
   defaultWidth: number;
   defaultHeight: number;
   defaultColor: string;
@@ -628,8 +628,23 @@ export const PROP_CATALOG: {
   { type: 'letter', name: 'Sealed Letter / Envelope', category: 'Documents & Hand Props', defaultWidth: 36, defaultHeight: 24, defaultColor: '#f8fafc' },
 
   // Architecture & Generic
-  { type: 'tree', name: 'Scenic Tree / Foliage', category: 'Architecture', defaultWidth: 120, defaultHeight: 120, defaultColor: '#15803d' },
+  { type: 'tree', name: 'Scenic Tree / Foliage', category: 'Landscape', defaultWidth: 120, defaultHeight: 120, defaultColor: '#15803d' },
   { type: 'stairs', name: 'Staircase Flight', category: 'Architecture', defaultWidth: 100, defaultHeight: 180, defaultColor: '#475569' },
+  // Architecture & fixtures. Real plan dimensions in cm, because the point of
+  // putting a toilet on a floor plan is knowing whether a camera fits beside
+  // it — a rough rectangle would answer the wrong question.
+  { type: 'toilet', name: 'Toilet / WC', category: 'Architecture', defaultWidth: 40, defaultHeight: 70, defaultColor: '#e2e8f0' },
+  { type: 'sink', name: 'Wash Basin / Sink', category: 'Architecture', defaultWidth: 60, defaultHeight: 45, defaultColor: '#e2e8f0' },
+  { type: 'bathtub', name: 'Bathtub', category: 'Architecture', defaultWidth: 170, defaultHeight: 75, defaultColor: '#e2e8f0' },
+  { type: 'shower', name: 'Shower Tray / Cubicle', category: 'Architecture', defaultWidth: 90, defaultHeight: 90, defaultColor: '#cbd5e1' },
+  { type: 'kitchen_counter', name: 'Kitchen Counter Run', category: 'Architecture', defaultWidth: 240, defaultHeight: 60, defaultColor: '#94a3b8' },
+  { type: 'kitchen_island', name: 'Kitchen Island', category: 'Architecture', defaultWidth: 180, defaultHeight: 90, defaultColor: '#94a3b8' },
+  { type: 'fridge', name: 'Refrigerator', category: 'Architecture', defaultWidth: 70, defaultHeight: 70, defaultColor: '#cbd5e1' },
+  { type: 'stove', name: 'Cooker / Hob', category: 'Architecture', defaultWidth: 60, defaultHeight: 60, defaultColor: '#64748b' },
+  { type: 'column', name: 'Structural Column', category: 'Architecture', defaultWidth: 40, defaultHeight: 40, defaultColor: '#475569' },
+  { type: 'railing', name: 'Railing / Balustrade', category: 'Architecture', defaultWidth: 200, defaultHeight: 10, defaultColor: '#64748b' },
+  { type: 'radiator', name: 'Radiator', category: 'Architecture', defaultWidth: 100, defaultHeight: 12, defaultColor: '#cbd5e1' },
+  { type: 'fireplace', name: 'Fireplace / Hearth', category: 'Architecture', defaultWidth: 120, defaultHeight: 40, defaultColor: '#78350f' },
   { type: 'box', name: 'Generic Box / Block', category: 'Generic', defaultWidth: 60, defaultHeight: 60, defaultColor: '#64748b' },
   { type: 'circle', name: 'Generic Pillar / Circle', category: 'Generic', defaultWidth: 50, defaultHeight: 50, defaultColor: '#64748b' },
 ];

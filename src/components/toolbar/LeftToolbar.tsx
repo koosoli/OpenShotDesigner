@@ -177,7 +177,7 @@ export const LeftToolbar: React.FC = () => {
     },
     {
       id: 'prop',
-      label: 'Furniture & Props',
+      label: 'Props',
       shortcut: 'P',
       icon: <Armchair className="w-4 h-4 text-purple-500" />,
       hasSubmenu: true,
