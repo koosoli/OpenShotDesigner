@@ -39,7 +39,7 @@ import { insertedShotNumber, takenShotNumbers } from '../domain/shots/numbering'
 import { useStableContextValue } from './stableContextValue';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
-import { rowsAfterShotRemoval } from '../domain/script';
+import { pruneBreakdownScriptLines, rowsAfterShotRemoval } from '../domain/script';
 
 /**
  * Every shot in a project, flattened across setups — what an AV row's number
@@ -2423,6 +2423,24 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    */
   const setScriptLines = (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string; titlePage?: ScreenplayTitlePage }) => {
     const ids = new Set(lines.map((line) => line.id));
+    /**
+     * Every line id that still exists, including the ones inside an omitted
+     * scene's stored body — those lines are hidden, not gone, and a tag on one
+     * has to survive restoring the scene.
+     *
+     * `ids` above is the flat top-level set and is what `scriptMarks` are
+     * filtered against; a lining that reached into an omitted body would be
+     * drawn nowhere, so dropping it is right. A breakdown tag is a different
+     * thing: it is a fact about the words, and the words are still there.
+     */
+    const liveLineIds = new Set<string>();
+    const walkLines = (candidates: readonly ScriptLine[]): void => {
+      for (const line of candidates) {
+        liveLineIds.add(line.id);
+        if (line.omittedBody) walkLines(line.omittedBody);
+      }
+    };
+    walkLines(lines);
     setProject((prev) => {
       // Scene numbers follow the project's regime (domain/script/numbering.ts).
       // A project that has never chosen one is decided by its script: numbers
@@ -2480,6 +2498,20 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             (mark) => ids.has(mark.startLineId) && ids.has(mark.endLineId)
           ),
         })),
+        /**
+         * Breakdown tags pointing at deleted lines are pruned HERE rather than
+         * by the script panel, which is where this used to live.
+         *
+         * It mattered: `setSceneNumbersLocked` and every import path call
+         * this function directly, so an edit made anywhere but the panel left
+         * tags referencing lines that no longer existed — and the reports read
+         * scenes through those tags. Doing it inside the same updater also
+         * removes the panel's second `updateProjectMeta` in the same tick,
+         * which is the shape of write this codebase has lost data to before.
+         */
+        breakdownItems: prev.breakdownItems?.length
+          ? pruneBreakdownScriptLines(prev.breakdownItems, liveLineIds)
+          : prev.breakdownItems,
         scheduleBlocks: (prev.scheduleBlocks || []).map((block) => {
           if (block.kind !== 'scene') return block;
           if (newSceneIds.has(block.scriptSceneId)) {

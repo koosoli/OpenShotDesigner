@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   BarChart3,
@@ -54,10 +54,9 @@ import {
   breakdownCategoryLabel,
   breakdownCategoryTint,
   breakdownItemsForLines,
-  pruneBreakdownScriptLines,
   untagScriptLine,
 } from '../../domain/script';
-import type { BreakdownSourceRange, ScreenplayTitlePage } from '../../domain/script';
+import type { BreakdownSourceRange } from '../../domain/script';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
 import { TitlePageEditor } from './TitlePageEditor';
 import { SetLocationLink } from '../locations/SetLocationLink';
@@ -184,7 +183,7 @@ export const ScriptPanel: React.FC = () => {
     updateScriptMark,
     setLiningDescription,
     deleteScriptMark,
-    setScriptLines: setScriptLinesRaw,
+    setScriptLines,
     setSceneNumbersLocked,
     avScriptRows,
     setAVScriptRows,
@@ -211,27 +210,6 @@ export const ScriptPanel: React.FC = () => {
    * omitted scene's `omittedBody` count as alive: the scene can be restored,
    * and losing its props on the way out and back would be a silent edit.
    */
-  const setScriptLines = useCallback(
-    (next: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string; titlePage?: ScreenplayTitlePage }) => {
-      setScriptLinesRaw(next, meta);
-      updateProjectMeta((prev) => {
-        const items = prev.breakdownItems ?? [];
-        if (items.length === 0) return {};
-        const live = new Set<string>();
-        const walk = (candidates: ScriptLine[]) => {
-          for (const line of candidates) {
-            live.add(line.id);
-            if (line.omittedBody) walk(line.omittedBody);
-          }
-        };
-        walk(next);
-        const pruned = pruneBreakdownScriptLines(items, live);
-        const unchanged = pruned.every((item, index) => item === items[index]);
-        return unchanged ? {} : { breakdownItems: pruned };
-      });
-    },
-    [setScriptLinesRaw, updateProjectMeta],
-  );
 
   const isLight = theme === 'light';
   const lines = scriptLines;
