@@ -19,7 +19,7 @@ import brandIcon from '../../assets/brand-icon.png';
 import { BRANDING } from '../../config/branding';
 import { subscribeSaveState, type LibrarySaveState } from '../../utils/projectLibrary';
 import { OnSetModeOverlay } from '../onset/OnSetModeOverlay';
-import type { ModuleId } from '../../domain/workspace';
+import { MODULE_PICKER_GROUPS, PICKABLE_MODULES } from '../../domain/workspace';
 import {
   ChevronDown,
   Clapperboard,
@@ -42,23 +42,6 @@ import {
 import { downloadText, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
-const WORKSPACE_TAB_MODULES: Array<{ id: ModuleId; label: string }> = [
-  { id: 'shots', label: 'Shot list' },
-  { id: 'storyboard', label: 'Storyboard' },
-  { id: 'script', label: 'Script' },
-  { id: 'moodboard', label: 'Moodboard' },
-  { id: 'locations', label: 'Locations' },
-  { id: 'schedule', label: 'Schedule & call sheets' },
-  { id: 'contacts', label: 'Crew, cast & contacts' },
-  { id: 'tasks', label: 'Task board' },
-  { id: 'budget', label: 'Budget' },
-  { id: 'run_of_show', label: 'Run of show' },
-  { id: 'continuity', label: 'Continuity' },
-  { id: 'equipment', label: 'Gear & DMX' },
-  { id: 'logistics', label: 'Logistics' },
-  { id: 'power', label: 'Power' },
-  { id: 'rigging', label: 'Rigging' },
-];
 
 export const TopNavbar: React.FC = () => {
   const { project, activeSetup, historyIndex, historyLength, undo, redo, setActiveSetupId, addSetup, duplicateCurrentSetup, deleteSetup, updateProjectMeta, saveRevision, loadTemplateScene, loadExampleProductionData, loadProjectFromJson, setGridSettings, openViewfinder, displaySettings, updateDisplaySettings, isModuleVisible, setModuleVisible } = useFloorPlan();
@@ -611,23 +594,30 @@ export const TopNavbar: React.FC = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => WORKSPACE_TAB_MODULES.forEach((module) => setModuleVisible(module.id, true))}
+                        onClick={() => PICKABLE_MODULES.forEach((module) => setModuleVisible(module.id, true))}
                         className="px-2 py-1 rounded-md bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold whitespace-nowrap"
                       >
                         Show all
                       </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                      {WORKSPACE_TAB_MODULES.map((module) => (
-                        <label key={module.id} className="flex items-center gap-2 cursor-pointer text-[11px] min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={isModuleVisible(module.id)}
-                            onChange={(event) => setModuleVisible(module.id, event.target.checked)}
-                            className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer flex-shrink-0"
-                          />
-                          <span className="truncate">{module.label}</span>
-                        </label>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      {MODULE_PICKER_GROUPS.map((group) => (
+                        <section key={group.label}>
+                          <div className="text-[9px] font-black uppercase tracking-[0.14em] opacity-40 mb-1">
+                            {group.label}
+                          </div>
+                          {group.modules.map((module) => (
+                            <label key={module.id} className="flex items-center gap-2 cursor-pointer text-[11px] min-w-0 py-0.5">
+                              <input
+                                type="checkbox"
+                                checked={isModuleVisible(module.id)}
+                                onChange={(event) => setModuleVisible(module.id, event.target.checked)}
+                                className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer flex-shrink-0"
+                              />
+                              <span className="truncate">{module.label}</span>
+                            </label>
+                          ))}
+                        </section>
                       ))}
                     </div>
                   </div>

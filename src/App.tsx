@@ -218,6 +218,10 @@ const MainLayout: React.FC = () => {
   const primaryModuleIds: WorkspaceModule[] = ['shots', 'storyboard', 'script', 'equipment', 'inspector'];
   const productionToolIds: WorkspaceModule[] = ['schedule', 'locations', 'moodboard', 'contacts', 'tasks', 'budget', 'logistics', 'run_of_show', 'continuity', 'power', 'rigging'];
   const activeProductionTool = workspaceModules.find((module) => module.id === activeRightTab && productionToolIds.includes(module.id));
+  // The Production menu used to render unconditionally, so a workspace with
+  // every production module hidden (Blank Floor Plan, Shot Planning) still
+  // showed a button that opened an empty popover.
+  const hasProductionTools = workspaceModules.some((module) => productionToolIds.includes(module.id) && module.visible);
 
   return (
     <div id="app-root" className={`flex flex-col w-screen h-screen overflow-hidden font-sans select-none transition-colors ${
@@ -300,7 +304,7 @@ const MainLayout: React.FC = () => {
                     const active = activeRightTab === module.id;
                     return <button key={module.id} id={`tab-${module.id}`} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} title={module.label} className={`flex-1 min-w-0 h-8 px-2 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-colors ${active ? 'bg-sky-600 text-white shadow-sm' : isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{module.label}</span>{module.count !== undefined && <span className={`rounded px-1 font-mono text-[8px] ${active ? 'bg-white/20' : isLight ? 'bg-slate-200' : 'bg-slate-950'}`}>{module.count}</span>}{module.id === 'inspector' && selectedElementIds.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}</button>;
                   })}
-                  <div className="relative flex-1 min-w-0">
+                  {hasProductionTools && <div className="relative flex-1 min-w-0">
                     <button type="button" onClick={() => setIsProductionMenuOpen((open) => !open)} aria-expanded={isProductionMenuOpen} className={`w-full h-8 px-2 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-colors ${activeProductionTool ? 'bg-sky-600 text-white shadow-sm' : isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                       {activeProductionTool ? React.createElement(activeProductionTool.icon, { className: 'w-3.5 h-3.5 shrink-0' }) : <CalendarDays className="w-3.5 h-3.5 shrink-0" />}
                       <span className="truncate">{activeProductionTool?.label ?? 'Production'}</span><ChevronDown className="w-3 h-3 shrink-0" />
@@ -311,9 +315,9 @@ const MainLayout: React.FC = () => {
                         ['People & money', ['contacts', 'tasks', 'budget']],
                         ['Operations', ['logistics', 'run_of_show', 'continuity']],
                         ['Technical', ['power', 'rigging']],
-                      ] as Array<[string, WorkspaceModule[]]>).map(([label, ids]) => <section key={label} className="mb-2 last:mb-0"><div className={`px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>{ids.map((id) => workspaceModules.find((module) => module.id === id)).filter((module): module is NonNullable<typeof module> => Boolean(module?.visible)).map((module) => { const Icon = module.icon; return <button key={module.id} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} className={`w-full h-9 px-2 rounded-lg flex items-center gap-2 text-[11px] font-semibold ${activeRightTab === module.id ? 'bg-sky-600 text-white' : isLight ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-200 hover:bg-slate-800'}`}><Icon className="w-4 h-4" />{module.label}</button>; })}</section>)}
+                      ] as Array<[string, WorkspaceModule[]]>).map(([label, ids]) => [label, ids.map((id) => workspaceModules.find((module) => module.id === id)).filter((module): module is NonNullable<typeof module> => Boolean(module?.visible))] as const).filter(([, modules]) => modules.length > 0).map(([label, modules]) => <section key={label} className="mb-2 last:mb-0"><div className={`px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>{modules.map((module) => { const Icon = module.icon; return <button key={module.id} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} className={`w-full h-9 px-2 rounded-lg flex items-center gap-2 text-[11px] font-semibold ${activeRightTab === module.id ? 'bg-sky-600 text-white' : isLight ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-200 hover:bg-slate-800'}`}><Icon className="w-4 h-4" />{module.label}</button>; })}</section>)}
                     </div>}
-                  </div>
+                  </div>}
               </nav>
 
               {/* Panel width presets (desktop) / bottom-sheet height (mobile) & Fullscreen toggle */}

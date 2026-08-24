@@ -1,4 +1,10 @@
-import { CORE_MODULES, type ModuleId, type WorkspacePresetDefinition, type WorkspaceProfile } from './types';
+import {
+  ALL_MODULE_IDS,
+  CORE_MODULES,
+  type ModuleId,
+  type WorkspacePresetDefinition,
+  type WorkspaceProfile,
+} from './types';
 /**
  * The bundled workspace presets (plan §1.2). Presets bootstrap module
  * visibility only; users may switch to `custom` and toggle modules freely.
@@ -13,17 +19,14 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
   {
     id: 'shot_planning',
     label: 'Shot Planning / Blocking',
-    description: 'The classic fast workflow: plan, shots, storyboard, equipment. No screenplay required.',
-    enabledModules: [
-      'contacts',
-      'tasks',
-      'budget',
-      ...CORE_MODULES,
-      'annotations',
-      'shots',
-      'storyboard',
-      'equipment',
-    ],
+    description: 'Blocking and coverage only: floor plan, shot list, lined script, storyboard.',
+    enabledModules: [...CORE_MODULES, 'annotations', 'shots', 'storyboard', 'script'],
+  },
+  {
+    id: 'full',
+    label: 'Full Production',
+    description: 'Every module switched on — script through budget, gear through call sheets.',
+    enabledModules: [...ALL_MODULE_IDS],
   },
   {
     id: 'narrative',
@@ -161,18 +164,27 @@ export const WORKSPACE_PRESETS: WorkspacePresetDefinition[] = [
   {
     id: 'custom',
     label: 'Custom',
-    description: 'Start from everything and hide what you do not need.',
-    enabledModules: [],
+    description: 'Pick exactly which modules this project shows.',
+    enabledModules: [...CORE_MODULES],
   },
 ];
 
 export const getPreset = (id: WorkspacePresetDefinition['id']): WorkspacePresetDefinition =>
   WORKSPACE_PRESETS.find((preset) => preset.id === id) ?? WORKSPACE_PRESETS[0];
 
-/** Build the initial workspace profile for a preset. */
-export const createWorkspaceProfile = (id: WorkspacePresetDefinition['id']): WorkspaceProfile => ({
+/**
+ * Build the initial workspace profile for a preset. `modules` overrides the
+ * preset's own list, which is what the Custom preset's module picker passes;
+ * the core modules are folded back in so a profile can never hide the canvas.
+ */
+export const createWorkspaceProfile = (
+  id: WorkspacePresetDefinition['id'],
+  modules?: ModuleId[],
+): WorkspaceProfile => ({
   preset: id,
-  enabledModules: getPreset(id).enabledModules,
+  enabledModules: modules
+    ? [...new Set<ModuleId>([...CORE_MODULES, ...modules])]
+    : getPreset(id).enabledModules,
 });
 
 /** Enable/disable a module, always keeping the core modules available. */
@@ -196,31 +208,5 @@ export const isModuleEnabled = (profile: WorkspaceProfile, moduleId: ModuleId): 
  */
 export const ALL_MODULES_PROFILE: WorkspaceProfile = {
   preset: 'custom',
-  enabledModules: [
-    'floorplan',
-    'locations',
-    'assets',
-    'annotations',
-    'script',
-    'av_script',
-    'breakdown',
-    'shots',
-    'storyboard',
-    'moodboard',
-    'schedule',
-    'run_of_show',
-    'call_sheets',
-    'production_day',
-    'equipment',
-    'fixtures_dmx',
-    'cables_signal',
-    'power',
-    'rigging',
-    'logistics',
-    'continuity',
-    'contacts',
-    'tasks',
-    'budget',
-    'comments',
-  ],
+  enabledModules: [...ALL_MODULE_IDS],
 };

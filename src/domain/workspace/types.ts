@@ -44,6 +44,7 @@ export type ModuleId =
 export type WorkspacePresetId =
   | 'blank'
   | 'shot_planning'
+  | 'full'
   | 'narrative'
   | 'documentary'
   | 'commercial'
@@ -68,3 +69,36 @@ export interface WorkspacePresetDefinition {
 
 /** Modules every preset always exposes regardless of configuration. */
 export const CORE_MODULES: ModuleId[] = ['floorplan', 'assets', 'comments'];
+
+/**
+ * Every module there is, in the order the module picker lists them. The
+ * `full` preset and `ALL_MODULES_PROFILE` both build from this, so adding a
+ * ModuleId above only needs one edit here to reach both.
+ */
+export const ALL_MODULE_IDS: ModuleId[] = [
+  'floorplan',
+  'locations',
+  'assets',
+  'annotations',
+  'script',
+  'av_script',
+  'breakdown',
+  'shots',
+  'storyboard',
+  'moodboard',
+  'schedule',
+  'run_of_show',
+  'call_sheets',
+  'production_day',
+  'equipment',
+  'fixtures_dmx',
+  'cables_signal',
+  'power',
+  'rigging',
+  'logistics',
+  'continuity',
+  'contacts',
+  'tasks',
+  'budget',
+  'comments',
+];

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ALL_MODULE_IDS,
   CORE_MODULES,
   WORKSPACE_PRESETS,
   createWorkspaceProfile,
@@ -14,6 +15,7 @@ describe('workspace presets', () => {
     expect(ids).toEqual([
       'blank',
       'shot_planning',
+      'full',
       'narrative',
       'documentary',
       'commercial',
@@ -36,7 +38,9 @@ describe('workspace presets', () => {
   });
 
   it('never makes the script module mandatory outside script presets', () => {
-    const scriptFree = ['blank', 'shot_planning', 'concert', 'broadcast'] as const;
+    // Shot Planning carries the script deliberately — the lined script is how
+    // coverage is marked up during blocking — so it is not on this list.
+    const scriptFree = ['blank', 'concert', 'broadcast'] as const;
     for (const id of scriptFree) {
       expect(getPreset(id).enabledModules).not.toContain('script');
     }
@@ -55,6 +59,34 @@ describe('workspace presets', () => {
     expect(profile.enabledModules).toContain('power');
     expect(profile.enabledModules).toContain('run_of_show');
     expect(profile.enabledModules).not.toContain('script');
+  });
+
+  it('shot planning stays a blocking workspace with no production tools', () => {
+    const profile = createWorkspaceProfile('shot_planning');
+    expect(profile.enabledModules).toContain('shots');
+    expect(profile.enabledModules).toContain('script');
+    expect(profile.enabledModules).toContain('storyboard');
+    for (const hidden of ['equipment', 'schedule', 'contacts', 'tasks', 'budget'] as const) {
+      expect(profile.enabledModules).not.toContain(hidden);
+    }
+  });
+
+  it('the full preset enables every module', () => {
+    const profile = createWorkspaceProfile('full');
+    for (const module of ALL_MODULE_IDS) {
+      expect(isModuleEnabled(profile, module)).toBe(true);
+    }
+  });
+
+  it('custom accepts an explicit module list and still keeps the core', () => {
+    const profile = createWorkspaceProfile('custom', ['shots', 'budget']);
+    expect(profile.preset).toBe('custom');
+    expect(isModuleEnabled(profile, 'shots')).toBe(true);
+    expect(isModuleEnabled(profile, 'budget')).toBe(true);
+    expect(isModuleEnabled(profile, 'schedule')).toBe(false);
+    for (const core of CORE_MODULES) {
+      expect(isModuleEnabled(profile, core)).toBe(true);
+    }
   });
 
   it('toggling a module switches the profile to custom and preserves the rest', () => {

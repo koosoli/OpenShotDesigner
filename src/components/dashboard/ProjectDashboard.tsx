@@ -16,7 +16,14 @@ import {
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { listUnreadableProjects, readProject } from '../../utils/projectLibrary';
-import { WORKSPACE_PRESETS, getPreset, type WorkspacePresetId } from '../../domain/workspace';
+import {
+  MODULE_PICKER_GROUPS,
+  PICKABLE_MODULES,
+  WORKSPACE_PRESETS,
+  getPreset,
+  type ModuleId,
+  type WorkspacePresetId,
+} from '../../domain/workspace';
 import { BRANDING } from '../../config/branding';
 import { exportProjectPackage, importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
@@ -56,6 +63,23 @@ export const ProjectDashboard: React.FC = () => {
   // would be a guess about when that finished.
   const unreadable = isDashboardOpen ? listUnreadableProjects() : [];
   const [presetId, setPresetId] = useState<WorkspacePresetId>('shot_planning');
+  /**
+   * Module selection for the Custom preset. Seeded from whichever preset was
+   * highlighted when Custom was picked, so "Narrative minus budget" is two
+   * clicks rather than fifteen.
+   */
+  const [customModules, setCustomModules] = useState<ModuleId[]>(
+    () => getPreset('shot_planning').enabledModules,
+  );
+  const chooseCustom = () => {
+    setCustomModules(getPreset(presetId).enabledModules);
+    setPresetId('custom');
+  };
+  const toggleCustomModule = (moduleId: ModuleId, enabled: boolean) => {
+    setCustomModules((current) =>
+      enabled ? [...new Set([...current, moduleId])] : current.filter((id) => id !== moduleId),
+    );
+  };
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -74,6 +98,7 @@ export const ProjectDashboard: React.FC = () => {
       title: newTitle.trim() || 'Untitled production',
       withSampleScenes: startWithSamples,
       workspacePreset: presetId,
+      workspaceModules: presetId === 'custom' ? customModules : undefined,
     });
     setNewTitle('');
   };
@@ -222,7 +247,7 @@ export const ProjectDashboard: React.FC = () => {
               {WORKSPACE_PRESETS.map((preset) => (
                 <button
                   key={preset.id}
-                  onClick={() => setPresetId(preset.id)}
+                  onClick={() => (preset.id === 'custom' ? chooseCustom() : setPresetId(preset.id))}
                   title={preset.description}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
                     presetId === preset.id
@@ -236,6 +261,65 @@ export const ProjectDashboard: React.FC = () => {
                 </button>
               ))}
             </div>
+            {presetId === 'custom' && (
+              <div
+                className={`mt-2.5 rounded-lg border p-2.5 ${
+                  isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-900/60'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wide opacity-60">
+                    Modules to show
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCustomModules(PICKABLE_MODULES.map((module) => module.id))}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                        isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-600 hover:bg-slate-800'
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomModules([])}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                        isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-600 hover:bg-slate-800'
+                      }`}
+                    >
+                      None
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2">
+                  {MODULE_PICKER_GROUPS.map((group) => (
+                    <section key={group.label}>
+                      <div className="text-[9px] font-black uppercase tracking-[0.14em] opacity-40 mb-1">
+                        {group.label}
+                      </div>
+                      {group.modules.map((module) => (
+                        <label
+                          key={module.id}
+                          className="flex items-center gap-1.5 cursor-pointer text-[11px] min-w-0 py-0.5"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={customModules.includes(module.id)}
+                            onChange={(event) => toggleCustomModule(module.id, event.target.checked)}
+                            className="rounded accent-sky-500 w-3.5 h-3.5 cursor-pointer flex-shrink-0"
+                          />
+                          <span className="truncate">{module.label}</span>
+                        </label>
+                      ))}
+                    </section>
+                  ))}
+                </div>
+                <p className={`mt-2 text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                  The floor plan and Inspector are always available.
+                </p>
+              </div>
+            )}
             <p className={`mt-2 text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
               {getPreset(presetId).description} Presets only change which tools are shown — you can enable or hide modules at any time.
             </p>

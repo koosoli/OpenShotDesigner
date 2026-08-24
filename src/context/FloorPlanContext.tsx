@@ -3735,7 +3735,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // The workspace preset is a local preference about module visibility,
     // stored outside the project document (plan §1.2, §5.7).
     if (options?.workspacePreset) {
-      persistWorkspaceProfile(created.id, createWorkspaceProfile(options.workspacePreset));
+      persistWorkspaceProfile(
+        created.id,
+        createWorkspaceProfile(options.workspacePreset, options.workspaceModules),
+      );
     }
     setProjects(loadLibrary());
     loadProjectIntoWorkspace(created);

@@ -462,6 +462,11 @@ export interface NewProjectOptions {
    * a new floor-plan workspace starts genuinely empty.
    */
   workspacePreset?: import('../domain/workspace').WorkspacePresetId;
+  /**
+   * Explicit module visibility, overriding the preset's own list. The Custom
+   * preset's module picker fills this in; every other preset leaves it unset.
+   */
+  workspaceModules?: import('../domain/workspace').ModuleId[];
 }
 
 /** An empty setup with no bootstrap elements — used by the Blank preset. */
