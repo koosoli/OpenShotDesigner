@@ -1,4 +1,3 @@
-import { BRANDING } from '../../config/branding';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
@@ -8,7 +7,6 @@ import {
   CableElement,
   CameraElement,
   DoorElement,
-  FloorPlanElement,
   LightElement,
   MeasurementElement,
   PropElement,
@@ -20,14 +18,10 @@ import {
   WallElement,
   WindowElement,
 } from '../../types';
-import { getCameraFovPolygon, getLightBeamPolygon, getSmoothSplinePath, kelvinToRgb } from '../../utils/geometry';
-import { ASPECT_RATIOS, LIGHT_FIXTURES, LIGHT_ROLES } from '../../constants/presets';
+import { ASPECT_RATIOS } from '../../constants/presets';
 import { exportProjectToCsv, exportShotListToCsv } from '../../utils/exportShotList';
 import { exportSvgAsPng } from '../../utils/exportFloorPlanPng';
 import { waitForImages } from '../../utils/image';
-import { FlagFixtureIcon, flagLabel, isFlagFixture } from '../canvas/FlagFixtureIcon';
-import { FixtureGlyph } from '../canvas/FixtureGlyph';
-import { ArrowGlyph } from '../canvas/ArrowGlyph';
 import { ShapesLayer } from '../canvas/ShapesLayer';
 import { FreehandStrokeLayer } from '../canvas/FreehandStrokeLayer';
 import { ActorElementView } from '../canvas/ActorElementView';
@@ -50,19 +44,14 @@ import {
   deriveSceneEquipment,
   deriveAllScenesEquipment,
   EQUIPMENT_CATEGORIES,
-  getCategoryMeta,
 } from '../../utils/equipmentList';
 import { Shot } from '../../types';
 import {
-  AppWindow,
-  ArrowRight,
   Boxes,
-  Camera,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  DoorClosed,
   Download,
   Eye,
   FileSpreadsheet,
@@ -70,20 +59,18 @@ import {
   Film,
   Image as ImageIcon,
   Layers,
-  MapPin,
   Maximize2,
   Minus,
-  Package,
   Plus,
   Printer,
   Sparkles,
   Sun,
   User,
-  Video,
   X,
 } from 'lucide-react';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
-import { selectPrintablePlanElements } from '../../domain/plan';
+import { elementsBounds, padBounds, selectPrintablePlanElements } from '../../domain/plan';
+import { describeSceneUsage, isMasterEquipmentItem } from '../../domain/equipment';
 import { MoodboardPrintView } from '../reports/MoodboardPrintView';
 import { ContactListPrintView } from '../reports/ContactListPrintView';
 import { ScriptReportsPrintView } from '../reports/ScriptReportsPrintView';
@@ -463,7 +450,7 @@ export const PrintableShotPlan: React.FC = () => {
 
   const toggleOverride = (key: keyof DisplaySettings, defaultVal: boolean) => {
     setCustomOverrides((prev) => {
-      const current = key in prev ? !!prev[key] : (eff as any)[key] ?? defaultVal;
+      const current = key in prev ? !!prev[key] : eff[key] ?? defaultVal;
       return { ...prev, [key]: !current };
     });
   };
@@ -550,23 +537,22 @@ export const PrintableShotPlan: React.FC = () => {
     void waitForImages(document.body).then(() => window.print());
   };
 
-  // Calculate bounding box of all elements to auto-fit printable blueprint
+  // Bounding box of everything on the plan, to auto-fit the printable
+  // blueprint. `includePath` keeps blocking beats in frame: they live away
+  // from the element itself, and a camera move that runs off the page is the
+  // one thing a printed plan must not silently lose. The default box is used
+  // only for a plan with nothing on it.
   let fullMinX = 100, fullMinY = 100, fullMaxX = 900, fullMaxY = 600;
-  if (activeSetup.elements.length > 0) {
-    fullMinX = Math.min(...activeSetup.elements.map((e) => e.x)) - 60;
-    fullMinY = Math.min(...activeSetup.elements.map((e) => e.y)) - 60;
-    fullMaxX = Math.max(...activeSetup.elements.map((e) => (e as any).x2 || e.x + ((e as any).width || 80))) + 60;
-    fullMaxY = Math.max(...activeSetup.elements.map((e) => (e as any).y2 || e.y + ((e as any).height || 80))) + 60;
-
-    // Blocking beats live away from the element itself — keep them in frame
-    activeSetup.elements.forEach((element) => {
-      ((element as any).path || []).forEach((wp: { x: number; y: number }) => {
-        fullMinX = Math.min(fullMinX, wp.x - 60);
-        fullMinY = Math.min(fullMinY, wp.y - 60);
-        fullMaxX = Math.max(fullMaxX, wp.x + 60);
-        fullMaxY = Math.max(fullMaxY, wp.y + 60);
-      });
-    });
+  const elementBox = elementsBounds(activeSetup.elements, {
+    includePath: true,
+    markerHalfExtent: 40,
+  });
+  if (elementBox) {
+    const padded = padBounds(elementBox, 60);
+    fullMinX = padded.minX;
+    fullMinY = padded.minY;
+    fullMaxX = padded.maxX;
+    fullMaxY = padded.maxY;
   }
   for (const img of backgroundImages) {
     fullMinX = Math.min(fullMinX, img.x - 20);
@@ -1877,8 +1863,7 @@ export const PrintableShotPlan: React.FC = () => {
                           </thead>
                           <tbody className="divide-y divide-slate-200">
                             {items.map((item) => {
-                              const isMaster = 'usedInSetups' in item;
-                              const masterItem = isMaster ? (item as any) : null;
+                              const masterItem = isMasterEquipmentItem(item) ? item : null;
 
                               return (
                                 <tr key={item.id} className="hover:bg-slate-50/60 font-mono">
@@ -1925,7 +1910,7 @@ export const PrintableShotPlan: React.FC = () => {
                                   {equipmentScope === 'all' && masterItem && (
                                     <td className="p-2 align-top text-[10px] font-mono text-slate-600">
                                       <div>
-                                        {masterItem.usedInSetups.map((s: any) => (s.sceneNumber ? `Sc ${s.sceneNumber} (×${s.quantity})` : `${s.name} (×${s.quantity})`)).join(', ')}
+                                        {describeSceneUsage(masterItem, { sceneLabel: 'Sc' }).join(', ')}
                                       </div>
                                       <div className="text-[9px] text-slate-400 mt-0.5">
                                         Peak: {masterItem.maxConcurrentQuantity} concurrent

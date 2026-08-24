@@ -8,7 +8,7 @@
  * context.
  */
 import React, { useId, useState } from 'react';
-import { Compass, Database, Fingerprint, Lightbulb, Maximize, Sparkles, Sun, Tags, Zap } from 'lucide-react';
+import { Compass, Database, Maximize, Sun, Tags, Zap } from 'lucide-react';
 import type { LightElement } from '../../../types';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
 import {
@@ -36,6 +36,7 @@ import {
 } from '../../../domain/fixtures/brandCatalog';
 import { useFixtureCatalog } from '../useFixtureCatalog';
 import { createId } from '../../../domain/ids';
+import { parseOption, parseOptionFrom } from '../../../domain/optionValue';
 import { FresnelLightIcon } from '../../icons/ProductionIcons';
 import { flagLabel, isFlagFixture } from '../../canvas/FlagFixtureIcon';
 import { DmxUniverseView } from '../../equipment/DmxUniverseView';
@@ -89,7 +90,15 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           <label htmlFor={`${fieldId}-light-function-role`} className="opacity-60 block mb-1 font-semibold">Light Function / Role</label>
           <select id={`${fieldId}-light-function-role`}
             value={light.lightRole || 'unassigned'}
-            onChange={(e) => updateElement(light.id, { lightRole: e.target.value as any })}
+            onChange={(e) =>
+              updateElement(light.id, {
+                lightRole: parseOptionFrom(
+                  LIGHT_ROLES,
+                  e.target.value,
+                  light.lightRole || 'unassigned',
+                ),
+              })
+            }
             className={`w-full border rounded-lg p-2 font-medium ${
               isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
             }`}
@@ -211,7 +220,11 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               const flag = !!fix?.isFlag;
               const defaultName = !light.brand && !light.fixtureModel ? (fix?.name || 'Light') : light.name;
               updateElement(light.id, {
-                fixtureType: e.target.value as any,
+                fixtureType: parseOption(
+                  LIGHT_FIXTURES.map((f) => f.type),
+                  e.target.value,
+                  light.fixtureType,
+                ),
                 name: defaultName,
                 beamAngle: flag ? 0 : fix?.defaultBeam ?? light.beamAngle,
                 colorTemp: flag ? 0 : fix?.defaultTemp ?? (light.colorTemp || 5600),
@@ -989,7 +1002,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
         <FixtureProfilePicker
           light={light}
           isLight={isLight}
-          onChange={(updates) => updateElement(light.id, updates as any)}
+          onChange={(updates) => updateElement(light.id, updates)}
         />
       </RubricSection>
 

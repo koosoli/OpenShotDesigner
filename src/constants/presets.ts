@@ -38,6 +38,30 @@ export const CAMERA_HEIGHTS: { value: CameraHeight; label: string }[] = [
   { value: 'Overhead / Bird\'s Eye', label: 'Overhead / Bird\'s Eye' },
 ];
 
+/**
+ * Shot-angle choices offered on the shot list.
+ *
+ * A superset of `CAMERA_HEIGHTS`: a height is where the camera physically is,
+ * an angle is what the frame reads as, and the shot list has always offered
+ * both. It lives here rather than as a literal in the panel because the same
+ * list was written out three times in `ShotListPanel`, and each copy could
+ * drift from `CameraHeight` on its own — which is exactly what the `as any` at
+ * the `onChange` was hiding.
+ */
+export const CAMERA_ANGLES: CameraHeight[] = [
+  'Eye Level',
+  'Low Angle',
+  'High Angle',
+  'Ground',
+  'Knee',
+  'Waist',
+  'High',
+  "Bird's Eye",
+  "Worm's Eye",
+  'Dutch Angle',
+];
+
+
 /** Exposure / recording options shared by the viewfinder and the inspector. */
 export const APERTURES = ['f/1.2', 'f/1.4', 'f/2', 'f/2.8', 'f/4', 'f/5.6', 'f/8', 'f/11', 'f/16', 'f/22'];
 export const ISO_VALUES = [100, 200, 400, 640, 800, 1250, 1600, 3200, 6400, 12800];

@@ -16,6 +16,7 @@ import { Compass, Tv } from 'lucide-react';
 import { PROP_CATALOG } from '../../../constants/presets';
 import { RubricSection, WaypointListEditor } from '../shared/InspectorPrimitives';
 import { createId } from '../../../domain/ids';
+import { parseOption } from '../../../domain/optionValue';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
 
 interface PropInspectorProps {
@@ -41,7 +42,11 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
             onChange={(e) => {
               const info = PROP_CATALOG.find((p) => p.type === e.target.value);
               updateElement(prop.id, {
-                propType: e.target.value as any,
+                propType: parseOption(
+                  PROP_CATALOG.map((p) => p.type),
+                  e.target.value,
+                  prop.propType,
+                ),
                 width: info?.defaultWidth ?? prop.width,
                 height: info?.defaultHeight ?? prop.height,
                 color: info?.defaultColor ?? prop.color,
@@ -188,7 +193,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
             beat: nextBeat,
             dialogueCue: '',
           };
-          updateElement(prop.id, { path: [...existingPath, newWp] } as any);
+          updateElement(prop.id, { path: [...existingPath, newWp] });
           if (nextBeat > (activeSetup.totalBeats || 1)) {
             updateSetupMeta({ totalBeats: nextBeat });
           }

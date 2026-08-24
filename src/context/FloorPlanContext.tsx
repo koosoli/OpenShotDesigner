@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActiveTool,
-  AspectRatio,
   BackgroundImage,
   IdentifiedBackgroundImage,
   CableElement,
@@ -1914,7 +1913,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       swingAngle: 90,
       swingDirection: 'right',
       isOpen: true,
-    } as any);
+    });
 
     setSelectedElementIds([doorId]);
     return doorId;
@@ -1942,7 +1941,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       width: 80,
       depth: 14,
       beamVisible: false,
-    } as any);
+    });
 
     setSelectedElementIds([windowId]);
     return windowId;
@@ -3894,7 +3893,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     clone.id = newSetupId;
     clone.elements = clone.elements.map((element) => {
-      const next: any = { ...element, id: elementIdMap.get(element.id)! };
+      // The two reference fields any element type may carry. Named rather
+      // than reached through `any`, so renaming either one breaks here instead
+      // of silently leaving the clone pointing at the original's shot.
+      const next = { ...element, id: elementIdMap.get(element.id)! } as FloorPlanElement & {
+        associatedShotId?: string;
+        lookAtTargetId?: string;
+      };
       if (next.associatedShotId) next.associatedShotId = shotIdMap.get(next.associatedShotId) || next.associatedShotId;
       if (next.lookAtTargetId) next.lookAtTargetId = elementIdMap.get(next.lookAtTargetId) || next.lookAtTargetId;
       return next;

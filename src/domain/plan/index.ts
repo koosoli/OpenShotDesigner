@@ -6,3 +6,10 @@ export * from './visibility';
 export { normalizeSpeechCues, speechCueAtBeat, wrapSpeechText } from './speech';
 export { nextCameraLabel, usedCameraLabels } from './cameraLabels';
 export type { LabelledCamera } from './cameraLabels';
+export {
+  boundsContain,
+  elementBounds,
+  elementsBounds,
+  padBounds,
+} from './elementBounds';
+export type { ElementBoundsOptions, PlanBounds } from './elementBounds';

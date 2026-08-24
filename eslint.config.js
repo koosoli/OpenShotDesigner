@@ -92,7 +92,15 @@ export default tseslint.config(
       // places so a paste or a shortcut lands on the right panel. The rule does
       // not accept group as an interactive role; the alternative would be a
       // hidden focus-trap input, which is worse for a screen-reader user.
-      'jsx-a11y/no-noninteractive-tabindex': ['warn', { roles: ['group'], tags: [] }],
+      //
+      // `role="application"` is on the list for the same reason and is the more
+      // clear-cut case: the headshot reframer is a two-axis direct-manipulation
+      // control with real arrow-key handling, which is exactly what the role is
+      // for, and it must be focusable or the keyboard path does not exist.
+      'jsx-a11y/no-noninteractive-tabindex': [
+        'warn',
+        { roles: ['application', 'group'], tags: [] },
+      ],
     },
   },
   {

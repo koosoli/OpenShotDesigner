@@ -20,6 +20,7 @@ import { MovieCameraIcon } from '../../icons/ProductionIcons';
 import { RubricSection, StoryboardField, WaypointListEditor } from '../shared/InspectorPrimitives';
 import { calculateFovAngle } from '../../../utils/geometry';
 import { createId } from '../../../domain/ids';
+import { parseOptionFrom } from '../../../domain/optionValue';
 import { setFramePatch, slotsOf } from '../../../utils/storyboardFrames';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
 
@@ -182,7 +183,11 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                 <label htmlFor={`${fieldId}-camera-rig`} className="opacity-60 block mb-1">Camera Rig</label>
                 <select id={`${fieldId}-camera-rig`}
                   value={cam.rigType}
-                  onChange={(e) => updateElement(cam.id, { rigType: e.target.value as any })}
+                  onChange={(e) =>
+                    updateElement(cam.id, {
+                      rigType: parseOptionFrom(CAMERA_RIGS, e.target.value, cam.rigType),
+                    })
+                  }
                   className={`w-full border rounded-lg p-1.5 text-xs ${
                     isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                   }`}
@@ -198,7 +203,15 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                 <label htmlFor={`${fieldId}-camera-height`} className="opacity-60 block mb-1">Camera Height</label>
                 <select id={`${fieldId}-camera-height`}
                   value={cam.cameraHeight}
-                  onChange={(e) => updateElement(cam.id, { cameraHeight: e.target.value as any })}
+                  onChange={(e) =>
+                    updateElement(cam.id, {
+                      cameraHeight: parseOptionFrom(
+                        CAMERA_HEIGHTS,
+                        e.target.value,
+                        cam.cameraHeight,
+                      ),
+                    })
+                  }
                   className={`w-full border rounded-lg p-1.5 text-xs ${
                     isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                   }`}
@@ -263,7 +276,15 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
               <label htmlFor={`${fieldId}-sensor-format`} className="opacity-60 block mb-1">Sensor Format</label>
               <select id={`${fieldId}-sensor-format`}
                 value={cam.sensorFormat}
-                onChange={(e) => updateElement(cam.id, { sensorFormat: e.target.value as any })}
+                onChange={(e) =>
+                  updateElement(cam.id, {
+                    sensorFormat: parseOptionFrom(
+                      SENSOR_FORMATS,
+                      e.target.value,
+                      cam.sensorFormat,
+                    ),
+                  })
+                }
                 className={`w-full border rounded-lg p-2 ${
                   isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                 }`}
@@ -284,7 +305,11 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
               <label htmlFor={`${fieldId}-aspect-ratio`} className="opacity-60 block mb-1">Aspect Ratio</label>
               <select id={`${fieldId}-aspect-ratio`}
                 value={cam.aspectRatio}
-                onChange={(e) => updateElement(cam.id, { aspectRatio: e.target.value as any })}
+                onChange={(e) =>
+                  updateElement(cam.id, {
+                    aspectRatio: parseOptionFrom(ASPECT_RATIOS, e.target.value, cam.aspectRatio),
+                  })
+                }
                 className={`w-full border rounded-lg p-2 ${
                   isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                 }`}

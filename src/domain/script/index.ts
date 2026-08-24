@@ -4,6 +4,7 @@ export type {
   BreakdownItem,
   BreakdownCategory,
   BreakdownSourceRange,
+  ScriptSelectionRange,
 } from './types';
 export {
   isOmittedHeading,

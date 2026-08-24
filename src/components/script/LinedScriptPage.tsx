@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ScriptElementType, ScriptLine, ScriptMark, Shot } from '../../types';
 import { breakdownCategoryLabel, breakdownCategoryTint, breakdownTagsForLine, omittedSceneLabel } from '../../domain/script';
-import type { BreakdownItem } from '../../domain/script';
+import type { BreakdownItem, ScriptSelectionRange } from '../../domain/script';
 
 /** Stable identity so the default prop does not re-run the tag lookup each render. */
 const EMPTY_BREAKDOWN_ITEMS: BreakdownItem[] = [];
@@ -135,7 +135,7 @@ interface LinedScriptPageProps {
   print?: boolean;
   /** Display shot size badge (WS, CU, MCU...) inside shot bubbles (default true). */
   showShotSize?: boolean;
-  selection?: { from: number; to: number } | null;
+  selection?: ScriptSelectionRange | null;
   selectedShotId?: string | null;
   /**
    * Tagged breakdown elements, so the words that carry one are marked on the
@@ -348,10 +348,10 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
           const layout = LAYOUT[type] || LAYOUT.action;
           const inSelection = selection && index >= selection.from && index <= selection.to;
           const selectionCover =
-            selection && inSelection && (selection as any).partial
+            selection && inSelection && selection.partial
               ? {
-                  start: index === selection.from ? (selection as any).startOffset ?? 0 : 0,
-                  end: index === selection.to ? (selection as any).endOffset ?? line.text.length : line.text.length,
+                  start: index === selection.from ? selection.startOffset ?? 0 : 0,
+                  end: index === selection.to ? selection.endOffset ?? line.text.length : line.text.length,
                 }
               : null;
           const isLineFullSelected = inSelection && !selectionCover;
@@ -501,7 +501,9 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
             const shot = shotFor(mark);
             const isActive = selectedShotId === mark.shotId;
             const label = shot?.shotNumber || mark.label;
-            const shotSize = shot?.shotSize || (mark as any).shotSize || '';
+            // `ScriptMark` has never carried a shot size of its own; the cast
+            // that used to read one here was always reading undefined.
+            const shotSize = shot?.shotSize || '';
             // The lining shows what the user wrote for it; if they never wrote
             // one it falls back to the shot's framing note or shot size (WS, CU...),
             // trimmed so a pasted action line can't run across the page.

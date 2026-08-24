@@ -1,5 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import type { CategoryOpacitySettings } from '../../context/FloorPlanContext';
+
+/**
+ * The element categories with an opacity slider, keyed to the settings object
+ * so a renamed field fails here rather than writing an opacity nothing reads.
+ */
+const OPACITY_CATEGORIES: Array<{ key: keyof CategoryOpacitySettings; label: string }> = [
+  { key: 'actors', label: 'Actors & Talent' },
+  { key: 'cameras', label: 'Cameras & Cones' },
+  { key: 'lights', label: 'Lights & Beams' },
+  { key: 'props', label: 'Props & Furniture' },
+  { key: 'architecture', label: 'Walls & Doors' },
+  { key: 'shapes', label: 'Basic Shapes' },
+];
 import { useBreakpoint } from '../../utils/useMediaQuery';
 import brandIcon from '../../assets/brand-icon.png';
 import { BRANDING } from '../../config/branding';
@@ -635,16 +649,9 @@ export const TopNavbar: React.FC = () => {
                       Category Opacity Sliders
                     </div>
 
-                    {[
-                      { key: 'actors', label: 'Actors & Talent' },
-                      { key: 'cameras', label: 'Cameras & Cones' },
-                      { key: 'lights', label: 'Lights & Beams' },
-                      { key: 'props', label: 'Props & Furniture' },
-                      { key: 'architecture', label: 'Walls & Doors' },
-                      { key: 'shapes', label: 'Basic Shapes' },
-                    ].map(({ key, label }) => {
+                    {OPACITY_CATEGORIES.map(({ key, label }) => {
                       const currentVal = Math.round(
-                        ((displaySettings.categoryOpacity as any)?.[key] ?? 1.0) * 100
+                        (displaySettings.categoryOpacity?.[key] ?? 1.0) * 100
                       );
                       return (
                         <div key={key} className="space-y-1">

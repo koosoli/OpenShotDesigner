@@ -268,8 +268,6 @@ export const FlagFixtureIcon: React.FC<FlagFixtureIconProps> = ({ light, selecte
 
   // Short riser + gobo arm stub on the left edge, purely for orientation.
   const armY = 0;
-  const poleLen = Math.max(8, Math.min(14, panelW * 0.22));
-  const poleLeft = xL - poleLen;
 
   const fill =
     light.fixtureType === 'flag_silk'

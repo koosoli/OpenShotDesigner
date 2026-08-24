@@ -439,11 +439,11 @@ export const WaypointListEditor: React.FC<{
 
   const updateWaypoint = (wpId: string, updates: Partial<Waypoint>) => {
     const newPath = path.map((wp) => (wp.id === wpId ? { ...wp, ...updates } : wp));
-    updateElement(elementId, { path: newPath } as any);
+    updateElement(elementId, { path: newPath });
   };
 
   const removeWaypoint = (wpId: string) => {
-    updateElement(elementId, { path: path.filter((wp) => wp.id !== wpId) } as any);
+    updateElement(elementId, { path: path.filter((wp) => wp.id !== wpId) });
   };
 
   if (path.length === 0) return null;

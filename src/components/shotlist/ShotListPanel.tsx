@@ -2,9 +2,13 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { nextCameraLabel } from '../../domain/plan/cameraLabels';
 import { createPortal } from 'react-dom';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
-import { CAMERA_MOVEMENTS, SHOT_SIZES, ASPECT_RATIOS } from '../../constants/presets';
-import { framesOf, keyFrameImage } from '../../utils/storyboardFrames';
+import { CameraElement, CameraMovement, Shot, ShotSize, ShotStatus } from '../../types';
+import { CAMERA_ANGLES, CAMERA_MOVEMENTS, SHOT_SIZES, ASPECT_RATIOS } from '../../constants/presets';
+import { parseOption } from '../../domain/optionValue';
+
+/** The sort keys `sortShotsBy` accepts, and the values its <option>s carry. */
+const SHOT_SORT_VALUES = ['custom', 'shotNumber', 'camera', 'lens', 'status'] as const;
+import { keyFrameImage } from '../../utils/storyboardFrames';
 import { effectiveMovement, hasCameraMove } from '../../utils/cameraMovement';
 import { exportShotListToCsv } from '../../utils/exportShotList';
 import { ProjectImage } from '../common/ProjectImage';
@@ -113,11 +117,9 @@ export const ShotListPanel: React.FC = () => {
     deleteShot,
     insertShotAfter,
     reorderShots,
-    moveShot,
     renumberAllShots,
     sortShotsBy,
     createCameraAndShot,
-    setShotCameraLetter,
     assignCameraToShot,
     addCameraForShot,
     openViewfinder,
@@ -194,21 +196,21 @@ export const ShotListPanel: React.FC = () => {
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
 
-  const cameras = activeSetup.elements.filter((e) => e.type === 'camera');
+  const cameras = activeSetup.elements.filter((e): e is CameraElement => e.type === 'camera');
 
   // One dropdown entry per camera LETTER. Cameras added via "+ Cam & Shot"
   // are all positions of the default Camera A and share a single entry —
   // only cameras the user actively labels (B, C, ...) show up as additional
   // entries. Options show just the letter, no lens / description clutter.
-  const camerasByLabel = new Map<string, any>();
-  cameras.forEach((c: any) => {
+  const camerasByLabel = new Map<string, CameraElement>();
+  cameras.forEach((c) => {
     const label = (c.cameraLabel || 'A').toUpperCase();
     if (!camerasByLabel.has(label)) camerasByLabel.set(label, c);
   });
 
   // Map a shot's linked camera to its label's dropdown entry
   const camPickerValue = (shot: Shot): string => {
-    const cam: any = cameras.find((c) => c.id === shot.cameraId);
+    const cam = cameras.find((c) => c.id === shot.cameraId);
     if (!cam) return '';
     const label = (cam.cameraLabel || 'A').toUpperCase();
     return camerasByLabel.get(label)?.id || '';
@@ -240,7 +242,7 @@ export const ShotListPanel: React.FC = () => {
   // promising "A" while the new camera arrived as "C".
   const nextCameraLetter = nextCameraLabel(cameras);
 
-  const camPickerOptions: CamPickerOption[] = Array.from(camerasByLabel.values()).map((c: any) => ({
+  const camPickerOptions: CamPickerOption[] = Array.from(camerasByLabel.values()).map((c) => ({
     id: c.id,
     label: (c.cameraLabel || 'A').toUpperCase(),
   }));
@@ -566,7 +568,7 @@ export const ShotListPanel: React.FC = () => {
             <div className="flex items-center gap-1">
               <ArrowUpDown className="w-3 h-3 opacity-60 flex-shrink-0" />
               <select
-                onChange={(e) => sortShotsBy(e.target.value as any)}
+                onChange={(e) => sortShotsBy(parseOption(SHOT_SORT_VALUES, e.target.value, 'custom'))}
                 className={`text-[11px] border rounded px-1.5 py-0.5 focus:outline-none focus:border-sky-500 ${
                   isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-800 text-slate-200 border-slate-700'
                 }`}
@@ -1103,12 +1105,20 @@ export const ShotListPanel: React.FC = () => {
                       <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Angle:</span>
                       <select
                         value={shot.cameraAngle || 'Eye Level'}
-                        onChange={(e) => updateShot(shot.id, { cameraAngle: e.target.value as any })}
+                        onChange={(e) =>
+                          updateShot(shot.id, {
+                            cameraAngle: parseOption(
+                              CAMERA_ANGLES,
+                              e.target.value,
+                              shot.cameraAngle || 'Eye Level',
+                            ),
+                          })
+                        }
                         className={`text-[10px] font-semibold py-0.5 px-1.5 rounded border cursor-pointer focus:outline-none focus:border-sky-500 ${
                           isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
                         }`}
                       >
-                        {['Eye Level', 'Low Angle', 'High Angle', 'Ground', 'Knee', 'Waist', 'High', "Bird's Eye", "Worm's Eye", 'Dutch Angle'].map((a) => (
+                        {CAMERA_ANGLES.map((a) => (
                           <option key={a} value={a}>
                             {a}
                           </option>
@@ -1169,10 +1179,18 @@ export const ShotListPanel: React.FC = () => {
                         <label htmlFor={`${fieldId}-camera-angle`} className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">CAMERA ANGLE</label>
                         <select id={`${fieldId}-camera-angle`}
                           value={shot.cameraAngle}
-                          onChange={(e) => updateShot(shot.id, { cameraAngle: e.target.value as any })}
+                          onChange={(e) =>
+                          updateShot(shot.id, {
+                            cameraAngle: parseOption(
+                              CAMERA_ANGLES,
+                              e.target.value,
+                              shot.cameraAngle || 'Eye Level',
+                            ),
+                          })
+                        }
                           className={`w-full text-xs border rounded-lg p-1.5 ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'}`}
                         >
-                          {['Ground', 'Knee', 'Waist', 'Eye Level', 'High', 'Low Angle', 'High Angle', "Bird's Eye", "Worm's Eye", 'Dutch Angle'].map((a) => (
+                          {CAMERA_ANGLES.map((a) => (
                             <option key={a} value={a}>
                               {a}
                             </option>
@@ -1422,12 +1440,20 @@ export const ShotListPanel: React.FC = () => {
                         <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
                         value={shot.cameraAngle || 'Eye Level'}
-                        onChange={(e) => updateShot(shot.id, { cameraAngle: e.target.value as any })}
+                        onChange={(e) =>
+                          updateShot(shot.id, {
+                            cameraAngle: parseOption(
+                              CAMERA_ANGLES,
+                              e.target.value,
+                              shot.cameraAngle || 'Eye Level',
+                            ),
+                          })
+                        }
                         className={`w-full text-[10px] py-0.5 px-1 rounded border ${
                         isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                         }`}
                         >
-                        {['Eye Level', 'Low Angle', 'High Angle', 'Ground', 'Knee', 'Waist', 'High', "Bird's Eye", "Worm's Eye", 'Dutch Angle'].map((a) => (
+                        {CAMERA_ANGLES.map((a) => (
                         <option key={a} value={a}>
                         {a}
                         </option>

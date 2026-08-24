@@ -81,7 +81,7 @@ export const CableInspector: React.FC<CableInspectorProps> = ({ cable, isLight }
             value={cable.cableType}
             onChange={(e) => {
               const next = CABLE_TYPES.find((c) => c.type === e.target.value) || CABLE_TYPES[0];
-              updateElement(cable.id, { cableType: next.type, color: cable.color || next.color } as any);
+              updateElement(cable.id, { cableType: next.type, color: cable.color || next.color });
             }}
             className={inputClass}
           >

@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useId } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
@@ -12,7 +12,6 @@ import {
   RoadElement,
   SceneSetup,
   ShapeElement,
-  ShapeType,
   StrokeElement,
   TextElement,
   TrackElement,
@@ -20,34 +19,19 @@ import {
   Waypoint,
   WindowElement,
 } from '../../types';
-import {
-  ASPECT_RATIOS,
-  LIGHTING_BRANDS,
-} from '../../constants/presets';
+import { ASPECT_RATIOS } from '../../constants/presets';
+import { parseOption, parseOptionFrom } from '../../domain/optionValue';
+
+/** The four values the Lighting / Time of Day options declare. */
+const TIME_OF_DAY_VALUES = ['Day INT', 'Night INT', 'Day EXT', 'Night EXT'] as const;
 import { cloneSetupWithNewIds } from '../../domain/clone';
 import { createId } from '../../domain/ids';
-import { deriveScriptBreakdown } from '../../domain/script/logic';
 import { bakeGroupRotation, groupPivotOf } from '../../domain/plan';
 import { LayersPanel } from '../canvas/LayersPanel';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 
-const SHAPE_TYPES: ShapeType[] = [
-  'line',
-  'rectangle',
-  'circle',
-  'ellipse',
-  'triangle',
-  'diamond',
-  'pentagon',
-  'hexagon',
-  'star',
-];
 import { loadLogoFile } from '../../utils/image';
 import { FresnelLightIcon, MovieCameraIcon } from '../icons/ProductionIcons';
-import {
-  listBrandOptions,
-} from '../../domain/fixtures';
-import { useFixtureCatalog } from './useFixtureCatalog';
 import {
   Compass,
   Copy,
@@ -97,17 +81,17 @@ interface Bounds {
 /** Approximate 2D bounding box of an element on the floor plan, used for align/distribute. */
 function getElementBounds(el: FloorPlanElement): Bounds {
   if (el.type === 'prop' || el.type === 'shape') {
-    const w = (el as any).width || 80;
-    const h = (el as any).height || 50;
+    const w = el.width || 80;
+    const h = el.height || 50;
     return { minX: el.x - w / 2, minY: el.y - h / 2, maxX: el.x + w / 2, maxY: el.y + h / 2 };
   }
   if (el.type === 'wall') {
-    const x2 = (el as any).x2 ?? el.x;
-    const y2 = (el as any).y2 ?? el.y;
+    const x2 = el.x2 ?? el.x;
+    const y2 = el.y2 ?? el.y;
     return { minX: Math.min(el.x, x2), minY: Math.min(el.y, y2), maxX: Math.max(el.x, x2), maxY: Math.max(el.y, y2) };
   }
   if (el.type === 'door' || el.type === 'window') {
-    const w = (el as any).width || 60;
+    const w = el.width || 60;
     const h = 18;
     return { minX: el.x - w / 2, minY: el.y - h / 2, maxX: el.x + w / 2, maxY: el.y + h / 2 };
   }
@@ -146,10 +130,6 @@ export const InspectorPanel: React.FC = () => {
   // readers announced every one of these inputs unlabelled.
   const fieldId = useId();
   const logoInputRef = React.useRef<HTMLInputElement>(null);
-  const [dmxUniverseFixtureId, setDmxUniverseFixtureId] = useState<string | null>(null);
-  // Merged brand/model catalog: curated presets + bundled OFL snapshot + custom profiles.
-  const fixtureProfiles = useFixtureCatalog().profiles;
-  const brandOptions = React.useMemo(() => listBrandOptions(LIGHTING_BRANDS, fixtureProfiles), [fixtureProfiles]);
   const {
     activeSetup,
     project,
@@ -158,14 +138,8 @@ export const InspectorPanel: React.FC = () => {
     updateElement,
     deleteSelectedElements,
     duplicateSelected,
-    openViewfinder,
-    selectShot,
-    updateShot,
-    playback,
     updateSetupMeta,
     setActiveSetupId,
-    insertDoorInWall,
-    insertWindowInWall,
     rotateElementBy,
     theme,
     backgroundImages,
@@ -230,21 +204,6 @@ export const InspectorPanel: React.FC = () => {
     `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
   const isLight = theme === 'light';
-  // Shared styling for the camera exposure dropdowns
-  const selectClass = `w-full border rounded px-1.5 py-1 text-[11px] ${
-    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
-  }`;
-
-  // Script characters (persisted catalog merged with cues detected in the
-  // attached screenplay) for linking actor markers; empty when no script.
-  const scriptCharacters = React.useMemo(
-    () => deriveScriptBreakdown(
-      project.scriptLines || [],
-      project.characters || [],
-      project.locations || [],
-    ).characters,
-    [project.scriptLines, project.characters, project.locations],
-  );
 
   // --- Location link (plan §4.13 semantic links + §13 master plans) ---
 
@@ -633,7 +592,11 @@ export const InspectorPanel: React.FC = () => {
               <label htmlFor={`${fieldId}-lighting-time-of-day`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Lighting / Time of Day</label>
               <select id={`${fieldId}-lighting-time-of-day`}
                 value={activeSetup.timeOfDay}
-                onChange={(e) => updateSetupMeta({ timeOfDay: e.target.value as any })}
+                onChange={(e) =>
+                  updateSetupMeta({
+                    timeOfDay: parseOption(TIME_OF_DAY_VALUES, e.target.value, activeSetup.timeOfDay),
+                  })
+                }
                 className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
                   isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                 }`}
@@ -652,7 +615,15 @@ export const InspectorPanel: React.FC = () => {
               </label>
               <select id={`${fieldId}-project-aspect-ratio`}
                 value={activeSetup.aspectRatio || '16:9'}
-                onChange={(e) => updateSetupMeta({ aspectRatio: e.target.value as any })}
+                onChange={(e) =>
+                  updateSetupMeta({
+                    aspectRatio: parseOptionFrom(
+                      ASPECT_RATIOS,
+                      e.target.value,
+                      activeSetup.aspectRatio || '16:9',
+                    ),
+                  })
+                }
                 className={`w-full border rounded-lg p-2 focus:border-violet-500 ${
                   isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                 }`}

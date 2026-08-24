@@ -36,7 +36,6 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
   onWaypointRotateStart,
 }) => {
   const showLightLabel = displaySettings.showLabels && displaySettings.showLightLabels;
-  const showLightName = displaySettings.showLabels && displaySettings.showLightNameLabels;
   const showBeams = displaySettings.showLightBeams;
 
   return (
@@ -248,12 +247,6 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
               if (!showRole && !showName && !showSpecs) return null;
 
               const lineCount = (showRole ? 1 : 0) + (showName ? 1 : 0) + (showSpecs ? 1 : 0);
-              const badgeHeight = lineCount === 3 ? 44 : lineCount === 2 ? 30 : 18;
-              const maxTextLength = Math.max(
-                showName ? fullTitle.length : 0,
-                showRole ? (roleLabel?.length || 0) : 0,
-                showSpecs ? specsStr.length : 0
-              );
 
               return (
                 <g

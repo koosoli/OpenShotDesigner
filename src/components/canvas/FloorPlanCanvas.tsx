@@ -7,14 +7,17 @@ import {
   hasPath,
   hasSize,
 } from '../../domain/plan/elementGuards';
+import { boundsContain, elementBounds, padBounds } from '../../domain/plan/elementBounds';
 import {
   ActorElement,
+  ArrowElement,
   CableElement,
   CameraElement,
   DoorElement,
   ElementPatch,
   FloorPlanElement,
   LightElement,
+  MeasurementElement,
   RoadElement,
   PlanLayer,
   PropElement,
@@ -22,13 +25,14 @@ import {
   Shot,
   StrokeElement,
   StrokePoint,
+  TextElement,
   TrackElement,
   Vector2D,
   WallElement,
   Waypoint,
   WindowElement,
 } from '../../types';
-import { boundsCenterOfPoints, boundsHalfExtentsOfPoints, findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
+import { boundsCenterOfPoints, findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
 import { ASPECT_RATIOS, CABLE_TYPES } from '../../constants/presets';
 import { boardedFrames, keyFrame, keyFrameImage, setFramePatch, START_SLOT } from '../../utils/storyboardFrames';
 import { ActorElementView } from './ActorElementView';
@@ -142,7 +146,6 @@ export const FloorPlanCanvas: React.FC = () => {
     undo,
     redo,
     setTool,
-    setCanvasScale,
     setCanvasOffset,
     setCanvasTransform,
     zoomIn,
@@ -233,43 +236,9 @@ export const FloorPlanCanvas: React.FC = () => {
     for (let i = elements.length - 1; i >= 0; i--) {
       const el = elements[i];
       if (isElementHidden(el)) continue;
-      const anyEl = el as any;
-      let minX: number, minY: number, maxX: number, maxY: number;
-      if (typeof anyEl.x2 === 'number') {
-        minX = Math.min(el.x, anyEl.x2) - pad;
-        minY = Math.min(el.y, anyEl.y2) - pad;
-        maxX = Math.max(el.x, anyEl.x2) + pad;
-        maxY = Math.max(el.y, anyEl.y2) + pad;
-      } else if (Array.isArray(anyEl.points) && anyEl.points.length > 0) {
-        // Freehand strokes: bounds span their sampled vertices.
-        minX = Infinity;
-        minY = Infinity;
-        maxX = -Infinity;
-        maxY = -Infinity;
-        for (const point of anyEl.points as StrokePoint[]) {
-          minX = Math.min(minX, point.x);
-          minY = Math.min(minY, point.y);
-          maxX = Math.max(maxX, point.x);
-          maxY = Math.max(maxY, point.y);
-        }
-        minX -= pad;
-        minY -= pad;
-        maxX += pad;
-        maxY += pad;
-      } else if (typeof anyEl.width === 'number' || typeof anyEl.height === 'number') {
-        const w = anyEl.width ?? 40;
-        const h = anyEl.height ?? 40;
-        minX = el.x - w / 2 - pad;
-        minY = el.y - h / 2 - pad;
-        maxX = el.x + w / 2 + pad;
-        maxY = el.y + h / 2 + pad;
-      } else {
-        minX = el.x - pad;
-        minY = el.y - pad;
-        maxX = el.x + pad;
-        maxY = el.y + pad;
-      }
-      if (pos.x >= minX && pos.x <= maxX && pos.y >= minY && pos.y <= maxY) return el;
+      // Body only: a camera's routed move is not part of what you right-click.
+      const box = elementBounds(el, { markerHalfExtent: 20 });
+      if (box && boundsContain(padBounds(box, pad), pos.x, pos.y)) return el;
     }
     return null;
   }, [activeSetup.elements, isElementHidden]);
@@ -676,9 +645,9 @@ export const FloorPlanCanvas: React.FC = () => {
     },
     [selectedShotId, activeSetup.shots],
   );
-  const measurements = ofType('measurement');
-  const arrows = ofType('arrow');
-  const texts = ofType('text');
+  const measurements = ofType<MeasurementElement>('measurement');
+  const arrows = ofType<ArrowElement>('arrow');
+  const texts = ofType<TextElement>('text');
   const cables = ofType<CableElement>('cable');
   const strokes = ofType<StrokeElement>('stroke');
 
@@ -947,7 +916,7 @@ export const FloorPlanCanvas: React.FC = () => {
           ...(device
             ? { toElementId: device.id, toLabel: deviceLabelOf(device) }
             : { toElementId: undefined }),
-        } as any);
+        });
       }
     }
     setConnectedCableStart(null);
@@ -1152,7 +1121,7 @@ export const FloorPlanCanvas: React.FC = () => {
         y: drawPos.y,
         x2: drawPos.x,
         y2: drawPos.y,
-      } as any);
+      });
 
       setDragState({
         type: 'draw_measure',
@@ -1177,7 +1146,7 @@ export const FloorPlanCanvas: React.FC = () => {
         strokeWidth: 2.5,
         headStyle: 'single',
         dashStyle: 'solid',
-      } as any);
+      });
 
       setDragState({
         type: 'draw_arrow',
@@ -1209,7 +1178,7 @@ export const FloorPlanCanvas: React.FC = () => {
           ...(startDevice
             ? { fromElementId: startDevice.id, fromLabel: deviceLabelOf(startDevice) }
             : {}),
-        } as any);
+        });
 
         setDragState({
           type: 'draw_cable',
@@ -1270,7 +1239,7 @@ export const FloorPlanCanvas: React.FC = () => {
         strokeWidth: 4,
         strokeColor: '#38bdf8',
         filled: false,
-      } as any);
+      });
 
       const startElementsMap = new Map<string, FloorPlanElement>();
       const createdLine: ShapeElement = {
@@ -2298,7 +2267,7 @@ export const FloorPlanCanvas: React.FC = () => {
           y: orig.y + worldShiftY,
           width: Math.round(newW),
           height: Math.round(newH),
-        } as any,
+        },
         false
       );
       return;
@@ -2403,7 +2372,7 @@ export const FloorPlanCanvas: React.FC = () => {
             ...(startDevice
               ? { fromElementId: startDevice.id, fromLabel: deviceLabelOf(startDevice) }
               : { fromElementId: undefined }),
-          } as any, false);
+          }, false);
         }
         if (length < 5) {
           // Just a click, not a drag: give the first segment a sensible default
@@ -2803,7 +2772,7 @@ export const FloorPlanCanvas: React.FC = () => {
         const hit = findElementAtPoint(screenToCanvas(e.clientX, e.clientY));
         setContextMenu({ x: e.clientX, y: e.clientY, elementId: hit?.id ?? null });
       }}
-      onDoubleClick={(e) => {
+      onDoubleClick={() => {
         finishConnectedWalls();
         finishConnectedCable();
       }}
@@ -2872,9 +2841,9 @@ export const FloorPlanCanvas: React.FC = () => {
           <PropsLayer
             propsList={propsList}
             tracks={tracks}
-            measurements={measurements as any}
-            arrows={arrows as any}
-            texts={texts as any}
+            measurements={measurements}
+            arrows={arrows}
+            texts={texts}
             selectedIds={selectedElementIds}
             onSelect={handleElementSelect}
             onDoubleClick={handleElementDoubleClick}

@@ -1,3 +1,4 @@
+import { describeSceneUsage, isMasterEquipmentItem } from '../domain/equipment';
 import { SceneSetup } from '../types';
 import {
   deriveAllScenesEquipment,
@@ -63,8 +64,7 @@ export const exportEquipmentToCsv = (
   // Data rows
   items.forEach((item) => {
     const meta = getCategoryMeta(item.category);
-    const isMaster = 'usedInSetups' in item;
-    const masterItem = isMaster ? (item as any) : null;
+    const masterItem = isMasterEquipmentItem(item) ? item : null;
 
     const row = [
       meta.label,
@@ -77,9 +77,7 @@ export const exportEquipmentToCsv = (
       item.isCustom ? 'Custom Item' : 'Canvas Element',
       ...(isAll && masterItem
         ? [
-            masterItem.usedInSetups
-              .map((s: any) => (s.sceneNumber ? `Scene ${s.sceneNumber} (x${s.quantity})` : `${s.name} (x${s.quantity})`))
-              .join('; '),
+            describeSceneUsage(masterItem, { times: 'x' }).join('; '),
             String(masterItem.maxConcurrentQuantity),
           ]
         : [activeSetup.sceneNumber || '1', activeSetup.name]),

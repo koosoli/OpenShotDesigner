@@ -79,3 +79,32 @@ export interface BreakdownItem {
   sourceScriptLineIds?: string[];
   sourceRanges?: BreakdownSourceRange[];
 }
+
+/**
+ * A selection on the script page, as both the panel and the lined page read it.
+ *
+ * Two kinds of selection reach the page and they are one type on purpose:
+ * clicking lines selects whole lines, dragging across text selects part of the
+ * first and last. `partial` says which, and `startOffset`/`endOffset` mean
+ * nothing unless it is true.
+ *
+ * It was previously declared on the lined page as `{ from, to }` while the
+ * panel passed four more fields, so the page read them back through
+ * `(selection as any).partial`. That compiles after any of them is renamed:
+ * `partial` silently becomes `undefined`, the page stops drawing a partial
+ * highlight, and the selection just looks like it did not take.
+ */
+export interface ScriptSelectionRange {
+  /** Index of the first line the selection touches. */
+  from: number;
+  /** Index of the last line the selection touches, inclusive. */
+  to: number;
+  /** True when the selection covers part of a line rather than whole lines. */
+  partial: boolean;
+  /** Character offset into `from`'s text. Only meaningful when `partial`. */
+  startOffset?: number;
+  /** Character offset into `to`'s text. Only meaningful when `partial`. */
+  endOffset?: number;
+  /** The selected text itself, when the selection came from a text drag. */
+  text?: string;
+}

@@ -35,10 +35,9 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { waitForImages } from '../../utils/image';
-import { CameraElement, EquipmentCategory, EquipmentItem, EquipmentPackageItem, LightElement, MasterEquipmentItem } from '../../types';
+import { CameraElement, EquipmentCategory, EquipmentItem, LightElement, MasterEquipmentItem } from '../../types';
 import {
   CAMERA_PACKAGE_PRESETS,
-  DEPARTMENT_BRANDS_CATALOG,
   EQUIPMENT_CATEGORIES,
   EquipmentPreset,
   QUICK_EQUIPMENT_PRESETS,
@@ -50,7 +49,7 @@ import {
 } from '../../utils/equipmentList';
 import { exportEquipmentToCsv } from '../../utils/exportEquipmentCsv';
 import { computePowerSummary } from '../../utils/powerPlanning';
-import { autoPatchFixtures, collectFixturePatches, dmxChannelsForFixture, findConflicts, fixtureLabel, sortedPatchRows } from '../../utils/dmxPatch';
+import { autoPatchFixtures, collectFixturePatches, findConflicts, sortedPatchRows } from '../../utils/dmxPatch';
 import { DmxPatchPrintView } from '../reports/DmxPatchPrintView';
 import { DmxUniverseView } from './DmxUniverseView';
 import { SignalFlowView } from './SignalFlowView';
@@ -250,13 +249,13 @@ export const EquipmentPanel: React.FC = () => {
       updateElement(light.id, {
         dmxUniverse: assigned[i].universe,
         dmxAddress: assigned[i].address,
-      } as any);
+      });
     });
   };
 
   const handleClearDmx = () => {
     fixtureElements.forEach((light) => {
-      updateElement(light.id, { dmxUniverse: undefined, dmxAddress: undefined } as any);
+      updateElement(light.id, { dmxUniverse: undefined, dmxAddress: undefined });
     });
   };
 
