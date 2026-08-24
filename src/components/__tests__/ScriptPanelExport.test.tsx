@@ -150,19 +150,8 @@ describe('the Fountain export', () => {
   });
 });
 
-/**
- * NOT COVERED: the AV-script CSV export.
- *
- * It is the second of this panel's two downloads and the second Firefox bug
- * site, so it deserves the same guard the Fountain export just got. Rendering
- * the panel with `scriptFormatMode: 'av_script'` does not produce its export
- * button under this harness, and the reason was not worth the time it was
- * costing to find — the AV tab needs more of the real provider than the stub
- * gives it.
- *
- * The fix itself is structural and shared: the export calls `downloadCsv`,
- * which `utils/__tests__/download.test.ts` covers for anchor attachment,
- * filename safety and the byte-order mark. What is missing is only the proof
- * that THIS button reaches it. Worth closing with `renderPanel` (the real
- * provider) rather than this stub.
- */
+// The AV-script CSV export — this panel's other download, and the other
+// Firefox site — is covered in `ScriptPanelAVExport.test.tsx`. It needs the
+// real provider rather than this stub: its tab only exists when
+// `scriptFormatMode` is written to the project, which is real state, not a
+// prop this harness can hand over.

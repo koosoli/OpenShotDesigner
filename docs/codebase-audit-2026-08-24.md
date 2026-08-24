@@ -13,7 +13,7 @@ of this one.
 
 | | Start of pass | End of pass |
 | --- | --- | --- |
-| Tests | 1,579 across 115 files | **1,864 across 135 files** |
+| Tests | 1,579 across 115 files | **1,869 across 136 files** |
 | Lint | 0 errors, 111 warnings, budget 111 | **0 errors, 0 warnings, budget 0** |
 | `any` in `src/` | 96 | **0** |
 | Schema | v24 | v24 (unchanged; every field added is absent-safe) |
@@ -442,17 +442,26 @@ production exported as `Budget_.csv`.
 Note the guard: jsdom DEFINES the property and leaves it undefined, so an
 `in` check passes and the call still throws — it has to test for a function.
 
-### Two gaps left open on purpose
+### The AV export, closed with the right harness
 
-Both are recorded rather than papered over:
+Left open at first because its button would not render under the stub, this is
+now covered by `ScriptPanelAVExport.test.tsx` using `renderPanel` — the real
+provider. The diagnosis held: `scriptFormatMode` is project state, so the AV
+tab only exists once it has been written and the panel's own effect has
+followed. No stub could hand that over as a prop.
 
-- **The AV-script CSV export.** The second of `ScriptPanel`'s two downloads and
-  the second Firefox site. Rendering with `scriptFormatMode: 'av_script'` does
-  not produce its button under the stub harness; the AV tab needs more of the
-  real provider. Worth closing with `renderPanel`.
-- **`ContactsPanel`'s editing flow.** Draft, save and delete. This pass was
-  about the download path, and a test written against a guess at the save
-  mechanics would be worse than none.
+That makes it an integration test rather than a unit one, and slower. That is
+the honest price of covering a tab whose existence depends on persisted state,
+and it is worth paying for one of the three Firefox sites.
+
+Mutation-tested: detaching the anchor and reverting the sanitiser each turn one
+case red.
+
+### One gap left open on purpose
+
+**`ContactsPanel`'s editing flow** — draft, save and delete. This pass was about
+the download path, and a test written against a guess at the save mechanics
+would be worse than none.
 
 ---
 
