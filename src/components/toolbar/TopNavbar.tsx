@@ -724,6 +724,24 @@ export const TopNavbar: React.FC = () => {
           className="hidden"
         />
 
+        {/* Live shot tracker on desktop: the overflow menu that carries it on
+            phones only renders when compact, so without this the one button
+            that must be findable mid-shoot was unreachable on a laptop. */}
+        {!isCompact && (
+          <button
+            onClick={() => setIsOnSetMode(true)}
+            title="Live shot tracker — on-set mode (plan §35)"
+            aria-label="Open live shot tracker"
+            className={`p-2 rounded-lg border transition-colors ${
+              isLight
+                ? 'bg-slate-100 text-emerald-600 hover:bg-slate-200 border-slate-300'
+                : 'bg-slate-800/80 text-emerald-400 hover:bg-slate-700 border-slate-700'
+            }`}
+          >
+            <Clapperboard className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Overflow menu for narrow screens */}
         {isCompact && (
           <div className="relative">

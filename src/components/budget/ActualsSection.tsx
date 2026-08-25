@@ -6,8 +6,10 @@ import {
   actualsVariance,
   formatMoney,
   sumActuals,
+  varianceByEntry,
   type BudgetActual,
   type BudgetCategory,
+  type BudgetEntry,
   type ProjectBudget,
 } from '../../domain/budget';
 
@@ -25,6 +27,11 @@ export interface ActualsSectionProps {
   currency: string;
   /** The derived net total, when the budget has enough to produce one. */
   estimatedNet?: number;
+  /**
+   * The estimate's own lines, so a spend can be attached to the line it
+   * belongs to — "Alex wants more money" becomes a variance on his row.
+   */
+  entries?: BudgetEntry[];
   isLight: boolean;
 }
 
@@ -33,6 +40,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
   onPatch,
   currency,
   estimatedNet,
+  entries,
   isLight,
 }) => {
   const actuals = budget.actuals ?? [];
@@ -63,6 +71,15 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
 
   const variance = actualsVariance(actuals, estimatedNet);
   const total = sumActuals(actuals);
+  const lineVariances = entries ? varianceByEntry(actuals, entries) : [];
+
+  /** Options for "attach to": the estimate's lines, newest first. */
+  const entryOptions = (entries ?? []).slice().reverse();
+  const attachLabel = (entryId: string | undefined): string => {
+    if (!entryId) return 'Not attached';
+    const found = (entries ?? []).find((entry) => entry.id === entryId);
+    return found ? found.label : entryId;
+  };
 
   return (
     <section className={cardCls}>
@@ -80,10 +97,8 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
 
       <div className="space-y-1.5">
         {actuals.map((entry) => (
-          <div
-            key={entry.id}
-            className="grid grid-cols-[auto_minmax(0,1fr)_auto_1fr_auto] gap-1.5 items-center"
-          >
+          <div key={entry.id} className="space-y-1">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_1fr_auto] gap-1.5 items-center">
             <select
               value={entry.category}
               aria-label={`Category for ${entry.label}`}
@@ -159,8 +174,55 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
-        ))}
+          {/* Which estimated line this spend belongs to — the field that
+              turns "Alex wants more" into a number on Alex's row. */}
+          <select
+            value={entry.entryId ?? ''}
+            aria-label={`Attach ${entry.label} to an estimated line`}
+            onChange={(e) =>
+              patchActuals(
+                actuals.map((existing) =>
+                  existing.id === entry.id
+                    ? { ...existing, entryId: e.target.value || undefined }
+                    : existing,
+                ),
+              )
+            }
+            className={`${inputCls} !w-auto max-w-full`}
+          >
+            <option value="">Not attached to a line</option>
+            {entryOptions.map((estimate) => (
+              <option key={estimate.id} value={estimate.id}>
+                {estimate.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
       </div>
+
+      {/* Per-line variance: only lines with an attachment can speak here.
+          "Alex wants more money" is a number on Alex's row, not a mood. */}
+      {lineVariances.length > 0 && (
+        <div className={`mt-2 pt-2 border-t space-y-0.5 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className={`text-[10px] font-black uppercase tracking-wider ${labelCls}`}>By line</div>
+          {lineVariances.map((row) => (
+            <div key={row.entryId} className="flex items-center justify-between gap-3 text-[11px]">
+              <span className="truncate">{attachLabel(row.entryId)}</span>
+              <span className={`font-mono font-semibold flex-shrink-0 ${
+                row.over > 0 ? 'text-amber-500' : row.over < 0 ? 'text-emerald-500' : ''
+              }`}>
+                {formatMoney(row.spent, currency)}
+                {' / '}
+                {row.estimate === null ? '—' : formatMoney(row.estimate, currency)}
+                {row.estimate !== null && row.over !== 0 && (
+                  <> ({row.over > 0 ? '+' : ''}{formatMoney(row.over, currency)})</>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Add row — committed only when it has a label and an amount, so an
           abandoned half-row never becomes junk in saved projects. */}

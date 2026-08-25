@@ -104,4 +104,12 @@ export interface BudgetActual {
   /** ISO date it was paid, when known. */
   date?: string;
   note?: string;
+  /**
+   * The estimated line this spend belongs to, as `deriveBudget` writes entry
+   * ids: `person:<id>`, `line:<id>`, `equipment:<key>`. Optional — unattached
+   * actuals still count in the total, they just have no line to differ from.
+   * This is the field that makes "Alex wants more money" answerable: attach
+   * the extra to his entry and the variance shows on his row alone.
+   */
+  entryId?: string;
 }

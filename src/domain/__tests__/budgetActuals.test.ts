@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actualsByCategory, actualsVariance, sumActuals } from '../budget/actuals';
+import { actualsByCategory, actualsVariance, sumActuals, varianceByEntry } from '../budget/actuals';
 import type { BudgetActual } from '../budget/types';
 
 const entry = (partial: Partial<BudgetActual>): BudgetActual => ({
@@ -51,6 +51,46 @@ describe('actualsVariance', () => {
   it('rounds away float dust', () => {
     expect(actualsVariance([entry({ amount: 0.1 }), entry({ amount: 0.2 })], 0.3)).toEqual({
       over: 0,
+    });
+  });
+});
+
+describe('varianceByEntry', () => {
+  const lines = [
+    { id: 'person:alex', label: 'Alex Lead', net: 400 },
+    { id: 'line:loc', label: 'Location fee', net: 500 },
+  ];
+
+  it('is empty before anything is logged', () => {
+    expect(varianceByEntry([], lines)).toEqual([]);
+  });
+
+  it('shows spent against estimate for the attached line only', () => {
+    const rows = varianceByEntry(
+      [entry({ amount: 450, entryId: 'person:alex' })],
+      lines,
+    );
+    expect(rows).toHaveLength(2);
+    const alex = rows.find((row) => row.entryId === 'person:alex');
+    expect(alex).toMatchObject({ estimate: 400, spent: 450, over: 50 });
+    // The location fee has an estimate and no spend yet — zero spent, not
+    // absent, because "nothing logged" on a known line is the AD's gap list.
+    expect(rows.find((row) => row.entryId === 'line:loc')).toMatchObject({
+      estimate: 500,
+      spent: 0,
+      over: -500,
+    });
+  });
+
+  it('keeps spend whose line has since been deleted, estimate unknown', () => {
+    const rows = varianceByEntry(
+      [entry({ amount: 120, entryId: 'person:gone' })],
+      [{ id: 'line:loc', label: 'Location fee', net: 500 }],
+    );
+    expect(rows.find((row) => row.entryId === 'person:gone')).toMatchObject({
+      estimate: null,
+      spent: 120,
+      over: 120,
     });
   });
 });

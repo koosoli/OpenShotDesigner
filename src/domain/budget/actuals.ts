@@ -19,6 +19,67 @@ import type { BudgetActual, BudgetCategory } from './types';
 export const sumActuals = (actuals: readonly BudgetActual[]): number =>
   actuals.reduce((sum, entry) => sum + entry.amount, 0);
 
+/** The slice of a derived budget this comparison needs. */
+export interface EstimatedLine {
+  id: string;
+  label: string;
+  net: number;
+}
+
+/**
+ * Per-line variance: every target that has an estimate OR at least one
+ * attached actual, with spent summed across its actuals.
+ *
+ * A line with an estimate and no spend shows zero spent — that silence IS
+ * information once a ledger exists ("nobody logged the location fee").
+ * Before any ledger exists the whole table stays empty; see the module note.
+ */
+export const varianceByEntry = (
+  actuals: readonly BudgetActual[],
+  estimatedLines: readonly EstimatedLine[],
+): Array<{ entryId: string; label: string; estimate: number | null; spent: number; over: number }> => {
+  // No ledger, no comparison. Rows of "0 against 400" for every line would
+  // be noise pretending to be information; the section above already says
+  // nothing has been logged.
+  if (actuals.length === 0) return [];
+  const spentByEntry = new Map<string, number>();
+  for (const actual of actuals) {
+    if (!actual.entryId) continue;
+    spentByEntry.set(actual.entryId, (spentByEntry.get(actual.entryId) ?? 0) + actual.amount);
+  }
+
+  const rows: Array<{
+    entryId: string;
+    label: string;
+    estimate: number | null;
+    spent: number;
+    over: number;
+  }> = [];
+  const seen = new Set<string>();
+
+  for (const line of estimatedLines) {
+    const spent = spentByEntry.get(line.id);
+    seen.add(line.id);
+    rows.push({
+      entryId: line.id,
+      label: line.label,
+      estimate: Number.isFinite(line.net) ? line.net : null,
+      spent: spent ?? 0,
+      over: round2((spent ?? 0) - (Number.isFinite(line.net) ? line.net : 0)),
+    });
+  }
+
+  // Actuals attached to an id the current estimate no longer contains — the
+  // person left, the line was deleted. They still spent the money; the row
+  // stays, estimate unknown, so nothing silently vanishes from the wrap.
+  for (const [entryId, spent] of spentByEntry) {
+    if (seen.has(entryId)) continue;
+    rows.push({ entryId, label: entryId, estimate: null, spent, over: round2(spent) });
+  }
+
+  return rows;
+};
+
 /**
  * Totals per category, in `BUDGET_CATEGORIES` order where present, then any
  * category outside that order appended. A category with no actuals is absent

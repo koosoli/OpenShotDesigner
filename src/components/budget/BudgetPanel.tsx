@@ -399,6 +399,7 @@ export const BudgetPanel: React.FC = () => {
             onPatch={patchBudget}
             currency={currency}
             estimatedNet={summary.net}
+            entries={summary.entries}
             isLight={isLight}
           />
 
