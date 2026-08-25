@@ -458,6 +458,15 @@ Each domain owns:
 
 Do this gradually.
 
+**Growth freeze (2026-08-26).** Until the split below happens, no new action,
+derived value or state field may be added to `FloorPlanContext.tsx`. New
+actions are domain reducers over `(project) => project`, consumed where they
+are needed; new derived values live in `src/domain/` and are called from the
+component that renders them. The file had been growing with every feature —
+roughly two hundred lines in the days before this rule — and each addition
+made the eventual cut harder. The split still happens when a feature forces
+it, but only once the file has stopped growing first.
+
 Extract domain/service boundaries such as:
 
 ```text
