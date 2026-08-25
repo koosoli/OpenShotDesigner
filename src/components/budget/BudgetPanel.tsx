@@ -400,6 +400,7 @@ export const BudgetPanel: React.FC = () => {
             currency={currency}
             estimatedNet={summary.net}
             entries={summary.entries}
+            people={(project.people ?? []).map((p) => ({ id: p.id, displayName: p.displayName }))}
             categoryTotals={summary.categories}
             isLight={isLight}
           />
