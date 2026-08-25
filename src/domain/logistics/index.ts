@@ -1,5 +1,6 @@
 export type {
   LogisticsContainerKind,
+  LogisticsJourneyStage,
   LogisticsContainer,
   PackedItem,
   ContainerLoadResult,

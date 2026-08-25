@@ -21,6 +21,7 @@ import {
   resolveContainerAssignments,
   type LogisticsContainer,
   type LogisticsContainerKind,
+  type LogisticsJourneyStage,
   type PackableEquipment,
   type PackedItem,
 } from '../../domain/logistics';
@@ -36,6 +37,14 @@ const KIND_LABELS: Record<LogisticsContainerKind, string> = {
   pallet: 'Pallet',
   van: 'Van',
   truck: 'Truck',
+};
+
+const JOURNEY_STAGES: LogisticsJourneyStage[] = ['packed', 'loaded', 'delivered', 'returned'];
+const JOURNEY_LABELS: Record<LogisticsJourneyStage, string> = {
+  packed: 'Packed',
+  loaded: 'Loaded',
+  delivered: 'Delivered',
+  returned: 'Returned',
 };
 
 /**
@@ -643,9 +652,12 @@ export const LogisticsPanel: React.FC = () => {
             </button>
           </div>
 
-          {/* Routing — which shoot day it travels on and where it is going.
-              Both optional; blank inherits from the container it sits in. */}
-          <div className="grid grid-cols-2 gap-1.5">
+          {/* Routing — which shoot day it travels on, where it is going, and
+              where the container physically is right now. Day and destination
+              are optional; blank inherits from the container it sits in. The
+              journey mark is never inherited: it is made by someone looking
+              at this case. */}
+          <div className="grid grid-cols-3 gap-1.5">
             <label className="flex flex-col gap-0.5">
               <span className={`text-[10px] ${mutedText}`}>Shoot day</span>
               <select
@@ -682,6 +694,26 @@ export const LogisticsPanel: React.FC = () => {
                 {locations.map((location) => (
                   <option key={location.id} value={location.id}>
                     {location.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className={`text-[10px] ${mutedText}`}>Journey</span>
+              <select
+                value={container.journey ?? ''}
+                onChange={(e) =>
+                  updateContainer(container.id, {
+                    journey: (e.target.value || undefined) as LogisticsJourneyStage | undefined,
+                  })
+                }
+                aria-label={`Journey stage for ${container.name}`}
+                className={inputClass}
+              >
+                <option value="">Not marked</option>
+                {JOURNEY_STAGES.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {JOURNEY_LABELS[stage]}
                   </option>
                 ))}
               </select>

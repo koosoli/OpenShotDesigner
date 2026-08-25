@@ -9,6 +9,7 @@ import {
 import type { DailyProgressReport } from '../../domain/reports';
 import { formatDurationHours } from '../../domain/scheduling';
 import { keyCrewDisplayName } from '../../domain/people';
+import { resolveContainerAssignments } from '../../domain/logistics';
 import type { Project } from '../../types';
 
 /**
@@ -39,6 +40,17 @@ export interface DailyProgressPrintViewProps {
 
 const dash = (value: string | number | undefined): string =>
   value === undefined || value === '' ? '—' : String(value);
+
+const JOURNEY_LABELS: Record<string, string> = {
+  packed: 'Packed',
+  loaded: 'Loaded',
+  delivered: 'Delivered',
+  returned: 'Returned',
+};
+
+/** The captain's mark in words; absence prints as its own fact. */
+const journeyLabel = (stage: string | undefined): string =>
+  (stage && JOURNEY_LABELS[stage]) || 'Not marked';
 
 export const DailyProgressPrintView: React.FC<DailyProgressPrintViewProps> = ({
   productionTitle,
@@ -262,6 +274,33 @@ export const DailyProgressPrintView: React.FC<DailyProgressPrintViewProps> = ({
             </>
           )}
 
+          {report.gearMovement && report.gearMovement.length > 0 && (
+            <>
+              <h2 className="dpr-section">Gear movement</h2>
+              <table className="dpr-table">
+                <thead>
+                  <tr>
+                    <th>Container</th>
+                    <th>Kind</th>
+                    <th>Where it is</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.gearMovement.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.name}</td>
+                      <td>{row.kind}</td>
+                      {/* "Not marked" is the fact that gets a case found before
+                          the truck leaves; printing "Packed" for an unmarked
+                          case would be the lie that leaves it behind. */}
+                      <td>{journeyLabel(row.journey)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
           <footer className="dpr-footer">
             <p>
               Derived from the schedule and the continuity log. Correct a take and this sheet
@@ -299,7 +338,23 @@ export const buildDailyProgressPrintModel = (
   const report = dailyProgressReport(
     day,
     project.scheduleBlocks ?? [],
-    { setups: project.setups, scriptScenes: project.scriptScenes },
+    {
+      setups: project.setups,
+      scriptScenes: project.scriptScenes,
+      containersForDay: project.logisticsContainers?.length
+        ? (candidate) => {
+            const assignments = resolveContainerAssignments(project.logisticsContainers ?? []);
+            return (project.logisticsContainers ?? [])
+              .filter((container) => assignments.get(container.id)?.productionDayId === candidate.id)
+              .map((container) => ({
+                id: container.id,
+                name: container.name,
+                kind: container.kind,
+                journey: container.journey,
+              }));
+          }
+        : undefined,
+    },
     project.takes ?? [],
   );
 

@@ -35,6 +35,7 @@ import { dayChecklist } from '../continuity';
 import type { ChecklistShot, ChecklistSources } from '../continuity';
 import type { ProductionDay, ScheduleBlock } from '../scheduling';
 import { formatDurationHours, parseClockMinutes } from '../scheduling/clock';
+import type { LogisticsJourneyStage } from '../logistics';
 
 /** How a scene fared on the day. */
 export interface DailyProgressScene {
@@ -102,11 +103,40 @@ export interface DailyProgressReport {
   scheduleVarianceMinutes: number | null;
   /** Ready to print: "1h 20m behind", "on schedule", or undefined. */
   scheduleVarianceLabel?: string;
+
+  /**
+   * The containers routed to this day, with wherever the transport captain has
+   * marked them. Absent means nobody marked it — printed as "not marked",
+   * which is a different fact from "packed" and the one an AD actually needs
+   * when a case everyone assumed was on the truck is still in the warehouse.
+   * The whole section is absent when the caller supplies no containers at all.
+   */
+  gearMovement?: GearMovementRow[];
+}
+
+/** One container on the day's report. */
+export interface GearMovementRow {
+  id: string;
+  name: string;
+  kind: string;
+  journey?: LogisticsJourneyStage;
 }
 
 export interface DailyProgressSources extends ChecklistSources {
   /** Scenes, for their page lengths. Optional: a project may have no script. */
   scriptScenes?: Array<{ id: string; sceneNumber?: string; pageLengthEighths?: number }>;
+  /**
+   * Containers routed to a day, for the gear-movement section. Optional: a
+   * project may have no logistics module enabled, and a report without the
+   * section is honest where one with an empty list would claim the fleet was
+   * accounted for.
+   */
+  containersForDay?: (day: ProductionDay) => ReadonlyArray<{
+    id: string;
+    name: string;
+    kind: string;
+    journey?: LogisticsJourneyStage;
+  }>;
 }
 
 /**
@@ -352,6 +382,19 @@ export const dailyProgressReport = (
 
     scheduleVarianceMinutes: variance,
     ...(varianceLabel ? { scheduleVarianceLabel: varianceLabel } : {}),
+
+    ...(sources.containersForDay
+      ? {
+          gearMovement: sources
+            .containersForDay(day)
+            .map((container) => ({
+              id: container.id,
+              name: container.name,
+              kind: container.kind,
+              ...(container.journey ? { journey: container.journey } : {}),
+            })),
+        }
+      : {}),
   };
 };
 

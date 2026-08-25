@@ -325,3 +325,41 @@ describe('formatting helpers', () => {
     expect(plannedDayMinutes({ ...DAY, plannedWrap: 'TBC' })).toBeNull();
   });
 });
+
+describe('dailyProgressReport — gear movement', () => {
+  it('omits the section entirely when the caller supplies no containers', () => {
+    const report = dailyProgressReport(DAY, BLOCKS, SOURCES, [], {});
+    expect('gearMovement' in report).toBe(false);
+  });
+
+  it('reports the day’s routed containers with their marks', () => {
+    const sources: DailyProgressSources = {
+      ...SOURCES,
+      containersForDay: () => [
+        { id: 'c1', name: 'Grip truck', kind: 'truck', journey: 'delivered' },
+        { id: 'c2', name: 'Media case', kind: 'case' },
+      ],
+    };
+    const report = dailyProgressReport(DAY, BLOCKS, sources, [], {});
+    expect(report.gearMovement).toEqual([
+      { id: 'c1', name: 'Grip truck', kind: 'truck', journey: 'delivered' },
+      // An unmarked case stays unmarked — the row an AD needs to see.
+      { id: 'c2', name: 'Media case', kind: 'case' },
+    ]);
+  });
+
+  it('asks about the day it was given, not another day', () => {
+    const asked: string[] = [];
+    const otherDay: ProductionDay = { ...DAY, id: 'day2', name: 'Day 2' };
+    const sources: DailyProgressSources = {
+      ...SOURCES,
+      containersForDay: (day) => {
+        asked.push(day.id);
+        return [{ id: 'c9', name: 'Late case', kind: 'cart' }];
+      },
+    };
+    const report = dailyProgressReport(otherDay, BLOCKS, sources, [], {});
+    expect(asked).toEqual(['day2']);
+    expect(report.productionDayId).toBe('day2');
+  });
+});

@@ -7,6 +7,19 @@
 
 export type LogisticsContainerKind = 'case' | 'rack' | 'cart' | 'pallet' | 'van' | 'truck';
 
+/**
+ * Where a container is on its journey, as the transport captain marks it:
+ * packed at the warehouse, loaded on the vehicle, delivered on set, returned
+ * to the warehouse after wrap.
+ *
+ * The stages are a cycle across days — yesterday's "returned" is tomorrow's
+ * "packed" again once the case is refilled — so there is no implicit ordering
+ * here beyond the label, and nothing derives one stage from another. Absent
+ * means nobody has marked it, which is a different thing from "packed": a
+ * report that assumed packed would hide exactly the case everyone forgot.
+ */
+export type LogisticsJourneyStage = 'packed' | 'loaded' | 'delivered' | 'returned';
+
 export interface LogisticsContainer {
   id: string;
   kind: LogisticsContainerKind;
@@ -37,6 +50,15 @@ export interface LogisticsContainer {
    * way.
    */
   locationId?: string;
+  /**
+   * The transport captain's mark of where this container physically is.
+   * Optional and absent-safe: a project saved before this field existed has
+   * simply never been marked, which reads as "not marked" rather than as any
+   * particular stage. NOT inherited from the parent container — two cases in
+   * one truck can be marked at different times, and the whole value of the
+   * mark is that it was made by someone looking at that case.
+   */
+  journey?: LogisticsJourneyStage;
 }
 
 export interface PackedItem {
