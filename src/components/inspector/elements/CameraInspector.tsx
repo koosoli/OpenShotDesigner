@@ -232,10 +232,10 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
             icon={<Eye className="w-3.5 h-3.5 text-indigo-500" />}
             badge={
               <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500 font-bold">
-                {cam.focalLength}mm · {cam.fovAngle}°
+                {cam.focalLength}mm
               </span>
             }
-            defaultOpen={true}
+            defaultOpen={false}
             isLight={isLight}
           >
             {/* Lens Focal Length */}
@@ -452,7 +452,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
               <RubricSection
                 title="Waypoints & Storyboard"
                 icon={<Compass className="w-3.5 h-3.5 text-emerald-500" />}
-                defaultOpen={true}
+                defaultOpen={false}
                 isLight={isLight}
                 headerRight={
                   <button

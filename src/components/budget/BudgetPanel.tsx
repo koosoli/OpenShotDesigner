@@ -400,6 +400,7 @@ export const BudgetPanel: React.FC = () => {
             currency={currency}
             estimatedNet={summary.net}
             entries={summary.entries}
+            categoryTotals={summary.categories}
             isLight={isLight}
           />
 

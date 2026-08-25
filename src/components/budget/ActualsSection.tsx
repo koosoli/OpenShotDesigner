@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { createId } from '../../domain/ids';
-import {
-  BUDGET_CATEGORIES,
+import { actualsByCategory, BUDGET_CATEGORIES,
   actualsVariance,
   formatMoney,
   sumActuals,
@@ -32,6 +31,10 @@ export interface ActualsSectionProps {
    * belongs to — "Alex wants more money" becomes a variance on his row.
    */
   entries?: BudgetEntry[];
+  /** Cast and crew by name, attachable even before anyone priced them. */
+  people?: Array<{ id: string; displayName: string }>;
+  /** The estimate rolled up per category — the cost report's left column. */
+  categoryTotals?: Array<{ category: import('../../domain/budget').BudgetCategory; label: string; net: number }>;
   isLight: boolean;
 }
 
@@ -41,6 +44,8 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
   currency,
   estimatedNet,
   entries,
+  people,
+  categoryTotals,
   isLight,
 }) => {
   const actuals = budget.actuals ?? [];
@@ -73,13 +78,51 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
   const total = sumActuals(actuals);
   const lineVariances = entries ? varianceByEntry(actuals, entries) : [];
 
-  /** Options for "attach to": the estimate's lines, newest first. */
-  const entryOptions = (entries ?? []).slice().reverse();
+  // The cost report's top sheet: one row per category the production has an
+  // estimate or a receipt for — Estimate | Actual | Difference, the three
+  // columns every film budgeting tool prints (Movie Magic calls it the
+  // comparison; the numbers here are net like everything else on this panel).
+  const spentByCategory = new Map(actualsByCategory(actuals).map((row) => [row.category, row.total] as const));
+  const categorySheet = (() => {
+    if (actuals.length === 0) return [];
+    const labels = new Map((categoryTotals ?? []).map((row) => [row.category, row.label] as const));
+    const order: import('../../domain/budget').BudgetCategory[] = [];
+    for (const row of categoryTotals ?? []) order.push(row.category);
+    for (const row of actualsByCategory(actuals)) if (!order.includes(row.category)) order.push(row.category);
+    return order.map((category) => {
+      const estimate = (categoryTotals ?? []).find((row) => row.category === category)?.net ?? null;
+      const spent = spentByCategory.get(category) ?? 0;
+      return {
+        category,
+        label: labels.get(category) ?? category,
+        estimate,
+        spent,
+        over: estimate === null ? null : Math.round((spent - estimate) * 100) / 100,
+      };
+    });
+  })();
+
+  /** Options for "attach to": every person BY NAME (priced or not — the
+      whole point is correcting Alex's number before a rate exists), then the
+      estimate's other lines. Person options write `person:<id>` directly, so
+      the variance table finds them whether or not deriveBudget prices them
+      yet; an unpriced target simply shows an unknown estimate. */
+  const personOptions = (people ?? []).slice().sort((a, b) => a.displayName.localeCompare(b.displayName));
+  const entryOptions = (entries ?? [])
+    .slice()
+    .reverse()
+    .filter((entry) => !entry.id.startsWith('person:'));
   const attachLabel = (entryId: string | undefined): string => {
     if (!entryId) return 'Not attached';
+    const person = personOptions.find((candidate) => `person:${candidate.id}` === entryId);
+    if (person) return person.displayName;
     const found = (entries ?? []).find((entry) => entry.id === entryId);
     return found ? found.label : entryId;
   };
+  const attachValueOf = (entryId: string | undefined): string =>
+    entryId && personOptions.some((candidate) => `person:${candidate.id}` === entryId)
+      ? entryId
+      : entryId ?? '';
 
   return (
     <section className={cardCls}>
@@ -190,18 +233,78 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
             }
             className={`${inputCls} !w-auto max-w-full`}
           >
-            <option value="">Not attached to a line</option>
-            {entryOptions.map((estimate) => (
-              <option key={estimate.id} value={estimate.id}>
-                {estimate.label}
-              </option>
-            ))}
+            <option value="">Not attached</option>
+            {personOptions.length > 0 && (
+              <optgroup label="Cast & crew">
+                {personOptions.map((person) => (
+                  <option key={person.id} value={`person:${person.id}`}>
+                    {person.displayName}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {entryOptions.length > 0 && (
+              <optgroup label="Other estimate lines">
+                {entryOptions.map((estimate) => (
+                  <option key={estimate.id} value={estimate.id}>
+                    {estimate.label}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
       ))}
       </div>
 
-      {/* Per-line variance: only lines with an attachment can speak here.
+      {actuals.length > 0 && (
+        <div className={`mt-2 pt-2 border-t space-y-1 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className={`text-[10px] font-black uppercase tracking-wider ${labelCls}`}>
+            Cost report — estimate vs actual, per category
+          </div>
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className={labelCls}>
+                <th className="text-left font-bold">Category</th>
+                <th className="text-right font-bold">Estimate</th>
+                <th className="text-right font-bold">Actual</th>
+                <th className="text-right font-bold">Diff</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categorySheet.map((row) => (
+                <tr key={row.category}>
+                  <td className="truncate">{row.label}</td>
+                  <td className="text-right font-mono">{row.estimate === null ? '—' : formatMoney(row.estimate, currency)}</td>
+                  <td className="text-right font-mono">{formatMoney(row.spent, currency)}</td>
+                  <td className={`text-right font-mono font-semibold ${
+                    row.over === null ? '' : row.over > 0 ? 'text-amber-500' : row.over < 0 ? 'text-emerald-500' : ''
+                  }`}>
+                    {row.estimate === null
+                      ? '—'
+                      : `${row.over! > 0 ? '+' : row.over! < 0 ? '−' : ''}${formatMoney(Math.abs(row.over!), currency)}`}
+                  </td>
+                </tr>
+              ))}
+              {estimatedNet !== undefined && (
+                <tr className={`border-t ${isLight ? 'border-slate-200' : 'border-slate-800'} font-bold`}>
+                  <td>Total</td>
+                  <td className="text-right font-mono">{formatMoney(estimatedNet, currency)}</td>
+                  <td className="text-right font-mono">{formatMoney(total, currency)}</td>
+                  {variance && (
+                    <td className={`text-right font-mono ${variance.over > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                      {variance.over > 0 ? '+' : variance.over < 0 ? '−' : ''}
+                      {formatMoney(Math.abs(variance.over), currency)}
+                    </td>
+                  )}
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Line detail: only lines with an attachment can speak here.
           "Alex wants more money" is a number on Alex's row, not a mood. */}
       {lineVariances.length > 0 && (
         <div className={`mt-2 pt-2 border-t space-y-0.5 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
