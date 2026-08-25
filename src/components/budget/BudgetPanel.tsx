@@ -18,6 +18,7 @@ import {
 import type { Person } from '../../domain/people';
 import type { BudgetCategory, BudgetEntry, BudgetLine, EquipmentRate, ProjectBudget, RateBasis, RateCard } from '../../domain/budget';
 import { RateCardFields, VatSelect } from './RateCardFields';
+import { ActualsSection } from './ActualsSection';
 import { useProductionNeeds } from './useProductionNeeds';
 import { DayNeedsView } from './DayNeedsView';
 import { downloadCsv, safeFileName } from '../../utils/download';
@@ -390,6 +391,16 @@ export const BudgetPanel: React.FC = () => {
               ))}
             </div>
           </section>
+
+          {/* Actuals: money that left the account, logged as it is paid.
+              The one section here that records rather than derives. */}
+          <ActualsSection
+            budget={budget}
+            onPatch={patchBudget}
+            currency={currency}
+            estimatedNet={summary.net}
+            isLight={isLight}
+          />
 
           {(unpricedPeople.length > 0 || unpricedEquipment.length > 0) && (
             <section className={`rounded-xl border p-3 ${isLight ? 'border-amber-200 bg-amber-50' : 'border-amber-900/60 bg-amber-950/20'}`}>

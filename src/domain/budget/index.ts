@@ -1,4 +1,5 @@
 export type {
+  BudgetActual,
   BudgetCategory,
   BudgetLine,
   BudgetSettings,
@@ -7,6 +8,7 @@ export type {
   RateBasis,
   RateCard,
 } from './types';
+export { actualsByCategory, actualsVariance, sumActuals } from './actuals';
 export {
   BUDGET_CATEGORIES,
   DEFAULT_BUDGET_SETTINGS,

@@ -82,4 +82,26 @@ export interface ProjectBudget {
   settings: BudgetSettings;
   lines: BudgetLine[];
   equipmentRates: EquipmentRate[];
+  /**
+   * What was actually spent, entered as it is paid. The estimate side of this
+   * panel is derived (rule 37); actuals are the one thing that cannot be —
+   * the receipt is a fact about the world, not about the project. Optional
+   * and absent-safe: a production that never logs any simply has none.
+   */
+  actuals?: BudgetActual[];
+}
+
+/** Money that actually left the account, against the estimate above it. */
+export interface BudgetActual {
+  id: string;
+  category: BudgetCategory;
+  /** What it was, in words the wrap report can quote. */
+  label: string;
+  /** Plain decimal in the project's currency, same convention as rates. */
+  amount: number;
+  /** The shooting day it belongs to (`ProductionDay.id`), when one does. */
+  productionDayId?: string;
+  /** ISO date it was paid, when known. */
+  date?: string;
+  note?: string;
 }
