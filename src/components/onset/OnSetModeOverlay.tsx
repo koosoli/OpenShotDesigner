@@ -9,6 +9,7 @@ import {
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { Shot, ShotStatus } from '../../types';
 import { sortCues } from '../../domain/scheduling';
+import { formatDurationHours } from '../../domain/scheduling';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
@@ -130,6 +131,27 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
   const progressPercent =
     shots.length > 0 ? Math.round((takenCount / shots.length) * 100) : 0;
 
+  /**
+   * The strip's published estimate for THIS setup, when its block carries one.
+   *
+   * The comparison below is against the session clock — the timer this overlay
+   * started, not a fact about when work began — so the row says "session" and
+   * never claims to be the day's pace, and the variance is only spoken once
+   * the setup is fully taken. Mid-setup there is no honest delta yet: half a
+   * setup against a whole estimate reads as "behind" every single time.
+   */
+  const setupEstimateMinutes = useMemo(() => {
+    const block = (project.scheduleBlocks ?? []).find(
+      (candidate) => candidate.kind === 'setup' && candidate.setupId === activeSetup.id,
+    );
+    const value = block?.estimatedMinutes;
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  }, [project.scheduleBlocks, activeSetup.id]);
+
+  const setupComplete = shots.length > 0 && takenCount >= shots.length;
+  const estimateVarianceMinutes =
+    setupEstimateMinutes !== undefined ? Math.round(elapsedSeconds / 60 - setupEstimateMinutes) : null;
+
   const upNext = useMemo(
     () => shots.slice(clampedIndex + 1, clampedIndex + 6),
     [shots, clampedIndex],
@@ -214,6 +236,36 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
             />
           </div>
         </div>
+
+        {/* Pace: the session clock against the strip's published estimate for
+            this setup. The variance is only called once everything is taken —
+            mid-setup there is no honest delta yet. */}
+        {setupEstimateMinutes !== undefined && (
+          <div
+            className={`flex items-center justify-between gap-3 text-xs rounded-xl border px-3 py-2 ${
+              isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900'
+            }`}
+          >
+            <span className={subtextClass}>
+              Strip estimate{' '}
+              <span className="font-mono font-semibold">
+                {formatDurationHours(setupEstimateMinutes)}
+              </span>{' '}
+              · session <span className="font-mono font-semibold">{formatElapsed(elapsedSeconds)}</span>
+            </span>
+            {setupComplete && estimateVarianceMinutes !== null && Math.abs(estimateVarianceMinutes) > 5 && (
+              <span
+                className={`font-bold ${estimateVarianceMinutes > 0 ? 'text-amber-500' : 'text-emerald-500'}`}
+              >
+                {formatDurationHours(Math.abs(estimateVarianceMinutes))}{' '}
+                {estimateVarianceMinutes > 0 ? 'over' : 'under'}
+              </span>
+            )}
+            {setupComplete && estimateVarianceMinutes !== null && Math.abs(estimateVarianceMinutes) <= 5 && (
+              <span className="font-bold text-emerald-500">on the estimate</span>
+            )}
+          </div>
+        )}
 
         {/* Current shot hero card */}
         {currentShot ? (
