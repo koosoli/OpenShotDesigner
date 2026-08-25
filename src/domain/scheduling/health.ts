@@ -38,7 +38,9 @@ export type ScheduleIssueCode =
   /** Less than `minTurnaroundMinutes` between one day's wrap and the next call. */
   | 'short_turnaround'
   /** The day's estimated work does not fit between its call and its wrap. */
-  | 'day_overruns';
+  | 'day_overruns'
+  /** A cast member is called on a day inside a range they are marked unavailable. */
+  | 'cast_unavailable';
 
 export type ScheduleIssueSeverity = 'warning' | 'note';
 
@@ -99,6 +101,13 @@ export interface ScheduleHealthSources {
   castForDay?: (day: ProductionDay) => ReadonlySet<string>;
   /** Display name for a person id, for the message. */
   personName?: (personId: string) => string | undefined;
+  /**
+   * Is this person marked unavailable on this day? Optional: without it the
+   * availability check is skipped rather than guessed at. The caller resolves
+   * the ranges — here as everywhere, the health check reads answers rather
+   * than reaching into people.
+   */
+  personUnavailableOn?: (personId: string, day: ProductionDay) => boolean;
 }
 
 const DEFAULTS: Required<ScheduleHealthThresholds> = {
@@ -223,6 +232,31 @@ export const scheduleIssues = (
             work.minutes,
           )} of work scheduled in a ${formatDurationHours(window)} day.`,
         });
+      }
+    }
+
+    // Availability: someone scheduled today is marked unavailable that day.
+    // Asked per day over the same cast set the split check uses, and only
+    // when the caller can answer — a production with no availability typed
+    // in gets no warnings, not a wall of them.
+    if (sources.personUnavailableOn) {
+      const cast = sources.castForDay?.(day);
+      if (cast && cast.size > 0) {
+        const names = [...cast]
+          .filter((personId) => sources.personUnavailableOn!(personId, day))
+          .map((personId) => sources.personName?.(personId) ?? personId)
+          .sort((a, b) => a.localeCompare(b));
+        if (names.length > 0) {
+          issues.push({
+            code: 'cast_unavailable',
+            severity: 'warning',
+            productionDayId: day.id,
+            dayName: day.name,
+            message: `${names.join(', ')} ${
+              names.length === 1 ? 'is' : 'are'
+            } marked unavailable on ${day.name}${day.date ? ` (${day.date})` : ''}.`,
+          });
+        }
       }
     }
 

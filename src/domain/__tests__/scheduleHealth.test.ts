@@ -298,3 +298,56 @@ describe('scheduleHealthSummary', () => {
     expect(scheduleHealthSummary(issues)).toEqual({ warnings: 1, notes: 1 });
   });
 });
+
+describe('cast_unavailable', () => {
+  const scheduledDay = day({ id: 'd1', name: 'Day 1', date: '2026-09-02' });
+
+  const issuesFor = (
+    unavailableOn: (personId: string, dayName: string) => boolean,
+    cast = new Set(['p1']),
+  ) =>
+    scheduleIssues({
+      days: [scheduledDay],
+      blocks: [],
+      locationsForDay: () => [{ name: 'Studio' }],
+      castForDay: () => cast,
+      personUnavailableOn: (personId, day) => unavailableOn(personId, day.name),
+      personName: (personId) =>
+        personId === 'p1' ? 'Zoe Cast' : personId === 'p2' ? 'Amy Cast' : personId,
+    });
+
+  it('warns when a scheduled cast member is marked unavailable that day', () => {
+    const issues = issuesFor((_id, dayName) => dayName === 'Day 1');
+    expect(codes(issues)).toContain('cast_unavailable');
+    const issue = issues.find((entry) => entry.code === 'cast_unavailable');
+    expect(issue?.severity).toBe('warning');
+    expect(issue?.message).toContain('Zoe Cast');
+    expect(issue?.message).toContain('Day 1');
+  });
+
+  it('names every unavailable performer in one issue, alphabetically', () => {
+    const issues = issuesFor(
+      (personId) => personId === 'p1' || personId === 'p2',
+      new Set(['p2', 'p3', 'p1']),
+    );
+    // p3 is free, so the issue names exactly the two who are not — in the
+    // order the sheet reads, not the order the set iterates.
+    const issue = issues.find((entry) => entry.code === 'cast_unavailable');
+    expect(issue?.message).toMatch(/Amy Cast, Zoe Cast/);
+  });
+
+  it('stays silent when nobody scheduled is unavailable', () => {
+    const issues = issuesFor(() => false);
+    expect(codes(issues)).not.toContain('cast_unavailable');
+  });
+
+  it('is skipped entirely when the caller cannot answer availability', () => {
+    const issues = scheduleIssues({
+      days: [scheduledDay],
+      blocks: [],
+      locationsForDay: () => [{ name: 'Studio' }],
+      castForDay: () => new Set(['p1']),
+    });
+    expect(codes(issues)).not.toContain('cast_unavailable');
+  });
+});

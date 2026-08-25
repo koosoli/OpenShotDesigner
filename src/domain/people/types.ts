@@ -83,6 +83,26 @@ export interface Person {
   /** ISO date (YYYY-MM-DD) or free text; stored exactly as entered. */
   hotelCheckIn?: string;
   hotelCheckOut?: string;
+  /**
+   * Dates this person is known to be unavailable, e.g. another job. Each
+   * range is inclusive on both ends and stored as ISO `YYYY-MM-DD`; the
+   * schedule-health checks read these to say out loud when a shooting day
+   * calls someone who is not free.
+   *
+   * Optional and absent-safe: a person with no ranges is simply always
+   * available, which was the only answer the app could give before this
+   * field existed.
+   */
+  unavailableRanges?: UnavailableRange[];
+}
+
+export interface UnavailableRange {
+  id: string;
+  /** Inclusive first day, ISO `YYYY-MM-DD`. */
+  from: string;
+  /** Inclusive last day, ISO `YYYY-MM-DD`. */
+  to: string;
+  note?: string;
 }
 
 /** Character = screenplay/story entity; Person = real human. Linked, never merged. */

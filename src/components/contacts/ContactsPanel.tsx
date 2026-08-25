@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import type { Person, PersonKind } from '../../domain/people';
+import type { Person, PersonKind, UnavailableRange } from '../../domain/people';
 import {
   KEY_CREW_ROLES,
   PERSON_KINDS,
@@ -157,6 +157,91 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
           {field('hotelCheckOut', 'Check-out', '', 'date')}
         </div>
         <div className="col-span-2">{field('hotelAddress', 'Hotel address', 'Street, postcode, city')}</div>
+        {/* Days this person is known to be elsewhere. The schedule-health
+            warnings read these and say so on the stripboard; blank rows are
+            dropped as they are edited rather than saved as junk. */}
+        <div className="col-span-2 space-y-1">
+          <span className={labelCls}>Unavailable</span>
+          {(draft.unavailableRanges ?? []).map((entry: UnavailableRange) => (
+            <div key={entry.id} className="grid grid-cols-[1fr_1fr_1.2fr_auto] gap-1.5 items-center">
+              <input
+                type="date"
+                value={entry.from}
+                aria-label="Unavailable from"
+                onChange={(e) =>
+                  onChange({
+                    ...draft,
+                    unavailableRanges: (draft.unavailableRanges ?? []).map((existing) =>
+                      existing.id === entry.id ? { ...existing, from: e.target.value } : existing,
+                    ),
+                  })
+                }
+                className={inputCls}
+              />
+              <input
+                type="date"
+                value={entry.to}
+                min={entry.from || undefined}
+                aria-label="Unavailable to"
+                onChange={(e) =>
+                  onChange({
+                    ...draft,
+                    unavailableRanges: (draft.unavailableRanges ?? []).map((existing) =>
+                      existing.id === entry.id ? { ...existing, to: e.target.value } : existing,
+                    ),
+                  })
+                }
+                className={inputCls}
+              />
+              <input
+                value={entry.note ?? ''}
+                placeholder="Reason (optional)"
+                aria-label={`Reason for unavailability ${entry.from}`}
+                onChange={(e) =>
+                  onChange({
+                    ...draft,
+                    unavailableRanges: (draft.unavailableRanges ?? []).map((existing) =>
+                      existing.id === entry.id
+                        ? { ...existing, note: e.target.value || undefined }
+                        : existing,
+                    ),
+                  })
+                }
+                className={inputCls}
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...draft,
+                    unavailableRanges: (draft.unavailableRanges ?? []).filter(
+                      (existing) => existing.id !== entry.id,
+                    ),
+                  })
+                }
+                aria-label="Remove these unavailable dates"
+                className={`p-1.5 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'} hover:!text-red-500`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              // Keep rows being typed, drop ones emptied entirely, and always
+              // land the user on a fresh blank row to fill in.
+              const kept = (draft.unavailableRanges ?? []).filter((entry) => entry.from || entry.to || entry.note);
+              onChange({
+                ...draft,
+                unavailableRanges: [...kept, { id: createId('unavail'), from: '', to: '' }],
+              });
+            }}
+            className={`px-2 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+          >
+            <Plus className="w-3 h-3" /> Add dates away
+          </button>
+        </div>
       </div>
       <label className="block space-y-1">
         <span className={labelCls}>Notes</span>

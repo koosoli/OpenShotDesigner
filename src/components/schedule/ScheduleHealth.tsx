@@ -1,6 +1,7 @@
 import React from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { castFilterForDay, resolveDayLocations } from '../../domain/reports';
+import { personUnavailableOn } from '../../domain/people';
 import { scheduleIssues } from '../../domain/scheduling';
 import { PlanningWarnings } from '../common/PlanningWarnings';
 
@@ -53,6 +54,11 @@ export const ScheduleHealth: React.FC<ScheduleHealthProps> = ({ isLight }) => {
         return new Set(personIds ?? []);
       },
       personName: (personId) => people.find((person) => person.id === personId)?.displayName,
+      personUnavailableOn: (personId, day) =>
+        personUnavailableOn(
+          people.find((person) => person.id === personId),
+          day.date,
+        ),
     });
   }, [
     project.productionDays,

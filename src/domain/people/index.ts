@@ -1,4 +1,5 @@
-export type { Person, PersonKind, CastAssignment } from './types';
+export type { Person, PersonKind, CastAssignment, UnavailableRange } from './types';
+export { personUnavailableOn } from './availability';
 export {
   DEFAULT_HEADSHOT_FRAMING,
   framingSlack,
