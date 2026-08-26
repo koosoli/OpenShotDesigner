@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actualsByCategory, actualsVariance, sumActuals, varianceByEntry } from '../budget/actuals';
+import { actualsByCategory, actualsVariance, setEntryActual, sumActuals, varianceByEntry } from '../budget/actuals';
 import type { BudgetActual } from '../budget/types';
 
 const entry = (partial: Partial<BudgetActual>): BudgetActual => ({
@@ -92,5 +92,24 @@ describe('varianceByEntry', () => {
       spent: 120,
       over: 120,
     });
+  });
+});
+
+describe('setEntryActual', () => {
+  it('sets an existing estimate by id with its readable label and category', () => {
+    expect(setEntryActual([], 'person:alex', 475, { label: 'Alex Hunter', category: 'cast' })).toEqual([
+      { id: 'actual-person:alex', entryId: 'person:alex', label: 'Alex Hunter', category: 'cast', amount: 475 },
+    ]);
+  });
+
+  it('makes the entered total authoritative when older receipts target the same line', () => {
+    const result = setEntryActual([
+      entry({ id: 'one', entryId: 'person:alex', amount: 200 }),
+      entry({ id: 'two', entryId: 'person:alex', amount: 100 }),
+      entry({ id: 'other', entryId: 'line:location', amount: 50 }),
+    ], 'person:alex', 450);
+    expect(result?.filter((actual) => actual.entryId === 'person:alex')).toHaveLength(1);
+    expect(result?.find((actual) => actual.entryId === 'person:alex')?.amount).toBe(450);
+    expect(result?.find((actual) => actual.id === 'other')).toBeDefined();
   });
 });

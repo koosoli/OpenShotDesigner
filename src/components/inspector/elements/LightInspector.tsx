@@ -559,7 +559,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                 {isRgbMode ? colorHex : `${light.colorTemp || 5600}K`} · {light.intensity}%
               </span>
             }
-            defaultOpen={true}
+            defaultOpen={false}
             isLight={isLight}
           >
             {/* Color Mode Selector */}

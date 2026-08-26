@@ -49,7 +49,7 @@ describe('deriveDayNeeds', () => {
     people,
     setups,
     scriptScenes,
-    castAssignments: [{ id: 'ca', characterId: 'c-sarah', personId: 'mara' }],
+    castAssignments: [{ id: 'ca', characterId: 'c-sarah', personId: 'mara', castNumber: 1 }],
     equipmentForSetup: (id) => gear[id] ?? [],
   });
 

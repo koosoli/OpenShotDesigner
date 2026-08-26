@@ -28,6 +28,7 @@ export {
   peopleToCsv,
   personInitials,
   removePerson,
+  setCastNumber,
   sortPeople,
   unassignCast,
   upsertPerson,

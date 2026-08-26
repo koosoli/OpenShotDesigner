@@ -107,6 +107,7 @@ import { attachBreakdownItemsToScenes } from '../../domain/script';
 import { ProjectImage } from '../common/ProjectImage';
 import { useImageRefSrcs } from '../../utils/assetImages';
 import { keyFrameImage } from '../../utils/storyboardFrames';
+import { castNumbersScheduledOn } from '../../domain/reports';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 export const PrintableShotPlan: React.FC = () => {
@@ -167,7 +168,15 @@ export const PrintableShotPlan: React.FC = () => {
   const packageSides = React.useMemo(() => buildScriptSides(scriptLines), [scriptLines]);
   /* The complete package prints the same board and coverage grid the Schedule
      tab does — same domain builders, so the two can never disagree. */
-  const packageBoardDays = React.useMemo(() => buildPrintableStripboardDays(project), [project]);
+  const packageBoardDays = React.useMemo(() => buildPrintableStripboardDays(
+    project,
+    undefined,
+    (block) => castNumbersScheduledOn([block.id], [block], {
+      scriptScenes: project.scriptScenes,
+      setups: project.setups,
+      castAssignments: project.castAssignments,
+    }),
+  ), [project]);
   const packageCoverageRows = React.useMemo(() => buildPrintableCoverageRows(project), [project]);
   const sidesDay = (project.productionDays ?? []).find((day) => day.id === sidesDayId);
   const applySidesDay = (dayId: string) => {

@@ -94,8 +94,8 @@ export const blockLabel = (block: ScheduleBlock, ctx: StripboardLabelContext): s
 
 /** Minimal project shape the board needs — keeps this pure and testable. */
 export interface StripboardProjectLike {
-  scriptScenes?: Array<{ id: string; sceneNumber: string | number; heading: string }>;
-  setups?: Array<{ id: string; name: string; shots?: Array<{ id: string; shotNumber: string | number; name: string }> }>;
+  scriptScenes?: Array<{ id: string; sceneNumber: string | number; heading: string; pageLengthEighths?: number }>;
+  setups?: Array<{ id: string; name: string; sceneNumber?: string; shots?: Array<{ id: string; shotNumber: string | number; name: string }> }>;
   productionSegments?: Array<{ id: string; name: string }>;
   productionDays?: Array<{
     id: string;
@@ -137,6 +137,9 @@ export interface PrintableStripboardItem {
   kindLabel: string;
   minutes?: number;
   tone: string;
+  castNumbers?: number[];
+  /** Script length in canonical eighths; unknown for non-script strips. */
+  pageEighths?: number;
 }
 
 export interface PrintableStripboardDayData {
@@ -157,19 +160,43 @@ export interface PrintableStripboardDayData {
 export const buildPrintableStripboardDays = (
   project: StripboardProjectLike,
   ctx: StripboardLabelContext = buildStripboardLabelContext(project),
+  castNumbersForBlock?: (block: ScheduleBlock) => number[],
 ): PrintableStripboardDayData[] => {
   const blocks = project.scheduleBlocks ?? [];
   const byId = new Map(blocks.map((block) => [block.id, block] as const));
+  const scenesById = new Map((project.scriptScenes ?? []).map((scene) => [scene.id, scene] as const));
+  const scenesByNumber = new Map((project.scriptScenes ?? []).map((scene) => [String(scene.sceneNumber), scene] as const));
+  const setupsById = new Map((project.setups ?? []).map((setup) => [setup.id, setup] as const));
+  const setupByShotId = new Map<string, NonNullable<StripboardProjectLike['setups']>[number]>();
+  for (const setup of project.setups ?? []) {
+    for (const shot of setup.shots ?? []) setupByShotId.set(shot.id, setup);
+  }
+  const pageEighthsFor = (block: ScheduleBlock): number | undefined => {
+    if (block.kind === 'scene') return scenesById.get(block.scriptSceneId)?.pageLengthEighths;
+    const setups = block.kind === 'setup'
+      ? [setupsById.get(block.setupId)].filter((setup): setup is NonNullable<typeof setup> => Boolean(setup))
+      : block.kind === 'shots'
+        ? [...new Set(block.shotIds.map((shotId) => setupByShotId.get(shotId)).filter((setup): setup is NonNullable<typeof setup> => Boolean(setup)))]
+        : [];
+    const scenes = [...new Set(setups.map((setup) => setup.sceneNumber ? scenesByNumber.get(String(setup.sceneNumber)) : undefined).filter((scene): scene is NonNullable<typeof scene> => Boolean(scene)))];
+    if (scenes.length === 0 || scenes.some((scene) => scene.pageLengthEighths === undefined)) return undefined;
+    return scenes.reduce((total, scene) => total + (scene.pageLengthEighths ?? 0), 0);
+  };
   return (project.productionDays ?? []).map((day) => {
     const items = day.scheduleBlockIds
       .map((id) => byId.get(id))
       .filter((block): block is ScheduleBlock => Boolean(block))
-      .map((block) => ({
-        label: blockLabel(block, ctx),
-        kindLabel: BLOCK_KIND_LABELS[block.kind],
-        minutes: 'estimatedMinutes' in block ? block.estimatedMinutes : undefined,
-        tone: blockPrintTone(block),
-      }));
+      .map((block) => {
+        const pageEighths = pageEighthsFor(block);
+        return {
+          label: blockLabel(block, ctx),
+          kindLabel: BLOCK_KIND_LABELS[block.kind],
+          minutes: 'estimatedMinutes' in block ? block.estimatedMinutes : undefined,
+          tone: blockPrintTone(block),
+          ...(pageEighths !== undefined ? { pageEighths } : {}),
+          ...(castNumbersForBlock ? { castNumbers: castNumbersForBlock(block) } : {}),
+        };
+      });
     return {
       id: day.id,
       name: day.name,

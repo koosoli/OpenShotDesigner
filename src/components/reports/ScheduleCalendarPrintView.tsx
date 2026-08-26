@@ -1,5 +1,6 @@
 import React from 'react';
 import { ProjectImage } from '../common/ProjectImage';
+import { buildMonthGrid, monthLabel, yearMonthOf } from '../../domain/scheduling';
 
 export interface PrintableCalendarEvent {
   title: string;
@@ -17,6 +18,7 @@ export interface PrintableCalendarDay {
   crewCall?: string;
   plannedWrap?: string;
   totalMinutes?: number;
+  items?: string[];
 }
 
 interface ScheduleCalendarPrintViewProps {
@@ -26,6 +28,9 @@ interface ScheduleCalendarPrintViewProps {
   logo?: string;
   events: PrintableCalendarEvent[];
   days: PrintableCalendarDay[];
+  mode: 'timeline' | 'month' | 'list';
+  /** Month currently visible in the calendar, as YYYY-MM. */
+  yearMonth: string;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -47,6 +52,11 @@ const STATUS_LABELS: Record<string, string> = {
 /** Fallback for lines without an explicit color (matches the timeline default). */
 const DEFAULT_EVENT_COLOR = '#7c3aed';
 
+const isoDayNumber = (iso: string): number => {
+  const [year, month, day] = iso.split('-').map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+};
+
 /** "3h 15m" / "45m" / "—" for missing estimates (never silently 0). */
 const formatMinutes = (total: number | undefined): string => {
   if (total === undefined) return '—';
@@ -66,8 +76,20 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
   logo,
   events,
   days,
+  mode,
+  yearMonth,
 }) => {
   const generatedAt = new Date().toISOString().split('T')[0];
+  const firstDate = days.find((day) => day.date)?.date ?? events[0]?.startDate ?? generatedAt;
+  const printedMonth = mode === 'month' ? yearMonth : yearMonthOf(firstDate);
+  const month = buildMonthGrid(printedMonth);
+  const timelineDates = [
+    ...events.flatMap((event) => [event.startDate, event.endDate]),
+    ...days.flatMap((day) => day.date ? [day.date] : []),
+  ];
+  const timelineStart = timelineDates.length > 0 ? Math.min(...timelineDates.map(isoDayNumber)) : isoDayNumber(generatedAt);
+  const timelineEnd = timelineDates.length > 0 ? Math.max(...timelineDates.map(isoDayNumber)) : timelineStart;
+  const timelineSpan = Math.max(1, timelineEnd - timelineStart + 1);
 
   return (
     <>
@@ -106,18 +128,80 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
         .sc-cat { background: #e2e8f0; background: color-mix(in srgb, var(--tone, #7c3aed) 14%, #ffffff); color: var(--tone, #334155); }
         .sc-footer { margin-top: 14px; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 8.5px; color: #475569; display: flex; justify-content: space-between; gap: 10px; }
         .sc-footer p { margin: 0; }
+        .sc-month { display: grid; grid-template-columns: repeat(7, 1fr); border-left: 1px solid #cbd5e1; border-top: 1px solid #cbd5e1; }
+        .sc-month > div { min-height: 22mm; padding: 2mm; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; font-size: 8px; overflow: hidden; }
+        .sc-month .outside { color: #94a3b8; background: #f8fafc; }
+        .sc-month-head > div { min-height: auto; text-align: center; text-transform: uppercase; font-weight: 800; background: #e2e8f0; }
+        .sc-month-date { font: 700 9px 'Courier New', monospace; margin-bottom: 1mm; }
+        .sc-month-item { display: block; margin-top: 1mm; padding: 0.5mm 1mm; border-radius: 1mm; background: #fef3c7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sc-timeline { border: 1px solid #cbd5e1; border-top: 0; }
+        .sc-timeline-row { display: grid; grid-template-columns: 38mm 1fr; min-height: 9mm; border-top: 1px solid #e2e8f0; }
+        .sc-timeline-label { padding: 2mm; font-size: 8.5px; overflow: hidden; }
+        .sc-timeline-label small { display: block; color: #64748b; font-family: 'Courier New', monospace; }
+        .sc-timeline-track { position: relative; margin: 2mm; background: repeating-linear-gradient(90deg, #f8fafc, #f8fafc 9.8%, #e2e8f0 10%); }
+        .sc-timeline-bar { position: absolute; top: 1.2mm; height: 3.5mm; min-width: 1.5mm; border-radius: 2mm; background: var(--tone, #7c3aed); }
+        .sc-timeline-day { position: absolute; top: 0.5mm; width: 2mm; height: 5mm; border-radius: 1mm; background: #d97706; }
+        .sc-schedule-items { margin: 1mm 0 0; padding-left: 4mm; font-size: 8px; color: #475569; }
       `}</style>
       <div className="sc-doc">
         <header className="sc-masthead">
           <div className="sc-headrow">
             <div>
-              <p className="sc-kicker">{company ? `${company} · ` : ''}Production schedule · Calendar</p>
+              <p className="sc-kicker">{company ? `${company} · ` : ''}Production schedule · {mode}</p>
               <h1 className="sc-title">{productionTitle}</h1>
               <p className="sc-company">Generated {generatedAt}</p>
             </div>
             {logo && <ProjectImage imageRef={logo} alt="Production logo" className="sc-logo" />}
           </div>
         </header>
+
+        {mode === 'month' && (
+          <section>
+            <h2 className="sc-section-title dark">{monthLabel(printedMonth)}</h2>
+            <div className="sc-month sc-month-head">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <div key={day}>{day}</div>)}</div>
+            <div className="sc-month">
+              {month.weeks.flat().map((cell) => {
+                const work = days.filter((day) => day.date === cell.iso);
+                const lines = events.filter((event) => event.startDate <= cell.iso && event.endDate >= cell.iso);
+                return (
+                  <div key={cell.iso} className={cell.inMonth ? '' : 'outside'}>
+                    <div className="sc-month-date">{cell.dayOfMonth}</div>
+                    {work.map((day) => <span key={day.name} className="sc-month-item"><strong>{day.name}</strong> · {day.crewCall ?? 'call TBD'}</span>)}
+                    {lines.slice(0, 2).map((event) => <span key={event.title} className="sc-month-item" style={{ borderLeft: `2px solid ${event.color ?? DEFAULT_EVENT_COLOR}` }}>{event.title}</span>)}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {mode === 'timeline' && (
+          <section>
+            <h2 className="sc-section-title dark">Timeline · {timelineDates.length > 0 ? `${timelineDates.sort()[0]} — ${timelineDates.sort().at(-1)}` : 'No dated items'}</h2>
+            <div className="sc-timeline">
+              {events.map((event, index) => {
+                const left = ((isoDayNumber(event.startDate) - timelineStart) / timelineSpan) * 100;
+                const width = ((isoDayNumber(event.endDate) - isoDayNumber(event.startDate) + 1) / timelineSpan) * 100;
+                return (
+                  <div className="sc-timeline-row" key={`timeline-event-${index}`}>
+                    <div className="sc-timeline-label"><strong>{event.title}</strong><small>{event.startDate} — {event.endDate}</small></div>
+                    <div className="sc-timeline-track"><span className="sc-timeline-bar" style={{ left: `${left}%`, width: `${width}%`, '--tone': event.color ?? DEFAULT_EVENT_COLOR } as React.CSSProperties} /></div>
+                  </div>
+                );
+              })}
+              {days.filter((day) => day.date).map((day, index) => {
+                const left = ((isoDayNumber(day.date!) - timelineStart) / timelineSpan) * 100;
+                return (
+                  <div className="sc-timeline-row" key={`timeline-day-${index}`}>
+                    <div className="sc-timeline-label"><strong>{day.name}</strong><small>{day.date}</small></div>
+                    <div className="sc-timeline-track"><span className="sc-timeline-day" style={{ left: `${left}%` }} /></div>
+                  </div>
+                );
+              })}
+              {events.length === 0 && days.every((day) => !day.date) && <p>No dated timeline items yet.</p>}
+            </div>
+          </section>
+        )}
 
         <section>
           <h2 className="sc-section-title">Production calendar lines</h2>
@@ -157,7 +241,8 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
                 <tr>
                   <th className="num" style={{ width: '8mm' }}>#</th>
                   <th>Day</th>
-                  <th style={{ width: '24mm' }}>Date</th>
+                  <th style={{ width: '22mm' }}>Date</th>
+                  <th>Schedule</th>
                   <th style={{ width: '16mm' }}>Call</th>
                   <th style={{ width: '16mm' }}>Wrap</th>
                   <th className="num" style={{ width: '18mm' }}>Est.</th>
@@ -169,6 +254,7 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
                     <td className="num">{i + 1}</td>
                     <td><strong>{day.name}</strong></td>
                     <td className="time">{day.date ?? '—'}</td>
+                    <td>{day.items && day.items.length > 0 ? <ol className="sc-schedule-items">{day.items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{item}</li>)}</ol> : '—'}</td>
                     <td className="time">{day.crewCall ?? '—'}</td>
                     <td className="time">{day.plannedWrap ?? '—'}</td>
                     <td className="num">{formatMinutes(day.totalMinutes)}</td>

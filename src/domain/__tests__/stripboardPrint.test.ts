@@ -9,11 +9,12 @@ import {
 } from '../scheduling/stripboardPrint';
 
 const project: StripboardProjectLike = {
-  scriptScenes: [{ id: 'sc1', sceneNumber: '4', heading: 'INT. BAR — NIGHT' }],
+  scriptScenes: [{ id: 'sc1', sceneNumber: '4', heading: 'INT. BAR — NIGHT', pageLengthEighths: 12 }],
   setups: [
     {
       id: 'su1',
       name: 'Booth wide',
+      sceneNumber: '4',
       shots: [
         { id: 'sh1', shotNumber: '4A', name: 'Wide' },
         { id: 'sh2', shotNumber: '4B', name: 'CU whiskey' },
@@ -72,12 +73,34 @@ describe('buildPrintableStripboardDays', () => {
     expect(day.name).toBe('Day 1');
     expect(day.crewCall).toBe('07:00');
     expect(day.items.map((item) => item.label)).toEqual(['Scene 4 — INT. BAR — NIGHT', 'Meal']);
+    expect(day.items.map((item) => item.pageEighths)).toEqual([12, undefined]);
     expect(day.totalMinutes).toBe(120);
   });
 
   it('skips block ids that no longer exist rather than printing blank strips', () => {
     const [day] = buildPrintableStripboardDays(project);
     expect(day.items).toHaveLength(2);
+  });
+
+  it('carries resolved cast numbers into printable strips when supplied', () => {
+    const [day] = buildPrintableStripboardDays(project, undefined, (block) =>
+      block.kind === 'scene' ? [1, 4] : [],
+    );
+    expect(day.items[0].castNumbers).toEqual([1, 4]);
+    expect(day.items[1].castNumbers).toEqual([]);
+  });
+
+  it('carries screenplay pages onto setup and shot strips through their scene number', () => {
+    const setupProject: StripboardProjectLike = {
+      ...project,
+      productionDays: [{ id: 'd', name: 'Day 1', scheduleBlockIds: ['setup', 'shots'] }],
+      scheduleBlocks: [
+        { id: 'setup', kind: 'setup', setupId: 'su1' },
+        { id: 'shots', kind: 'shots', shotIds: ['sh1'] },
+      ],
+    };
+    const [day] = buildPrintableStripboardDays(setupProject);
+    expect(day.items.map((item) => item.pageEighths)).toEqual([12, 12]);
   });
 
   it('returns an empty board for a project with no schedule at all', () => {

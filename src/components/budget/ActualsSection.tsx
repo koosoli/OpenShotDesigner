@@ -4,6 +4,7 @@ import { createId } from '../../domain/ids';
 import { actualsByCategory, BUDGET_CATEGORIES,
   actualsVariance,
   formatMoney,
+  setEntryActual,
   sumActuals,
   varianceByEntry,
   type BudgetActual,
@@ -31,11 +32,22 @@ export interface ActualsSectionProps {
    * belongs to — "Alex wants more money" becomes a variance on his row.
    */
   entries?: BudgetEntry[];
+  /** Every row the Budget tab knows, including equipment/people without rates. */
+  availableEntries?: ActualsEstimateLine[];
   /** Cast and crew by name, attachable even before anyone priced them. */
   people?: Array<{ id: string; displayName: string }>;
   /** The estimate rolled up per category — the cost report's left column. */
   categoryTotals?: Array<{ category: import('../../domain/budget').BudgetCategory; label: string; net: number }>;
   isLight: boolean;
+}
+
+export interface ActualsEstimateLine {
+  id: string;
+  category: BudgetCategory;
+  label: string;
+  detail?: string;
+  /** Unknown until the Budget tab has a usable rate; never silently zero. */
+  plannedNet?: number;
 }
 
 export const ActualsSection: React.FC<ActualsSectionProps> = ({
@@ -44,6 +56,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
   currency,
   estimatedNet,
   entries,
+  availableEntries,
   people,
   categoryTotals,
   isLight,
@@ -77,6 +90,13 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
   const variance = actualsVariance(actuals, estimatedNet);
   const total = sumActuals(actuals);
   const lineVariances = entries ? varianceByEntry(actuals, entries) : [];
+  const exactActualLines: ActualsEstimateLine[] = availableEntries ?? (entries ?? []).map((entry) => ({
+    id: entry.id,
+    category: entry.category,
+    label: entry.label,
+    detail: entry.detail,
+    plannedNet: entry.net,
+  }));
 
   // The cost report's top sheet: one row per category the production has an
   // estimate or a receipt for — Estimate | Actual | Difference, the three
@@ -119,17 +139,84 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
     const found = (entries ?? []).find((entry) => entry.id === entryId);
     return found ? found.label : entryId;
   };
-  const attachValueOf = (entryId: string | undefined): string =>
-    entryId && personOptions.some((candidate) => `person:${candidate.id}` === entryId)
-      ? entryId
-      : entryId ?? '';
-
   return (
     <section className={cardCls}>
       <div className="flex items-center justify-between gap-2 mb-2">
         <h3 className={`text-[10px] font-black uppercase tracking-wider ${labelCls}`}>Actuals</h3>
         <span className={`text-[10px] ${labelCls}`}>What was really spent</span>
       </div>
+
+      {exactActualLines.length > 0 && (
+        <div className={`mb-3 rounded-lg border overflow-hidden ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-950/40'}`}>
+          <div className={`px-3 py-2 border-b ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700'}`}>
+            <div className="text-[11px] font-black">Set the exact actual cost</div>
+            <p className={`text-[10px] ${labelCls}`}>
+              Find the existing budget line below and type its final total. The difference updates immediately—no name or category re-entry.
+            </p>
+          </div>
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className={labelCls}>
+                <th className="text-left px-3 py-1.5">Existing line</th>
+                <th className="text-right px-2 py-1.5">Planned</th>
+                <th className="text-right px-2 py-1.5">Exact actual</th>
+                <th className="text-right px-3 py-1.5">Difference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exactActualLines.map((estimate) => {
+                const attached = actuals.filter((actual) => actual.entryId === estimate.id);
+                const spent = attached.reduce((sum, actual) => sum + actual.amount, 0);
+                const hasActual = attached.length > 0;
+                const difference = hasActual && estimate.plannedNet !== undefined
+                  ? Math.round((spent - estimate.plannedNet) * 100) / 100
+                  : undefined;
+                return (
+                  <tr key={estimate.id} className={`border-t ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>
+                    <td className="px-3 py-1.5 min-w-0">
+                      <div className="font-semibold truncate">{estimate.label}</div>
+                      <div className={`text-[9px] truncate ${labelCls}`}>{estimate.detail ?? estimate.category}</div>
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono">{estimate.plannedNet === undefined ? 'Not priced' : formatMoney(estimate.plannedNet, currency)}</td>
+                    <td className="px-2 py-1.5">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={hasActual ? spent : ''}
+                        aria-label={`Exact actual for ${estimate.label}`}
+                        placeholder="Enter total"
+                        onChange={(event) => {
+                          const amount = event.target.value === '' ? undefined : Number(event.target.value);
+                          const next = setEntryActual(actuals, estimate.id, amount, {
+                            category: estimate.category,
+                            label: estimate.label,
+                          });
+                          if (next !== undefined) patchActuals(next);
+                        }}
+                        className={`${inputCls} !w-28 ml-auto text-right font-mono`}
+                      />
+                    </td>
+                    <td className={`px-3 py-1.5 text-right font-mono font-bold ${
+                      difference === undefined ? labelCls : difference > 0 ? 'text-amber-500' : difference < 0 ? 'text-emerald-500' : ''
+                    }`}>
+                      {difference === undefined
+                        ? '—'
+                        : `${difference > 0 ? '+' : difference < 0 ? '−' : ''}${formatMoney(Math.abs(difference), currency)}`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <details className={`rounded-lg border p-2 ${isLight ? 'border-slate-200 bg-white/70' : 'border-slate-700 bg-slate-950/30'}`}>
+        <summary className="cursor-pointer text-[10px] font-black uppercase tracking-wider">
+          Additional receipts, unplanned costs &amp; reports
+        </summary>
+        <div className="pt-2">
 
       {actuals.length === 0 && (
         <p className={`text-[10px] mb-2 ${labelCls}`}>
@@ -387,6 +474,8 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
           )}
         </div>
       )}
+        </div>
+      </details>
     </section>
   );
 };

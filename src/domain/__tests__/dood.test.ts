@@ -12,7 +12,7 @@ const characters: Character[] = [
 
 const people: Person[] = [{ id: 'p-hero', displayName: 'Ada Star', kind: 'cast' }];
 const castAssignments: CastAssignment[] = [
-  { id: 'ca-1', characterId: 'c-hero', personId: 'p-hero' },
+  { id: 'ca-1', characterId: 'c-hero', personId: 'p-hero', castNumber: 1 },
 ];
 
 // Scene → characters mapping used by the resolver.

@@ -110,5 +110,11 @@ export interface CastAssignment {
   id: string;
   characterId: string;
   personId: string;
+  /**
+   * The role's production cast number (the number printed on strips and call
+   * sheets). This belongs to the assignment rather than the person: one actor
+   * playing two characters has two numbered roles.
+   */
+  castNumber: number;
   notes?: string;
 }

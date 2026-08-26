@@ -18,8 +18,8 @@ import {
 import type { Person } from '../../domain/people';
 import type { BudgetCategory, BudgetEntry, BudgetLine, EquipmentRate, ProjectBudget, RateBasis, RateCard } from '../../domain/budget';
 import { RateCardFields, VatSelect } from './RateCardFields';
-import { setEntryActual } from '../../domain/budget';
 import { ActualsSection } from './ActualsSection';
+import type { ActualsEstimateLine } from './ActualsSection';
 import { useProductionNeeds } from './useProductionNeeds';
 import { DayNeedsView } from './DayNeedsView';
 import { downloadCsv, safeFileName } from '../../utils/download';
@@ -170,6 +170,42 @@ export const BudgetPanel: React.FC = () => {
 
   const unpricedPeople = summary.unpriced.filter((item) => item.kind === 'person');
   const unpricedEquipment = equipment.filter((item) => !budget.equipmentRates.some((rate) => rate.key === item.key));
+  const actualsLines = useMemo<ActualsEstimateLine[]>(() => {
+    const lines = new Map<string, ActualsEstimateLine>();
+    for (const entry of summary.entries) {
+      lines.set(entry.id, {
+        id: entry.id,
+        category: entry.category,
+        label: entry.label,
+        detail: entry.detail,
+        plannedNet: entry.net,
+      });
+    }
+    for (const person of people) {
+      const id = `person:${person.id}`;
+      if (lines.has(id)) continue;
+      const category: BudgetCategory = isAboveTheLine(person)
+        ? 'above_the_line'
+        : person.kind === 'crew' ? 'crew' : 'cast';
+      lines.set(id, {
+        id,
+        category,
+        label: person.displayName,
+        detail: [person.role, person.department, 'No planned rate'].filter(Boolean).join(' · '),
+      });
+    }
+    for (const item of equipment) {
+      const id = `equipment:${item.key}`;
+      if (lines.has(id)) continue;
+      lines.set(id, {
+        id,
+        category: 'equipment',
+        label: item.label,
+        detail: `${item.category}${item.quantity > 1 ? ` · ×${item.quantity}` : ''} · No planned rate`,
+      });
+    }
+    return [...lines.values()];
+  }, [equipment, people, summary.entries]);
 
   return (
     <div className={`h-full flex flex-col ${isLight ? 'bg-[#f3f5f7] text-slate-900' : 'bg-slate-950 text-slate-100'}`}>
@@ -177,9 +213,9 @@ export const BudgetPanel: React.FC = () => {
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-7 h-7 rounded-md bg-emerald-500 text-slate-950 flex items-center justify-center"><Coins className="w-4 h-4" /></div>
           <div className="min-w-0">
-            <h2 className="text-sm font-black tracking-tight">{view === 'budget' ? 'Budget' : 'Day needs'}</h2>
+            <h2 className="text-sm font-black tracking-tight">{view === 'budget' ? 'Budget' : view === 'actuals' ? 'Actuals' : 'Day needs'}</h2>
             <p className={`text-[9px] truncate ${mutedCls}`}>
-              {shootDays} shooting day{shootDays === 1 ? '' : 's'} · {summary.entries.length} priced line{summary.entries.length === 1 ? '' : 's'} · total {money(summary.total)}
+              {shootDays} shooting day{shootDays === 1 ? '' : 's'} · {view === 'actuals' ? `${actualsLines.length} budget line${actualsLines.length === 1 ? '' : 's'}` : `${summary.entries.length} priced line${summary.entries.length === 1 ? '' : 's'}`} · total {money(summary.total)}
             </p>
           </div>
         </div>
@@ -212,62 +248,23 @@ export const BudgetPanel: React.FC = () => {
       )}
 
       {view === 'actuals' && (
-        <div className="space-y-3">
-          <p className={`text-[10px] ${mutedCls}`}>
-            Type what each line actually cost — the difference column does the arguing for you.
-            Receipts with no line of their own go in “Other costs” on the Budget tab.
-          </p>
-          <section className={`rounded-xl border p-3 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className={mutedCls}>
-                  <th className="text-left font-black uppercase text-[9px] tracking-wider">Line</th>
-                  <th className="text-right font-black uppercase text-[9px] tracking-wider">Estimate</th>
-                  <th className="text-right font-black uppercase text-[9px] tracking-wider">Actual</th>
-                  <th className="text-right font-black uppercase text-[9px] tracking-wider">Diff</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.entries.map((entry) => {
-                  const logged = (budget.actuals ?? []).find((a) => a.entryId === entry.id);
-                  const diff = logged ? Math.round((logged.amount - entry.net) * 100) / 100 : null;
-                  return (
-                    <tr key={entry.id} className="border-t border-inherit">
-                      <td className="py-1 pr-2 truncate">{entry.label}</td>
-                      <td className="text-right font-mono py-1">{money(entry.net)}</td>
-                      <td className="text-right py-1">
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={logged?.amount ?? ''}
-                          aria-label={`Actual for ${entry.label}`}
-                          placeholder="—"
-                          onChange={(e) => {
-                            const value = e.target.value === '' ? undefined : Number(e.target.value);
-                            const next = setEntryActual(budget.actuals ?? [], entry.id, value);
-                            if (next !== undefined) patchBudget({ actuals: next });
-                          }}
-                          className={`${inputCls} !w-24 ml-auto text-right font-mono`}
-                        />
-                      </td>
-                      <td className={`text-right font-mono font-bold py-1 ${
-                        diff === null ? mutedCls : diff > 0 ? 'text-amber-500' : diff < 0 ? 'text-emerald-500' : ''
-                      }`}>
-                        {diff === null ? '—' : `${diff > 0 ? '+' : ''}${money(diff)}`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+          <ActualsSection
+            budget={budget}
+            onPatch={patchBudget}
+            currency={currency}
+            estimatedNet={summary.net}
+            entries={summary.entries}
+            availableEntries={actualsLines}
+            people={(project.people ?? []).map((person) => ({ id: person.id, displayName: person.displayName }))}
+            categoryTotals={summary.categories}
+            isLight={isLight}
+          />
         </div>
       )}
 
-      {view === 'needs' ? (
-        <DayNeedsView isLight={isLight} />
-      ) : (
+      {view === 'needs' && <DayNeedsView isLight={isLight} />}
+      {view === 'budget' && (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
           {/* Settings: currency, the VAT that applies unless a rate says otherwise, the paid week. */}
           <section className={cardCls}>
@@ -446,19 +443,6 @@ export const BudgetPanel: React.FC = () => {
               ))}
             </div>
           </section>
-
-          {/* Actuals: money that left the account, logged as it is paid.
-              The one section here that records rather than derives. */}
-          <ActualsSection
-            budget={budget}
-            onPatch={patchBudget}
-            currency={currency}
-            estimatedNet={summary.net}
-            entries={summary.entries}
-            people={(project.people ?? []).map((p) => ({ id: p.id, displayName: p.displayName }))}
-            categoryTotals={summary.categories}
-            isLight={isLight}
-          />
 
           {(unpricedPeople.length > 0 || unpricedEquipment.length > 0) && (
             <section className={`rounded-xl border p-3 ${isLight ? 'border-amber-200 bg-amber-50' : 'border-amber-900/60 bg-amber-950/20'}`}>

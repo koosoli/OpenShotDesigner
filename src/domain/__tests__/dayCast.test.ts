@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScheduleBlock } from '../scheduling';
-import { castPersonIdsForDay, charactersScheduledOn, type DayCastSources } from '../reports/dayCast';
+import { castNumbersScheduledOn, castPersonIdsForDay, charactersScheduledOn, type DayCastSources } from '../reports/dayCast';
 
 const blocks: ScheduleBlock[] = [
   { id: 'b-scene', kind: 'scene', scriptSceneId: 'sc1' },
@@ -29,10 +29,10 @@ const sources: DayCastSources = {
     },
   ],
   castAssignments: [
-    { id: 'ca1', characterId: 'ch-sarah', personId: 'p-hunter' },
-    { id: 'ca2', characterId: 'ch-alex', personId: 'p-lenz' },
-    { id: 'ca3', characterId: 'ch-detective', personId: 'p-solis' },
-    { id: 'ca4', characterId: 'ch-uncast', personId: 'p-nobody' },
+    { id: 'ca1', characterId: 'ch-sarah', personId: 'p-hunter', castNumber: 1 },
+    { id: 'ca2', characterId: 'ch-alex', personId: 'p-lenz', castNumber: 2 },
+    { id: 'ca3', characterId: 'ch-detective', personId: 'p-solis', castNumber: 3 },
+    { id: 'ca4', characterId: 'ch-uncast', personId: 'p-nobody', castNumber: 4 },
   ],
 };
 
@@ -93,8 +93,8 @@ describe('castPersonIdsForDay', () => {
     const doubled: DayCastSources = {
       ...sources,
       castAssignments: [
-        { id: 'ca1', characterId: 'ch-sarah', personId: 'p-same' },
-        { id: 'ca2', characterId: 'ch-alex', personId: 'p-same' },
+        { id: 'ca1', characterId: 'ch-sarah', personId: 'p-same', castNumber: 1 },
+        { id: 'ca2', characterId: 'ch-alex', personId: 'p-same', castNumber: 2 },
       ],
     };
     expect(castPersonIdsForDay(['b-scene', 'b-setup'], blocks, doubled)).toEqual(['p-same']);
@@ -106,5 +106,16 @@ describe('castPersonIdsForDay', () => {
 
   it('returns nothing for an empty day', () => {
     expect(castPersonIdsForDay([], blocks, sources)).toEqual([]);
+  });
+});
+
+describe('castNumbersScheduledOn', () => {
+  it('returns the numbered roles needed by a scene, setup, or shot in numeric order', () => {
+    expect(castNumbersScheduledOn(['b-shots', 'b-scene', 'b-setup'], blocks, sources)).toEqual([1, 2, 3]);
+    expect(castNumbersScheduledOn(['b-shots'], blocks, sources)).toEqual([3]);
+  });
+
+  it('does not invent a number for an unassigned character', () => {
+    expect(castNumbersScheduledOn(['b-scene'], blocks, { ...sources, castAssignments: [] })).toEqual([]);
   });
 });

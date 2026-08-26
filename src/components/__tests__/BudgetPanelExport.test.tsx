@@ -23,13 +23,14 @@ vi.mock('../../context/WorkspaceUIContext', async () => {
 });
 
 import { BudgetPanel } from '../budget/BudgetPanel';
-import { projectFixture, renderWithProject } from './renderWithProject';
+import { currentProject, projectFixture, renderWithProject } from './renderWithProject';
 import {
   captureDownloads,
   startsWithBom,
   type DownloadCapture,
 } from '../../utils/__tests__/captureDownloads';
 import type { Project } from '../../types';
+import { SAMPLE_SCENES } from '../../constants/presets';
 
 let capture: DownloadCapture;
 
@@ -84,5 +85,35 @@ describe('exporting the budget', () => {
     render('The Long Wait');
     fireEvent.click(exportButton());
     expect(capture.objectUrlsRevoked).toEqual(capture.objectUrlsCreated);
+  });
+});
+
+describe('editing actual costs', () => {
+  it('edits an existing actor line directly and stores the exact total against it', () => {
+    renderWithProject(<BudgetPanel />, projectFixture({
+      people: [{ id: 'actor-1', displayName: 'Alex Hunter', kind: 'cast', rateCard: { amount: 400, basis: 'flat' } }],
+    }) as Project, {}, { setActiveRightTab: () => {} });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actuals' }));
+    const input = screen.getByLabelText('Exact actual for Alex Hunter');
+    fireEvent.change(input, { target: { value: '475' } });
+
+    expect(currentProject().budget?.actuals).toEqual([
+      expect.objectContaining({ entryId: 'person:actor-1', label: 'Alex Hunter', category: 'above_the_line', amount: 475 }),
+    ]);
+    expect(screen.getAllByText(/\+.*75/).length).toBeGreaterThan(0);
+  });
+
+  it('offers known equipment even before it has a planned rate', () => {
+    renderWithProject(<BudgetPanel />, projectFixture({ setups: [SAMPLE_SCENES[0]] }) as Project, {}, { setActiveRightTab: () => {} });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actuals' }));
+    const input = screen.getByLabelText('Exact actual for ARRI Alexa Mini LF');
+    expect(screen.getAllByText('Not priced').length).toBeGreaterThan(0);
+    fireEvent.change(input, { target: { value: '900' } });
+
+    expect(currentProject().budget?.actuals).toEqual([
+      expect.objectContaining({ category: 'equipment', label: 'ARRI Alexa Mini LF', amount: 900 }),
+    ]);
   });
 });

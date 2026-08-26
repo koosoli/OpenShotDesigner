@@ -2,6 +2,7 @@ import { Project, ScriptLine, ScriptMark } from '../types';
 import {
   SAMPLE_DIALOGUE_SCREENPLAY,
   SAMPLE_NOIR_SCREENPLAY,
+  SAMPLE_SCENES,
   SAMPLE_SCREENPLAY,
 } from '../constants/presets';
 import { parseScreenplay } from '../components/script/screenplayParser';
@@ -12,6 +13,7 @@ import { hasStandingContent } from '../domain/reports';
 import type { StandingCallSheet } from '../domain/reports';
 import type { BreakdownCategory, BreakdownItem, Character } from '../domain/script';
 import { tagBreakdownItem } from '../domain/script';
+import { deriveScriptBreakdown } from '../domain/script/logic';
 import type { PowerCircuit, PowerConsumer, PowerPlan, PowerSource } from '../domain/power';
 import type { RiggingItem, SuspendedLoad, TrussElement, TrussProfile } from '../domain/rigging';
 import type { Location } from '../domain/locations';
@@ -47,6 +49,20 @@ const SAMPLE_SCREENPLAY_BY_VARIANT: Record<SampleScreenplayVariant, string> = {
 export const parseSampleScreenplay = (
   which: SampleScreenplayVariant = 'full'
 ): ScriptLine[] => parseScreenplay(SAMPLE_SCREENPLAY_BY_VARIANT[which], 'Sample scene.fountain');
+
+/** The bundled templates explicitly cover three script pages each. */
+export const samplePageEighths = (sceneNumber: string): number | undefined =>
+  sceneNumber === '1' || sceneNumber === '2' ? 24 : undefined;
+
+/** Add known template page counts without estimating arbitrary screenplays. */
+export const withSamplePageEighths = <T extends { sceneNumber: string; pageLengthEighths?: number }>(
+  scenes: readonly T[],
+): T[] => scenes.map((scene) => {
+  const known = samplePageEighths(scene.sceneNumber);
+  return scene.pageLengthEighths === undefined && known !== undefined
+    ? { ...scene, pageLengthEighths: known }
+    : { ...scene };
+});
 
 interface SampleLining {
   /** Template setup this lining belongs to. */
@@ -745,7 +761,12 @@ export const sampleCastAssignments = (
       (person) => person.kind === 'cast' && (person.role ?? '').toLowerCase().includes(`"${name}"`),
     );
     if (!actor) continue;
-    assignments.push({ id: createId('cast'), characterId: character.id, personId: actor.id });
+    assignments.push({
+      id: createId('cast'),
+      characterId: character.id,
+      personId: actor.id,
+      castNumber: assignments.length + 1,
+    });
   }
   return assignments;
 };
@@ -773,7 +794,36 @@ export interface ExampleFillResult {
 const hasItems = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
 
 export const buildExampleProductionFill = (project: Project): ExampleFillResult => {
-  const schedule = sampleScheduleMeta();
+  const rawSchedule = sampleScheduleMeta();
+  /** Resolve bundled stable ids onto a template that was cloned with fresh ids. */
+  const targetSetupFor = (templateId: string) => {
+    const template = SAMPLE_SCENES.find((setup) => setup.id === templateId);
+    if (!template) return undefined;
+    const active = project.setups.find((setup) => setup.id === project.activeSetupId);
+    if (active?.sceneNumber === template.sceneNumber) return active;
+    return project.setups.find((setup) => setup.id === templateId)
+      ?? [...project.setups].reverse().find((setup) =>
+        setup.sceneNumber === template.sceneNumber && setup.name === template.name,
+      )
+      ?? [...project.setups].reverse().find((setup) => setup.sceneNumber === template.sceneNumber);
+  };
+  const scheduleBlocks = rawSchedule.scheduleBlocks.map((block): ScheduleBlock => {
+    if (block.kind === 'setup') {
+      const target = targetSetupFor(block.setupId);
+      return target ? { ...block, setupId: target.id } : block;
+    }
+    if (block.kind !== 'shots') return block;
+    return {
+      ...block,
+      shotIds: block.shotIds.map((shotId) => {
+        const template = SAMPLE_SCENES.find((setup) => setup.shots.some((shot) => shot.id === shotId));
+        const sourceShot = template?.shots.find((shot) => shot.id === shotId);
+        const target = template ? targetSetupFor(template.id) : undefined;
+        return target?.shots.find((shot) => shot.shotNumber === sourceShot?.shotNumber)?.id ?? shotId;
+      }),
+    };
+  });
+  const schedule = { ...rawSchedule, scheduleBlocks };
   const planning = samplePlanningMeta(schedule.people);
   const technical = sampleTechnicalMeta();
 
@@ -792,6 +842,74 @@ export const buildExampleProductionFill = (project: Project): ExampleFillResult 
   if (peopleMissing) {
     patch.people = schedule.people;
     filled.push('crew & cast');
+  }
+
+  // The screenplay, template actors and casting form one chain. Fill every
+  // missing link together so setup/shot strips resolve pages and cast now.
+  if (project.scriptLines?.length) {
+    const derived = deriveScriptBreakdown(
+      project.scriptLines,
+      project.characters ?? [],
+      project.locations ?? [],
+    );
+    const templateSceneNumbers = new Set(
+      SAMPLE_SCENES.filter((template) => project.setups.some((setup) =>
+        setup.sceneNumber === template.sceneNumber && setup.scriptPage === template.scriptPage,
+      )).map((template) => template.sceneNumber),
+    );
+    const scenes = derived.scenes.map((scene) =>
+      scene.pageLengthEighths === undefined && templateSceneNumbers.has(scene.sceneNumber)
+        ? { ...scene, pageLengthEighths: samplePageEighths(scene.sceneNumber) }
+        : scene,
+    );
+    const existingScenes = project.scriptScenes ?? [];
+    patch.characters = derived.characters;
+    patch.scriptScenes = scenes.map((scene) => {
+      const existing = existingScenes.find((candidate) => candidate.id === scene.id);
+      return {
+        ...scene,
+        ...existing,
+        characterIds: scene.characterIds,
+        pageLengthEighths: existing?.pageLengthEighths ?? scene.pageLengthEighths,
+      };
+    });
+    if (
+      !hasItems(project.scriptScenes)
+      || project.scriptScenes!.some((scene) =>
+        scene.pageLengthEighths === undefined && templateSceneNumbers.has(scene.sceneNumber),
+      )
+    ) {
+      filled.push('script schedule metadata');
+    }
+
+    const castPeople = peopleMissing ? schedule.people : project.people ?? [];
+    if (!hasItems(project.castAssignments)) {
+      const assignments = sampleCastAssignments(derived.characters, castPeople);
+      if (assignments.length) {
+        patch.castAssignments = assignments;
+        filled.push('cast assignments');
+      }
+    }
+
+    const byName = new Map(
+      derived.characters.map((character) => [character.canonicalName.trim().toUpperCase(), character] as const),
+    );
+    let linkedActors = false;
+    const setups = project.setups.map((setup) => ({
+      ...setup,
+      elements: setup.elements.map((element) => {
+        if (element.type !== 'actor' || element.characterId) return element;
+        const actor = element as import('../types').ActorElement;
+        const character = byName.get((actor.characterName ?? actor.name ?? '').trim().toUpperCase());
+        if (!character) return element;
+        linkedActors = true;
+        return { ...actor, characterId: character.id, characterName: character.canonicalName };
+      }),
+    }));
+    if (linkedActors) {
+      patch.setups = setups;
+      filled.push('template cast links');
+    }
   }
 
   fillArray('productionDays', schedule.productionDays, 'shooting days & call sheets');

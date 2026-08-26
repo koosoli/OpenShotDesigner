@@ -44,7 +44,7 @@ import type {
   CallSheetData,
 } from '../../domain/reports';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
-import { buildStripContextResolver, castFilterForDay, deriveCallSheet, resolveDayLocations as resolveDayLocationsForBlocks } from '../../domain/reports';
+import { buildStripContextResolver, castFilterForDay, castNumbersScheduledOn, deriveCallSheet, formatPageEighths, resolveDayLocations as resolveDayLocationsForBlocks } from '../../domain/reports';
 import { ScheduleHealth } from './ScheduleHealth';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { StripboardPrintView } from '../reports/StripboardPrintView';
@@ -75,7 +75,7 @@ const formatMinutes = (total: number): string => {
 
 export const SchedulePanel: React.FC = () => {
   const { project, updateProjectMeta } = useFloorPlan();
-  const { theme } = useWorkspaceUI();
+  const { theme, setActiveRightTab } = useWorkspaceUI();
   const isLight = theme === 'light';
 
   // Memoised: `?? []` mints a fresh array every render, which made every memo
@@ -98,8 +98,9 @@ export const SchedulePanel: React.FC = () => {
   const [newEventStart, setNewEventStart] = useState('');
   const [newEventEnd, setNewEventEnd] = useState('');
   // Calendar presentation (session-only, rule 38): timeline strip or month grid.
-  const [calendarMode, setCalendarMode] = useState<'timeline' | 'month'>('timeline');
+  const [calendarMode, setCalendarMode] = useState<'timeline' | 'month' | 'list'>('timeline');
   const [calendarMonth, setCalendarMonth] = useState(() => defaultCalendarMonth(calendarEvents, days, todayIso()));
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(() => days.find((day) => day.date)?.date ?? todayIso());
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const selectedEvent = calendarEvents.find((event) => event.id === selectedEventId) ?? null;
 
@@ -395,20 +396,6 @@ export const SchedulePanel: React.FC = () => {
     setNewEventEnd('');
   };
 
-  /** Month grid: clicking an empty day drops a one-day event there, ready to rename. */
-  const addCalendarEventOn = (iso: string) => {
-    const event: ProductionCalendarEvent = {
-      id: createId('event'),
-      title: 'New event',
-      startDate: iso,
-      endDate: iso,
-      category: 'preproduction',
-      status: 'planned',
-    };
-    updateProjectMeta({ productionCalendarEvents: [...calendarEvents, event] });
-    setSelectedEventId(event.id);
-  };
-
   const updateCalendarEvent = (eventId: string, updates: Partial<ProductionCalendarEvent>) => {
     updateProjectMeta({
       productionCalendarEvents: calendarEvents.map((event) =>
@@ -444,7 +431,15 @@ export const SchedulePanel: React.FC = () => {
    * setup cyan, shots violet, cue pink, segment indigo). Presentation-only.
    */
   const printableBoardDays = useMemo<PrintableStripboardDay[]>(
-    () => buildPrintableStripboardDays(project, labelCtx),
+    () => buildPrintableStripboardDays(project, labelCtx, (block) => castNumbersScheduledOn(
+      [block.id],
+      [block],
+      {
+        scriptScenes: project.scriptScenes,
+        setups: project.setups,
+        castAssignments: project.castAssignments,
+      },
+    )),
     [project, labelCtx],
   );
 
@@ -469,8 +464,9 @@ export const SchedulePanel: React.FC = () => {
         crewCall: day.crewCall,
         plannedWrap: day.plannedWrap,
         totalMinutes: deriveDaySummary(day, blocks).totalEstimatedMinutes,
+        items: printableBoardDays.find((printDay) => printDay.id === day.id)?.items.map((item) => item.label) ?? [],
       })),
-    [days, blocks]
+    [days, blocks, printableBoardDays]
   );
 
   const printableCoverageRows = useMemo<PrintableCoverageRow[]>(
@@ -633,6 +629,11 @@ export const SchedulePanel: React.FC = () => {
       (effectiveSceneNumber
         ? project.scriptScenes?.find((candidate) => candidate.sceneNumber === effectiveSceneNumber)
         : undefined);
+    const castNumbers = castNumbersScheduledOn([block.id], [block], {
+      scriptScenes: project.scriptScenes,
+      setups: project.setups,
+      castAssignments: project.castAssignments,
+    });
     const isManual = block.kind === 'manual';
     const manualTone = isManual && block.manualType === 'meal' ? 'bg-emerald-600' : isManual && block.manualType === 'move' ? 'bg-violet-600' : 'bg-slate-700';
     const targetKey = day ? `${day.id}:${indexInDay ?? 0}` : `pool:${block.id}`;
@@ -700,16 +701,13 @@ export const SchedulePanel: React.FC = () => {
           <span className="font-mono text-[10px] font-black text-center">{displayNumber}</span>
           <div className="min-w-0 px-2 border-l border-inherit"><div className="text-[10px] font-black truncate">{primaryLabel}</div><div className="text-[8px] uppercase font-bold tracking-wide truncate opacity-60">{secondaryLabel}</div></div>
           {day ? <>
-            <span className="text-[9px] font-bold text-center">{stripScriptScene?.pageLengthEighths !== undefined ? `${stripScriptScene.pageLengthEighths}/8` : '—'}</span>
-            {(() => {
-              const castNames = (stripScriptScene?.characterIds ?? [])
-                .map((id) => project.characters?.find((candidate) => candidate.id === id)?.canonicalName ?? 'Unnamed');
-              return (
-                <span className="text-[9px] font-bold text-center truncate px-1" title={castNames.join(', ') || undefined}>
-                  {castNames.length ? `${castNames.length} cast` : '—'}
-                </span>
-              );
-            })()}
+            <span className="text-[9px] font-bold text-center">{formatPageEighths(stripScriptScene?.pageLengthEighths)}</span>
+            <span
+              className="text-[9px] font-bold font-mono text-center truncate px-1"
+              title={castNumbers.length ? `Cast ${castNumbers.join(', ')}` : undefined}
+            >
+              {castNumbers.length ? castNumbers.join(', ') : '—'}
+            </span>
             <label className="flex items-center justify-center text-[9px] font-mono"><input type="number" min={0} value={block.estimatedMinutes ?? ''} onChange={(event) => updateBlock(block.id, { estimatedMinutes: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} placeholder="—" className={`w-9 rounded border px-1 py-1 text-right ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-700'}`} />m</label>
             <span className="flex items-center justify-end gap-0.5 pr-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100"><button onClick={() => moveWithinDay(day, block.id, 'up')} disabled={indexInDay === 0} title="Move earlier in the day" aria-label="Move earlier in the day" className={`${iconBtnClass} !min-w-6 !min-h-6 disabled:opacity-20`}><ChevronUp className="w-3 h-3" /></button><button onClick={() => moveWithinDay(day, block.id, 'down')} disabled={indexInDay === day.scheduleBlockIds.length - 1} title="Move later in the day" aria-label="Move later in the day" className={`${iconBtnClass} !min-w-6 !min-h-6 disabled:opacity-20`}><ChevronDown className="w-3 h-3" /></button><button onClick={() => placeBlock(block.id, null)} className={`${iconBtnClass} !min-w-6 !min-h-6`} title="Return to unscheduled" aria-label="Return to unscheduled"><ChevronLeft className="w-3 h-3" /></button></span>
           </> : <span className="flex items-center"><button onClick={() => days[0] && placeBlock(block.id, days[0].id)} disabled={!days.length} title="Add to first shooting day" aria-label="Add to first shooting day" className={`${iconBtnClass} !min-w-5 !min-h-7 disabled:opacity-30`}><ChevronRight className="w-3.5 h-3.5" /></button><button onClick={() => deleteBlock(block.id)} title="Delete schedule item" aria-label="Delete schedule item" className={`${iconBtnClass} !min-w-5 !min-h-7 hover:!text-red-500`}><Trash2 className="w-3 h-3" /></button></span>}
@@ -745,7 +743,7 @@ export const SchedulePanel: React.FC = () => {
             </div>
           );
         })()}
-        <div className={`grid grid-cols-[22px_42px_minmax(170px,1fr)_54px_64px_58px_68px] px-0 min-h-6 items-center text-[8px] font-black uppercase tracking-wider border-b ${isLight ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-950 text-slate-500 border-slate-800'}`}><span></span><span className="text-center">Sc.</span><span className="px-2">Scene / schedule item</span><span className="text-center">Pages</span><span className="text-center">Cast</span><span className="text-center">Time</span><span></span></div>
+        <div className={`grid grid-cols-[22px_42px_minmax(170px,1fr)_54px_64px_58px_68px] px-0 min-h-6 items-center text-[8px] font-black uppercase tracking-wider border-b ${isLight ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-950 text-slate-500 border-slate-800'}`}><span></span><span className="text-center">Sc.</span><span className="px-2">Scene / schedule item</span><span className="text-center">Pages</span><span className="text-center">Cast #</span><span className="text-center">Time</span><span></span></div>
         <ol className="divide-y divide-slate-200 dark:divide-slate-800">{day.scheduleBlockIds.map((blockId, index) => { const block = blocks.find((candidate) => candidate.id === blockId); return block ? renderBlockRow(block, { day, indexInDay: index }) : null; })}</ol>
         {day.scheduleBlockIds.length === 0 && <div className={`m-2 min-h-14 rounded-md border border-dashed flex items-center justify-center text-[10px] ${mutedText} ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>Drag scene strips or banners into this shooting day</div>}
         <div className={`h-8 px-3 flex items-center justify-between border-t text-[9px] font-black uppercase tracking-wide ${isLight ? 'bg-slate-100 border-slate-300 text-slate-600' : 'bg-slate-950 border-slate-700 text-slate-300'}`}><span>End of day {dayIndex + 1} of {days.length}</span><span className="font-mono">{shootableCount} shoot items · {formatMinutes(summary.totalEstimatedMinutes)} · {day.date || 'date TBD'}</span></div>
@@ -756,6 +754,13 @@ export const SchedulePanel: React.FC = () => {
   const hasIssues = conflicts.length > 0 || danglingRefs.length > 0;
   const selectedCallSheetDay = days.find((day) => day.id === selectedCallSheetDayId) ?? days[0];
   const selectedCallSheet = selectedCallSheetDay ? buildCallSheet(selectedCallSheetDay) : null;
+  const printLabel = workspaceView === 'stripboard'
+    ? 'Print Board'
+    : workspaceView === 'calendar'
+      ? `Print ${calendarMode[0].toUpperCase()}${calendarMode.slice(1)}`
+      : workspaceView === 'callsheets'
+        ? 'Print Call sheet'
+        : 'Print Coverage';
 
   return (
     <div className={`h-full overflow-hidden flex flex-col ${isLight ? 'bg-[#f3f5f7]' : 'bg-slate-950'}`}>
@@ -763,6 +768,16 @@ export const SchedulePanel: React.FC = () => {
         <div className="h-12 px-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0"><div className="w-7 h-7 rounded-md bg-cyan-500 text-slate-950 flex items-center justify-center"><CalendarDays className="w-4 h-4" /></div><div className="min-w-0"><h2 className="text-sm font-black tracking-tight">Production Schedule</h2><p className={`text-[9px] truncate ${mutedText}`}>{days.length} shoot days · {days.reduce((sum, day) => sum + day.scheduleBlockIds.length, 0)} scheduled strips · {pooledBlockIds.length + unscheduledScenes.length + unscheduledSetups.length + unscheduledShots.length} available items</p></div></div>
           <div className="flex items-center gap-2">
+            {workspaceView === 'stripboard' && (
+              <button
+                type="button"
+                onClick={() => setActiveRightTab('contacts')}
+                title="Assign performers and edit their production cast numbers"
+                className={`h-8 px-2.5 rounded-md border text-[9px] font-black flex items-center gap-1.5 transition-colors ${isLight ? 'bg-white border-slate-300 hover:border-emerald-500 hover:text-emerald-700' : 'bg-slate-950 border-slate-800 hover:border-emerald-500 hover:text-emerald-400'}`}
+              >
+                <Users className="w-3.5 h-3.5" />Cast numbers
+              </button>
+            )}
             <div className={`flex h-8 rounded-md border p-0.5 ${isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
               {([['stripboard', LayoutList, 'Board'], ['calendar', CalendarRange, 'Timeline'], ['callsheets', FileCheck2, 'Call sheets'], ['coverage', Users, 'Coverage']] as const).map(([view, Icon, label]) => <button key={view} onClick={() => setWorkspaceView(view)} aria-pressed={workspaceView === view} className={`px-2.5 rounded text-[9px] font-black flex items-center gap-1.5 transition-colors ${workspaceView === view ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-sm' : mutedText}`}><Icon className="w-3.5 h-3.5" />{label}</button>)}
             </div>
@@ -777,7 +792,7 @@ export const SchedulePanel: React.FC = () => {
               }
               className={`h-8 px-2.5 rounded-md border text-[9px] font-black flex items-center gap-1.5 transition-colors disabled:opacity-40 ${isLight ? 'bg-white border-slate-300 hover:border-cyan-500 hover:text-cyan-700' : 'bg-slate-950 border-slate-800 hover:border-cyan-500 hover:text-cyan-400'}`}
             >
-              <Printer className="w-3.5 h-3.5" />Print
+              <Printer className="w-3.5 h-3.5" />{printLabel}
             </button>
           </div>
         </div>
@@ -790,7 +805,7 @@ export const SchedulePanel: React.FC = () => {
           <div className="p-2.5 border-b border-inherit"><div className="flex items-center justify-between"><h3 className="text-[9px] font-black uppercase tracking-[0.14em] flex items-center gap-1.5"><Inbox className="w-3.5 h-3.5 text-cyan-600" />Unscheduled</h3><span className="text-[9px] font-mono font-bold text-slate-500">{pooledBlockIds.length + unscheduledScenes.length + unscheduledSetups.length + unscheduledShots.length}</span></div><div className="relative mt-2"><Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" /><input value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder="Search scenes, setups, shots" className={`${inputClass} !min-h-8 !pl-7 !text-[10px]`} /></div></div>
           <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1.5">
             {selectedShotIds.size > 0 && <div className={`sticky top-0 z-10 rounded-md border p-1.5 flex items-center gap-1.5 shadow-sm ${isLight ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-white text-slate-950'}`}><span className="flex-1 text-[9px] font-black">{selectedShotIds.size} shots selected</span><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleShots([...selectedShotIds], days[0].id)} className="h-6 px-2 rounded bg-cyan-500 text-slate-950 text-[8px] font-black disabled:opacity-40">Add to day 1</button><button type="button" onClick={() => setSelectedShotIds(new Set())} title="Clear the shot selection" aria-label="Clear the shot selection" className="w-6 h-6 text-sm opacity-70">×</button></div>}
-            {unscheduledScenes.map((scene) => <div key={scene.id} draggable onDragStart={handleDragStart(`scene:${scene.id}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab ${isLight ? 'bg-amber-50 border-amber-200' : 'bg-amber-950/20 border-amber-800/50'}`}><div className="flex"><div className="w-7 bg-amber-400 text-amber-950 flex items-center justify-center font-mono text-[10px] font-black">{scene.sceneNumber}</div><div className="min-w-0 flex-1 px-2 py-2"><div className="text-[9px] font-black truncate">{scene.heading}</div><div className={`mt-0.5 text-[8px] font-bold uppercase ${mutedText}`}>{scene.intExt?.replace('_', '/') ?? 'SCENE'} · {scene.timeOfDay ?? 'TBD'} · {scene.pageLengthEighths ?? '—'}/8</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleScene(scene.id, days[0].id)} title="Add to first shooting day" aria-label="Add to first shooting day" className="w-7 shrink-0 flex items-center justify-center text-amber-800 hover:bg-amber-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>)}
+            {unscheduledScenes.map((scene) => <div key={scene.id} draggable onDragStart={handleDragStart(`scene:${scene.id}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab ${isLight ? 'bg-amber-50 border-amber-200' : 'bg-amber-950/20 border-amber-800/50'}`}><div className="flex"><div className="w-7 bg-amber-400 text-amber-950 flex items-center justify-center font-mono text-[10px] font-black">{scene.sceneNumber}</div><div className="min-w-0 flex-1 px-2 py-2"><div className="text-[9px] font-black truncate">{scene.heading}</div><div className={`mt-0.5 text-[8px] font-bold uppercase ${mutedText}`}>{scene.intExt?.replace('_', '/') ?? 'SCENE'} · {scene.timeOfDay ?? 'TBD'} · {formatPageEighths(scene.pageLengthEighths)}</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleScene(scene.id, days[0].id)} title="Add to first shooting day" aria-label="Add to first shooting day" className="w-7 shrink-0 flex items-center justify-center text-amber-800 hover:bg-amber-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>)}
             {unscheduledSetups.map((setup) => <div key={setup.id} draggable onDragStart={handleDragStart(`setup:${setup.id}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab ${isLight ? 'bg-cyan-50 border-cyan-200' : 'bg-cyan-950/20 border-cyan-800/50'}`}><div className="flex"><div className="w-7 bg-cyan-500 text-slate-950 flex items-center justify-center font-mono text-[9px] font-black">SET</div><div className="min-w-0 flex-1 px-2 py-2"><div className="text-[9px] font-black truncate">{setup.name}</div><div className={`mt-0.5 text-[8px] font-bold uppercase truncate ${mutedText}`}>{setup.sceneNumber || 'No scene'} · {setup.location || 'Location TBD'} · {setup.shots.length} shots</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleSetup(setup.id, days[0].id)} title="Add to first shooting day" aria-label="Add to first shooting day" className="w-7 shrink-0 flex items-center justify-center text-cyan-800 hover:bg-cyan-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>)}
             {unscheduledShots.map(({ shot, setup }) => { const selected = selectedShotIds.has(shot.id); const dragIds = selected ? [...selectedShotIds] : [shot.id]; return <div key={shot.id} draggable onDragStart={handleDragStart(`shots:${dragIds.join(',')}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab transition-colors ${selected ? 'ring-2 ring-violet-500 border-violet-500' : isLight ? 'bg-violet-50 border-violet-200' : 'bg-violet-950/20 border-violet-800/50'}`}><div className="flex items-stretch"><label className="w-7 shrink-0 flex items-center justify-center bg-violet-500/15"><input type="checkbox" checked={selected} onChange={() => toggleShotSelection(shot.id)} aria-label={`Select shot ${shot.shotNumber}`} className="accent-violet-600" /></label><div className="min-w-0 flex-1 px-2 py-1.5"><div className="text-[9px] font-black truncate">{shot.shotNumber} · {shot.name}</div><div className={`mt-0.5 text-[8px] font-bold uppercase truncate ${mutedText}`}>{shot.cameraLabel} · {shot.shotSize} · {shot.lensMm}mm · {setup.name}</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleShots([shot.id], days[0].id)} title={`Add shot ${shot.shotNumber} to first shooting day`} aria-label={`Add shot ${shot.shotNumber} to first shooting day`} className="w-7 shrink-0 flex items-center justify-center text-violet-700 hover:bg-violet-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>; })}
             {pooledBlockIds.map((block) => renderBlockRow(block))}
@@ -804,9 +819,9 @@ export const SchedulePanel: React.FC = () => {
       {workspaceView === 'calendar' && <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className={`flex p-0.5 rounded-md border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-950/60'}`}>
-            {(['timeline', 'month'] as const).map((mode) => (
+            {(['timeline', 'month', 'list'] as const).map((mode) => (
               <button key={mode} onClick={() => setCalendarMode(mode)} aria-pressed={calendarMode === mode} className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${calendarMode === mode ? 'bg-sky-600 text-white' : mutedText}`}>
-                {mode === 'timeline' ? 'Timeline' : 'Month'}
+                {mode === 'timeline' ? 'Timeline' : mode === 'month' ? 'Month' : 'List'}
               </button>
             ))}
           </div>
@@ -825,19 +840,53 @@ export const SchedulePanel: React.FC = () => {
             onClose={() => setSelectedEventId(null)}
           />
         )}
-        {calendarMode === 'month' && (
+        {calendarMode === 'month' && (<>
           <MonthCalendar
             yearMonth={calendarMonth}
             onChangeMonth={setCalendarMonth}
             events={calendarEvents}
             days={days}
+            workDays={printableBoardDays}
             tasks={project.tasks ?? []}
             selectedEventId={selectedEventId}
             onSelectEvent={setSelectedEventId}
-            onCreateEvent={addCalendarEventOn}
+            onSelectDate={setSelectedCalendarDate}
+            selectedDate={selectedCalendarDate}
             isLight={isLight}
           />
-        )}
+          <section className={`rounded-lg border overflow-hidden ${cardClass}`}>
+            <div className={`px-3 py-2 border-b ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-900'}`}>
+              <h3 className="text-[10px] font-black uppercase tracking-wider">Daily shooting schedule</h3>
+              <p className={`text-[9px] ${mutedText}`}>{selectedCalendarDate ?? 'Select a day in the month above'}.</p>
+            </div>
+            <div className="divide-y divide-slate-200 dark:divide-slate-800">
+              {printableBoardDays
+                .filter((day) => day.date === selectedCalendarDate)
+                .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+                .map((day) => (
+                  <article key={day.id} className="grid grid-cols-[120px_1fr_auto] gap-3 px-3 py-2.5 items-start">
+                    <div>
+                      <div className="text-[10px] font-black">{day.name}</div>
+                      <div className={`text-[9px] font-mono ${mutedText}`}>{day.date}</div>
+                      <div className={`text-[8px] ${mutedText}`}>{day.crewCall ?? 'Call TBD'} - {day.plannedWrap ?? 'Wrap TBD'}</div>
+                    </div>
+                    <ol className="space-y-0.5 min-w-0">
+                      {day.items.map((item, index) => (
+                        <li key={`${item.label}-${index}`} className="text-[9px] truncate" title={item.label}>
+                          <span className="font-mono text-slate-400 mr-1.5">{index + 1}.</span>{item.label}
+                        </li>
+                      ))}
+                      {day.items.length === 0 && <li className={`text-[9px] ${mutedText}`}>No strips scheduled.</li>}
+                    </ol>
+                    <span className={`text-[9px] font-mono font-bold ${mutedText}`}>{formatMinutes(day.totalMinutes)}</span>
+                  </article>
+                ))}
+              {!printableBoardDays.some((day) => day.date === selectedCalendarDate) && (
+                <p className={`px-3 py-4 text-[10px] ${mutedText}`}>No shooting day is scheduled on this date.</p>
+              )}
+            </div>
+          </section>
+        </>)}
         {calendarMode === 'timeline' && <>
         <div className={`rounded-lg border p-2.5 grid grid-cols-[1fr_130px_130px_auto] gap-2 items-end ${cardClass}`}>
           <label className="text-[8px] font-black uppercase tracking-wider text-slate-500">Event or milestone
@@ -861,6 +910,23 @@ export const SchedulePanel: React.FC = () => {
         />
         <p className={`text-[9px] ${mutedText}`}>Drag a clip to move it between days · drag its edges to resize the period · shooting-day clips re-date their day. New lines start on the first production day. Switch to Month to edit category, status, assignees and notes.</p>
         </>}
+        {calendarMode === 'list' && (
+          <section className={`rounded-lg border overflow-hidden ${cardClass}`}>
+            <div className={`px-3 py-2 border-b ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-900'}`}>
+              <h3 className="text-[10px] font-black uppercase tracking-wider">Shooting-day list</h3>
+              <p className={`text-[9px] ${mutedText}`}>Every dated day and every scheduled strip.</p>
+            </div>
+            <div className="divide-y divide-slate-200 dark:divide-slate-800">
+              {[...printableBoardDays].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '')).map((day) => (
+                <article key={day.id} className="grid grid-cols-[120px_1fr_auto] gap-3 px-3 py-2.5 items-start">
+                  <div><div className="text-[10px] font-black">{day.name}</div><div className={`text-[9px] font-mono ${mutedText}`}>{day.date ?? 'Date TBD'}</div></div>
+                  <ol className="space-y-0.5 min-w-0">{day.items.map((item, index) => <li key={`${item.label}-${index}`} className="text-[9px] truncate"><span className="font-mono text-slate-400 mr-1.5">{index + 1}.</span>{item.label}</li>)}</ol>
+                  <span className={`text-[9px] font-mono font-bold ${mutedText}`}>{formatMinutes(day.totalMinutes)}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
       </div>}
 
       {workspaceView === 'callsheets' && <div className="flex-1 min-h-0"><CallSheetWorkspace days={days} selectedDayId={selectedCallSheetDay?.id ?? null} onSelectDay={setSelectedCallSheetDayId} sheet={selectedCallSheet} updateDay={updateDay} onPrint={requestCallSheetPrint} isLight={isLight} /></div>}
@@ -875,7 +941,7 @@ export const SchedulePanel: React.FC = () => {
       )}
       {printView === 'calendar' && createPortal(
         <div className="schedule-print-host">
-          <ScheduleCalendarPrintView productionTitle={project.title} company={project.productionCompany} logo={project.logo} events={printableCalendarEvents} days={printableCalendarDays} />
+          <ScheduleCalendarPrintView productionTitle={project.title} company={project.productionCompany} logo={project.logo} events={printableCalendarEvents} days={printableCalendarDays} mode={calendarMode} yearMonth={calendarMonth} />
         </div>,
         document.body
       )}

@@ -120,8 +120,8 @@ const NARRATIVE_PEOPLE: Person[] = [
 ];
 
 const NARRATIVE_CAST: CastAssignment[] = [
-  { id: 'ca-1', characterId: 'char-alex', personId: 'p-alex' },
-  { id: 'ca-2', characterId: 'char-sarah', personId: 'p-sarah' },
+  { id: 'ca-1', characterId: 'char-alex', personId: 'p-alex', castNumber: 1 },
+  { id: 'ca-2', characterId: 'char-sarah', personId: 'p-sarah', castNumber: 2 },
 ];
 
 /**

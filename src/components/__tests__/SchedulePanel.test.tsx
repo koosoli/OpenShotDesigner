@@ -146,4 +146,28 @@ describe('SchedulePanel', () => {
     const block = (project().scheduleBlocks ?? []).find((entry) => entry.id === scheduledId);
     expect(block?.estimatedMinutes).toBeGreaterThan(0);
   });
+
+  it('opens a daily schedule from the month without creating an event', async () => {
+    const user = userEvent.setup();
+    const { project } = await mount();
+    const eventsBefore = (project().productionCalendarEvents ?? []).length;
+
+    await user.click(screen.getByRole('button', { name: 'Timeline' }));
+    await user.click(screen.getByRole('button', { name: 'Month' }));
+    await user.click(screen.getAllByTitle("Open this day's shooting schedule")[0]);
+
+    expect(screen.getByText('Daily shooting schedule')).toBeTruthy();
+    expect(project().productionCalendarEvents ?? []).toHaveLength(eventsBefore);
+  });
+
+  it('labels printing for only the active schedule view', async () => {
+    const user = userEvent.setup();
+    await mount();
+
+    expect(screen.getByRole('button', { name: 'Print Board' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Timeline' }));
+    expect(screen.getByRole('button', { name: 'Print Timeline' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Month' }));
+    expect(screen.getByRole('button', { name: 'Print Month' })).toBeTruthy();
+  });
 });

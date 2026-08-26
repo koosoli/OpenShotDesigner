@@ -9,6 +9,7 @@ import {
   samplePlanningMeta,
   sampleScheduleMeta,
   sampleTechnicalMeta,
+  withSamplePageEighths,
 } from './sampleContent';
 import { deriveScriptBreakdown } from '../domain/script/logic';
 import { projectHeadFieldsFor } from '../domain/people';
@@ -508,6 +509,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
   // The example characters are discovered from the example screenplay and then
   // persisted, so the cast links below stay pointed at stable character ids.
   let sampleCharacters: import('../domain/script').Character[] | undefined;
+  let sampleScriptScenes: import('../domain/script').ScriptScene[] | undefined;
   let sampleElements: import('../domain/script').BreakdownItem[] | undefined;
   let castAssignments;
   if (withSamples) {
@@ -515,7 +517,9 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     setups.forEach((setup) => {
       setup.scriptMarks = sampleMarksFor(setup.id, scriptLines!, setup.sceneNumber);
     });
-    sampleCharacters = deriveScriptBreakdown(scriptLines).characters;
+    const sampleBreakdown = deriveScriptBreakdown(scriptLines);
+    sampleCharacters = sampleBreakdown.characters;
+    sampleScriptScenes = withSamplePageEighths(sampleBreakdown.scenes);
     sampleElements = sampleBreakdownItems(scriptLines);
     castAssignments = sampleCastAssignments(sampleCharacters, scheduleMeta?.people ?? []);
 
@@ -574,6 +578,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
           scriptText: SAMPLE_SCREENPLAY,
           scriptLines,
           characters: sampleCharacters,
+          scriptScenes: sampleScriptScenes,
           breakdownItems: sampleElements,
           castAssignments,
           ...scheduleMeta,

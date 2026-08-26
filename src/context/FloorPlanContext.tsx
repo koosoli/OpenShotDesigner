@@ -62,7 +62,7 @@ import {
   SAMPLE_SCENES,
 } from '../constants/presets';
 import { calculateFovAngle } from '../utils/geometry';
-import { buildExampleProductionFill, parseSampleScreenplay, sampleMarksFor } from '../utils/sampleContent';
+import { buildExampleProductionFill, parseSampleScreenplay, sampleMarksFor, withSamplePageEighths } from '../utils/sampleContent';
 import {
   NewProjectOptions,
   ProjectSummary,
@@ -3935,6 +3935,22 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const hasScript = existingLines.length > 0;
     // Only bring the sample screenplay in when there is nothing to overwrite
     const lines = hasScript ? existingLines : parseSampleScreenplay(templateIndex === 1 ? 'noir' : 'dialogue');
+    const templateBreakdown = deriveScriptBreakdown(
+      lines,
+      project.characters ?? [],
+      project.locations ?? [],
+    );
+    const characterByName = new Map(
+      templateBreakdown.characters.map((character) => [character.canonicalName.trim().toUpperCase(), character] as const),
+    );
+    clone.elements = clone.elements.map((element) => {
+      if (element.type !== 'actor') return element;
+      const actor = element as ActorElement;
+      const character = characterByName.get((actor.characterName ?? actor.name ?? '').trim().toUpperCase());
+      return character
+        ? { ...actor, characterId: character.id, characterName: character.canonicalName }
+        : actor;
+    });
     clone.scriptMarks = sampleMarksFor(template.id, lines, clone.sceneNumber, (shotId) =>
       shotIdMap.get(shotId)
     );
@@ -3948,6 +3964,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           : 'Dialogue sample',
       scriptText: hasScript ? prev.scriptText : templateIndex === 1 ? SAMPLE_NOIR_SCREENPLAY : SAMPLE_DIALOGUE_SCREENPLAY,
       scriptLines: lines,
+      characters: templateBreakdown.characters,
+      scriptScenes: withSamplePageEighths(templateBreakdown.scenes),
       setups: [...prev.setups, clone],
       activeSetupId: newSetupId,
     }));

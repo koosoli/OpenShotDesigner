@@ -119,10 +119,37 @@ export const assignCast = (
   personId: string,
   notes?: string,
 ): CastAssignment[] => {
+  const existing = assignments.find((assignment) => assignment.characterId === characterId);
   const remaining = assignments.filter((assignment) => assignment.characterId !== characterId);
-  const next: CastAssignment = { id: createId('cast'), characterId, personId };
+  const used = new Set(assignments.map((assignment) => assignment.castNumber));
+  let castNumber = existing?.castNumber ?? 1;
+  while (!existing && used.has(castNumber)) castNumber += 1;
+  const next: CastAssignment = {
+    id: existing?.id ?? createId('cast'),
+    characterId,
+    personId,
+    castNumber,
+  };
   if (notes) next.notes = notes;
   return [...remaining, next];
+};
+
+/** Update a role's cast number. Positive whole numbers only. */
+export const setCastNumber = (
+  assignments: readonly CastAssignment[],
+  characterId: string,
+  castNumber: number,
+): CastAssignment[] => {
+  const cleaned = Math.max(1, Math.round(castNumber));
+  const current = assignments.find((assignment) => assignment.characterId === characterId);
+  if (!current || current.castNumber === cleaned) return [...assignments];
+  return assignments.map((assignment) => {
+    if (assignment.characterId === characterId) return { ...assignment, castNumber: cleaned };
+    // Cast numbers are unique. Renumbering onto an occupied number swaps the
+    // two roles, avoiding a transient duplicate and preserving both numbers.
+    if (assignment.castNumber === cleaned) return { ...assignment, castNumber: current.castNumber };
+    return assignment;
+  });
 };
 
 export const unassignCast = (assignments: readonly CastAssignment[], characterId: string): CastAssignment[] =>

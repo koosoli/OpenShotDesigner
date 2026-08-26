@@ -10,6 +10,7 @@ import {
   peopleToCsv,
   personInitials,
   removePerson,
+  setCastNumber,
   unassignCast,
   upsertPerson,
   usesProductionPhone,
@@ -38,7 +39,7 @@ describe('upsertPerson / removePerson', () => {
   it('removes a person together with cast assignments and location contact references', () => {
     const refs = {
       people,
-      castAssignments: [{ id: 'c1', characterId: 'ch1', personId: 'p3' }] as CastAssignment[],
+      castAssignments: [{ id: 'c1', characterId: 'ch1', personId: 'p3', castNumber: 1 }] as CastAssignment[],
       locations: [{ contactIds: ['p3', 'p5'] }, { contactIds: ['p1'] }, {}],
     };
     const next = removePerson(refs, 'p3');
@@ -58,6 +59,17 @@ describe('cast assignment', () => {
     expect(castPersonForCharacter(assignments, people, 'ch1')?.displayName).toBe('Dan Li');
     expect(unassignCast(assignments, 'ch1')).toEqual([]);
     expect(castPersonForCharacter([], people, 'ch1')).toBeUndefined();
+  });
+
+  it('allocates the next cast number, preserves it on recast, and swaps occupied numbers', () => {
+    let assignments = assignCast([], 'ch1', 'p1');
+    assignments = assignCast(assignments, 'ch2', 'p2');
+    expect(assignments.map((entry) => entry.castNumber)).toEqual([1, 2]);
+    assignments = assignCast(assignments, 'ch1', 'p3');
+    expect(assignments.find((entry) => entry.characterId === 'ch1')?.castNumber).toBe(1);
+    assignments = setCastNumber(assignments, 'ch1', 2);
+    expect(assignments.find((entry) => entry.characterId === 'ch1')?.castNumber).toBe(2);
+    expect(assignments.find((entry) => entry.characterId === 'ch2')?.castNumber).toBe(1);
   });
 });
 

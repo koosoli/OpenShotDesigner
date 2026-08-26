@@ -152,7 +152,7 @@ describe('deriveCharacterReport', () => {
 
   const people: Person[] = [{ id: 'p-lena', displayName: 'Lena Ray', kind: 'cast' }];
   const castAssignments: CastAssignment[] = [
-    { id: 'ca-1', characterId: 'c-alice', personId: 'p-lena' },
+    { id: 'ca-1', characterId: 'c-alice', personId: 'p-lena', castNumber: 1 },
   ];
 
   it('orders scenes numerically ("2A" after "2") and derives first/last scene numbers', () => {

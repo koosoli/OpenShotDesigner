@@ -38,11 +38,13 @@ interface MonthCalendarProps {
   onChangeMonth: (yearMonth: string) => void;
   events: ProductionCalendarEvent[];
   days: ProductionDay[];
+  workDays: Array<{ id: string; date?: string; items: Array<{ label: string }> }>;
   tasks: Task[];
   selectedEventId: string | null;
   onSelectEvent: (id: string | null) => void;
-  /** Click on an empty day creates a one-day event there. */
-  onCreateEvent: (iso: string) => void;
+  /** Open the dated daily schedule; event creation stays in the event form. */
+  onSelectDate: (iso: string) => void;
+  selectedDate: string | null;
   isLight: boolean;
 }
 
@@ -56,10 +58,12 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
   onChangeMonth,
   events,
   days,
+  workDays,
   tasks,
   selectedEventId,
   onSelectEvent,
-  onCreateEvent,
+  onSelectDate,
+  selectedDate,
   isLight,
 }) => {
   const grid = useMemo(() => buildMonthGrid(yearMonth), [yearMonth]);
@@ -84,16 +88,17 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
           {week.map((day) => {
             const dayEvents = eventsOnDay(events, day.iso);
             const shootDays = productionDaysOn(days, day.iso);
+            const scheduledWork = workDays.filter((workDay) => workDay.date === day.iso);
             const due = tasksDueOn(tasks, day.iso);
             const isToday = day.iso === today;
             return (
               <div
                 key={day.iso}
-                onClick={() => onCreateEvent(day.iso)}
-                title="Click to add an event on this day"
+                onClick={() => onSelectDate(day.iso)}
+                title="Open this day's shooting schedule"
                 className={`min-h-[78px] p-1 border-r last:border-r-0 cursor-pointer transition-colors ${
                   isLight ? 'border-slate-200 hover:bg-sky-50/60' : 'border-slate-800 hover:bg-sky-950/30'
-                } ${day.inMonth ? '' : 'opacity-45'}`}
+                } ${day.inMonth ? '' : 'opacity-45'} ${selectedDate === day.iso ? 'ring-2 ring-inset ring-sky-500' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <span className={`text-[10px] font-bold w-5 h-5 grid place-items-center rounded-full ${isToday ? 'bg-cyan-500 text-white' : mutedCls}`}>{day.dayOfMonth}</span>
@@ -104,6 +109,20 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                   )}
                 </div>
                 <div className="mt-0.5 space-y-0.5">
+                  {scheduledWork.flatMap((workDay) => workDay.items).slice(0, 2).map((item, index) => (
+                    <p
+                      key={`work-${index}-${item.label}`}
+                      className={`text-[8px] truncate px-1 rounded border font-semibold ${isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/50 text-amber-200'}`}
+                      title={item.label}
+                    >
+                      {item.label}
+                    </p>
+                  ))}
+                  {scheduledWork.reduce((sum, workDay) => sum + workDay.items.length, 0) > 2 && (
+                    <p className={`text-[8px] ${mutedCls}`}>
+                      +{scheduledWork.reduce((sum, workDay) => sum + workDay.items.length, 0) - 2} scheduled
+                    </p>
+                  )}
                   {dayEvents.slice(0, 3).map((event) => {
                     const color = event.color ?? EVENT_COLOR_SWATCHES[0];
                     const starts = event.startDate === day.iso;

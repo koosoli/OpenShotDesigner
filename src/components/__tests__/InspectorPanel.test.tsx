@@ -42,6 +42,16 @@ const cameraById = (mounted: Awaited<ReturnType<typeof mount>>, id: string) =>
     .setups.flatMap((setup) => setup.elements)
     .find((element) => element.id === id) as { rigType?: string; sensorFormat?: string; aspectRatio?: string };
 
+/** Select the first emitting fixture so its color controls are available. */
+const selectFirstLight = async (mounted: Awaited<ReturnType<typeof mount>>) => {
+  const light = mounted
+    .project()
+    .setups.find((setup) => setup.id === mounted.project().activeSetupId)
+    ?.elements.find((element) => element.type === 'light' && !element.fixtureType.startsWith('flag_'));
+  if (!light) throw new Error('the sample project has no emitting light to inspect');
+  await mounted.act(() => mounted.api().selectElements([light.id]));
+};
+
 describe('InspectorPanel — scene fields', () => {
   it('stores the time of day that was chosen', async () => {
     const user = userEvent.setup();
@@ -124,5 +134,22 @@ describe('InspectorPanel — camera fields', () => {
     });
 
     expect(cameraById(mounted, cameraId).rigType).toBe(before);
+  });
+});
+
+describe('InspectorPanel — light fields', () => {
+  it('keeps color and intensity collapsed until the user expands it', async () => {
+    const user = userEvent.setup();
+    const mounted = await mount();
+    await selectFirstLight(mounted);
+
+    const sectionToggle = await screen.findByRole('button', { name: /Color & Intensity/i });
+    expect(sectionToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByText('Color Mode')).toBeNull();
+
+    await user.click(sectionToggle);
+
+    expect(sectionToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('Color Mode')).not.toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SAMPLE_SCENES } from '../../constants/presets';
 import {
   parseSampleScreenplay,
+  buildExampleProductionFill,
   sampleMarksFor,
   samplePlanningMeta,
   sampleScheduleMeta,
@@ -9,6 +10,7 @@ import {
   SAMPLE_NOIR_SCREENPLAY,
   SAMPLE_SCREENPLAY,
 } from '../sampleContent';
+import { createProject } from '../projectLibrary';
 
 describe('starter template screenplay', () => {
   it('ships a short screenplay with valid lining for both templates', () => {
@@ -135,6 +137,28 @@ describe('sample schedule meta (template example data)', () => {
         expect(cameraIds.includes(cameraId)).toBe(true);
       }
     }
+  });
+});
+
+describe('filling a cloned template scene', () => {
+  it('remaps schedule ids and fills pages/casting against the clone', () => {
+    const project = createProject({ title: 'Clone test' });
+    const clone = structuredClone(SAMPLE_SCENES[0]);
+    clone.id = 'setup-clone';
+    clone.shots = clone.shots.map((shot) => ({ ...shot, id: `${shot.id}-clone` }));
+    project.setups = [clone];
+    project.activeSetupId = clone.id;
+    project.scriptLines = parseSampleScreenplay('dialogue');
+    project.scriptText = SAMPLE_DIALOGUE_SCREENPLAY;
+
+    const { patch } = buildExampleProductionFill(project);
+    const setupBlocks = (patch.scheduleBlocks ?? []).filter((block) => block.kind === 'setup');
+    const shotBlocks = (patch.scheduleBlocks ?? []).filter((block) => block.kind === 'shots');
+    expect(setupBlocks[0]).toMatchObject({ setupId: 'setup-clone' });
+    expect(shotBlocks[0].shotIds[0]).toContain('-clone');
+    expect(patch.scriptScenes?.[0].pageLengthEighths).toBe(24);
+    expect(patch.castAssignments?.length).toBeGreaterThan(0);
+    expect(patch.setups?.[0].elements.some((element) => element.type === 'actor' && !!element.characterId)).toBe(true);
   });
 });
 

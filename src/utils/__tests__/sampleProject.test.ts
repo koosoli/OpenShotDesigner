@@ -20,6 +20,10 @@ describe('sample project content', () => {
     expect((project.scriptLines ?? []).length).toBeGreaterThan(0);
   });
 
+  it('persists the bundled page counts so scheduled strips can print pages immediately', () => {
+    expect(project.scriptScenes?.map((scene) => scene.pageLengthEighths)).toEqual([24, 24]);
+  });
+
   it.each([
     ['people', 'people'],
     ['production days', 'productionDays'],

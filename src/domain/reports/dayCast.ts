@@ -107,6 +107,23 @@ export const castPersonIdsForDay = (
 };
 
 /**
+ * Cast numbers required by scheduled work, sorted as an AD expects to scan
+ * them. Missing assignments remain unknown and are not invented here.
+ */
+export const castNumbersScheduledOn = (
+  scheduleBlockIds: readonly string[],
+  blocks: readonly ScheduleBlock[],
+  sources: DayCastSources,
+): number[] => {
+  const characterIds = charactersScheduledOn(scheduleBlockIds, blocks, sources);
+  return [...new Set(
+    (sources.castAssignments ?? [])
+      .filter((assignment) => characterIds.has(assignment.characterId))
+      .map((assignment) => assignment.castNumber),
+  )].sort((a, b) => a - b);
+};
+
+/**
  * The cast filter to hand `deriveCallSheet`, or `undefined` for "call everyone".
  *
  * `castPersonIdsForDay` answers "who is cast for what is scheduled", and `[]`

@@ -44,6 +44,7 @@ describe('CastAssignment', () => {
       id: createId('comment'),
       characterId,
       personId: person.id,
+      castNumber: 1,
       notes: 'Lead',
     };
     expect(assignment.characterId).toBe(characterId);
@@ -61,6 +62,7 @@ describe('CastAssignment', () => {
       id: createId('comment'),
       characterId,
       personId,
+      castNumber: 1,
     };
     expect(assignment.characterId.startsWith('char-')).toBe(true);
     expect(assignment.personId.startsWith('person-')).toBe(true);

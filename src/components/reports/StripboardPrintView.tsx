@@ -1,5 +1,6 @@
 import React from 'react';
 import { ProjectImage } from '../common/ProjectImage';
+import { formatPageEighths } from '../../domain/reports';
 
 export interface PrintableStripboardItem {
   label: string;
@@ -7,6 +8,8 @@ export interface PrintableStripboardItem {
   minutes?: number;
   /** Hex accent mirroring the on-screen strip color (see SchedulePanel); undefined = neutral. */
   tone?: string;
+  castNumbers?: number[];
+  pageEighths?: number;
 }
 
 export interface PrintableStripboardDay {
@@ -78,6 +81,7 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
         .sb-day-head { display: flex; justify-content: space-between; gap: 10px; background: #0f172a; color: #fff; padding: 5px 8px; margin: 14px 0 0; page-break-after: avoid; break-after: avoid; page-break-inside: avoid; }
         .sb-day-name { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.8px; }
         .sb-day-facts { font-size: 9px; font-family: 'Courier New', monospace; font-weight: 700; }
+        .sb-day-date { display: inline-block; margin-left: 3mm; padding-left: 3mm; border-left: 1px solid #64748b; color: #67e8f9; }
         .sb-table { width: 100%; border-collapse: collapse; font-size: 10px; }
         .sb-table th, .sb-table td { border: 1px solid #cbd5e1; padding: 3.5px 6px; text-align: left; vertical-align: top; }
         .sb-table th { background: #f1f5f9; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; color: #475569; }
@@ -107,9 +111,9 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
         {days.map((day) => (
           <section key={day.id}>
             <div className="sb-day-head">
-              <span className="sb-day-name">{day.name}</span>
+              <span className="sb-day-name">Shooting day {day.name}<span className="sb-day-date">Date: {day.date ?? 'NOT SET'}</span></span>
               <span className="sb-day-facts">
-                {day.date ?? 'DATE NOT SET'} · CALL {day.crewCall ?? '—'} · WRAP {day.plannedWrap ?? '—'}
+                CALL {day.crewCall ?? '—'} · WRAP {day.plannedWrap ?? '—'}
               </span>
             </div>
             <table className="sb-table">
@@ -118,6 +122,8 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
                   <th className="num" style={{ width: '8mm' }}>#</th>
                   <th>Item</th>
                   <th style={{ width: '18mm' }}>Type</th>
+                  <th className="num" style={{ width: '17mm' }}>Pages</th>
+                  <th className="num" style={{ width: '18mm' }}>Cast #</th>
                   <th className="num" style={{ width: '18mm' }}>Est.</th>
                 </tr>
               </thead>
@@ -127,11 +133,13 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
                     <td className="num">{i + 1}</td>
                     <td>{item.label}</td>
                     <td><span className="sb-kind">{item.kindLabel}</span></td>
+                    <td className="num">{formatPageEighths(item.pageEighths)}</td>
+                    <td className="num">{item.castNumbers?.join(', ') || '—'}</td>
                     <td className="num">{formatMinutes(item.minutes)}</td>
                   </tr>
                 ))}
                 <tr className="sb-total-row">
-                  <td colSpan={3}>Day total</td>
+                  <td colSpan={5}>Day total</td>
                   <td className="num">{formatMinutes(day.totalMinutes)}</td>
                 </tr>
               </tbody>

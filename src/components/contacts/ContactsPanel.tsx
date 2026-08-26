@@ -30,6 +30,7 @@ import {
   parsePeopleCsv,
   peopleToCsv,
   removePerson,
+  setCastNumber,
   unassignCast,
   upsertPerson,
   usesProductionPhone,
@@ -357,6 +358,10 @@ export const ContactsPanel: React.FC = () => {
     });
   };
 
+  const renumberCast = (characterId: string, castNumber: number) => {
+    updateProjectMeta({ castAssignments: setCastNumber(castAssignments, characterId, castNumber) });
+  };
+
   /**
    * Assign (or vacate) a key production role. Director / DP additionally mirror
    * into the legacy project fields the exports render, so the crew page and the
@@ -637,19 +642,37 @@ export const ContactsPanel: React.FC = () => {
       {breakdown.characters.length > 0 && (
         <section className={`rounded-xl border p-3 space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/40'}`}>
           <h3 className="text-xs font-bold flex items-center gap-2">
-            <UserRound className="w-3.5 h-3.5 text-emerald-500" /> Cast assignments
-            <span className={`text-[10px] font-normal ${mutedCls}`}>character → performer (drives DOOD &amp; call-sheet cast)</span>
+            <UserRound className="w-3.5 h-3.5 text-emerald-500" /> Cast assignments &amp; production numbers
           </h3>
+          <p className={`text-[10px] ${mutedCls}`}>
+            Choose a performer for each character. A cast number is assigned automatically; edit the # field to use your production's numbering. Choosing an occupied number swaps the two roles safely.
+          </p>
           {performers.length === 0 && (
             <p className={`text-[11px] ${mutedCls}`}>Any person in the directory can be assigned to a character; cast and talent are listed first. Add people to get started.</p>
           )}
           <div className="grid gap-1.5 sm:grid-cols-2">
+            <div className={`hidden sm:grid sm:col-span-2 grid-cols-[minmax(0,1fr)_56px_160px] gap-2 px-0.5 text-[9px] font-black uppercase tracking-wider ${mutedCls}`}>
+              <span>Character</span><span className="text-center">Cast #</span><span>Performer</span>
+            </div>
             {breakdown.characters.map((character) => {
               const assigned = castPersonForCharacter(castAssignments, people, character.id);
+              const assignment = castAssignments.find((candidate) => candidate.characterId === character.id);
               return (
                 <label key={character.id} className="flex items-center gap-2 text-xs">
                   <span className="font-bold uppercase tracking-wide truncate min-w-0 flex-1">{character.canonicalName}</span>
-                  <select value={assigned?.id ?? ''} onChange={(e) => setCast(character.id, e.target.value)} className={`${inputCls} w-40`}>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={assignment?.castNumber ?? ''}
+                    disabled={!assignment}
+                    onChange={(e) => assignment && renumberCast(character.id, Number(e.target.value) || 1)}
+                    aria-label={`Cast number for ${character.canonicalName}`}
+                    title="Production cast number printed on stripboards"
+                    placeholder="#"
+                    className={`${inputCls} !w-14 text-center font-mono disabled:opacity-40`}
+                  />
+                  <select aria-label={`Performer for ${character.canonicalName}`} value={assigned?.id ?? ''} onChange={(e) => setCast(character.id, e.target.value)} className={`${inputCls} w-40`}>
                     <option value="">— unassigned —</option>
                     {performers.map((person) => {
                       const hint = person.role ?? person.department;

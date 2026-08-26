@@ -139,3 +139,23 @@ describe('showing the list', () => {
   // reading properly rather than a test written against a guess at them.
   // `currentProject` is ready for whoever does that.
 });
+
+describe('assigning production cast numbers', () => {
+  it('assigns a number automatically and lets the user replace it', () => {
+    renderWithProject(
+      <ContactsPanel />,
+      projectFixture({
+        people: [{ id: 'actor-1', displayName: 'Alex Hunter', kind: 'cast' }],
+        characters: [{ id: 'char-alex', canonicalName: 'ALEX', aliases: [] }],
+      }) as Project,
+      { scriptLines: [] },
+    );
+
+    fireEvent.change(screen.getByLabelText('Performer for ALEX'), { target: { value: 'actor-1' } });
+    const number = screen.getByLabelText('Cast number for ALEX') as HTMLInputElement;
+    expect(number.value).toBe('1');
+
+    fireEvent.change(number, { target: { value: '7' } });
+    expect(currentProject().castAssignments?.[0]).toEqual(expect.objectContaining({ personId: 'actor-1', castNumber: 7 }));
+  });
+});

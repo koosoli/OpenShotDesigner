@@ -124,23 +124,27 @@ export const setEntryActual = (
   actuals: readonly BudgetActual[],
   entryId: string,
   amount: number | undefined,
+  metadata?: Pick<BudgetActual, 'category' | 'label'>,
 ): BudgetActual[] | undefined => {
   const existing = actuals.find((entry) => entry.entryId === entryId);
+  const other = actuals.filter((entry) => entry.entryId !== entryId);
   if (!amount || amount <= 0) {
-    return existing ? actuals.filter((entry) => entry !== existing) : undefined;
+    return existing ? other : undefined;
   }
   if (existing) {
-    return actuals.map((entry) =>
-      entry === existing ? { ...entry, amount: round2(amount), entryId } : entry,
-    );
+    return [...other, {
+      ...existing,
+      ...metadata,
+      amount: round2(amount),
+      entryId,
+    }];
   }
   const next: BudgetActual = {
     id: `actual-${entryId}`,
-    category: 'other',
-    label: entryId,
+    category: metadata?.category ?? 'other',
+    label: metadata?.label ?? entryId,
     amount: round2(amount),
     entryId,
   };
-  return [...actuals, next];
+  return [...other, next];
 };
-
