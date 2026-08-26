@@ -8,7 +8,7 @@ export type {
   RateBasis,
   RateCard,
 } from './types';
-export { actualsByCategory, actualsVariance, sumActuals, varianceByEntry } from './actuals';
+export { actualsByCategory, actualsVariance, setEntryActual, sumActuals, varianceByEntry } from './actuals';
 export type { EstimatedLine } from './actuals';
 export {
   BUDGET_CATEGORIES,

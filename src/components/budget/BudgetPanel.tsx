@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, CalendarRange, Coins, Download, Plus, Printer, Trash2 } from 'lucide-react';
+import { AlertTriangle, CalendarRange, ClipboardCheck, Coins, Download, Plus, Printer, Trash2 } from 'lucide-react';
 import { BudgetPrintView } from '../reports/BudgetPrintView';
 import { waitForImages } from '../../utils/image';
 import { useFloorPlan } from '../../context/FloorPlanContext';
@@ -18,6 +18,7 @@ import {
 import type { Person } from '../../domain/people';
 import type { BudgetCategory, BudgetEntry, BudgetLine, EquipmentRate, ProjectBudget, RateBasis, RateCard } from '../../domain/budget';
 import { RateCardFields, VatSelect } from './RateCardFields';
+import { setEntryActual } from '../../domain/budget';
 import { ActualsSection } from './ActualsSection';
 import { useProductionNeeds } from './useProductionNeeds';
 import { DayNeedsView } from './DayNeedsView';
@@ -41,7 +42,7 @@ export const BudgetPanel: React.FC = () => {
   const { project, updateProjectMeta } = useFloorPlan();
   const { theme, setActiveRightTab } = useWorkspaceUI();
   const isLight = theme === 'light';
-  const [view, setView] = useState<'budget' | 'needs'>('budget');
+  const [view, setView] = useState<'budget' | 'actuals' | 'needs'>('budget');
   const [printing, setPrinting] = useState(false);
 
   // Mount the print document, let images decode, print, unmount — the same
@@ -184,7 +185,7 @@ export const BudgetPanel: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <div className={`flex h-8 rounded-md border p-0.5 ${isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
-            {([['budget', Coins, 'Budget'], ['needs', CalendarRange, 'Day needs']] as const).map(([key, Icon, label]) => (
+            {([['budget', Coins, 'Budget'], ['actuals', ClipboardCheck, 'Actuals'], ['needs', CalendarRange, 'Day needs']] as const).map(([key, Icon, label]) => (
               <button key={key} onClick={() => setView(key)} className={`px-2.5 rounded text-[9px] font-black flex items-center gap-1.5 ${view === key ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-sm' : mutedCls}`}>
                 <Icon className="w-3.5 h-3.5" />{label}
               </button>
@@ -208,6 +209,60 @@ export const BudgetPanel: React.FC = () => {
           <BudgetPrintView productionTitle={project.title} company={project.productionCompany} logo={project.logo} summary={summary} />
         </div>,
         document.body,
+      )}
+
+      {view === 'actuals' && (
+        <div className="space-y-3">
+          <p className={`text-[10px] ${mutedCls}`}>
+            Type what each line actually cost — the difference column does the arguing for you.
+            Receipts with no line of their own go in “Other costs” on the Budget tab.
+          </p>
+          <section className={`rounded-xl border p-3 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className={mutedCls}>
+                  <th className="text-left font-black uppercase text-[9px] tracking-wider">Line</th>
+                  <th className="text-right font-black uppercase text-[9px] tracking-wider">Estimate</th>
+                  <th className="text-right font-black uppercase text-[9px] tracking-wider">Actual</th>
+                  <th className="text-right font-black uppercase text-[9px] tracking-wider">Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.entries.map((entry) => {
+                  const logged = (budget.actuals ?? []).find((a) => a.entryId === entry.id);
+                  const diff = logged ? Math.round((logged.amount - entry.net) * 100) / 100 : null;
+                  return (
+                    <tr key={entry.id} className="border-t border-inherit">
+                      <td className="py-1 pr-2 truncate">{entry.label}</td>
+                      <td className="text-right font-mono py-1">{money(entry.net)}</td>
+                      <td className="text-right py-1">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={logged?.amount ?? ''}
+                          aria-label={`Actual for ${entry.label}`}
+                          placeholder="—"
+                          onChange={(e) => {
+                            const value = e.target.value === '' ? undefined : Number(e.target.value);
+                            const next = setEntryActual(budget.actuals ?? [], entry.id, value);
+                            if (next !== undefined) patchBudget({ actuals: next });
+                          }}
+                          className={`${inputCls} !w-24 ml-auto text-right font-mono`}
+                        />
+                      </td>
+                      <td className={`text-right font-mono font-bold py-1 ${
+                        diff === null ? mutedCls : diff > 0 ? 'text-amber-500' : diff < 0 ? 'text-emerald-500' : ''
+                      }`}>
+                        {diff === null ? '—' : `${diff > 0 ? '+' : ''}${money(diff)}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
+        </div>
       )}
 
       {view === 'needs' ? (

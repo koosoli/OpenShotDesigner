@@ -114,3 +114,33 @@ export const actualsVariance = (
 };
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
+
+/**
+ * Set the logged spend on one estimated line: creates, updates, or — at 0 or
+ * cleared — removes its attachment. One actual per line keeps the cost
+ * report one row per line; extra receipts can always be merged into it.
+ */
+export const setEntryActual = (
+  actuals: readonly BudgetActual[],
+  entryId: string,
+  amount: number | undefined,
+): BudgetActual[] | undefined => {
+  const existing = actuals.find((entry) => entry.entryId === entryId);
+  if (!amount || amount <= 0) {
+    return existing ? actuals.filter((entry) => entry !== existing) : undefined;
+  }
+  if (existing) {
+    return actuals.map((entry) =>
+      entry === existing ? { ...entry, amount: round2(amount), entryId } : entry,
+    );
+  }
+  const next: BudgetActual = {
+    id: `actual-${entryId}`,
+    category: 'other',
+    label: entryId,
+    amount: round2(amount),
+    entryId,
+  };
+  return [...actuals, next];
+};
+
