@@ -623,6 +623,16 @@ export const SchedulePanel: React.FC = () => {
       ? block.shotIds.map((id) => shotEntries.find((entry) => entry.shot.id === id)).filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
       : [];
     const firstBlockShot = blockShots[0];
+    // Setup and shot strips shoot a SCENE's material even when they were
+    // created from the floor plan: their scene number resolves back to the
+    // screenplay, which is where pages and cast live. Without this the board
+    // showed dashes for exactly the strips an AD reads most.
+    const effectiveSceneNumber = scene?.sceneNumber ?? setup?.sceneNumber ?? firstBlockShot?.setup.sceneNumber;
+    const stripScriptScene =
+      scene ??
+      (effectiveSceneNumber
+        ? project.scriptScenes?.find((candidate) => candidate.sceneNumber === effectiveSceneNumber)
+        : undefined);
     const isManual = block.kind === 'manual';
     const manualTone = isManual && block.manualType === 'meal' ? 'bg-emerald-600' : isManual && block.manualType === 'move' ? 'bg-violet-600' : 'bg-slate-700';
     const targetKey = day ? `${day.id}:${indexInDay ?? 0}` : `pool:${block.id}`;
@@ -690,8 +700,16 @@ export const SchedulePanel: React.FC = () => {
           <span className="font-mono text-[10px] font-black text-center">{displayNumber}</span>
           <div className="min-w-0 px-2 border-l border-inherit"><div className="text-[10px] font-black truncate">{primaryLabel}</div><div className="text-[8px] uppercase font-bold tracking-wide truncate opacity-60">{secondaryLabel}</div></div>
           {day ? <>
-            <span className="text-[9px] font-bold text-center">{scene?.pageLengthEighths !== undefined ? `${scene.pageLengthEighths}/8` : '—'}</span>
-            <span className="text-[9px] font-bold text-center truncate px-1">{scene?.characterIds.length ? `${scene.characterIds.length} cast` : '—'}</span>
+            <span className="text-[9px] font-bold text-center">{stripScriptScene?.pageLengthEighths !== undefined ? `${stripScriptScene.pageLengthEighths}/8` : '—'}</span>
+            {(() => {
+              const castNames = (stripScriptScene?.characterIds ?? [])
+                .map((id) => project.characters?.find((candidate) => candidate.id === id)?.canonicalName ?? 'Unnamed');
+              return (
+                <span className="text-[9px] font-bold text-center truncate px-1" title={castNames.join(', ') || undefined}>
+                  {castNames.length ? `${castNames.length} cast` : '—'}
+                </span>
+              );
+            })()}
             <label className="flex items-center justify-center text-[9px] font-mono"><input type="number" min={0} value={block.estimatedMinutes ?? ''} onChange={(event) => updateBlock(block.id, { estimatedMinutes: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} placeholder="—" className={`w-9 rounded border px-1 py-1 text-right ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-700'}`} />m</label>
             <span className="flex items-center justify-end gap-0.5 pr-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100"><button onClick={() => moveWithinDay(day, block.id, 'up')} disabled={indexInDay === 0} title="Move earlier in the day" aria-label="Move earlier in the day" className={`${iconBtnClass} !min-w-6 !min-h-6 disabled:opacity-20`}><ChevronUp className="w-3 h-3" /></button><button onClick={() => moveWithinDay(day, block.id, 'down')} disabled={indexInDay === day.scheduleBlockIds.length - 1} title="Move later in the day" aria-label="Move later in the day" className={`${iconBtnClass} !min-w-6 !min-h-6 disabled:opacity-20`}><ChevronDown className="w-3 h-3" /></button><button onClick={() => placeBlock(block.id, null)} className={`${iconBtnClass} !min-w-6 !min-h-6`} title="Return to unscheduled" aria-label="Return to unscheduled"><ChevronLeft className="w-3 h-3" /></button></span>
           </> : <span className="flex items-center"><button onClick={() => days[0] && placeBlock(block.id, days[0].id)} disabled={!days.length} title="Add to first shooting day" aria-label="Add to first shooting day" className={`${iconBtnClass} !min-w-5 !min-h-7 disabled:opacity-30`}><ChevronRight className="w-3.5 h-3.5" /></button><button onClick={() => deleteBlock(block.id)} title="Delete schedule item" aria-label="Delete schedule item" className={`${iconBtnClass} !min-w-5 !min-h-7 hover:!text-red-500`}><Trash2 className="w-3 h-3" /></button></span>}
