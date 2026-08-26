@@ -1677,6 +1677,7 @@ export const PrintableShotPlan: React.FC = () => {
                     selectedIds={[]}
                     onSelect={() => {}}
                     displaySettings={effectiveDisplaySettings}
+                    gridSettings={activeSetup.gridSettings}
                   />
 
                   {/* 5. Actors & Blocking Waypoints */}

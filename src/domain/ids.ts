@@ -75,4 +75,5 @@ export const IdPrefixes = {
   asset: 'asset',
   comment: 'comment',
   revision: 'rev',
+  lightModifier: 'modifier',
 } as const;

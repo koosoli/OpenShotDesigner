@@ -98,6 +98,10 @@ describe('InspectorPanel — camera fields', () => {
     const user = userEvent.setup();
     const mounted = await mount();
     const cameraId = await selectFirstCamera(mounted);
+
+    const sectionToggle = await screen.findByRole('button', { name: /Lens & Optics/i });
+    await user.click(sectionToggle);
+
     const field = await screen.findByLabelText('Sensor Format');
 
     for (const format of SENSOR_FORMATS) {

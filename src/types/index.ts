@@ -1,3 +1,5 @@
+import type { LightModifier, LightPhotometricReference } from '../domain/lighting/types';
+
 export type ElementType =
   | 'actor'
   | 'camera'
@@ -186,6 +188,12 @@ export interface LightElement extends BaseElement {
   beamVisible?: boolean; // false hides this light's beam cone/glow (default true)
   hasBarnDoors?: boolean;
   hasDiffusionGrid?: boolean;
+  /** Ordered, independently configurable fixture accessories/modifiers. */
+  modifiers?: LightModifier[];
+  /** Explicit source-backed output reference; absent means output is unknown. */
+  photometricReference?: LightPhotometricReference;
+  /** Per-fixture opt-in; stays off unless the user enables it. */
+  photometricOverlayVisible?: boolean;
   brand?: string; // e.g. "ARRI", "Aputure", "Nanlite", "Astera", "Kino Flo"
   fixtureModel?: string; // e.g. "Aputure 600d", "ARRI Skypanel S60"
   lightRole?: LightRole; // Key, Fill, Negative Fill, Kicker, Backlight, Background, etc.

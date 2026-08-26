@@ -10,6 +10,8 @@ import { LIGHT_FIXTURES, LIGHT_ROLES } from '../../constants/presets';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 import { FlagFixtureIcon, flagLabel, getFlagSelectionRadius, isFlagFixture } from './FlagFixtureIcon';
 import { FixtureGlyph } from './FixtureGlyph';
+import { FixtureModifierGlyph } from './FixtureModifierGlyph';
+import { buildPhotometricMarkers, deriveEffectiveLightAppearance } from '../../domain/lighting';
 
 interface LightingLayerProps {
   lights: LightElement[];
@@ -17,6 +19,7 @@ interface LightingLayerProps {
   onSelect: (id: string, e: React.PointerEvent) => void;
   onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   displaySettings: DisplaySettings;
+  gridSettings?: { unit: 'ft' | 'm'; pixelsPerUnit: number };
   /** Playback beat used to animate fixtures along their waypoint path. */
   currentBeat?: number;
   onAddWaypoint?: (lightId: string) => void;
@@ -30,6 +33,7 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
   onSelect,
   onDoubleClick,
   displaySettings,
+  gridSettings,
   currentBeat = 1,
   onAddWaypoint,
   onWaypointDragStart,
@@ -43,12 +47,13 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
       {lights.map((light) => {
         const isSelected = selectedIds.includes(light.id);
         const isFlag = isFlagFixture(light.fixtureType);
-        const color = light.rgbColor || kelvinToRgb(light.colorTemp || 5600);
+        const appearance = deriveEffectiveLightAppearance(light.beamAngle || 60, light.modifiers);
+        const color = appearance.colorHex || light.rgbColor || kelvinToRgb(light.colorTemp || 5600);
         const intensity = (light.intensity || 80) / 100;
         const throwDist = light.throwDistance || 200;
-        const beamAngle = light.beamAngle || 60;
+        const beamAngle = appearance.beamAngleDeg;
 
-        const isOmni = light.fixtureType === 'practical' || beamAngle >= 350;
+        const isOmni = light.fixtureType === 'practical' || appearance.omni || beamAngle >= 350;
         const beamPath = getLightBeamPolygon(
           { x: 0, y: 0 },
           0,
@@ -59,6 +64,16 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
         const lightOpacity = (displaySettings.categoryOpacity?.lights ?? 1.0) * (light.opacity ?? 1.0);
 
         const omniRadius = light.fixtureType === 'practical' ? Math.min(30, Math.max(16, throwDist / 6)) : throwDist / 2;
+        const photometricMarkers = light.photometricOverlayVisible && gridSettings
+          ? buildPhotometricMarkers({
+              reference: light.photometricReference,
+              modifiers: light.modifiers,
+              currentIntensityPercent: light.intensity,
+              throwDistancePx: throwDist,
+              pixelsPerUnit: gridSettings.pixelsPerUnit,
+              gridUnit: gridSettings.unit,
+            })
+          : [];
 
         // Movement path: followspots, practicals on a dolly, and event rigs
         // that reposition between numbers. Same beats and easing as actors,
@@ -101,7 +116,10 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
                   {isFlag ? (
                     <FlagFixtureIcon light={light} />
                   ) : (
-                    <FixtureGlyph fixtureType={light.fixtureType} color={color} />
+                    <>
+                      <FixtureGlyph fixtureType={light.fixtureType} color={color} />
+                      <FixtureModifierGlyph modifiers={light.modifiers} color={color} />
+                    </>
                   )}
                 </g>
               ))}
@@ -159,8 +177,9 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
                   d={beamPath}
                   fill={`url(#light-grad-${light.id})`}
                   stroke={color}
-                  strokeWidth={0.75}
-                  strokeOpacity={0.4}
+                  strokeWidth={appearance.beamEdge === 'hard' ? 1.25 : 0.75}
+                  strokeOpacity={appearance.beamEdge === 'soft' ? 0.2 : 0.4}
+                  strokeDasharray={appearance.beamEdge === 'soft' ? '3 3' : undefined}
                 />
                 {/* Center beam line */}
                 <line
@@ -173,6 +192,23 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
                   strokeDasharray="4 4"
                   strokeOpacity={0.4}
                 />
+                {light.photometricOverlayVisible && photometricMarkers.map((marker, index) => {
+                  const unitDistance = index + 1;
+                  const value = gridSettings?.unit === 'ft' ? marker.footCandles : marker.lux;
+                  const unitLabel = gridSettings?.unit === 'ft' ? 'fc' : 'lux';
+                  return (
+                    <g key={marker.distancePx} transform={`translate(${marker.distancePx}, 0)`}>
+                      <line y1={-6} y2={6} stroke={color} strokeWidth={0.75} strokeOpacity={0.75} />
+                      <rect x={-21} y={-18} width={42} height={11} rx={3} fill="#0f172a" fillOpacity={0.88} />
+                      <text x={0} y={-10} textAnchor="middle" fontSize={6.5} fontWeight={700} fill="#f8fafc">
+                        {value === null ? '?' : value >= 100 ? Math.round(value) : value.toFixed(1)} {unitLabel}
+                      </text>
+                      <text x={0} y={14} textAnchor="middle" fontSize={5.5} fill={color}>
+                        {unitDistance}{gridSettings?.unit}
+                      </text>
+                    </g>
+                  );
+                })}
               </g>
             )}
 
@@ -205,7 +241,10 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
             {isFlag ? (
               <FlagFixtureIcon key={light.flagSize || '24x36'} light={light} selected={isSelected} />
             ) : (
-              <FixtureGlyph fixtureType={light.fixtureType} color={color} selected={isSelected} />
+              <>
+                <FixtureGlyph fixtureType={light.fixtureType} color={color} selected={isSelected} />
+                <FixtureModifierGlyph modifiers={light.modifiers} color={color} />
+              </>
             )}
 
             {/* Label badge */}

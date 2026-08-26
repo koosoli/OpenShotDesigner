@@ -2853,6 +2853,7 @@ export const FloorPlanCanvas: React.FC = () => {
             onSelect={handleElementSelect}
             onDoubleClick={handleElementDoubleClick}
             displaySettings={displaySettings}
+            gridSettings={activeSetup.gridSettings}
             currentBeat={playback.currentBeat}
             onAddWaypoint={handleAddLightWaypoint}
             onWaypointDragStart={handleWaypointDragStart}

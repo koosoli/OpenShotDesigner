@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migrateProject } from '../migrations';
+import { CURRENT_PROJECT_SCHEMA_VERSION, migrateProject } from '../migrations';
 
 const fixture = () => ({
   schemaVersion: 30,
@@ -25,7 +25,7 @@ describe('migrateV30ToV31', () => {
   it('repairs cloned template schedule, pages and cast links deterministically', () => {
     const first = migrateProject(fixture()).project;
     const second = migrateProject(fixture()).project;
-    expect(first.schemaVersion).toBe(31);
+    expect(first.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(first.scheduleBlocks).toEqual([
       { id: 'setup-block', kind: 'setup', setupId: 'setup-clone' },
       { id: 'shot-block', kind: 'shots', shotIds: ['shot-clone'] },

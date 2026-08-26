@@ -1828,6 +1828,19 @@ Generic automated fixture
 
 Existing grip/modifier symbols such as flags, diffusion, reflectors and stands remain part of the production symbol library.
 
+Fixture-mounted accessories use an ordered modifier stack. Softboxes, lanterns,
+Fresnel attachments, grids/eggcrates, gels, snoots, reflectors, diffusion and
+barn doors must alter the shared plan/export symbol. Beam changes are derived
+only from explicit modifier data; absent beam angle or transmission remains
+`unknown`.
+
+Photometric planning accepts an explicit lux/foot-candle reference at a known
+distance and source/dimmer context. It may derive inverse-square estimates and
+scale-aware cone labels, but labels are independently opt-in and off by default.
+No output value may be inferred from a fixture name, wattage or unsourced preset.
+Calculations carry a planning-only disclaimer and expose lux and foot-candles at
+the display boundary while storing lux and millimetres canonically.
+
 The selected `FixtureProfile` determines exact model/mode/data; the symbol family determines readable plan appearance.
 
 ---

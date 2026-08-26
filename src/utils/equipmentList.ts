@@ -13,6 +13,7 @@ import {
 } from '../types';
 import { CABLE_TYPES } from '../constants/presets';
 import { cableRunLength, pxToMetres } from '../domain/cable';
+import { getLightModifierDefinition, lightModifierSpecs } from '../domain/lighting';
 
 export interface CategoryMeta {
   key: EquipmentCategory;
@@ -1483,9 +1484,11 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
       if (isFlagOrNet) {
         modifierSpecs = `Flag Size: ${light.flagSize || '24×36"'} ${light.netValue ? `· Net: ${light.netValue}` : ''}`;
       } else {
-        const mods: string[] = [];
-        if (light.hasBarnDoors) mods.push('Barn Doors');
-        if (light.hasDiffusionGrid) mods.push('Diffusion Grid');
+        const mods = (light.modifiers ?? [])
+          .filter((modifier) => modifier.enabled)
+          .map((modifier) => getLightModifierDefinition(modifier.kind).label);
+        if (mods.length === 0 && light.hasBarnDoors) mods.push('Barn Doors');
+        if (mods.length === 0 && light.hasDiffusionGrid) mods.push('Diffusion');
         if (mods.length > 0) modifierSpecs += ` · [${mods.join(', ')}]`;
       }
 
@@ -1504,6 +1507,20 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
         specs: modifierSpecs,
         isCustom: false,
       });
+      if (!isFlagOrNet) {
+        (light.modifiers ?? []).filter((modifier) => modifier.enabled).forEach((modifier) => {
+          const definition = getLightModifierDefinition(modifier.kind);
+          autoItems.push({
+            id: `auto-light-modifier-${modifier.id}`,
+            category: 'grip',
+            name: modifier.label || definition.label,
+            quantity: 1,
+            roleOrFunction: `Accessory for ${light.name || light.fixtureModel || parsed.model}`,
+            specs: lightModifierSpecs(modifier),
+            isCustom: false,
+          });
+        });
+      }
     } else if (elem.type === 'prop') {
       const prop = elem as PropElement;
       const formatted = formatPropEquipment(prop);

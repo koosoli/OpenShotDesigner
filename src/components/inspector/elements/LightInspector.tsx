@@ -42,6 +42,7 @@ import { flagLabel, isFlagFixture } from '../../canvas/FlagFixtureIcon';
 import { DmxUniverseView } from '../../equipment/DmxUniverseView';
 import { FixtureProfilePicker } from '../FixtureProfilePicker';
 import { PillToggle, RubricSection, WaypointListEditor } from '../shared/InspectorPrimitives';
+import { LightModifiersSection } from './LightModifiersSection';
 
 interface LightInspectorProps {
   light: LightElement;
@@ -791,22 +792,18 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
             {/* Per-light beam visibility */}
             <div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 <PillToggle
                   on={light.beamVisible !== false}
                   onClick={() => updateElement(light.id, { beamVisible: light.beamVisible === false })}
                   label="Light beam"
                   isLight={isLight}
                 />
-                <PillToggle
-                  on={light.hasBarnDoors === true}
-                  onClick={() => updateElement(light.id, { hasBarnDoors: light.hasBarnDoors !== true })}
-                  label="Barn doors"
-                  isLight={isLight}
-                />
               </div>
             </div>
           </RubricSection>
+
+          <LightModifiersSection light={light} isLight={isLight} />
 
           {/* Rubric 3: Beam Geometry & Throw */}
           <RubricSection
