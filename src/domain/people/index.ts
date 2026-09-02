@@ -42,6 +42,7 @@ export {
   keyCrewMember,
   keyCrewMembers,
   keyCrewRoleByKey,
+  personRoleTitles,
   personHoldsRole,
   projectHeadFieldsFor,
 } from './keyRoles';

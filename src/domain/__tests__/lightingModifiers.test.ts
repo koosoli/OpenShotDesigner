@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveEffectiveLightAppearance } from '../lighting';
+import { deriveEffectiveLightAppearance, getLightModifierDefinition } from '../lighting';
 import type { LightModifier } from '../lighting';
 
 const modifier = (over: Partial<LightModifier>): LightModifier => ({
@@ -22,5 +22,15 @@ describe('light modifier appearance', () => {
 
   it('ignores disabled modifiers', () => {
     expect(deriveEffectiveLightAppearance(60, [modifier({ kind: 'lantern', enabled: false })])).toMatchObject({ beamAngleDeg: 60, omni: false });
+  });
+
+  it('does not turn an unknown persisted modifier into a softbox', () => {
+    const unknown = modifier({ kind: 'future_plugin_modifier' as LightModifier['kind'] });
+    expect(getLightModifierDefinition(unknown.kind)).toBeUndefined();
+    expect(deriveEffectiveLightAppearance(60, [unknown])).toMatchObject({
+      beamAngleDeg: 60,
+      beamEdge: 'normal',
+      omni: false,
+    });
   });
 });

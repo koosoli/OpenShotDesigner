@@ -140,6 +140,22 @@ describe('showing the list', () => {
   // `currentProject` is ready for whoever does that.
 });
 
+describe('assigning key crew jobs', () => {
+  it('lets one person hold several jobs without duplicating their contact', () => {
+    render(withCrew());
+
+    fireEvent.change(screen.getByLabelText('Gaffer'), { target: { value: 'p1' } });
+    fireEvent.change(screen.getByLabelText('Key Grip'), { target: { value: 'p1' } });
+
+    expect(currentProject().people).toHaveLength(2);
+    expect(currentProject().people?.find((person) => person.id === 'p1')?.role).toBe(
+      '1st AC / Gaffer / Key Grip',
+    );
+    expect((screen.getByLabelText('Gaffer') as HTMLSelectElement).value).toBe('p1');
+    expect((screen.getByLabelText('Key Grip') as HTMLSelectElement).value).toBe('p1');
+  });
+});
+
 describe('assigning production cast numbers', () => {
   it('assigns a number automatically and lets the user replace it', () => {
     renderWithProject(

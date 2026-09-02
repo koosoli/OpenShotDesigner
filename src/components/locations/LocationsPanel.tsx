@@ -98,7 +98,7 @@ export const LocationsPanel: React.FC = () => {
       type: newType,
       referenceAssetIds: [],
     };
-    updateProjectMeta({ locations: [...locations, location] });
+    updateProjectMeta((prev) => ({ locations: [...(prev.locations ?? []), location] }));
     setNewName('');
     setNewType('location');
   };

@@ -4,6 +4,8 @@ export type {
   TakeCameraOverrides,
   TakeSlateOverrides,
 } from './types';
+export { taggedShotNumber } from './slate';
+export type { SlateTag } from './slate';
 export {
   applyReconciliation,
   fillSequentialFileNames,
@@ -24,8 +26,11 @@ export {
   seedNextTake,
 } from './sticky';
 export type { InheritedField, NextTakeSeed, SeededTake } from './sticky';
+export { recordOnSetTake } from './onSet';
+export type { OnSetTakeInput } from './onSet';
 export {
   dayChecklist,
+  isGoodCoverageTake,
   productionChecklist,
   orphanedTakes,
   shotIdsScheduledOn,

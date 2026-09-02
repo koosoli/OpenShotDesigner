@@ -8,6 +8,7 @@ import type {
   FloorPlanElement,
   Project,
   SceneSetup,
+  ScriptLine,
 } from '../../types';
 import { issue, type ValidationIssue } from './types';
 
@@ -19,7 +20,10 @@ const getCameraIds = (elements: FloorPlanElement[]): Set<string> =>
 const getActorIds = (elements: FloorPlanElement[]): Set<string> =>
   new Set(elements.filter((el) => el.type === 'actor').map((el) => el.id));
 
-export const validateSetup = (setup: SceneSetup): ValidationIssue[] => {
+export const validateSetup = (
+  setup: SceneSetup,
+  projectScriptLines?: readonly ScriptLine[],
+): ValidationIssue[] => {
   const issues: ValidationIssue[] = [];
   const elementIds = new Set<string>();
   const shotIds = new Set<string>();
@@ -39,10 +43,18 @@ export const validateSetup = (setup: SceneSetup): ValidationIssue[] => {
     }
     shotIds.add(shot.id);
   }
-  for (const line of setup.scriptLines || []) {
-    if (lineIds.has(line.id)) {
+  // Screenplay lines became project-wide when multi-scene scripts landed.
+  // Legacy projects may still carry per-setup lines, so direct setup
+  // validation keeps that fallback while project validation supplies the
+  // canonical list. Without it, every lining in a current exported project
+  // was falsely rejected as dangling on re-import.
+  for (const line of projectScriptLines ?? []) lineIds.add(line.id);
+  const localLineIds = new Set<string>();
+  for (const line of setup.scriptLines ?? []) {
+    if (localLineIds.has(line.id)) {
       issues.push(issue('error', 'DUPLICATE_SCRIPT_LINE_ID', `Duplicate script line id "${line.id}" in setup "${setup.name}".`, line.id));
     }
+    localLineIds.add(line.id);
     lineIds.add(line.id);
   }
   for (const row of setup.avScriptRows || []) {
@@ -120,7 +132,7 @@ export const validateProject = (project: Project): ValidationIssue[] => {
       issues.push(issue('error', 'DUPLICATE_SETUP_ID', `Duplicate setup id "${setup.id}" in project "${project.title}".`, setup.id));
     }
     setupIds.add(setup.id);
-    issues.push(...validateSetup(setup));
+    issues.push(...validateSetup(setup, project.scriptLines));
   }
 
   if (!setupIds.has(project.activeSetupId)) {

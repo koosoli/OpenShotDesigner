@@ -118,9 +118,9 @@ export const LogisticsPanel: React.FC = () => {
   // --- Mutations (all immutable via updateProjectMeta) ---
 
   const mutateContainers = (fn: (prev: LogisticsContainer[]) => LogisticsContainer[]) =>
-    updateProjectMeta({ logisticsContainers: fn(project.logisticsContainers ?? []) });
+    updateProjectMeta((prev) => ({ logisticsContainers: fn(prev.logisticsContainers ?? []) }));
   const mutateItems = (fn: (prev: PackedItem[]) => PackedItem[]) =>
-    updateProjectMeta({ packedItems: fn(project.packedItems ?? []) });
+    updateProjectMeta((prev) => ({ packedItems: fn(prev.packedItems ?? []) }));
 
   const addContainer = (kind: LogisticsContainerKind, name: string, parentContainerId?: string) => {
     const container: LogisticsContainer = {

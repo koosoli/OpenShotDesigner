@@ -44,9 +44,11 @@ import {
   dayChecklist,
   productionChecklist,
   orphanedTakes,
+  nextTakeNumber,
   parseCardListing,
   reconcileFileNames,
   seedNextTake,
+  taggedShotNumber,
   takesForDay,
   type ChecklistShot,
   type ReconciliationResult,
@@ -56,7 +58,7 @@ import {
   type TakeSlateOverrides,
 } from '../../domain/continuity';
 import { keyCrewMember } from '../../domain/people';
-import { nextShotNumberAfter } from '../../domain/shots/numbering';
+import { insertedShotNumber, nextShotNumberAfter, takenShotNumbers } from '../../domain/shots/numbering';
 import { ContinuityBinder } from './ContinuityBinder';
 import {
   continuitySourcesFrom,
@@ -246,12 +248,13 @@ export const ContinuityPanel: React.FC = () => {
    * whatever shot it was on — that is what makes "the scene moved and the
    * location changed with it" a one-field edit rather than a whole new row.
    */
-  const logTake = (shotId: string) => {
+  const logTake = (shotId: string, slateTag?: Take['slateTag']) => {
     const previous = visibleTakes[visibleTakes.length - 1];
     mutateTakes((prev) => {
       const { take } = seedNextTake(prev, {
         id: createId('take'),
         shotId,
+        slateTag,
         productionDayId: day?.id,
         loggedAt: new Date().toISOString(),
         previous,
@@ -261,18 +264,29 @@ export const ContinuityPanel: React.FC = () => {
   };
 
   /**
-   * Add a shot nobody planned, and log its first take.
+   * Add a distinct shot nobody planned, and log its first take.
    *
    * The number comes from the scene's existing shots via the same letter
    * algorithm locked scene numbers use, so nothing already on a slate moves:
-   * 1A–1F planned means the pickup is 1G. Provenance is the `unplanned` flag,
+   * 1A–1F planned means the new insert is 1G. Provenance is the `unplanned` flag,
    * never part of the number — the Shot column exported to Resolve has to read
    * exactly what was on the slate.
    */
-  const addUnplannedShot = (setupId: string) => {
+  const addUnplannedShot = (setupId: string, afterShotId?: string) => {
     const setup = setups.find((candidate) => candidate.id === setupId);
     if (!setup) return;
-    const shotNumber = nextShotNumberAfter(setup.shots ?? [], setup.sceneNumber);
+    const existingShots = setup.shots ?? [];
+    const afterIndex = afterShotId
+      ? existingShots.findIndex((candidate) => candidate.id === afterShotId)
+      : -1;
+    const shotNumber = afterIndex >= 0
+      ? insertedShotNumber(
+          existingShots[afterIndex]?.shotNumber,
+          existingShots[afterIndex + 1]?.shotNumber,
+          takenShotNumbers(existingShots),
+          setup.sceneNumber,
+        )
+      : nextShotNumberAfter(existingShots, setup.sceneNumber);
     const shot: Shot = {
       id: createId('shot'),
       sceneNumber: setup.sceneNumber,
@@ -291,12 +305,12 @@ export const ContinuityPanel: React.FC = () => {
       status: 'planned',
       takesCount: 0,
       estDurationSeconds: 0,
-      order: (setup.shots ?? []).length,
+      order: afterIndex >= 0 ? afterIndex + 1 : existingShots.length,
       unplanned: true,
     };
     // One update, not two: adding the shot and logging its first take are a
     // single user action, and splitting them would leave a half-state on the
-    // undo stack — a pickup with no take, or worse, undone to a take whose
+    // undo stack — an unplanned shot with no take, or worse, undone to a take whose
     // shot is gone.
     const previous = visibleTakes[visibleTakes.length - 1];
     updateProjectMeta((prev) => {
@@ -308,11 +322,17 @@ export const ContinuityPanel: React.FC = () => {
         previous,
       });
       return {
-        setups: (prev.setups ?? []).map((candidate) =>
-          candidate.id === setupId
-            ? { ...candidate, shots: [...(candidate.shots ?? []), shot] }
-            : candidate,
-        ),
+        setups: (prev.setups ?? []).map((candidate) => {
+          if (candidate.id !== setupId) return candidate;
+          const current = candidate.shots ?? [];
+          const currentAfterIndex = afterShotId
+            ? current.findIndex((entry) => entry.id === afterShotId)
+            : -1;
+          const insertionIndex = currentAfterIndex >= 0 ? currentAfterIndex + 1 : current.length;
+          const next = [...current];
+          next.splice(insertionIndex, 0, shot);
+          return { ...candidate, shots: next.map((entry, order) => ({ ...entry, order })) };
+        }),
         takes: [...(prev.takes ?? []), take],
       };
     });
@@ -373,10 +393,10 @@ export const ContinuityPanel: React.FC = () => {
     </h3>
   );
 
-  const shotLabel = (shotId: string): string => {
+  const shotLabel = (shotId: string, slateTag?: Take['slateTag']): string => {
     const found = shotIndex.get(shotId);
     if (!found) return 'Deleted shot';
-    return numberLabel(found.sceneNumber, found.shot.shotNumber);
+    return taggedShotNumber(numberLabel(found.sceneNumber, found.shot.shotNumber), slateTag);
   };
 
   const checklistRow = (entry: ChecklistShot) => (
@@ -404,6 +424,22 @@ export const ContinuityPanel: React.FC = () => {
       >
         <Plus className="w-3.5 h-3.5" /> Take
       </button>
+      <button
+        onClick={() => logTake(entry.shotId, 'PU')}
+        title={`Log pickup take on ${numberLabel(entry.sceneNumber, entry.shotNumber)} (same shot)`}
+        className={secondaryBtnClass}
+      >
+        <Plus className="w-3.5 h-3.5" /> PU
+      </button>
+      {!entry.unplanned && (
+        <button
+          onClick={() => addUnplannedShot(entry.setupId, entry.shotId)}
+          title={`Add a separate unplanned shot after ${numberLabel(entry.sceneNumber, entry.shotNumber)}`}
+          className={secondaryBtnClass}
+        >
+          <Plus className="w-3.5 h-3.5" /> Shot
+        </button>
+      )}
     </div>
   );
 
@@ -614,7 +650,7 @@ export const ContinuityPanel: React.FC = () => {
                 )}
                 {checklist.noGoodTake.length > 0 && (
                   <>
-                    No good take:{' '}
+                    No good base take:{' '}
                     {checklist.noGoodTake.map((entry) => entry.shotNumber || '—').join(', ')}.
                   </>
                 )}
@@ -638,7 +674,7 @@ export const ContinuityPanel: React.FC = () => {
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`text-[11px] ${mutedText}`}>Log a pickup on</span>
+            <span className={`text-[11px] ${mutedText}`}>Add unplanned shot at end of scene</span>
             {setups.map((setup) => (
               <button
                 key={setup.id}
@@ -704,7 +740,8 @@ export const ContinuityPanel: React.FC = () => {
                     >
                       {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </button>
-                    <span className={`font-mono text-xs ${headingText}`}>{shotLabel(take.shotId)}</span>
+                    <span className={`font-mono text-xs ${headingText}`}>{shotLabel(take.shotId, take.slateTag)}</span>
+                    {take.slateTag && <span className={unplannedChipClass}>{take.slateTag}</span>}
                     <span className={chipClass}>T{take.takeNumber}</span>
                     {/*
                       Three states, not two: undefined means "not judged yet",
@@ -899,6 +936,28 @@ export const ContinuityPanel: React.FC = () => {
                             inputMode="numeric"
                             className={`${inputClass} mt-0.5`}
                           />
+                        </label>
+                        <label className={`text-[10px] font-semibold ${mutedText}`}>
+                          Slate tag
+                          <select
+                            aria-label="Slate tag"
+                            value={take.slateTag ?? ''}
+                            onChange={(event) => {
+                              const slateTag = (event.target.value || undefined) as Take['slateTag'];
+                              mutateTakes((previous) => {
+                                const others = previous.filter((entry) => entry.id !== take.id);
+                                const takeNumber = nextTakeNumber(others, take.shotId, slateTag);
+                                return previous.map((entry) =>
+                                  entry.id === take.id ? { ...entry, slateTag, takeNumber } : entry,
+                                );
+                              });
+                            }}
+                            className={`${inputClass} mt-0.5`}
+                          >
+                            <option value="">Regular</option>
+                            <option value="PU">PU · Pickup</option>
+                            <option value="RTK">RTK · Retake</option>
+                          </select>
                         </label>
                         {field('Location', slate.location, plan.Location, (raw) =>
                           setSlateOverride(take.id, 'location', raw || undefined),

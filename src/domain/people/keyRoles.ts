@@ -6,6 +6,9 @@
  * separate persisted table: the single source of truth (plan rule 37) is the
  * `Person.role` field on the people list, so the crew page, the call sheet and
  * the scene inspector all read the same record instead of keeping copies.
+ * A person may hold several jobs; role titles are stored in that existing
+ * field separated by `/` (CSV imports using commas, semicolons or pipes are
+ * understood as well). This keeps old project files fully compatible.
  *
  * Two legacy string fields (`Project.director`, `Project.cinematographer`)
  * predate the people domain and are still what exports render. They are kept
@@ -20,7 +23,7 @@ import type { Person } from './types';
 export interface KeyCrewRole {
   /** Stable key used by UI state; never persisted on its own. */
   key: string;
-  /** Canonical role title written to `Person.role`. */
+  /** Canonical role title written to the `Person.role` title list. */
   label: string;
   /** Department the head belongs to (matches PRODUCTION_DEPARTMENTS). */
   department: string;
@@ -86,15 +89,28 @@ export const KEY_CREW_ROLES: KeyCrewRole[] = [
 
 const normalise = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ');
 
+/** Individual job titles from the backwards-compatible free-text role field. */
+export const personRoleTitles = (person: Pick<Person, 'role'>): string[] =>
+  (person.role ?? '')
+    .split(/\s*[,;|/]\s*/)
+    .map((title) => title.trim())
+    .filter(Boolean);
+
+const titleMatchesRole = (title: string, role: KeyCrewRole): boolean => {
+  const stored = normalise(title);
+  if (stored === normalise(role.label)) return true;
+  return (role.aliases ?? []).some((alias) => stored === normalise(alias));
+};
+
+const withoutRole = (person: Pick<Person, 'role'>, role: KeyCrewRole): string[] =>
+  personRoleTitles(person).filter((title) => !titleMatchesRole(title, role));
+
 export const keyCrewRoleByKey = (key: string): KeyCrewRole | undefined =>
   KEY_CREW_ROLES.find((role) => role.key === key);
 
 /** True when a person's stored role title resolves to the given key role. */
 export const personHoldsRole = (person: Pick<Person, 'role'>, role: KeyCrewRole): boolean => {
-  const stored = normalise(person.role ?? '');
-  if (!stored) return false;
-  if (stored === normalise(role.label)) return true;
-  return (role.aliases ?? []).some((alias) => stored === normalise(alias));
+  return personRoleTitles(person).some((title) => titleMatchesRole(title, role));
 };
 
 /**
@@ -120,9 +136,9 @@ export const keyCrewMembers = (people: readonly Person[], roleKey: string): Pers
 };
 
 /**
- * Assign a key role to one person, clearing the title from anyone else who
- * held it. Passing an empty id vacates the role. Returns a new people array;
- * unrelated fields are untouched.
+ * Assign a key role to one person, clearing only that title from anyone else
+ * who held it. Other jobs on both people are retained. Passing an empty id
+ * vacates the role. Returns a new people array; unrelated fields are untouched.
  */
 export const assignKeyCrew = (
   people: readonly Person[],
@@ -133,15 +149,18 @@ export const assignKeyCrew = (
   if (!role) return [...people];
   return people.map((person) => {
     if (person.id === personId) {
+      const roles = [...withoutRole(person, role), role.label];
       return {
         ...person,
         kind: person.kind ?? 'crew',
-        role: role.label,
+        role: roles.join(' / '),
         department: person.department ?? role.department,
       };
     }
     if (personHoldsRole(person, role)) {
-      // Vacate: drop the title but keep the person and their department.
+      // Vacate this job, not the person's other jobs or primary department.
+      const roles = withoutRole(person, role);
+      if (roles.length > 0) return { ...person, role: roles.join(' / ') };
       const { role: _dropped, ...rest } = person;
       return rest as Person;
     }

@@ -218,13 +218,13 @@ export const RiggingPanel: React.FC = () => {
   // --- Mutations (all immutable via updateProjectMeta) ---
 
   const mutateProfiles = (fn: (prev: TrussProfile[]) => TrussProfile[]) =>
-    updateProjectMeta({ trussProfiles: fn(project.trussProfiles ?? []) });
+    updateProjectMeta((prev) => ({ trussProfiles: fn(prev.trussProfiles ?? []) }));
   const mutateElements = (fn: (prev: TrussElement[]) => TrussElement[]) =>
-    updateProjectMeta({ trussElements: fn(project.trussElements ?? []) });
+    updateProjectMeta((prev) => ({ trussElements: fn(prev.trussElements ?? []) }));
   const mutateLoads = (fn: (prev: SuspendedLoad[]) => SuspendedLoad[]) =>
-    updateProjectMeta({ suspendedLoads: fn(project.suspendedLoads ?? []) });
+    updateProjectMeta((prev) => ({ suspendedLoads: fn(prev.suspendedLoads ?? []) }));
   const mutateItems = (fn: (prev: RiggingItem[]) => RiggingItem[]) =>
-    updateProjectMeta({ riggingItems: fn(project.riggingItems ?? []) });
+    updateProjectMeta((prev) => ({ riggingItems: fn(prev.riggingItems ?? []) }));
 
   const addProfile = () => {
     mutateProfiles((prev) => [

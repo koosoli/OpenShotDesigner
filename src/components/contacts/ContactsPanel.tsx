@@ -126,7 +126,7 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
           </datalist>
         </label>
         <HeadshotField draft={draft} onChange={onChange} isLight={isLight} />
-        {field('role', 'Role / position', 'Gaffer, 1st AD, Lead…')}
+        {field('role', 'Role / position', 'Gaffer / DIT / Camera Operator…')}
         {field('phone', 'Work phone', '+1 555 0100', 'tel')}
         {/* Held for emergencies and deliberately never suggested for paperwork:
             a call sheet is copied, printed and left on a table. */}
@@ -417,7 +417,7 @@ export const ContactsPanel: React.FC = () => {
         setImportMessage('No contacts found — the first row must be a header (Name, Department, Role, Phone, Email…).');
         return;
       }
-      updateProjectMeta({ people: [...people, ...imported] });
+      updateProjectMeta((prev) => ({ people: [...(prev.people ?? []), ...imported] }));
       setImportMessage(`Imported ${imported.length} contact${imported.length === 1 ? '' : 's'}.`);
     };
     reader.readAsText(file);
@@ -502,7 +502,7 @@ export const ContactsPanel: React.FC = () => {
         <div className="flex items-baseline justify-between gap-2 flex-wrap">
           <h3 className={`text-[10px] font-black uppercase tracking-wider ${mutedCls}`}>Key crew</h3>
           <p className={`text-[10px] ${mutedCls}`}>
-            Director and DP here are the same fields as the scene inspector and every export.
+            One person can hold several jobs. Director and DP here are the same fields as the scene inspector and every export.
           </p>
         </div>
         <div className="grid gap-1.5 sm:grid-cols-2">

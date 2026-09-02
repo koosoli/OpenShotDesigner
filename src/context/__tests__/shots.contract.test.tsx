@@ -117,6 +117,37 @@ describe('updateShot / deleteShot', () => {
 
     expect((result.current.project.takes ?? []).map((t) => t.id)).toEqual(['take-2']);
   });
+
+  it('cleans storyboard, schedule, script and continuity references together', async () => {
+    const { result } = await mountProvider();
+    let id = '';
+    await run(() => {
+      id = result.current.addShot({ name: 'Referenced everywhere', storyboardImage: 'data:image/png;base64,AA==' });
+    });
+    await run(() => {
+      result.current.updateProjectMeta((project) => ({
+        setups: project.setups.map((setup) =>
+          setup.id === project.activeSetupId
+            ? { ...setup, storyboardOrder: [id, ...(setup.storyboardOrder ?? [])] }
+            : setup,
+        ),
+        scheduleBlocks: [{ id: 'shot-strip', kind: 'shots', shotIds: [id] }],
+        productionDays: [{ id: 'day-1', name: 'Day 1', scheduleBlockIds: ['shot-strip'] }],
+        scriptLines: [{ id: 'line-1', lineNumber: 1, text: 'ANGLE ON', linkedShotId: id }],
+        takes: [{ id: 'take-1', shotId: id, takeNumber: 1, isGoodTake: true }],
+      }));
+    });
+
+    await run(() => result.current.deleteShot(id));
+
+    const setup = result.current.project.setups.find((entry) => entry.id === result.current.project.activeSetupId)!;
+    expect(setup.shots.some((shot) => shot.id === id)).toBe(false);
+    expect(setup.storyboardOrder).not.toContain(id);
+    expect(result.current.project.scheduleBlocks).toEqual([]);
+    expect(result.current.project.productionDays?.[0].scheduleBlockIds).toEqual([]);
+    expect(result.current.project.scriptLines?.[0].linkedShotId).toBeUndefined();
+    expect(result.current.project.takes).toEqual([]);
+  });
 });
 
 describe('insertShotAfter', () => {

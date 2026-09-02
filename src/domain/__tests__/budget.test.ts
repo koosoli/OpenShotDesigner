@@ -203,6 +203,7 @@ describe('above the line', () => {
     expect(isAboveTheLine({ kind: 'crew', role: 'Director' })).toBe(true);
     expect(isAboveTheLine({ kind: 'crew', role: 'Executive Producer' })).toBe(true);
     expect(isAboveTheLine({ kind: 'crew', role: 'Screenwriter' })).toBe(true);
+    expect(isAboveTheLine({ kind: 'crew', role: 'Director of Photography / Producer' })).toBe(true);
     expect(isAboveTheLine({ kind: 'cast', role: 'Lead' })).toBe(true);
   });
   it('keeps the director of photography, ADs and talent below the line', () => {

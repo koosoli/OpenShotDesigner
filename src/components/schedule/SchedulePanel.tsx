@@ -309,13 +309,15 @@ export const SchedulePanel: React.FC = () => {
       date: followingDayAfterLast(days),
       scheduleBlockIds: [],
     };
-    updateProjectMeta({ productionDays: [...days, day] });
+    updateProjectMeta((prev) => ({ productionDays: [...(prev.productionDays ?? []), day] }));
   };
 
   const updateDay = (dayId: string, updates: Partial<ProductionDay>) => {
-    updateProjectMeta({
-      productionDays: days.map((d) => (d.id === dayId ? { ...d, ...updates } : d)),
-    });
+    updateProjectMeta((prev) => ({
+      productionDays: (prev.productionDays ?? []).map((d) =>
+        d.id === dayId ? { ...d, ...updates } : d,
+      ),
+    }));
   };
 
   const deleteDay = (dayId: string) => {
@@ -339,18 +341,18 @@ export const SchedulePanel: React.FC = () => {
       label,
       manualType: newBlockType,
     };
-    updateProjectMeta({ scheduleBlocks: [...blocks, block] });
+    updateProjectMeta((prev) => ({ scheduleBlocks: [...(prev.scheduleBlocks ?? []), block] }));
     setNewBlockLabel('');
   };
 
   const deleteBlock = (blockId: string) => {
-    updateProjectMeta({
-      scheduleBlocks: blocks.filter((b) => b.id !== blockId),
-      productionDays: days.map((d) => ({
+    updateProjectMeta((prev) => ({
+      scheduleBlocks: (prev.scheduleBlocks ?? []).filter((b) => b.id !== blockId),
+      productionDays: (prev.productionDays ?? []).map((d) => ({
         ...d,
         scheduleBlockIds: d.scheduleBlockIds.filter((id) => id !== blockId),
       })),
-    });
+    }));
   };
 
   /**
@@ -358,20 +360,22 @@ export const SchedulePanel: React.FC = () => {
    * Removes it from every day first so a block can only live in one place.
    */
   const placeBlock = (blockId: string, dayId: string | null, index?: number) => {
-    let nextDays = days.map((d) => ({
-      ...d,
-      scheduleBlockIds: d.scheduleBlockIds.filter((id) => id !== blockId),
-    }));
-    if (dayId !== null) {
-      nextDays = nextDays.map((d) => {
-        if (d.id !== dayId) return d;
-        const ids = [...d.scheduleBlockIds];
-        const at = index === undefined ? ids.length : Math.max(0, Math.min(index, ids.length));
-        ids.splice(at, 0, blockId);
-        return { ...d, scheduleBlockIds: ids };
-      });
-    }
-    updateProjectMeta({ productionDays: nextDays });
+    updateProjectMeta((prev) => {
+      let nextDays = (prev.productionDays ?? []).map((d) => ({
+        ...d,
+        scheduleBlockIds: d.scheduleBlockIds.filter((id) => id !== blockId),
+      }));
+      if (dayId !== null) {
+        nextDays = nextDays.map((d) => {
+          if (d.id !== dayId) return d;
+          const ids = [...d.scheduleBlockIds];
+          const at = index === undefined ? ids.length : Math.max(0, Math.min(index, ids.length));
+          ids.splice(at, 0, blockId);
+          return { ...d, scheduleBlockIds: ids };
+        });
+      }
+      return { productionDays: nextDays };
+    });
   };
 
   const addCalendarEvent = () => {
@@ -390,28 +394,36 @@ export const SchedulePanel: React.FC = () => {
       category: 'preproduction',
       status: 'planned',
     };
-    updateProjectMeta({ productionCalendarEvents: [...calendarEvents, event] });
+    updateProjectMeta((prev) => ({
+      productionCalendarEvents: [...(prev.productionCalendarEvents ?? []), event],
+    }));
     setNewEventTitle('');
     setNewEventStart('');
     setNewEventEnd('');
   };
 
   const updateCalendarEvent = (eventId: string, updates: Partial<ProductionCalendarEvent>) => {
-    updateProjectMeta({
-      productionCalendarEvents: calendarEvents.map((event) =>
+    updateProjectMeta((prev) => ({
+      productionCalendarEvents: (prev.productionCalendarEvents ?? []).map((event) =>
         event.id === eventId ? { ...event, ...updates } : event
       ),
-    });
+    }));
   };
 
   const deleteCalendarEvent = (eventId: string) => {
-    updateProjectMeta({ productionCalendarEvents: calendarEvents.filter((event) => event.id !== eventId) });
+    updateProjectMeta((prev) => ({
+      productionCalendarEvents: (prev.productionCalendarEvents ?? []).filter(
+        (event) => event.id !== eventId,
+      ),
+    }));
   };
 
   const updateBlock = (blockId: string, updates: Partial<ScheduleBlock>) => {
-    updateProjectMeta({
-      scheduleBlocks: blocks.map((block) => block.id === blockId ? { ...block, ...updates } as ScheduleBlock : block),
-    });
+    updateProjectMeta((prev) => ({
+      scheduleBlocks: (prev.scheduleBlocks ?? []).map((block) =>
+        block.id === blockId ? { ...block, ...updates } as ScheduleBlock : block,
+      ),
+    }));
   };
 
   const requestCallSheetPrint = (day: ProductionDay) => {
@@ -492,52 +504,39 @@ export const SchedulePanel: React.FC = () => {
     }
   };
 
+  const addScheduledBlock = (block: ScheduleBlock, dayId: string | null, index?: number) => {
+    updateProjectMeta((prev) => {
+      let nextDays = prev.productionDays ?? [];
+      if (dayId !== null) {
+        nextDays = nextDays.map((day) => {
+          if (day.id !== dayId) return day;
+          const ids = [...day.scheduleBlockIds];
+          ids.splice(index === undefined ? ids.length : Math.max(0, Math.min(index, ids.length)), 0, block.id);
+          return { ...day, scheduleBlockIds: ids };
+        });
+      }
+      return {
+        scheduleBlocks: [...(prev.scheduleBlocks ?? []), block],
+        productionDays: nextDays,
+      };
+    });
+  };
+
   const scheduleScene = (scriptSceneId: string, dayId: string | null, index?: number) => {
-    const block: ScheduleBlock = {
-      id: createId('block'),
-      kind: 'scene',
-      scriptSceneId,
-    };
-    let nextDays = days;
-    if (dayId !== null) {
-      nextDays = days.map((day) => {
-        if (day.id !== dayId) return day;
-        const ids = [...day.scheduleBlockIds];
-        ids.splice(index === undefined ? ids.length : Math.max(0, Math.min(index, ids.length)), 0, block.id);
-        return { ...day, scheduleBlockIds: ids };
-      });
-    }
-    updateProjectMeta({ scheduleBlocks: [...blocks, block], productionDays: nextDays });
+    const block: ScheduleBlock = { id: createId('block'), kind: 'scene', scriptSceneId };
+    addScheduledBlock(block, dayId, index);
   };
 
   const scheduleSetup = (setupId: string, dayId: string | null, index?: number) => {
     const block: ScheduleBlock = { id: createId('block'), kind: 'setup', setupId };
-    let nextDays = days;
-    if (dayId !== null) {
-      nextDays = days.map((day) => {
-        if (day.id !== dayId) return day;
-        const ids = [...day.scheduleBlockIds];
-        ids.splice(index === undefined ? ids.length : Math.max(0, Math.min(index, ids.length)), 0, block.id);
-        return { ...day, scheduleBlockIds: ids };
-      });
-    }
-    updateProjectMeta({ scheduleBlocks: [...blocks, block], productionDays: nextDays });
+    addScheduledBlock(block, dayId, index);
   };
 
   const scheduleShots = (shotIds: string[], dayId: string | null, index?: number) => {
     const uniqueShotIds = [...new Set(shotIds)].filter((id) => shotEntries.some((entry) => entry.shot.id === id));
     if (uniqueShotIds.length === 0) return;
     const block: ScheduleBlock = { id: createId('block'), kind: 'shots', shotIds: uniqueShotIds };
-    let nextDays = days;
-    if (dayId !== null) {
-      nextDays = days.map((day) => {
-        if (day.id !== dayId) return day;
-        const ids = [...day.scheduleBlockIds];
-        ids.splice(index === undefined ? ids.length : Math.max(0, Math.min(index, ids.length)), 0, block.id);
-        return { ...day, scheduleBlockIds: ids };
-      });
-    }
-    updateProjectMeta({ scheduleBlocks: [...blocks, block], productionDays: nextDays });
+    addScheduledBlock(block, dayId, index);
     setSelectedShotIds((current) => {
       const next = new Set(current);
       for (const id of uniqueShotIds) next.delete(id);

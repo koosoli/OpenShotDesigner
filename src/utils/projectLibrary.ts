@@ -32,6 +32,7 @@ import {
   STORE_PROJECTS,
 } from '../domain/storage/idb';
 import type { ProjectSummary } from '../domain/storage/types';
+import { todayIso } from '../domain/scheduling';
 
 /**
  * Project library: several productions live side by side in this browser.
@@ -567,7 +568,7 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     title: options.title?.trim() || 'Untitled project',
     director: options.director || sampleHeads.director || '',
     cinematographer: options.cinematographer || sampleHeads.cinematographer || '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayIso(),
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     setups,
     activeSetupId: setups[0].id,

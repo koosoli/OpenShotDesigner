@@ -1486,7 +1486,11 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
       } else {
         const mods = (light.modifiers ?? [])
           .filter((modifier) => modifier.enabled)
-          .map((modifier) => getLightModifierDefinition(modifier.kind).label);
+          .map((modifier) =>
+            getLightModifierDefinition(modifier.kind)?.label
+            ?? modifier.label
+            ?? `Unknown modifier (${modifier.kind})`,
+          );
         if (mods.length === 0 && light.hasBarnDoors) mods.push('Barn Doors');
         if (mods.length === 0 && light.hasDiffusionGrid) mods.push('Diffusion');
         if (mods.length > 0) modifierSpecs += ` · [${mods.join(', ')}]`;
@@ -1513,7 +1517,7 @@ export const deriveSceneEquipment = (setup: SceneSetup): EquipmentItem[] => {
           autoItems.push({
             id: `auto-light-modifier-${modifier.id}`,
             category: 'grip',
-            name: modifier.label || definition.label,
+            name: modifier.label || definition?.label || `Unknown modifier (${modifier.kind})`,
             quantity: 1,
             roleOrFunction: `Accessory for ${light.name || light.fixtureModel || parsed.model}`,
             specs: lightModifierSpecs(modifier),

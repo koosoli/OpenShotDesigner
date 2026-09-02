@@ -64,6 +64,13 @@ export const takesForShot = (takes: readonly Take[], shotId: string): Take[] =>
   takes.filter((take) => take.shotId === shotId);
 
 /**
+ * A GOOD pickup proves the pickup was usable, not that the complete base shot
+ * was covered. Only an untagged GOOD take can turn the planned shot green.
+ */
+export const isGoodCoverageTake = (take: Take): boolean =>
+  take.isGoodTake === true && take.slateTag === undefined;
+
+/**
  * How many takes a shot has.
  *
  * Derived from the log, with the legacy `Shot.takesCount` as a fallback for
@@ -202,7 +209,7 @@ const describeShot = (
   const entry = shotsById.get(shotId);
   if (!entry) return null;
   const shotTakes = takesByShot.get(shotId) ?? [];
-  const covered = shotTakes.some((take) => take.isGoodTake === true);
+  const covered = shotTakes.some(isGoodCoverageTake);
   return {
     shotId,
     setupId: entry.setupId,

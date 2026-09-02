@@ -81,26 +81,41 @@ export const BudgetPanel: React.FC = () => {
   const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';
   const money = (value: number) => formatMoney(value, currency);
 
-  const patchBudget = (updates: Partial<ProjectBudget>) => updateProjectMeta({ budget: { ...budget, ...updates } });
+  const mutateBudget = (fn: (current: ProjectBudget) => ProjectBudget) =>
+    updateProjectMeta((prev) => ({ budget: fn(prev.budget ?? emptyBudget()) }));
+  const patchBudget = (updates: Partial<ProjectBudget>) =>
+    mutateBudget((current) => ({ ...current, ...updates }));
   const patchSettings = (updates: Partial<ProjectBudget['settings']>) =>
-    patchBudget({ settings: { ...budget.settings, ...updates } });
+    mutateBudget((current) => ({
+      ...current,
+      settings: { ...current.settings, ...updates },
+    }));
 
   const setEquipmentRate = (key: string, label: string, card: RateCard | undefined) => {
-    const others = budget.equipmentRates.filter((rate) => rate.key !== key);
-    if (!card) {
-      patchBudget({ equipmentRates: others });
-      return;
-    }
-    const existing = budget.equipmentRates.find((rate) => rate.key === key);
-    const next: EquipmentRate = { id: existing?.id ?? createId('rate'), key, label, ...card };
-    patchBudget({ equipmentRates: [...others, next] });
+    mutateBudget((current) => {
+      const others = current.equipmentRates.filter((rate) => rate.key !== key);
+      if (!card) return { ...current, equipmentRates: others };
+      const existing = current.equipmentRates.find((rate) => rate.key === key);
+      const next: EquipmentRate = { id: existing?.id ?? createId('rate'), key, label, ...card };
+      return { ...current, equipmentRates: [...others, next] };
+    });
   };
 
   const addLine = (category: BudgetCategory = 'other') =>
-    patchBudget({ lines: [...budget.lines, { id: createId('budget'), category, label: '', amount: 0, basis: 'flat' }] });
+    mutateBudget((current) => ({
+      ...current,
+      lines: [...current.lines, { id: createId('budget'), category, label: '', amount: 0, basis: 'flat' }],
+    }));
   const patchLine = (id: string, updates: Partial<BudgetLine>) =>
-    patchBudget({ lines: budget.lines.map((line) => (line.id === id ? { ...line, ...updates } : line)) });
-  const removeLine = (id: string) => patchBudget({ lines: budget.lines.filter((line) => line.id !== id) });
+    mutateBudget((current) => ({
+      ...current,
+      lines: current.lines.map((line) => (line.id === id ? { ...line, ...updates } : line)),
+    }));
+  const removeLine = (id: string) =>
+    mutateBudget((current) => ({
+      ...current,
+      lines: current.lines.filter((line) => line.id !== id),
+    }));
 
   const exportCsv = () =>
     downloadText(`Budget_${safeFileName(project.title, 'Production')}.csv`, budgetToCsv(summary));
@@ -130,7 +145,9 @@ export const BudgetPanel: React.FC = () => {
 
   const people = useMemo(() => (project.people ?? []).filter((p) => p.kind === 'crew' || p.kind === 'cast' || p.kind === 'talent'), [project.people]);
   const patchPerson = (id: string, updates: Partial<Person>) =>
-    updateProjectMeta({ people: (project.people ?? []).map((p) => (p.id === id ? { ...p, ...updates } : p)) });
+    updateProjectMeta((prev) => ({
+      people: (prev.people ?? []).map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    }));
   const entryById = new Map(summary.entries.map((entry) => [entry.id, entry] as const));
   const aboveLine = people.filter((p) => isAboveTheLine(p));
   const belowLine = people.filter((p) => !isAboveTheLine(p));

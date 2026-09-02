@@ -6,6 +6,7 @@ import {
   keyCrewDisplayName,
   keyCrewMember,
   keyCrewMembers,
+  personHoldsRole,
   projectHeadFieldsFor,
 } from '../people';
 
@@ -33,6 +34,13 @@ describe('key crew roles', () => {
     expect(keyCrewMember([person('p1', 'Ada', ' Director of Photography ')], 'cinematographer')?.id).toBe('p1');
   });
 
+  it('resolves every job held by one person from common separators', () => {
+    const director = KEY_CREW_ROLES.find((role) => role.key === 'director')!;
+    const editor = KEY_CREW_ROLES.find((role) => role.key === 'editor')!;
+    expect(personHoldsRole(person('p1', 'Ada', 'Producer / Director; Picture Editor'), director)).toBe(true);
+    expect(personHoldsRole(person('p1', 'Ada', 'Producer / Director; Picture Editor'), editor)).toBe(true);
+  });
+
   it('does not match an unrelated role', () => {
     expect(keyCrewMember([person('p1', 'Ada', 'Gaffer')], 'director')).toBeUndefined();
     expect(keyCrewMember([person('p1', 'Ada')], 'director')).toBeUndefined();
@@ -50,6 +58,22 @@ describe('key crew roles', () => {
   it('assigning does not overwrite a department the person already has', () => {
     const after = assignKeyCrew([{ ...person('p1', 'Jane'), department: 'Production' }], 'director', 'p1');
     expect(after[0].department).toBe('Production');
+  });
+
+  it('assigns several key jobs to the same person without duplicating them', () => {
+    const withGaffer = assignKeyCrew([person('p1', 'Jane')], 'gaffer', 'p1');
+    const after = assignKeyCrew(withGaffer, 'key_grip', 'p1');
+    expect(after).toHaveLength(1);
+    expect(after[0].role).toBe('Gaffer / Key Grip');
+    expect(keyCrewMember(after, 'gaffer')?.id).toBe('p1');
+    expect(keyCrewMember(after, 'key_grip')?.id).toBe('p1');
+  });
+
+  it('vacates only the reassigned job and keeps the former holder other jobs', () => {
+    const before = [person('p1', 'Jane', 'Editor / Gaffer'), person('p2', 'Sam', 'DIT')];
+    const after = assignKeyCrew(before, 'gaffer', 'p2');
+    expect(after.find((p) => p.id === 'p1')?.role).toBe('Editor');
+    expect(after.find((p) => p.id === 'p2')?.role).toBe('DIT / Gaffer');
   });
 
   it('assigning an unknown person id simply vacates the role', () => {

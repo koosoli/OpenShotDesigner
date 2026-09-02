@@ -21,6 +21,7 @@ import {
   escapeCsvField,
   fillSequentialFileNames,
   formatRecordedDate,
+  isGoodCoverageTake,
   nextFileName,
   nextTakeNumber,
   orphanedTakes,
@@ -29,6 +30,7 @@ import {
   seedNextTake,
   serialiseResolveCsv,
   shutterSpeedFrom,
+  taggedShotNumber,
   takesCountFor,
   takesForDay,
 } from '../continuity';
@@ -40,6 +42,19 @@ const templatePath = path.resolve(process.cwd(), 'docs/resolve-metadata-template
 const take = (overrides: Partial<Take> & Pick<Take, 'id' | 'shotId'>): Take => ({
   takeNumber: 1,
   ...overrides,
+});
+
+describe('pickup slate tags', () => {
+  it('keeps a pickup attached to its base shot and separates the PU tag', () => {
+    expect(taggedShotNumber('1/1', 'PU')).toBe('1/1-PU');
+    expect(taggedShotNumber('02-PU', 'PU')).toBe('02-PU');
+    expect(taggedShotNumber('1/1A', undefined)).toBe('1/1A');
+  });
+
+  it('does not count a GOOD pickup as coverage of the base shot', () => {
+    expect(isGoodCoverageTake(take({ id: 'regular', shotId: 's1', isGoodTake: true }))).toBe(true);
+    expect(isGoodCoverageTake(take({ id: 'pickup', shotId: 's1', slateTag: 'PU', isGoodTake: true }))).toBe(false);
+  });
 });
 
 describe('nextFileName', () => {
@@ -234,6 +249,22 @@ describe('dayChecklist', () => {
     expect(checklist.planned[0].covered).toBe(true);
     expect(checklist.noGoodTake.map((entry) => entry.shotNumber)).toEqual(['2B']);
     expect(checklist.notShot.map((entry) => entry.shotNumber)).toEqual(['2C']);
+  });
+
+  it('keeps the base shot open when only its pickup has a GOOD take', () => {
+    const pickupOnly = [
+      take({
+        id: 'pickup-take',
+        shotId: 'shot1',
+        productionDayId: 'day1',
+        slateTag: 'PU',
+        isGoodTake: true,
+      }),
+    ];
+    const checklist = dayChecklist(['b1'], blocks, sources, pickupOnly, 'day1');
+    const base = checklist.planned.find((entry) => entry.shotId === 'shot1');
+    expect(base).toMatchObject({ covered: false, attemptedNotCovered: true, takeCount: 1 });
+    expect(checklist.noGoodTake.map((entry) => entry.shotId)).toContain('shot1');
   });
 
   it('keeps unplanned shots out of the plan so a miss stays visible', () => {
@@ -449,6 +480,12 @@ describe('buildResolveRows', () => {
       Filter: 'ND 0.6',
       'Camera Aperture': '5.6',
     });
+  });
+
+  it('exports a pickup on the base shot as a separated PU slate tag', () => {
+    const [row] = buildResolveRows([{ ...logged, slateTag: 'PU' }], sources);
+    expect(row.Shot).toBe('33-PU');
+    expect(row.Take).toBe('2');
   });
 
   it('falls back to the legacy project fields when nobody holds the role', () => {

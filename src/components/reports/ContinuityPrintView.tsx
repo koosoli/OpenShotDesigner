@@ -290,7 +290,7 @@ export const ContinuityPrintView: React.FC<ContinuityPrintViewProps> = ({
                     <td className="mono">{dash(row.scene)}</td>
                     <td>{dash(row.name)}</td>
                     <td className="num">{row.takeCount}</td>
-                    <td>{row.covered ? 'Good take' : 'No good take'}</td>
+                    <td>{row.covered ? 'Good base take' : 'No good base take'}</td>
                   </tr>
                 ))}
               </tbody>

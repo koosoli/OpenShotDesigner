@@ -49,7 +49,10 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
         const isFlag = isFlagFixture(light.fixtureType);
         const appearance = deriveEffectiveLightAppearance(light.beamAngle || 60, light.modifiers);
         const color = appearance.colorHex || light.rgbColor || kelvinToRgb(light.colorTemp || 5600);
-        const intensity = (light.intensity || 80) / 100;
+        // Zero is a real dimmer value, not a missing value. `|| 80` made an
+        // explicitly blacked-out fixture draw an 80% beam while photometrics
+        // correctly reported 0 lux.
+        const intensity = (light.intensity ?? 80) / 100;
         const throwDist = light.throwDistance || 200;
         const beamAngle = appearance.beamAngleDeg;
 

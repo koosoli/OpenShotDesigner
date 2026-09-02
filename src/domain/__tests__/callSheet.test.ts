@@ -223,6 +223,26 @@ describe('pick-ups on the cast and crew rows', () => {
   });
 });
 
+describe('crew with several jobs', () => {
+  it('prints one crew row with every job while resolving each HOD responsibility', () => {
+    const multiRoleCrew: Person[] = [{
+      id: 'p-multi',
+      displayName: 'Alex Morgan',
+      kind: 'crew',
+      department: 'Lighting / Electric',
+      role: 'Gaffer / Key Grip',
+      phone: '+49 170 123',
+    }];
+    const sheet = deriveCallSheet({ day, blocks, productionTitle: 'T', people: multiRoleCrew });
+
+    expect(sheet.crew).toEqual([
+      expect.objectContaining({ displayName: 'Alex Morgan', role: 'Gaffer / Key Grip' }),
+    ]);
+    expect(sheet.departmentHeads.filter((head) => head.displayName === 'Alex Morgan').map((head) => head.roleLabel))
+      .toEqual(['Gaffer', 'Key Grip']);
+  });
+});
+
 /** One picture per place, each saying which place it shows. */
 describe('location maps', () => {
   const locations = [

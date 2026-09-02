@@ -15,7 +15,7 @@
  * project therefore contains. Plenty of productions instead letter their
  * setups within a scene: `1A`, `1B`, `1C`. Both are in use, so both are
  * supported, and the rule is to FOLLOW WHAT THE SCENE ALREADY USES rather than
- * to impose one. A pickup that reads `1A` in a scene numbered `1/1, 1/2` is
+ * to impose one. An insert that reads `1A` in a scene numbered `1/1, 1/2` is
  * wrong in the only way that matters — it is ambiguous on a slate.
  *
  * The letter algebra underneath is the scene module's, imported rather than
@@ -85,7 +85,7 @@ export const takenShotNumbers = (shots: readonly { shotNumber?: string }[]): Set
  * `previous`/`next` are the neighbours in shot order; either may be absent at
  * the ends of the list. `sceneNumber` supplies the scene when there is no
  * previous shot to take it from — a scene whose very first shot is an
- * unplanned pickup still needs to be called something.
+ * unplanned insert still needs to be called something.
  */
 export const insertedShotNumber = (
   previous: string | undefined,
@@ -158,7 +158,7 @@ export const insertedShotNumber = (
 
 /**
  * The number to give a shot appended to the end of `shots` — the ordinary case
- * when a pickup is logged on the day. Convenience over `insertedShotNumber` so
+ * when an unplanned shot is logged on the day. Convenience over `insertedShotNumber` so
  * callers do not have to find the last shot themselves.
  */
 export const nextShotNumberAfter = (

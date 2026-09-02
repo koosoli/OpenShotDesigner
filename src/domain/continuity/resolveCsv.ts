@@ -22,6 +22,7 @@
 import { keyCrewDisplayName } from '../people/keyRoles';
 import type { Person } from '../people/types';
 import type { ContinuityCrewDefaults, Take } from './types';
+import { taggedShotNumber } from './slate';
 
 /**
  * The template's 29 columns, in the template's order. Do not reformat, rename
@@ -250,7 +251,7 @@ export const buildResolveRows = (
       Location: slate.location ?? setup?.location ?? '',
       'Day / Night': slate.dayNight ?? dayNightFrom(setup?.timeOfDay),
       Scene: slate.sceneNumber ?? shot?.sceneNumber ?? setup?.sceneNumber ?? '',
-      Shot: slate.shotNumber ?? shot?.shotNumber ?? '',
+      Shot: taggedShotNumber(slate.shotNumber ?? shot?.shotNumber, take.slateTag),
       Take: String(take.takeNumber),
       // 1 or 0, never true/yes — and blank while the take is unjudged, because
       // "not marked good" and "marked bad" are different facts.

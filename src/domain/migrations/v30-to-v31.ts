@@ -17,13 +17,40 @@ const TEMPLATE = [
 export const migrateV30ToV31 = (raw: UnknownRecord): Project => {
   const project = raw as unknown as Project;
   const setups = (project.setups ?? []) as SceneSetup[];
+  const originalBlocks = project.scheduleBlocks ?? [];
+
+  /**
+   * This migration repairs one specific historical template defect: a cloned
+   * example setup received new ids while its schedule retained bundled ids.
+   * Scene numbers, page ranges, actor names and role names are ordinary user
+   * data and are deliberately not accepted as a template fingerprint.
+   */
+  const hasLegacyTemplateReference = originalBlocks.some((block) => {
+    if (block.kind === 'setup') {
+      return TEMPLATE.some((template) => template.id === block.setupId)
+        && !setups.some((setup) => setup.id === block.setupId);
+    }
+    if (block.kind === 'shots') {
+      return block.shotIds.some(
+        (shotId) =>
+          TEMPLATE.some((template) => shotId in template.shots)
+          && !setups.some((setup) => setup.shots.some((shot) => shot.id === shotId)),
+      );
+    }
+    return false;
+  });
+
+  // Non-template projects pass through unchanged apart from the version
+  // stamp. Never infer page counts or cast links from plausible user data.
+  if (!hasLegacyTemplateReference) return { ...project, schemaVersion: 31 };
+
   const targetFor = (template: (typeof TEMPLATE)[number]): SceneSetup | undefined =>
     setups.find((setup) => setup.id === template.id)
     ?? [...setups].reverse().find((setup) =>
       setup.sceneNumber === template.sceneNumber && setup.scriptPage === template.page,
     );
 
-  const scheduleBlocks = (project.scheduleBlocks ?? []).map((block): ScheduleBlock => {
+  const scheduleBlocks = originalBlocks.map((block): ScheduleBlock => {
     if (block.kind === 'setup' && !setups.some((setup) => setup.id === block.setupId)) {
       const template = TEMPLATE.find((candidate) => candidate.id === block.setupId);
       const target = template ? targetFor(template) : undefined;

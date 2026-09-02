@@ -230,21 +230,25 @@ export const TaskBoardPanel: React.FC = () => {
 
   const createBoard = () => {
     const next = createTaskBoard(createId('board'), boards.length === 0 ? 'Production tasks' : `Board ${boards.length + 1}`);
-    updateProjectMeta({ taskBoards: [...boards, next] });
+    updateProjectMeta((prev) => ({ taskBoards: [...(prev.taskBoards ?? []), next] }));
     setActiveBoardId(next.id);
   };
 
   const renameBoard = (title: string) => {
     if (!board) return;
-    updateProjectMeta({ taskBoards: boards.map((candidate) => (candidate.id === board.id ? { ...candidate, title } : candidate)) });
+    updateProjectMeta((prev) => ({
+      taskBoards: (prev.taskBoards ?? []).map((candidate) =>
+        candidate.id === board.id ? { ...candidate, title } : candidate,
+      ),
+    }));
   };
 
   const deleteBoard = () => {
     if (!board || !window.confirm(`Delete board “${board.title}” and its ${boardTasks.length} task(s)?`)) return;
-    updateProjectMeta({
-      taskBoards: boards.filter((candidate) => candidate.id !== board.id),
-      tasks: allTasks.filter((task) => task.boardId !== board.id),
-    });
+    updateProjectMeta((prev) => ({
+      taskBoards: (prev.taskBoards ?? []).filter((candidate) => candidate.id !== board.id),
+      tasks: (prev.tasks ?? []).filter((task) => task.boardId !== board.id),
+    }));
     setActiveBoardId(null);
   };
 

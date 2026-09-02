@@ -19,12 +19,24 @@ export const calculateIlluminance = (
 ): LightPhotometricResult => {
   const warnings: string[] = [];
   if (!reference) return { lux: null, footCandles: null, warnings: ['Add a photometric reference first.'] };
-  if (!(reference.illuminanceLux > 0) || !(reference.distanceMm > 0) || !(targetDistanceMm > 0)) {
+  if (
+    !Number.isFinite(reference.illuminanceLux)
+    || !Number.isFinite(reference.distanceMm)
+    || !Number.isFinite(targetDistanceMm)
+    || !(reference.illuminanceLux > 0)
+    || !(reference.distanceMm > 0)
+    || !(targetDistanceMm > 0)
+  ) {
     return { lux: null, footCandles: null, warnings: ['Illuminance and distances must be greater than zero.'] };
   }
 
   const referenceIntensity = reference.referenceIntensityPercent ?? 100;
-  if (!(referenceIntensity > 0) || !(currentIntensityPercent >= 0)) {
+  if (
+    !Number.isFinite(referenceIntensity)
+    || !Number.isFinite(currentIntensityPercent)
+    || !(referenceIntensity > 0 && referenceIntensity <= 100)
+    || !(currentIntensityPercent >= 0 && currentIntensityPercent <= 100)
+  ) {
     return { lux: null, footCandles: null, warnings: ['Dimmer percentages are invalid.'] };
   }
 
@@ -35,7 +47,10 @@ export const calculateIlluminance = (
         warnings.push(`${modifier.label || modifier.kind}: transmission is unknown.`);
         return { lux: null, footCandles: null, warnings };
       }
-      if (!(modifier.transmissionPercent > 0 && modifier.transmissionPercent <= 100)) {
+      if (
+        !Number.isFinite(modifier.transmissionPercent)
+        || !(modifier.transmissionPercent > 0 && modifier.transmissionPercent <= 100)
+      ) {
         warnings.push(`${modifier.label || modifier.kind}: transmission must be above 0 and at most 100%.`);
         return { lux: null, footCandles: null, warnings };
       }

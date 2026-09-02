@@ -372,7 +372,7 @@ export const ScriptPanel: React.FC = () => {
   };
 
   const handleStartBlankScreenplay = () => {
-    const blankId = `sl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const blankId = createId('sl');
     const initialLine: ScriptLine = {
       id: blankId,
       lineNumber: 1,
@@ -709,7 +709,7 @@ export const ScriptPanel: React.FC = () => {
         }
       }
 
-      const newLineId = `sl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const newLineId = createId('sl');
       const newLine: ScriptLine = {
         id: newLineId,
         lineNumber: index + 2,
@@ -750,7 +750,7 @@ export const ScriptPanel: React.FC = () => {
   const insertLineAfter = (afterLineId: string, type: ScriptElementType = 'scene') => {
     const index = lines.findIndex((line) => line.id === afterLineId);
     if (index === -1) return;
-    const newLineId = `sl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const newLineId = createId('sl');
     const newLine: ScriptLine = {
       id: newLineId,
       lineNumber: index + 2,
@@ -790,7 +790,7 @@ export const ScriptPanel: React.FC = () => {
   };
 
   const addBlankLineAtBottom = (type: ScriptElementType = 'scene') => {
-    const newLineId = `sl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const newLineId = createId('sl');
     const last = lines[lines.length - 1];
     const defaultText = type === 'scene' ? 'INT. LOCATION - DAY' : type === 'character' ? 'CHARACTER' : '';
     const newLine: ScriptLine = {

@@ -14,6 +14,7 @@ export interface Person {
   displayName: string;
   kind?: PersonKind;
   department?: string;
+  /** One or more job titles; `/` is the canonical separator (CSV imports also accept `,`, `;` and `|`). */
   role?: string;
   email?: string;
   /**

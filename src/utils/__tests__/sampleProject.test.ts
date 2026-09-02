@@ -4,6 +4,7 @@ import { keyCrewMember } from '../../domain/people';
 import { castFilterForDay, castPersonIdsForDay } from '../../domain/reports';
 import { attachBreakdownItemsToScenes, scenesForBreakdownItem } from '../../domain/script';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
+import { validateProject } from '../../domain/validation';
 
 /**
  * A template project has to demonstrate every module. The first-run project
@@ -18,6 +19,11 @@ describe('sample project content', () => {
     expect(project.setups.length).toBeGreaterThan(1);
     expect(project.scriptText?.length ?? 0).toBeGreaterThan(0);
     expect((project.scriptLines ?? []).length).toBeGreaterThan(0);
+  });
+
+  it('round-trips through JSON without dangling references', () => {
+    const roundTripped = JSON.parse(JSON.stringify(project));
+    expect(validateProject(roundTripped).filter((issue) => issue.severity === 'error')).toEqual([]);
   });
 
   it('persists the bundled page counts so scheduled strips can print pages immediately', () => {

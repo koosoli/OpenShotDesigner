@@ -23,6 +23,30 @@ describe('lighting photometrics', () => {
     expect(result.warnings[0]).toContain('approximation');
   });
 
+  it('keeps zero as a valid blacked-out dimmer value', () => {
+    const result = calculateIlluminance(reference, 1000, 0);
+    expect(result.lux).toBe(0);
+    expect(result.footCandles).toBe(0);
+  });
+
+  it.each([101, Number.POSITIVE_INFINITY, Number.NaN])(
+    'rejects an invalid current dimmer percentage (%s)',
+    (percent) => {
+      const result = calculateIlluminance(reference, 1000, percent);
+      expect(result.lux).toBeNull();
+      expect(result.warnings).toContain('Dimmer percentages are invalid.');
+    },
+  );
+
+  it('rejects non-finite reference values', () => {
+    const result = calculateIlluminance(
+      { ...reference, illuminanceLux: Number.POSITIVE_INFINITY },
+      1000,
+      100,
+    );
+    expect(result.lux).toBeNull();
+  });
+
   it('converts lux and foot-candles reversibly', () => {
     expect(footCandlesToLux(luxToFootCandles(1234))).toBeCloseTo(1234);
   });

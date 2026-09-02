@@ -6,7 +6,7 @@
  *
  *  - the keywords field ate the comma you typed, because it round-tripped
  *    array→text on every keystroke;
- *  - a pickup logged on a scheduled setup quietly joined the plan, so the
+ *  - an unplanned shot on a scheduled setup quietly joined the plan, so the
  *    checklist stopped reporting the shot that was really missed;
  *  - two state updates in one tick dropped the first, because the second read
  *    a stale project.
@@ -125,6 +125,38 @@ describe('ContinuityPanel — logging', () => {
     ]);
   });
 
+  it('logs a pickup as a tagged take on the existing shot', async () => {
+    const user = userEvent.setup();
+    renderWithProject(<ContinuityPanel />, dayProject());
+
+    await user.click(screen.getAllByRole('button', { name: 'PU' })[0]);
+
+    const project = currentProject();
+    expect(project.setups[0].shots).toHaveLength(3);
+    expect(project.takes).toMatchObject([
+      { shotId: 'shot1', takeNumber: 1, slateTag: 'PU' },
+    ]);
+    expect(screen.getByText('1/1-PU')).toBeTruthy();
+
+    await user.click(screen.getByTitle('Mark as a good take'));
+    expect(screen.getByText(/No good base take: 1\/1/)).toBeTruthy();
+  });
+
+  it('numbers normal and PU takes in separate slate series', async () => {
+    const user = userEvent.setup();
+    renderWithProject(<ContinuityPanel />, dayProject());
+
+    await logTake(user, 0);
+    await user.click(screen.getAllByRole('button', { name: 'PU' })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'PU' })[0]);
+
+    expect(currentProject().takes?.map((entry) => [entry.slateTag, entry.takeNumber])).toEqual([
+      [undefined, 1],
+      ['PU', 1],
+      ['PU', 2],
+    ]);
+  });
+
   /**
    * Regression: the field showed the stored array rejoined on every keystroke,
    * so typing "Laptop," split to ["Laptop"], rejoined to "Laptop", and the
@@ -189,15 +221,15 @@ describe('ContinuityPanel — checklist', () => {
 
     // 1/1 is covered, so it leaves both gap lists; the other two remain.
     expect(screen.getByText(/Not shot: 1\/2, 1\/3/)).toBeTruthy();
-    expect(screen.queryByText(/No good take: 1\/1/)).toBeNull();
+    expect(screen.queryByText(/No good base take: 1\/1/)).toBeNull();
   });
 
   /**
-   * Regression: the day schedules the whole setup, so a pickup added to that
+   * Regression: the day schedules the whole setup, so an unplanned shot added to that
    * setup was resolved as "planned" — and the checklist stopped being able to
    * say which shot was actually missed.
    */
-  it('keeps a pickup out of the plan and lists it separately', async () => {
+  it('keeps an unplanned shot out of the plan and lists it separately', async () => {
     const user = userEvent.setup();
     renderWithProject(<ContinuityPanel />, dayProject());
 
@@ -213,12 +245,25 @@ describe('ContinuityPanel — checklist', () => {
     expect(screen.getByText(/Not shot: 1\/1, 1\/2, 1\/3/)).toBeTruthy();
   });
 
+  it('creates a separate lettered insert shot after an existing shot', async () => {
+    const user = userEvent.setup();
+    renderWithProject(<ContinuityPanel />, dayProject());
+
+    await user.click(screen.getByTitle('Add a separate unplanned shot after 1/1'));
+
+    const shots = currentProject().setups[0].shots;
+    expect(shots.map((entry) => entry.shotNumber)).toEqual(['1/1', '1/1A', '1/2', '1/3']);
+    expect(shots.map((entry) => entry.order)).toEqual([0, 1, 2, 3]);
+    expect(shots[1].unplanned).toBe(true);
+    expect(currentProject().takes?.[0].shotId).toBe(shots[1].id);
+  });
+
   /**
    * Adding the shot and logging its first take are one user action, so they
    * must be one state update — the earlier two-call version dropped the first
    * write, because the second read a stale project.
    */
-  it('creates the pickup and its first take together', async () => {
+  it('creates the unplanned shot and its first take together', async () => {
     const user = userEvent.setup();
     renderWithProject(<ContinuityPanel />, dayProject());
 
@@ -392,4 +437,3 @@ describe('ContinuityPanel — sound', () => {
     expect(take?.wildTrack).toBeUndefined();
   });
 });
-

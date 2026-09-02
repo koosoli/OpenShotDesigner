@@ -37,7 +37,7 @@ export const SetLocationLink: React.FC<SetLocationLinkProps> = ({ setName, isLig
     }
     if (value === CREATE) {
       const location = { id: createId('loc'), name: setName.trim(), type: 'location' as const, referenceAssetIds: [] };
-      updateProjectMeta({ locations: [...locations, location] });
+      updateProjectMeta((prev) => ({ locations: [...(prev.locations ?? []), location] }));
       return;
     }
     updateProjectMeta({ locations: linkSetNameToLocation(locations, setName, value) });

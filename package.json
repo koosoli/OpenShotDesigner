@@ -20,7 +20,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fixtures:build": "npx --yes tsx scripts/build-fixture-db.ts"
+    "test:e2e": "playwright test",
+    "test:e2e:offline": "playwright test --config=playwright.offline.config.ts",
+    "test:e2e:ui": "playwright test --ui",
+    "fixtures:build": "tsx scripts/build-fixture-db.ts"
   },
   "dependencies": {
     "lucide-react": "^0.546.0",
@@ -29,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/vite": "^4.1.14",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.6",
@@ -44,6 +48,7 @@
     "globals": "^15.15.0",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4.1.14",
+    "tsx": "^4.23.12",
     "typescript": "~5.8.2",
     "typescript-eslint": "^8.67.0",
     "vite": "^6.2.3",

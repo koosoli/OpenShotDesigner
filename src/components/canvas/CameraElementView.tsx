@@ -117,12 +117,20 @@ const CameraElementViewImpl: React.FC<CameraElementViewProps> = ({
             <circle cx={0} cy={0} r={2.5} fill={color} />
           </g>
 
-          {/* Ghost FOV cones & camera bodies at waypoints */}
+          {/* Ghost FOV cones & full camera icons at waypoints. The icon itself
+              rotates with the authored facing; only its letter stays upright. */}
           {waypoints.map((wp, i) => {
             const wpRot = wp.rotation ?? camera.rotation;
             const wpFov = getCameraFovPolygon({ x: 0, y: 0 }, 0, fovAngle, throwDist * 0.7);
             return (
-              <g key={wp.id || i} transform={`translate(${wp.x}, ${wp.y}) rotate(${wpRot})`} opacity={0.3}>
+              <g
+                key={wp.id || i}
+                className="camera-waypoint-ghost"
+                data-waypoint-rotation={wpRot}
+                transform={`translate(${wp.x}, ${wp.y}) rotate(${wpRot})`}
+                opacity={0.62}
+              >
+                <title>{`Camera keyframe B${wp.beat} — facing ${Math.round(wpRot)}°`}</title>
                 {displaySettings.showFovCones && (
                   <path
                     d={wpFov.pathString}
@@ -134,16 +142,36 @@ const CameraElementViewImpl: React.FC<CameraElementViewProps> = ({
                   />
                 )}
                 <rect
-                  x={-10}
-                  y={-8}
-                  width={16}
-                  height={16}
+                  x={-14}
+                  y={-12}
+                  width={22}
+                  height={24}
                   fill="#1e293b"
+                  stroke="#e2e8f0"
+                  strokeWidth={2}
+                  rx={3}
+                />
+                <polygon
+                  points="8,-10 18,-14 18,14 8,10"
+                  fill="#0f172a"
                   stroke={color}
                   strokeWidth={1.5}
-                  rx={2}
                 />
-                <polygon points="6,-6 14,-9 14,9 6,6" fill={color} opacity={0.6} />
+                <rect x={4} y={-7} width={6} height={14} fill={color} rx={1} />
+                <circle cx={-3} cy={0} r={7.5} fill={color} stroke="#0f172a" strokeWidth={1} />
+                <g transform={`rotate(${-wpRot}, -3, 0)`}>
+                  <text
+                    x={-3}
+                    y={3}
+                    fill="#ffffff"
+                    fontSize="9"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                    className="select-none font-sans"
+                  >
+                    {cameraIconLabel}
+                  </text>
+                </g>
               </g>
             );
           })}
@@ -503,10 +531,11 @@ const CameraElementViewImpl: React.FC<CameraElementViewProps> = ({
                   </g>
                 )}
 
-                {/* Beat badge */}
+                {/* Keep the beat badge below the icon so it no longer hides
+                    the camera's facing direction. */}
                 <circle
                   cx={0}
-                  cy={0}
+                  cy={24}
                   r={11}
                   fill="#0f172a"
                   stroke={isSelected ? '#38bdf8' : color}
@@ -515,7 +544,7 @@ const CameraElementViewImpl: React.FC<CameraElementViewProps> = ({
                 />
                 <text
                   x={0}
-                  y={3.5}
+                  y={27.5}
                   fill="#38bdf8"
                   fontSize="9"
                   fontWeight="bold"

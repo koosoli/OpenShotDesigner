@@ -55,6 +55,8 @@ export interface NextTakeSeed {
   previous?: Take;
   /** The shot the new take covers. */
   shotId: string;
+  /** Optional slate series within the shot (`PU`, `RTK`). */
+  slateTag?: Take['slateTag'];
   productionDayId?: string;
   /** Injected rather than read from a clock, so the function stays pure. */
   loggedAt?: string;
@@ -79,17 +81,22 @@ const isEmpty = (value: unknown): boolean =>
   (typeof value === 'object' && !Array.isArray(value) && Object.keys(value as object).length === 0);
 
 /**
- * The take number for a new take on `shotId`.
+ * The take number for a new take in one slate series on `shotId`.
  *
- * Counts on from the highest number already logged against that shot rather
- * than from the previous take, so a shot returned to after a detour — or
- * covered across two days — continues its own numbering instead of restarting
- * at 2 behind the take that is already there.
+ * Counts on from the highest number already logged against that shot and tag
+ * rather than from the previous take. A base slate and `-PU` are independent
+ * series, so both can honestly have a Take 1; returning to either later still
+ * continues the correct series.
  */
-export const nextTakeNumber = (takes: readonly Take[], shotId: string): number => {
+export const nextTakeNumber = (
+  takes: readonly Take[],
+  shotId: string,
+  slateTag?: Take['slateTag'],
+): number => {
   let highest = 0;
   for (const take of takes) {
     if (take.shotId !== shotId) continue;
+    if (take.slateTag !== slateTag) continue;
     if (take.takeNumber > highest) highest = take.takeNumber;
   }
   return highest + 1;
@@ -104,13 +111,14 @@ export const nextTakeNumber = (takes: readonly Take[], shotId: string): number =
  * rather than a re-entry of the whole row.
  */
 export const seedNextTake = (takes: readonly Take[], seed: NextTakeSeed): SeededTake => {
-  const { previous, shotId, productionDayId, loggedAt, id } = seed;
+  const { previous, shotId, slateTag, productionDayId, loggedAt, id } = seed;
   const inherited: InheritedField[] = [];
 
   const take: Take = {
     id,
     shotId,
-    takeNumber: nextTakeNumber(takes, shotId),
+    takeNumber: nextTakeNumber(takes, shotId, slateTag),
+    ...(slateTag !== undefined ? { slateTag } : {}),
     ...(productionDayId !== undefined ? { productionDayId } : {}),
     ...(loggedAt !== undefined ? { loggedAt } : {}),
   };

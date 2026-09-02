@@ -81,6 +81,7 @@ export const LightModifiersSection: React.FC<LightModifiersSectionProps> = ({ li
             type="button"
             onClick={() => {
               const definition = getLightModifierDefinition(newKind);
+              if (!definition) return;
               updateElement(light.id, {
                 modifiers: [...modifiers, {
                   id: createId(IdPrefixes.lightModifier),
@@ -100,6 +101,7 @@ export const LightModifiersSection: React.FC<LightModifiersSectionProps> = ({ li
           <p className="text-[10px] opacity-60 leading-relaxed">Add the real accessory stack. Each enabled item adds an Asset Library badge to the fixture symbol.</p>
         ) : modifiers.map((modifier) => {
           const definition = getLightModifierDefinition(modifier.kind);
+          const label = definition?.label ?? modifier.label ?? `Unknown modifier (${modifier.kind})`;
           return (
             <div key={modifier.id} className={`rounded-lg border p-2 space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/60'}`}>
               <div className="flex items-center gap-2">
@@ -107,16 +109,18 @@ export const LightModifiersSection: React.FC<LightModifiersSectionProps> = ({ li
                   type="checkbox"
                   checked={modifier.enabled}
                   onChange={(event) => patchModifier(modifier.id, { enabled: event.target.checked })}
-                  aria-label={`Enable ${definition.label}`}
+                  aria-label={`Enable ${label}`}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold">{definition.label}</div>
-                  <div className="text-[9px] opacity-55">{definition.description}</div>
+                  <div className="text-xs font-bold">{label}</div>
+                  <div className="text-[9px] opacity-55">
+                    {definition?.description ?? 'Kept without inferred optical properties.'}
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => updateElement(light.id, { modifiers: modifiers.filter((candidate) => candidate.id !== modifier.id) })}
-                  aria-label={`Remove ${definition.label}`}
+                  aria-label={`Remove ${label}`}
                   className="p-1 rounded text-rose-500 hover:bg-rose-500/10"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

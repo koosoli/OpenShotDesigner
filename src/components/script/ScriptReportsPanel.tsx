@@ -97,7 +97,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
       return;
     }
     const setup = buildSetup(scene, locationId);
-    updateProjectMeta({ setups: [...project.setups, setup], activeSetupId: setup.id });
+    updateProjectMeta((prev) => ({ setups: [...prev.setups, setup], activeSetupId: setup.id }));
     setActiveRightTab('shots');
   };
 
@@ -106,10 +106,10 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
       .filter((scene) => !matchingSetup(scene))
       .map((scene) => buildSetup(scene, locationId));
     if (additions.length === 0) return;
-    updateProjectMeta({
-      setups: [...project.setups, ...additions],
+    updateProjectMeta((prev) => ({
+      setups: [...prev.setups, ...additions],
       activeSetupId: additions[0].id,
-    });
+    }));
     setActiveRightTab('shots');
   };
 

@@ -28,7 +28,7 @@ void initProjectLibrary()
     // Offline app shell (plan §5.4): production builds register the service
     // worker so an installed/opened build keeps working without network.
     if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+      const registerServiceWorker = () => {
         navigator.serviceWorker
           .register(`${import.meta.env.BASE_URL}sw.js`)
           .then((registration) => {
@@ -39,6 +39,12 @@ void initProjectLibrary()
           .catch(() => {
             // Offline support is progressive; registration failure is non-fatal.
           });
-      });
+      };
+      // Project-library hydration is asynchronous. On a fast page the load
+      // event may already have fired before this finally block runs; adding a
+      // listener at that point waits forever and the app never becomes
+      // offline-capable. Register immediately in that case.
+      if (document.readyState === 'complete') registerServiceWorker();
+      else window.addEventListener('load', registerServiceWorker, { once: true });
     }
   });

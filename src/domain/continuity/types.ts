@@ -76,11 +76,18 @@ export interface ContinuityCrewDefaults {
 
 export interface Take {
   id: string;
-  /** The `Shot` this covers. Unplanned pickups get a real shot, flagged. */
+  /** The `Shot` this covers. A distinct unplanned insert gets a real shot, flagged. */
   shotId: string;
   /** `ProductionDay.id` this was shot on. A shot can be covered across days. */
   productionDayId?: string;
   takeNumber: number;
+  /**
+   * Slate tag for work that still belongs to this shot. A pickup is not a new
+   * shot: `1/1` with `PU` is written/exported as `1/1-PU` and continues the
+   * existing shot's take count and coverage. Distinct inserted coverage gets
+   * its own `Shot` (`1/1A`) instead.
+   */
+  slateTag?: 'PU' | 'RTK';
   /**
    * The camera's file name on the card, extension included ("A001C002.mov").
    * Deliberately optional and deliberately NOT typed live: on set the person

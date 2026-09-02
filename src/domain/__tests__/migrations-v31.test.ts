@@ -35,4 +35,29 @@ describe('migrateV30ToV31', () => {
     expect(first.castAssignments?.[0]).toMatchObject({ characterId: 'char-alex', personId: 'person-alex' });
     expect(second).toEqual(first);
   });
+
+  it('does not treat an ordinary matching scene number and page range as the template', () => {
+    const project = fixture();
+    project.scheduleBlocks = [];
+    const migrated = migrateProject(project).project;
+
+    expect(migrated.scriptScenes?.[0].pageLengthEighths).toBeUndefined();
+    expect(migrated.setups[0].elements[0]).not.toHaveProperty('characterId');
+    expect(migrated.castAssignments).toBeUndefined();
+  });
+
+  it('does not infer actor or cast links in a non-template project', () => {
+    const project = fixture();
+    project.setups[0].sceneNumber = '42';
+    project.setups[0].scriptPage = 'p. 90';
+    project.scheduleBlocks = [{ id: 'ordinary', kind: 'setup', setupId: 'setup-clone' }];
+    const migrated = migrateProject(project).project;
+
+    expect(migrated.setups[0].elements[0]).toEqual({
+      id: 'actor-clone',
+      type: 'actor',
+      name: 'ALEX',
+    });
+    expect(migrated.castAssignments).toBeUndefined();
+  });
 });

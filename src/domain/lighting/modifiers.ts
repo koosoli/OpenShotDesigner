@@ -23,9 +23,10 @@ export const LIGHT_MODIFIER_DEFINITIONS: readonly LightModifierDefinition[] = [
   { kind: 'barn_doors', label: 'Barn doors', symbolId: 'lighting.modifier.barn-doors', description: 'Four-leaf spill control.', hardensBeam: true },
 ] as const;
 
-export const getLightModifierDefinition = (kind: LightModifierKind): LightModifierDefinition =>
-  LIGHT_MODIFIER_DEFINITIONS.find((definition) => definition.kind === kind)
-  ?? LIGHT_MODIFIER_DEFINITIONS[0];
+export const getLightModifierDefinition = (
+  kind: LightModifierKind | string,
+): LightModifierDefinition | undefined =>
+  LIGHT_MODIFIER_DEFINITIONS.find((definition) => definition.kind === kind);
 
 export const lightModifierSpecs = (modifier: LightModifier): string => {
   const parts: string[] = [];
@@ -57,9 +58,9 @@ export const deriveEffectiveLightAppearance = (
     if (modifier.beamAngleDeg !== undefined && Number.isFinite(modifier.beamAngleDeg)) {
       beamAngleDeg = Math.max(1, Math.min(360, modifier.beamAngleDeg));
     }
-    if (definition.softensBeam) beamEdge = 'soft';
-    if (definition.hardensBeam) beamEdge = 'hard';
-    if (definition.omniBeam) omni = true;
+    if (definition?.softensBeam) beamEdge = 'soft';
+    if (definition?.hardensBeam) beamEdge = 'hard';
+    if (definition?.omniBeam) omni = true;
     if (modifier.kind === 'gel' && modifier.colorHex) colorHex = modifier.colorHex;
   }
 

@@ -1,36 +1,49 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   CircleSlash,
   Clapperboard,
+  Plus,
+  VolumeX,
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { Shot, ShotStatus } from '../../types';
-import { sortCues } from '../../domain/scheduling';
-import { formatDurationHours } from '../../domain/scheduling';
+import {
+  buildPrintableStripboardDays,
+  formatDurationHours,
+  parseClockMinutes,
+  sortCues,
+} from '../../domain/scheduling';
+import {
+  dayChecklist,
+  isGoodCoverageTake,
+  recordOnSetTake,
+  takesCountFor,
+} from '../../domain/continuity';
+import { createId } from '../../domain/ids';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 /**
  * On-set / show-day mode (plan §35, standalone core).
  *
- * A full-screen, glanceable overlay for use on set: current shot hero card,
- * big status buttons, up-next list, run-of-show cue strip and a session
- * timer. Shot status changes go through the same `updateShot` path as the
- * shot list so autosave/history behave identically.
+ * A full-screen, glanceable overlay for use on set: shooting-day progress,
+ * current shot and take logging, day strips, up-next list, run-of-show cues
+ * and a session timer. Coverage comes from GOOD takes, never from a second
+ * counter, so this view and Continuity cannot disagree.
  *
  * Ephemeral-only state (cue "done" checkboxes, session timer) lives in
  * component state and is never persisted (plan rule 38).
  */
 
-/** Statuses cycled by the big buttons, in shoot order. */
-const STATUS_CYCLE: Array<{ status: ShotStatus; label: string }> = [
+/** Planning statuses. Actual coverage is derived from the take log below. */
+const PLANNING_STATUSES: Array<{ status: ShotStatus; label: string }> = [
   { status: 'planned', label: 'Planned' },
   { status: 'rehearsed', label: 'Rehearsed' },
   { status: 'ready', label: 'Ready' },
-  { status: 'taken', label: 'Taken' },
 ];
 
 const STATUS_BADGE_CLASS: Record<ShotStatus, string> = {
@@ -63,21 +76,101 @@ interface OnSetModeOverlayProps {
 }
 
 export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) => {
-  const { project, activeSetup, updateShot, selectShot } = useFloorPlan();
+  const {
+    project,
+    activeSetup,
+    updateProjectMeta,
+    updateShot,
+    selectShot,
+    setActiveSetupId,
+  } = useFloorPlan();
   const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
   // The overlay covers the workspace without unmounting it, so without a trap
   // Tab would walk the shot list underneath — mounted here means always open.
   const dialogRef = useDialogFocusTrap(true);
 
-  // Shots in setup order (same order the shot list shows them in).
-  const shots: Shot[] = activeSetup.shots;
+  const productionDays = project.productionDays ?? [];
+  const scheduleBlocks = useMemo(
+    () => project.scheduleBlocks ?? [],
+    [project.scheduleBlocks],
+  );
+  const allTakes = useMemo(() => project.takes ?? [], [project.takes]);
 
-  const [currentIndex, setCurrentIndex] = useState(() => {
-    // Start on the first shot that is not yet taken/omitted, else the first.
-    const firstOpen = shots.findIndex((s) => s.status !== 'taken' && s.status !== 'omitted');
-    return firstOpen >= 0 ? firstOpen : 0;
-  });
+  // Continuity and On-set deliberately share one selected shooting day. When
+  // no day was selected yet, prefer the day containing the active setup.
+  const selectedDayId =
+    (project.continuityDayFilterId &&
+    productionDays.some((day) => day.id === project.continuityDayFilterId)
+      ? project.continuityDayFilterId
+      : undefined) ??
+    productionDays.find((day) =>
+      day.scheduleBlockIds.some((id) => {
+        const block = scheduleBlocks.find((candidate) => candidate.id === id);
+        return block?.kind === 'setup' && block.setupId === activeSetup.id;
+      }),
+    )?.id ??
+    productionDays[0]?.id;
+  const selectedDay = productionDays.find((day) => day.id === selectedDayId);
+
+  const shotIndex = useMemo(() => {
+    const index = new Map<string, { shot: Shot; setupId: string; sceneNumber?: string }>();
+    for (const setup of project.setups) {
+      for (const shot of setup.shots) {
+        index.set(shot.id, { shot, setupId: setup.id, sceneNumber: setup.sceneNumber });
+      }
+    }
+    return index;
+  }, [project.setups]);
+
+  const dayCoverage = useMemo(
+    () =>
+      selectedDay
+        ? dayChecklist(
+            selectedDay.scheduleBlockIds,
+            scheduleBlocks,
+            { setups: project.setups, scriptScenes: project.scriptScenes },
+            allTakes,
+            selectedDay.id,
+          )
+        : undefined,
+    [selectedDay, scheduleBlocks, project.setups, project.scriptScenes, allTakes],
+  );
+
+  // A scheduled day can span scenes and setups. Without a shooting day the
+  // overlay keeps its old, useful fallback of showing the active setup.
+  const shotEntries = useMemo(() => {
+    if (!dayCoverage) {
+      return activeSetup.shots.map((shot) => ({
+        shot,
+        setupId: activeSetup.id,
+        sceneNumber: activeSetup.sceneNumber,
+        takeCount: takesCountFor(allTakes, shot.id, shot.takesCount),
+        covered: allTakes.some((take) => take.shotId === shot.id && isGoodCoverageTake(take)),
+        attemptedNotCovered:
+          allTakes.some((take) => take.shotId === shot.id) &&
+          !allTakes.some((take) => take.shotId === shot.id && isGoodCoverageTake(take)),
+      }));
+    }
+    return dayCoverage.planned.flatMap((row) => {
+      const indexed = shotIndex.get(row.shotId);
+      return indexed ? [{ ...indexed, ...row }] : [];
+    });
+  }, [dayCoverage, activeSetup, allTakes, shotIndex]);
+
+  const [currentShotId, setCurrentShotId] = useState<string | null>(null);
+  const firstOpenIndex = shotEntries.findIndex(
+    (entry) => !entry.covered && entry.shot.status !== 'omitted',
+  );
+  const selectedIndex = currentShotId
+    ? shotEntries.findIndex((entry) => entry.shot.id === currentShotId)
+    : -1;
+  const clampedIndex = selectedIndex >= 0 ? selectedIndex : firstOpenIndex >= 0 ? firstOpenIndex : 0;
+  const currentEntry = shotEntries[clampedIndex];
+  const currentShot = currentEntry?.shot;
+
+  const [takeNote, setTakeNote] = useState('');
+  const [nextTakeMos, setNextTakeMos] = useState(false);
 
   /** Session-local cue completion — presence-like ephemeral state, NOT persisted. */
   const [doneCueIds, setDoneCueIds] = useState<Set<string>>(new Set());
@@ -101,18 +194,62 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [onClose]);
 
-  const clampedIndex = Math.min(currentIndex, Math.max(shots.length - 1, 0));
-  const currentShot = shots[clampedIndex];
-
   const goToIndex = (index: number) => {
-    const clamped = Math.max(0, Math.min(index, shots.length - 1));
-    setCurrentIndex(clamped);
-    const target = shots[clamped];
-    if (target) selectShot(target.id, true);
+    const clamped = Math.max(0, Math.min(index, shotEntries.length - 1));
+    const target = shotEntries[clamped];
+    if (!target) return;
+    setCurrentShotId(target.shot.id);
+    if (target.setupId !== activeSetup.id) setActiveSetupId(target.setupId);
+    selectShot(target.shot.id, target.setupId === activeSetup.id);
   };
 
   const setStatus = (shot: Shot, status: ShotStatus) => {
     updateShot(shot.id, { status });
+  };
+
+  /**
+   * A judgement completes the most recent unjudged take for this shot. If the
+   * slate operator skipped TAKE +, it creates and judges the take in one tap.
+   * GOOD advances to the next still-uncovered planned shot; NG stays put.
+   */
+  const recordTake = (judgement?: boolean) => {
+    if (!currentShot) return;
+    const shotId = currentShot.id;
+    const note = takeNote.trim() || undefined;
+    updateProjectMeta((prev) => {
+      const takes = prev.takes ?? [];
+      const nextTakes = recordOnSetTake(takes, {
+        id: createId('take'),
+        shotId,
+        productionDayId: selectedDay?.id,
+        loggedAt: new Date().toISOString(),
+        judgement,
+        comments: note,
+        mos: nextTakeMos,
+      });
+
+      return {
+        takes: nextTakes,
+        // Keep the legacy workflow/status compatible while coverage itself is
+        // derived exclusively from GOOD takes.
+        setups: prev.setups.map((setup) => ({
+          ...setup,
+          shots: setup.shots.map((shot) =>
+            shot.id === shotId ? { ...shot, status: 'taken' as const } : shot,
+          ),
+        })),
+      };
+    });
+    setTakeNote('');
+    setNextTakeMos(false);
+
+    if (judgement === true) {
+      const nextIndex = shotEntries.findIndex(
+        (entry, index) =>
+          index > clampedIndex && !entry.covered && entry.shot.status !== 'omitted',
+      );
+      if (nextIndex >= 0) goToIndex(nextIndex);
+    }
   };
 
   const toggleCueDone = (cueId: string) => {
@@ -124,37 +261,34 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
     });
   };
 
-  const takenCount = useMemo(
-    () => shots.filter((s) => s.status === 'taken').length,
-    [shots],
-  );
+  const shootableEntries = shotEntries.filter((entry) => entry.shot.status !== 'omitted');
+  const coveredCount = shootableEntries.filter((entry) => entry.covered).length;
+  const attemptedCount = shootableEntries.filter((entry) => entry.attemptedNotCovered).length;
+  const remainingCount = shootableEntries.length - coveredCount - attemptedCount;
   const progressPercent =
-    shots.length > 0 ? Math.round((takenCount / shots.length) * 100) : 0;
+    shootableEntries.length > 0 ? Math.round((coveredCount / shootableEntries.length) * 100) : 0;
 
-  /**
-   * The strip's published estimate for THIS setup, when its block carries one.
-   *
-   * The comparison below is against the session clock — the timer this overlay
-   * started, not a fact about when work began — so the row says "session" and
-   * never claims to be the day's pace, and the variance is only spoken once
-   * the setup is fully taken. Mid-setup there is no honest delta yet: half a
-   * setup against a whole estimate reads as "behind" every single time.
-   */
-  const setupEstimateMinutes = useMemo(() => {
-    const block = (project.scheduleBlocks ?? []).find(
-      (candidate) => candidate.kind === 'setup' && candidate.setupId === activeSetup.id,
-    );
-    const value = block?.estimatedMinutes;
-    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-  }, [project.scheduleBlocks, activeSetup.id]);
-
-  const setupComplete = shots.length > 0 && takenCount >= shots.length;
-  const estimateVarianceMinutes =
-    setupEstimateMinutes !== undefined ? Math.round(elapsedSeconds / 60 - setupEstimateMinutes) : null;
+  /** Published day plan, including meals, moves and other manual strips. */
+  const stripboardDay = useMemo(
+    () => buildPrintableStripboardDays(project).find((day) => day.id === selectedDay?.id),
+    [project, selectedDay?.id],
+  );
+  const callMinutes = parseClockMinutes(selectedDay?.crewCall);
+  const wrapMinutes = parseClockMinutes(selectedDay?.plannedWrap);
+  const dayWindowMinutes =
+    callMinutes !== null && wrapMinutes !== null
+      ? wrapMinutes > callMinutes
+        ? wrapMinutes - callMinutes
+        : wrapMinutes + 1440 - callMinutes
+      : null;
+  const unallocatedMinutes =
+    dayWindowMinutes !== null && stripboardDay
+      ? dayWindowMinutes - stripboardDay.totalMinutes
+      : null;
 
   const upNext = useMemo(
-    () => shots.slice(clampedIndex + 1, clampedIndex + 6),
-    [shots, clampedIndex],
+    () => shotEntries.slice(clampedIndex + 1, clampedIndex + 6),
+    [shotEntries, clampedIndex],
   );
 
   const cues = useMemo(
@@ -195,7 +329,9 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
             <div>
               <h1 id="on-set-mode-title" className="text-base sm:text-lg font-black tracking-tight uppercase">On-set mode</h1>
               <p className={`text-xs ${subtextClass}`}>
-                Scene {activeSetup.sceneNumber}: {activeSetup.name}
+                {selectedDay
+                  ? `${selectedDay.name}${selectedDay.date ? ` · ${selectedDay.date}` : ''}`
+                  : `Scene ${activeSetup.sceneNumber}: ${activeSetup.name}`}
               </p>
             </div>
           </div>
@@ -221,12 +357,36 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
           </div>
         </div>
 
+        {productionDays.length > 0 && (
+          <label className={`block text-[10px] font-bold uppercase tracking-wider ${subtextClass}`}>
+            Shooting day
+            <select
+              value={selectedDay?.id ?? ''}
+              onChange={(event) => {
+                setCurrentShotId(null);
+                updateProjectMeta({ continuityDayFilterId: event.target.value || undefined });
+              }}
+              className={`mt-1 w-full min-h-[44px] rounded-xl border px-3 text-sm font-semibold normal-case ${
+                isLight
+                  ? 'bg-white border-slate-300 text-slate-900'
+                  : 'bg-slate-900 border-slate-700 text-slate-100'
+              }`}
+            >
+              {productionDays.map((day) => (
+                <option key={day.id} value={day.id}>
+                  {day.name}{day.date ? ` · ${day.date}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {/* Progress bar */}
         <div>
           <div className="flex justify-between text-xs font-semibold mb-1">
             <span className={subtextClass}>Progress</span>
             <span className="font-mono">
-              {takenCount}/{shots.length} taken · {progressPercent}%
+              {coveredCount} covered · {attemptedCount} attempted · {remainingCount} remaining
             </span>
           </div>
           <div className={`h-2.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
@@ -237,32 +397,43 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
           </div>
         </div>
 
-        {/* Pace: the session clock against the strip's published estimate for
-            this setup. The variance is only called once everything is taken —
-            mid-setup there is no honest delta yet. */}
-        {setupEstimateMinutes !== undefined && (
-          <div
-            className={`flex items-center justify-between gap-3 text-xs rounded-xl border px-3 py-2 ${
-              isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900'
-            }`}
-          >
-            <span className={subtextClass}>
-              Strip estimate{' '}
-              <span className="font-mono font-semibold">
-                {formatDurationHours(setupEstimateMinutes)}
-              </span>{' '}
-              · session <span className="font-mono font-semibold">{formatElapsed(elapsedSeconds)}</span>
-            </span>
-            {setupComplete && estimateVarianceMinutes !== null && Math.abs(estimateVarianceMinutes) > 5 && (
-              <span
-                className={`font-bold ${estimateVarianceMinutes > 0 ? 'text-amber-500' : 'text-emerald-500'}`}
-              >
-                {formatDurationHours(Math.abs(estimateVarianceMinutes))}{' '}
-                {estimateVarianceMinutes > 0 ? 'over' : 'under'}
+        {selectedDay && stripboardDay && (
+          <div className={`rounded-2xl border p-3 ${panelClass}`}>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-bold">
+                {selectedDay.crewCall ? `Call ${selectedDay.crewCall}` : 'Call TBC'}
+                {' · '}
+                {selectedDay.plannedWrap ? `Wrap ${selectedDay.plannedWrap}` : 'Wrap TBC'}
               </span>
+              <span className={`font-mono ${subtextClass}`}>
+                {formatDurationHours(stripboardDay.totalMinutes)} planned
+              </span>
+            </div>
+            {unallocatedMinutes !== null && (
+              <div className={`mt-1 text-[11px] font-semibold ${
+                unallocatedMinutes < 0 ? 'text-amber-500' : subtextClass
+              }`}>
+                {unallocatedMinutes < 0
+                  ? `${formatDurationHours(Math.abs(unallocatedMinutes))} beyond planned wrap`
+                  : `${formatDurationHours(unallocatedMinutes)} unallocated before wrap`}
+              </div>
             )}
-            {setupComplete && estimateVarianceMinutes !== null && Math.abs(estimateVarianceMinutes) <= 5 && (
-              <span className="font-bold text-emerald-500">on the estimate</span>
+            {stripboardDay.items.length > 0 && (
+              <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" aria-label="Shooting day schedule">
+                {stripboardDay.items.map((item, index) => (
+                  <div
+                    key={`${item.label}-${index}`}
+                    className={`flex-shrink-0 rounded-lg border px-2 py-1.5 text-[10px] ${
+                      isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950'
+                    }`}
+                  >
+                    <div className="font-bold max-w-36 truncate">{item.label}</div>
+                    <div className={subtextClass}>
+                      {item.kindLabel}{item.minutes !== undefined ? ` · ${item.minutes}m` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -313,7 +484,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               </div>
               <div className={`rounded-lg border p-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'}`}>
                 <div className="text-[10px] font-bold uppercase tracking-wider opacity-60">Takes</div>
-                <div className="font-semibold text-sm mt-0.5">{currentShot.takesCount}</div>
+                <div className="font-semibold text-sm mt-0.5">{currentEntry?.takeCount ?? 0}</div>
               </div>
             </div>
 
@@ -321,9 +492,9 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               <p className={`text-xs leading-relaxed ${subtextClass}`}>{currentShot.framingDescription}</p>
             )}
 
-            {/* Big status buttons */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {STATUS_CYCLE.map(({ status, label }) => {
+            {/* Planning state stays available, but no longer claims coverage. */}
+            <div className="grid grid-cols-3 gap-2">
+              {PLANNING_STATUSES.map(({ status, label }) => {
                 const isActive = currentShot.status === status;
                 const activeClass = isLight
                   ? 'bg-sky-600 border-sky-600 text-white'
@@ -340,6 +511,52 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
                   </button>
                 );
               })}
+            </div>
+
+            <div className={`rounded-xl border p-3 space-y-2 ${
+              isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950'
+            }`}>
+              <label className={`block text-[10px] font-bold uppercase tracking-wider ${subtextClass}`}>
+                Take note
+                <input
+                  value={takeNote}
+                  onChange={(event) => setTakeNote(event.target.value)}
+                  placeholder="Short note (optional)"
+                  className={`mt-1 w-full min-h-[44px] rounded-lg border px-3 text-sm normal-case ${
+                    isLight
+                      ? 'bg-white border-slate-300 text-slate-900'
+                      : 'bg-slate-900 border-slate-700 text-slate-100'
+                  }`}
+                />
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button onClick={() => recordTake()} className={ghostButtonClass}>
+                  <Plus className="w-4 h-4" /> Take +
+                </button>
+                <button
+                  onClick={() => recordTake(true)}
+                  className="min-h-[48px] px-3 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" /> Good
+                </button>
+                <button
+                  onClick={() => recordTake(false)}
+                  className="min-h-[48px] px-3 rounded-xl border border-red-500 bg-red-600 hover:bg-red-500 text-white font-bold"
+                >
+                  NG
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={nextTakeMos}
+                  onClick={() => setNextTakeMos((value) => !value)}
+                  className={`${ghostButtonClass} ${nextTakeMos ? '!border-amber-500 !text-amber-500' : ''}`}
+                >
+                  <VolumeX className="w-4 h-4" /> MOS
+                </button>
+              </div>
+              <p className={`text-[10px] ${subtextClass}`}>
+                GOOD/NG judges the latest open take, or logs one if TAKE + was skipped. GOOD advances.
+              </p>
             </div>
             <button
               onClick={() =>
@@ -369,11 +586,11 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
                 <ChevronLeft className="w-5 h-5" /> Prev shot
               </button>
               <span className={`font-mono text-xs px-2 ${subtextClass}`}>
-                {clampedIndex + 1}/{shots.length}
+                {clampedIndex + 1}/{shotEntries.length}
               </span>
               <button
                 onClick={() => goToIndex(clampedIndex + 1)}
-                disabled={clampedIndex >= shots.length - 1}
+                disabled={clampedIndex >= shotEntries.length - 1}
                 className={`${ghostButtonClass} flex-1 disabled:opacity-30 disabled:cursor-not-allowed`}
               >
                 Next shot <ChevronRight className="w-5 h-5" />
@@ -382,7 +599,9 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
           </div>
         ) : (
           <div className={`rounded-2xl border border-dashed p-8 text-center text-sm ${panelClass}`}>
-            No shots in this scene yet. Add shots in the shot list first.
+            {selectedDay
+              ? 'No planned shots on this shooting day. Add scene, setup or shot strips in Schedule.'
+              : 'No shots in this scene yet. Add shots in the shot list first.'}
           </div>
         )}
 
@@ -393,9 +612,9 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               Up next
             </div>
             <div className="space-y-1">
-              {upNext.map((shot, i) => (
+              {upNext.map((entry, i) => (
                 <button
-                  key={shot.id}
+                  key={entry.shot.id}
                   onClick={() => goToIndex(clampedIndex + 1 + i)}
                   className={`w-full min-h-[48px] px-3 rounded-xl border flex items-center justify-between gap-2 text-left transition-colors ${
                     isLight
@@ -405,18 +624,18 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
                 >
                   <span className="flex items-center gap-2 min-w-0">
                     <span className="font-mono text-xs font-bold text-sky-500 flex-shrink-0">
-                      {shot.shotNumber || '—'}
+                      {entry.shot.shotNumber || '—'}
                     </span>
-                    <span className="text-sm font-medium truncate">{shot.name}</span>
+                    <span className="text-sm font-medium truncate">{entry.shot.name}</span>
                   </span>
                   <span
                     className={`text-[10px] font-bold uppercase tracking-wider py-0.5 px-1.5 rounded border flex-shrink-0 ${
                       isLight
-                        ? STATUS_LIGHT_BADGE_CLASS[shot.status]
-                        : STATUS_BADGE_CLASS[shot.status]
+                        ? STATUS_LIGHT_BADGE_CLASS[entry.shot.status]
+                        : STATUS_BADGE_CLASS[entry.shot.status]
                     }`}
                   >
-                    {shot.status}
+                    {entry.covered ? 'covered' : entry.attemptedNotCovered ? 'attempted' : entry.shot.status}
                   </span>
                 </button>
               ))}

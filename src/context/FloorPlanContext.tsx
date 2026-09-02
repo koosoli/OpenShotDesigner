@@ -32,6 +32,8 @@ import {
   Vector2D,
 } from '../types';
 import { createId } from '../domain/ids';
+import { applyProjectCommand } from '../domain/project';
+import type { ProjectChange, ProjectCommandMetadata } from '../domain/project';
 import { nextActorLetter, nextCameraLabel } from '../domain/plan/cameraLabels';
 import { endpointsOf, hasEndpoints, hasSize } from '../domain/plan/elementGuards';
 import { buildShotForSetup } from '../domain/shots/createShot';
@@ -106,9 +108,8 @@ export type { ExportSection, RightTab } from './WorkspaceUIContext';
  * within the same millisecond, which made a freshly inserted shot reuse an
  * existing shot's id and appear to overwrite it.
  */
-let idCounter = 0;
-const newShotId = () => `shot-${Date.now().toString(36)}-${(idCounter++).toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-const newMarkId = () => `mark-${Date.now().toString(36)}-${(idCounter++).toString(36)}`;
+const newShotId = () => createId('shot');
+const newMarkId = () => createId('mark');
 
 interface FloorPlanContextType {
   project: Project;
@@ -297,6 +298,8 @@ interface FloorPlanContextType {
     updates: Partial<Project> | ((prev: Project) => Partial<Project>),
     record?: boolean,
   ) => void;
+  /** Central command boundary used by new domain slices; updateProjectMeta remains compatible. */
+  commitProject: (change: ProjectChange, metadata: ProjectCommandMetadata) => void;
   /**
    * Fill the modules that are still empty with the bundled example production.
    * Strictly additive — anything the user already has is untouched. Returns the
@@ -1678,6 +1681,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...prevSetup,
         elements: prevSetup.elements.filter((e) => e.id !== id),
         shots: prevSetup.shots.filter((s) => s.cameraId !== id),
+        storyboardOrder: prevSetup.storyboardOrder?.filter((shotId) => !shotsGone.has(shotId)),
         scriptMarks: (prevSetup.scriptMarks || []).filter((mark) => !shotsGone.has(mark.shotId)),
         groups: pruneGroups(prevSetup.groups, new Set([id])),
       };
@@ -1728,6 +1732,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...prevSetup,
         elements: prevSetup.elements.filter((e) => !idsSet.has(e.id)),
         shots: prevSetup.shots.filter((s) => !idsSet.has(s.cameraId)),
+        storyboardOrder: prevSetup.storyboardOrder?.filter((shotId) => !shotsGone.has(shotId)),
         scriptMarks: (prevSetup.scriptMarks || []).filter((mark) => !shotsGone.has(mark.shotId)),
         groups: pruneGroups(prevSetup.groups, idsSet),
       };
@@ -1744,7 +1749,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const el = activeSetup.elements.find((e) => e.id === id);
       if (!el) return;
 
-      const newId = `el-${el.type}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const newId = createId(`el-${el.type}`);
       duplicateIdMap.set(id, newId);
       const duplicated: FloorPlanElement = {
         ...el,
@@ -1756,7 +1761,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (duplicated.type === 'camera') {
         const cam = duplicated as CameraElement;
-        const shotId = `shot-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+        const shotId = createId('shot');
         cam.associatedShotId = shotId;
       }
 
@@ -2156,7 +2161,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const spawnPos = getNewCameraPosition();
 
     const shotId = newShotId();
-    const camId = `cam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const camId = createId('cam');
     const lens = 35;
 
     const newCamera: CameraElement = {
@@ -2659,7 +2664,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const camLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
     const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
     const spawnPos = getNewCameraPosition();
-    const camId = `cam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const camId = createId('cam');
 
     const currentRows = project.avScriptRows || avScriptRows;
     const nextNum = row?.shotNumber || String(currentRows.length + 1);
@@ -2768,7 +2773,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const spawnPos = getNewCameraPosition();
 
     const shotId = newShotId();
-    const camId = `cam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const camId = createId('cam');
 
     const newCamera: CameraElement = {
       id: camId,
@@ -2835,7 +2840,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const camColor = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
     const focal = 35;
     const sensor = 'Super35';
-    const id = `el-camera-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const id = createId('el-camera');
     const spawnPos = pos ?? getNewCameraPosition();
 
     const newCamera: CameraElement = {
@@ -2885,7 +2890,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const camColor = CAMERA_COLOR_PALETTE[existingCams.length % CAMERA_COLOR_PALETTE.length];
     const focal = 35;
     const sensor = 'Super35';
-    const id = `el-camera-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const id = createId('el-camera');
     const spawnPos = pos ?? getNewCameraPosition();
 
     const newCamera: CameraElement = {
@@ -3004,7 +3009,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (sharedWithOtherShots) {
         // Copy the position for this shot alone so the other shots keep theirs.
-        const copyId = `el-camera-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        const copyId = createId('el-camera');
         const copy: CameraElement = {
           ...current,
           id: copyId,
@@ -3067,7 +3072,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const sharedWithOtherShots =
       !!current && owner.shots.some((item) => item.id !== shotId && item.cameraId === current.id);
 
-    const newId = `el-camera-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const newId = createId('el-camera');
     let focusCameraId = newId;
 
     commitSetupById(owner.id, (setup) => {
@@ -3256,6 +3261,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...setup,
         elements: updatedElements,
         shots: updatedShots,
+        storyboardOrder: setup.storyboardOrder?.filter((shotId) => shotId !== id),
         scriptMarks: (setup.scriptMarks || []).filter((mark) => mark.shotId !== id),
       };
     });
@@ -3809,17 +3815,25 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * schedule, mood-board, location and company edits are all Ctrl+Z-able.
    * Pass `record: false` for bookkeeping that should stay outside history.
    */
+  const commitProject = useCallback((
+    change: ProjectChange,
+    metadata: ProjectCommandMetadata,
+  ) => {
+    setProject((prev) => {
+      const next = applyProjectCommand(prev, change);
+      if (metadata.record !== false) pendingSnapshotsRef.current.push(next);
+      return next;
+    });
+  }, [setProject]);
+
   const updateProjectMeta = (
     updates: Partial<Project> | ((prev: Project) => Partial<Project>),
     record = true,
-  ) => {
-    setProject((prev) => {
-      const patch = typeof updates === 'function' ? updates(prev) : updates;
-      const next: Project = { ...prev, ...patch };
-      if (record) pendingSnapshotsRef.current.push(next);
-      return next;
-    });
-  };
+  ) => commitProject(updates, {
+    label: 'Update project metadata',
+    domain: 'project',
+    record,
+  });
 
   /**
    * Functional project mutation recorded in undo history. Used by every
@@ -4092,7 +4106,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const addCustomEquipmentItem = (item: Omit<EquipmentItem, 'id'>) => {
     const newItem: EquipmentItem = {
       ...item,
-      id: `equip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      id: createId('equip'),
       isCustom: true,
     };
     const current = activeSetup.customEquipment || [];
@@ -4146,7 +4160,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const existingPackageItems = existingCustom?.packageItems || baseItem?.packageItems || [];
     const newSubItem: EquipmentPackageItem = {
       ...item,
-      id: `pkg-item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      id: createId('pkg-item'),
     };
 
     updateEquipmentItem(packageId, {
@@ -4317,6 +4331,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         duplicateCurrentSetup,
         deleteSetup,
         updateSetupMeta,
+        commitProject,
         updateProjectMeta,
         loadExampleProductionData,
         revisions,

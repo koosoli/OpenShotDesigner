@@ -433,7 +433,9 @@ export const isAboveTheLine = (person: Pick<Person, 'kind' | 'role' | 'aboveTheL
   if (typeof person.aboveTheLine === 'boolean') return person.aboveTheLine;
   if (person.kind === 'cast') return true;
   if (person.kind !== 'crew') return false;
-  const role = (person.role ?? '').toLowerCase();
-  if (/photograph|assistant director|\b(1st|2nd|3rd)\b|art director|casting|technical director|post/.test(role)) return false;
-  return /producer|director|writer|screenplay|showrunner|creator/.test(role);
+  const roles = (person.role ?? '').toLowerCase().split(/\s*[,;|/]\s*/).filter(Boolean);
+  return roles.some((role) => {
+    if (/photograph|assistant director|\b(1st|2nd|3rd)\b|art director|casting|technical director|post/.test(role)) return false;
+    return /producer|director|writer|screenplay|showrunner|creator/.test(role);
+  });
 };
