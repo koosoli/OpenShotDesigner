@@ -19,7 +19,11 @@ import {
 } from '../../constants/presets';
 import { ProjectImage } from '../common/ProjectImage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
-import { compareOpticalFraming, type OpticalSetting } from '../../domain/camera/opticalComparison';
+import {
+  calculateLivePreviewFraming,
+  compareOpticalFraming,
+  type OpticalSetting,
+} from '../../domain/camera/opticalComparison';
 import {
   Camera,
   ChevronLeft,
@@ -80,6 +84,7 @@ export const ViewfinderModal: React.FC = () => {
   // Live camera (laptop webcam, phone or iPad camera) shown inside the finder
   // with every guide drawn on top, so a storyboard frame can be shot on the spot.
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
+  const [liveOpticalReference, setLiveOpticalReference] = useState<(OpticalSetting & { cameraId: string }) | null>(null);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   /** The still grabbed on capture: the finder freezes on it until retake. */
@@ -99,13 +104,17 @@ export const ViewfinderModal: React.FC = () => {
   const stopLiveCamera = () => {
     setFrozenFrame(null);
     setVideoReady(false);
+    setLiveOpticalReference(null);
     setLiveStream((current) => {
       current?.getTracks().forEach((track) => track.stop());
       return null;
     });
   };
 
-  const startLiveCamera = async (mode: 'environment' | 'user' = facingMode) => {
+  const startLiveCamera = async (
+    mode: 'environment' | 'user' = facingMode,
+    opticsReference?: OpticalSetting & { cameraId: string },
+  ) => {
     setLiveError(null);
     setFrozenFrame(null);
     setVideoReady(false);
@@ -129,6 +138,7 @@ export const ViewfinderModal: React.FC = () => {
         current?.getTracks().forEach((track) => track.stop());
         return stream;
       });
+      setLiveOpticalReference(opticsReference ?? null);
       setFacingMode(mode);
     } catch (error) {
       setLiveError(
@@ -216,6 +226,9 @@ export const ViewfinderModal: React.FC = () => {
   const opticalComparison = opticalReference?.cameraId === selectedCamera.id
     ? compareOpticalFraming(opticalReference, currentOptics)
     : null;
+  const livePreviewFraming = liveOpticalReference?.cameraId === selectedCamera.id
+    ? calculateLivePreviewFraming(liveOpticalReference, currentOptics)
+    : { scale: 1, sourceLimited: false };
   const simulatedMagnification = Math.max(0.45, Math.min(3.5, compareOpticalFraming(
     { focalLength: 35, sensorFormat: 'Super35' },
     currentOptics,
@@ -228,6 +241,17 @@ export const ViewfinderModal: React.FC = () => {
       sensorFormat: updated.sensorFormat,
       fovAngle: calculateFovAngle(updated.focalLength, updated.sensorFormat),
     });
+  };
+  const selectViewfinderCamera = (cameraId: string) => {
+    const camera = cameras.find((candidate) => candidate.id === cameraId);
+    if (liveStream && camera) {
+      setLiveOpticalReference({
+        cameraId: camera.id,
+        focalLength: camera.focalLength || 35,
+        sensorFormat: camera.sensorFormat,
+      });
+    }
+    openViewfinder(cameraId);
   };
 
   // Find all actors in FOV
@@ -467,8 +491,20 @@ export const ViewfinderModal: React.FC = () => {
     let sh = video.videoHeight;
     if (sourceRatio > targetRatio) sw = Math.round(video.videoHeight * targetRatio);
     else sh = Math.round(video.videoWidth / targetRatio);
-    const sx = Math.round((video.videoWidth - sw) / 2);
-    const sy = Math.round((video.videoHeight - sh) / 2);
+    let sx = Math.round((video.videoWidth - sw) / 2);
+    let sy = Math.round((video.videoHeight - sh) / 2);
+
+    // Match the digital optical crop applied to the visible live <video>.
+    // Without this, the saved storyboard would unexpectedly jump back to the
+    // device camera's wide image at the moment the shutter was pressed.
+    if (livePreviewFraming.scale > 1) {
+      const croppedWidth = Math.max(1, Math.round(sw / livePreviewFraming.scale));
+      const croppedHeight = Math.max(1, Math.round(sh / livePreviewFraming.scale));
+      sx += Math.round((sw - croppedWidth) / 2);
+      sy += Math.round((sh - croppedHeight) / 2);
+      sw = croppedWidth;
+      sh = croppedHeight;
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = Math.min(1280, sw);
@@ -645,7 +681,7 @@ export const ViewfinderModal: React.FC = () => {
             {cameras.length > 1 && (
               <div className="flex items-center border border-slate-700 rounded-lg overflow-hidden bg-slate-800">
                 <button
-                  onClick={() => openViewfinder(prevCamera.id)}
+                  onClick={() => selectViewfinderCamera(prevCamera.id)}
                   title={`Previous Camera (${prevCamera.cameraLabel})`}
                   aria-label={`Previous Camera (${prevCamera.cameraLabel})`}
                   className="p-1.5 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
@@ -654,7 +690,7 @@ export const ViewfinderModal: React.FC = () => {
                 </button>
                 <select
                   value={selectedCamera.id}
-                  onChange={(e) => openViewfinder(e.target.value)}
+                  onChange={(e) => selectViewfinderCamera(e.target.value)}
                   className="bg-transparent text-slate-200 text-xs font-mono font-bold px-2 py-1 focus:outline-none cursor-pointer"
                 >
                   {cameras.map((c) => (
@@ -664,7 +700,7 @@ export const ViewfinderModal: React.FC = () => {
                   ))}
                 </select>
                 <button
-                  onClick={() => openViewfinder(nextCamera.id)}
+                  onClick={() => selectViewfinderCamera(nextCamera.id)}
                   title={`Next Camera (${nextCamera.cameraLabel})`}
                   aria-label={`Next Camera (${nextCamera.cameraLabel})`}
                   className="p-1.5 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
@@ -709,7 +745,10 @@ export const ViewfinderModal: React.FC = () => {
                   (event.currentTarget as HTMLVideoElement).play().catch(() => undefined);
                 }}
                 onCanPlay={() => setVideoReady(true)}
-                className={`absolute inset-0 w-full h-full object-cover z-[5] ${frozenFrame ? 'invisible' : ''}`}
+                data-testid="live-camera-feed"
+                data-optical-scale={livePreviewFraming.scale.toFixed(3)}
+                className={`absolute inset-0 w-full h-full object-cover z-[5] transition-transform duration-300 ${frozenFrame ? 'invisible' : ''}`}
+                style={{ transform: `scale(${livePreviewFraming.scale})`, transformOrigin: 'center center' }}
               />
             )}
 
@@ -924,7 +963,7 @@ export const ViewfinderModal: React.FC = () => {
                   {frozenFrame
                     ? `CAPTURED ${resolvedSlot?.short || 'FRAME'}`
                     : liveStream
-                      ? 'LIVE CAMERA'
+                      ? `LIVE · FOV SIM ${livePreviewFraming.scale.toFixed(2)}×${livePreviewFraming.sourceLimited ? ' · DEVICE LIMIT' : ''}`
                       : `STORYBOARD ${targetShot?.shotNumber || ''}${
                           resolvedSlot?.short ? ` · ${resolvedSlot.short}` : ''
                         }`}
@@ -1224,7 +1263,10 @@ export const ViewfinderModal: React.FC = () => {
                 )}
                 {!frozenFrame && (
                 <button
-                  onClick={() => startLiveCamera(facingMode === 'environment' ? 'user' : 'environment')}
+                  onClick={() => startLiveCamera(
+                    facingMode === 'environment' ? 'user' : 'environment',
+                    { cameraId: selectedCamera.id, ...currentOptics },
+                  )}
                   title="Switch between the front and rear camera"
                   aria-label="Switch between the front and rear camera"
                   className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border bg-slate-950 text-slate-300 border-slate-800 hover:text-white"
@@ -1246,7 +1288,10 @@ export const ViewfinderModal: React.FC = () => {
               </>
             ) : (
               <button
-                onClick={() => startLiveCamera()}
+                onClick={() => startLiveCamera(
+                  facingMode,
+                  { cameraId: selectedCamera.id, ...currentOptics },
+                )}
                 title="Open this device's camera inside the viewfinder (webcam, phone or iPad) and shoot the storyboard through these guides"
                 className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm bg-violet-600 hover:bg-violet-500 text-white"
               >

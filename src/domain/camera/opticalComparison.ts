@@ -18,6 +18,13 @@ export interface OpticalComparison {
   direction: 'wider' | 'tighter' | 'same';
 }
 
+export interface LivePreviewFraming {
+  /** CSS/source crop scale. One means the complete device feed is visible. */
+  scale: number;
+  /** A wider virtual lens cannot reveal pixels outside the physical device feed. */
+  sourceLimited: boolean;
+}
+
 /**
  * Compare framing at the same camera position and focus distance.
  * Horizontal scene width is proportional to sensor width / focal length, so
@@ -39,5 +46,22 @@ export const compareOpticalFraming = (
     fieldWidthRatio,
     magnificationRatio: previousSpan / currentSpan,
     direction: Math.abs(fieldWidthRatio - 1) < 0.001 ? 'same' : fieldWidthRatio > 1 ? 'wider' : 'tighter',
+  };
+};
+
+/**
+ * Translate an optical change into a centre crop for a real device feed.
+ * The feed at camera start is the calibration reference. Tighter virtual
+ * optics can be represented exactly by cropping; wider optics are clamped to
+ * the pixels the phone/webcam actually supplies.
+ */
+export const calculateLivePreviewFraming = (
+  reference: OpticalSetting,
+  current: OpticalSetting,
+): LivePreviewFraming => {
+  const magnification = compareOpticalFraming(reference, current).magnificationRatio;
+  return {
+    scale: Math.max(1, Math.min(8, magnification)),
+    sourceLimited: magnification < 1,
   };
 };
