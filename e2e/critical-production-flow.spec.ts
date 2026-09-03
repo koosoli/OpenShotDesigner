@@ -85,6 +85,9 @@ test('GOOD take drives On-set coverage and the Continuity checklist', async ({ p
   await onSet.getByRole('button', { name: 'Good', exact: true }).click();
   await expect(onSet.getByText(/1 covered · 0 attempted · \d+ remaining/)).toBeVisible();
   await onSet.getByRole('button', { name: /Exit on-set mode/ }).click();
+  // Same 300 ms autosave debounce as the review-notes test: wait for the
+  // durability boundary before reloading, otherwise the take can be lost.
+  await page.waitForTimeout(500);
   await expect(page.getByText('Saved locally')).toBeVisible();
 
   // Reload proves the take was persisted rather than only reflected in local UI state.
@@ -229,6 +232,13 @@ test('review notes survive reload and project storage exports a native .osd pack
   await review.getByRole('button', { name: 'Add note' }).click();
   await expect(review.getByText(note, { exact: true })).toBeVisible();
   await review.getByRole('button', { name: 'Close review notes' }).click();
+  await expect(page.getByRole('button', { name: /Review · 1/ })).toBeVisible();
+  // Autosave is intentionally debounced by 300 ms so canvas gestures do not
+  // serialize the whole production on every pointer move. Wait for that
+  // durability boundary before testing a fresh-page restore — otherwise the
+  // reload can win the race and the note is lost even though the UI already
+  // shows Review · 1. Same pattern as the dismissed-readiness test below.
+  await page.waitForTimeout(500);
   await expect(page.getByText('Saved locally')).toBeVisible();
 
   await page.reload();
