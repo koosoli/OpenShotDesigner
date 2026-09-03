@@ -2,7 +2,12 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+
+// `__dirname` breaks Vite's native config loader (default in a future major);
+// the URL equivalent works on every Vite/Node combination this repo uses.
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Stamp a unique build id into the service worker so each deploy gets its
@@ -82,7 +87,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '.'),
+      '@': path.resolve(rootDir, '.'),
     },
   },
   // GitHub Pages serves the app from https://koosoli.github.io/OpenShotDesigner/.
