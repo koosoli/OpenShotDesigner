@@ -189,7 +189,7 @@ test('global command center finds production entities and readiness links to the
   await page.getByTitle('Open production readiness').click();
   const readiness = page.getByRole('dialog', { name: 'Production readiness' });
   await expect(readiness).toBeVisible();
-  await expect(readiness.getByText(/No blockers or warnings found|attempted without coverage|is not ready to issue/).first()).toBeVisible();
+  await expect(readiness.getByText(/No active blockers or warnings|attempted without coverage|is not ready to issue/).first()).toBeVisible();
   await readiness.getByRole('button', { name: 'Close readiness' }).click();
   await expect(readiness).toBeHidden();
 });
@@ -232,4 +232,40 @@ test('review notes survive reload and project storage exports a native .osd pack
   expect(download.suggestedFilename()).toMatch(/\.osd$/);
   const path = await download.path();
   expect(path).toBeTruthy();
+});
+
+test('dismissed readiness findings remain recoverable after reload', async ({ page }) => {
+  await createExampleProject(page, `Readiness dismissal ${Date.now()}`);
+  const fixture = await exportProject(page);
+  fixture.id = `readiness-e2e-${Date.now()}`;
+  fixture.title = 'Readiness dismissal fixture';
+  fixture.productionDays = [{
+    id: 'dismiss-day',
+    name: 'Day Dismiss',
+    date: '',
+    crewCall: '',
+    scheduleBlockIds: [],
+  }];
+  await importProject(page, fixture);
+
+  await page.getByTitle('Open production readiness').click();
+  let readiness = page.getByRole('dialog', { name: 'Production readiness' });
+  await expect(readiness.getByText('Day Dismiss is not ready to issue')).toBeVisible();
+  await readiness.getByRole('button', { name: 'Dismiss Day Dismiss is not ready to issue' }).click();
+  await expect(readiness.getByText('No active blockers or warnings')).toBeVisible();
+  await expect(readiness.getByRole('button', { name: 'Show 1 dismissed' })).toBeVisible();
+  await readiness.getByRole('button', { name: 'Close readiness' }).click();
+
+  // Autosave is intentionally debounced by 300 ms so canvas gestures do not
+  // serialize the whole production on every pointer move. Wait for that
+  // durability boundary before testing a fresh-page restore.
+  await page.waitForTimeout(500);
+  await expect(page.getByText('Saved locally')).toBeVisible();
+  await page.reload();
+  await expect(page.getByTitle('Open production readiness')).toContainText('0 blockers · 0 warnings · 1 hidden');
+  await page.getByTitle('Open production readiness').click();
+  readiness = page.getByRole('dialog', { name: 'Production readiness' });
+  await readiness.getByRole('button', { name: 'Show 1 dismissed' }).click();
+  await readiness.getByRole('button', { name: 'Restore Day Dismiss is not ready to issue' }).click();
+  await expect(readiness.getByText('Day Dismiss is not ready to issue')).toBeVisible();
 });

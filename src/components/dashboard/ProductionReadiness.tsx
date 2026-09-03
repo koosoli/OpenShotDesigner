@@ -1,82 +1,23 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, EyeOff, RotateCcw, ShieldCheck, X } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useWorkspaceUI, type RightTab } from '../../context/WorkspaceUIContext';
-import { isGoodCoverageTake } from '../../domain/continuity';
-import { todayIso } from '../../domain/scheduling';
-
-interface ReadinessItem {
-  id: string;
-  severity: 'blocker' | 'warning';
-  label: string;
-  detail: string;
-  tab: RightTab;
-}
+import { buildReadinessItems, readinessFingerprint, type ReadinessDismissal, type ReadinessItem } from '../../domain/readiness';
 
 export const ProductionReadiness: React.FC = () => {
-  const { project } = useFloorPlan();
+  const { project, updateProjectMeta } = useFloorPlan();
   const { theme, setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
   const [open, setOpen] = useState(false);
+  const [showDismissed, setShowDismissed] = useState(false);
   const isLight = theme === 'light';
 
-  const items = useMemo((): ReadinessItem[] => {
-    const result: ReadinessItem[] = [];
-    const takes = project.takes ?? [];
-    const shots = project.setups.flatMap((setup) => setup.shots);
-    for (const day of project.productionDays ?? []) {
-      const missing = [
-        !day.date && 'date',
-        !day.crewCall && 'crew call',
-        day.scheduleBlockIds.length === 0 && 'schedule',
-        !day.callSheet?.nearestHospital && 'nearest hospital',
-      ].filter(Boolean);
-      if (missing.length) result.push({
-        id: `day-${day.id}`,
-        severity: 'blocker',
-        label: `${day.name} is not ready to issue`,
-        detail: `Missing ${missing.join(', ')}`,
-        tab: 'schedule',
-      });
-    }
-    for (const shot of shots) {
-      const shotTakes = takes.filter((take) => take.shotId === shot.id);
-      if (shotTakes.length > 0 && !shotTakes.some(isGoodCoverageTake)) result.push({
-        id: `coverage-${shot.id}`,
-        severity: 'blocker',
-        label: `Shot ${shot.shotNumber} attempted without coverage`,
-        detail: 'No good base take; a good PU does not cover the planned shot.',
-        tab: 'continuity',
-      });
-    }
-    for (const task of project.tasks ?? []) {
-      if (!task.completedAt && task.dueDate && task.dueDate < todayIso()) result.push({
-        id: `task-${task.id}`,
-        severity: task.priority === 'urgent' ? 'blocker' : 'warning',
-        label: `Overdue: ${task.title}`,
-        detail: `Due ${task.dueDate}${task.priority ? ` · ${task.priority}` : ''}`,
-        tab: 'tasks',
-      });
-    }
-    for (const location of project.locations ?? []) {
-      if (!location.address) result.push({
-        id: `location-${location.id}`,
-        severity: 'warning',
-        label: `${location.name} has no address`,
-        detail: 'Call sheets and transport plans cannot provide an address.',
-        tab: 'locations',
-      });
-    }
-    for (const consumer of project.powerPlan?.consumers ?? []) {
-      if (!consumer.circuitId) result.push({
-        id: `power-${consumer.id}`,
-        severity: 'warning',
-        label: `${consumer.name} is not assigned to a circuit`,
-        detail: 'It cannot be included in circuit loading or phase balance.',
-        tab: 'power',
-      });
-    }
-    return result;
-  }, [project]);
+  const allItems = useMemo(() => buildReadinessItems(project), [project]);
+  const dismissals = project.readinessDismissals ?? [];
+  const isDismissed = (item: ReadinessItem) => dismissals.some(
+    (entry) => entry.itemId === item.id && entry.fingerprint === readinessFingerprint(item),
+  );
+  const items = allItems.filter((item) => !isDismissed(item));
+  const dismissedItems = allItems.filter(isDismissed);
 
   const blockers = items.filter((item) => item.severity === 'blocker').length;
   const warnings = items.length - blockers;
@@ -85,6 +26,16 @@ export const ProductionReadiness: React.FC = () => {
     setRightPanelOpen(true);
     setOpen(false);
   };
+  const saveDismissals = (next: ReadinessDismissal[]) => updateProjectMeta({
+    readinessDismissals: next.length ? next : undefined,
+  });
+  const dismiss = (item: ReadinessItem) => saveDismissals([
+    ...dismissals.filter((entry) => entry.itemId !== item.id),
+    { itemId: item.id, fingerprint: readinessFingerprint(item), dismissedAt: new Date().toISOString() },
+  ]);
+  const restore = (item: ReadinessItem) => saveDismissals(
+    dismissals.filter((entry) => !(entry.itemId === item.id && entry.fingerprint === readinessFingerprint(item))),
+  );
 
   return (
     <>
@@ -95,6 +46,7 @@ export const ProductionReadiness: React.FC = () => {
       >
         {items.length ? <AlertTriangle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
         Readiness · {blockers} blocker{blockers === 1 ? '' : 's'} · {warnings} warning{warnings === 1 ? '' : 's'}
+        {dismissedItems.length > 0 && <span className="opacity-60">{' · '}{dismissedItems.length} hidden</span>}
       </button>
       {open && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
@@ -106,16 +58,25 @@ export const ProductionReadiness: React.FC = () => {
             </div>
             <div className="p-4 overflow-y-auto max-h-[62vh]">
               {items.length === 0 ? (
-                <div className="py-12 text-center"><CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" /><div className="mt-2 font-bold">No blockers or warnings found</div><p className="text-xs opacity-60 mt-1">This is a readiness check, not a safety or legal certification.</p></div>
+                <div className="py-8 text-center"><CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" /><div className="mt-2 font-bold">No active blockers or warnings</div><p className="text-xs opacity-60 mt-1">This is a readiness check, not a safety or legal certification.</p></div>
               ) : (
                 <div className="space-y-2">
                   {items.map((item) => (
-                    <button key={item.id} onClick={() => navigate(item.tab)} className={`w-full text-left rounded-xl border p-3 flex gap-3 ${isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-slate-800 hover:bg-slate-800'}`}>
-                      <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${item.severity === 'blocker' ? 'text-rose-500' : 'text-amber-500'}`} />
-                      <span className="flex-1"><span className="block text-xs font-bold">{item.label}</span><span className="block text-[10px] opacity-60 mt-0.5">{item.detail}</span></span>
-                      <span className="text-[9px] uppercase font-bold opacity-50">Open {item.tab}</span>
-                    </button>
+                    <div key={item.id} className={`w-full rounded-xl border flex items-stretch ${isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-slate-800 hover:bg-slate-800'}`}>
+                      <button onClick={() => navigate(item.tab)} className="flex-1 min-w-0 text-left p-3 flex gap-3">
+                        <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${item.severity === 'blocker' ? 'text-rose-500' : 'text-amber-500'}`} />
+                        <span className="flex-1"><span className="block text-xs font-bold">{item.label}</span><span className="block text-[10px] opacity-60 mt-0.5">{item.detail}</span></span>
+                        <span className="text-[9px] uppercase font-bold opacity-50">Open {item.tab}</span>
+                      </button>
+                      <button onClick={() => dismiss(item)} aria-label={`Dismiss ${item.label}`} title="Dismiss until this finding changes" className="px-3 border-l border-inherit opacity-55 hover:opacity-100"><EyeOff className="w-4 h-4" /></button>
+                    </div>
                   ))}
+                </div>
+              )}
+              {dismissedItems.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-inherit">
+                  <button onClick={() => setShowDismissed((value) => !value)} className="text-[10px] font-bold opacity-60 hover:opacity-100">{showDismissed ? 'Hide' : 'Show'} {dismissedItems.length} dismissed</button>
+                  {showDismissed && <div className="mt-2 space-y-1.5">{dismissedItems.map((item) => <div key={item.id} className="rounded-lg border border-inherit p-2.5 flex items-center gap-2 opacity-65"><EyeOff className="w-3.5 h-3.5" /><span className="flex-1 text-xs">{item.label}</span><button onClick={() => restore(item)} aria-label={`Restore ${item.label}`} title="Restore finding"><RotateCcw className="w-3.5 h-3.5" /></button></div>)}</div>}
                 </div>
               )}
             </div>

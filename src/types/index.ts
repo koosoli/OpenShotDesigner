@@ -1084,6 +1084,8 @@ export interface Project {
   tasks?: import('../domain/tasks').Task[];
   /** Offline review threads attached to production entities. */
   reviewComments?: import('../domain/comments').ReviewComment[];
+  /** User-acknowledged readiness findings. A changed fingerprint resurfaces. */
+  readinessDismissals?: import('../domain/readiness').ReadinessDismissal[];
   /**
    * vNext rigging collections (plan §11, §23). Optional and absent-safe —
    * legacy projects without them load unchanged, so no migration is required
