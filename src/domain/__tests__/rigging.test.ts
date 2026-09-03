@@ -144,6 +144,20 @@ describe('evaluateTrussCapacity', () => {
     expect(evaluateTrussCapacity(breakdown, items).verdict).toBe('over');
   });
 
+  it('never reports within capacity while any suspended-load weight is unknown', () => {
+    const t = truss('truss-1');
+    const items: RiggingItem[] = [
+      { id: createId('rig'), kind: 'motor', trussElementId: 'truss-1', capacityKg: 500 },
+    ];
+    const unknown: SuspendedLoad = {
+      id: createId('load'), trussElementId: 'truss-1', label: 'Mystery fixture', quantity: 1, source: 'unknown',
+    };
+    const breakdown = calculateTrussLoad(t, profile, [load(80), unknown], items);
+    expect(breakdown.loadsKg).toBe(80);
+    expect(breakdown.totalKg).toBeNull();
+    expect(evaluateTrussCapacity(breakdown, items).verdict).toBe('unknown');
+  });
+
   it('keeps capacity unknown when any single point has no rating', () => {
     const t = truss('truss-1');
     const items: RiggingItem[] = [

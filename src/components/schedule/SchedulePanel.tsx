@@ -426,8 +426,8 @@ export const SchedulePanel: React.FC = () => {
     }));
   };
 
-  const requestCallSheetPrint = (day: ProductionDay) => {
-    const sheet = buildCallSheet(day);
+  const requestCallSheetPrint = (day: ProductionDay, currentSheet?: CallSheetData) => {
+    const sheet = currentSheet ?? buildCallSheet(day);
     if (sheet.warnings.length > 0 && !window.confirm(`This call sheet has ${sheet.warnings.length} readiness warning${sheet.warnings.length === 1 ? '' : 's'}:\n\n${sheet.warnings.join('\n')}\n\nPrint draft anyway?`)) {
       return;
     }

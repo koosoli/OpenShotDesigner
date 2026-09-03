@@ -249,7 +249,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                 {FOCAL_LENGTH_PRESETS.slice(0, 10).map((mm) => (
                   <button
                     key={mm}
-                    onClick={() => updateElement(cam.id, { focalLength: mm })}
+                    onClick={() => updateElement(cam.id, { focalLength: mm, fovAngle: calculateFovAngle(mm, cam.sensorFormat) })}
                     className={`py-1 text-[11px] font-mono rounded border transition-colors ${
                       cam.focalLength === mm
                         ? 'bg-sky-600 text-white border-sky-500 font-bold'
@@ -266,7 +266,10 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                 max={200}
                 step={1}
                 value={cam.focalLength}
-                onChange={(e) => updateElement(cam.id, { focalLength: Number(e.target.value) })}
+                onChange={(e) => {
+                  const focalLength = Number(e.target.value);
+                  updateElement(cam.id, { focalLength, fovAngle: calculateFovAngle(focalLength, cam.sensorFormat) });
+                }}
                 className="w-full accent-sky-500 cursor-pointer"
               />
             </div>
@@ -276,15 +279,10 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
               <label htmlFor={`${fieldId}-sensor-format`} className="opacity-60 block mb-1">Sensor Format</label>
               <select id={`${fieldId}-sensor-format`}
                 value={cam.sensorFormat}
-                onChange={(e) =>
-                  updateElement(cam.id, {
-                    sensorFormat: parseOptionFrom(
-                      SENSOR_FORMATS,
-                      e.target.value,
-                      cam.sensorFormat,
-                    ),
-                  })
-                }
+                onChange={(e) => {
+                  const sensorFormat = parseOptionFrom(SENSOR_FORMATS, e.target.value, cam.sensorFormat);
+                  updateElement(cam.id, { sensorFormat, fovAngle: calculateFovAngle(cam.focalLength || 35, sensorFormat) });
+                }}
                 className={`w-full border rounded-lg p-2 ${
                   isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
                 }`}

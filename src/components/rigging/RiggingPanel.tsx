@@ -115,6 +115,7 @@ const capacityText = (capacity: TrussCapacityVerdict): string => {
   if (capacity.unknownCapacityPointCount > 0) {
     return `No capacity check — ${capacity.unknownCapacityPointCount} of ${capacity.pointCount} rigging points unrated`;
   }
+  if (capacity.verdict === 'unknown') return 'No capacity check — one or more planned load weights are unknown';
   return 'No capacity check — planned load unknown';
 };
 
@@ -260,6 +261,7 @@ export const RiggingPanel: React.FC = () => {
       x: 0,
       y: 0,
       rotation: 0,
+      setupId: activeSetup.id,
       lengthOverrideMm: parseOptionalNumber(newElementLength),
     };
     mutateElements((prev) => [...prev, element]);
@@ -1040,6 +1042,12 @@ export const RiggingPanel: React.FC = () => {
                         </dd>
                       </div>
                     )}
+                    {breakdown.unknownHardwareWeightCount > 0 && (
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-amber-500">Unknown hardware weights</dt>
+                        <dd className="font-mono text-amber-500">{breakdown.unknownHardwareWeightCount} — not counted</dd>
+                      </div>
+                    )}
                     <div className="flex justify-between gap-2">
                       <dt className={mutedText}>
                         Clamps ({breakdown.clampCount}) + safeties ({breakdown.safetyCount})
@@ -1063,7 +1071,7 @@ export const RiggingPanel: React.FC = () => {
                       <dd className="font-mono font-bold">
                         {breakdown.totalKg !== null
                           ? formatKg(breakdown.totalKg)
-                          : <span className="text-amber-500">unknown (missing truss self-weight)</span>}
+                          : <span className="text-amber-500">unknown (missing load data)</span>}
                       </dd>
                     </div>
                   </dl>

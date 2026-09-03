@@ -23,6 +23,8 @@ export interface TrussLoadBreakdown {
   loadsKg: number;
   /** Loads with unknown weight; they contribute 0 to `loadsKg`. */
   unknownLoadCount: number;
+  /** Clamp/safety items whose per-item weight is explicitly unknown. */
+  unknownHardwareWeightCount: number;
   /**
    * Clamp + safety hardware weight, derived from the explicit per-item
    * option values × item counts (default undefined → 0 contribution).
@@ -36,7 +38,7 @@ export interface TrussLoadBreakdown {
   cableAllowanceKg?: number;
   /**
    * selfWeight + loadsKg + clamps + safeties + cable allowance;
-   * null when self-weight unknown — callers must surface "unknown",
+   * null when any component is unknown — callers must surface "unknown",
    * never fabricate a total.
    */
   totalKg: number | null;
@@ -106,6 +108,9 @@ export const calculateTrussLoad = (
     else if (item.kind === 'safety') safetyCount += 1;
   }
   const clampsKg = clampCount * clampWeightKg + safetyCount * safetyWeightKg;
+  const unknownHardwareWeightCount =
+    (clampCount > 0 && options && options.clampWeightKg === undefined ? clampCount : 0) +
+    (safetyCount > 0 && options && options.safetyWeightKg === undefined ? safetyCount : 0);
 
   const cableAllowanceKg = options?.cableAllowanceKg ?? 0;
 
@@ -114,12 +119,13 @@ export const calculateTrussLoad = (
     trussSelfWeightKg,
     loadsKg,
     unknownLoadCount,
+    unknownHardwareWeightCount,
     clampsKg,
     clampCount,
     safetyCount,
     cableAllowanceKg: options?.cableAllowanceKg,
     totalKg:
-      trussSelfWeightKg === null
+      trussSelfWeightKg === null || unknownLoadCount > 0 || unknownHardwareWeightCount > 0
         ? null
         : trussSelfWeightKg + loadsKg + clampsKg + cableAllowanceKg,
   };
@@ -179,7 +185,7 @@ export const evaluateTrussCapacity = (
     pointCount > 0 && unknownCapacityPointCount === 0 ? knownCapacityKg : null;
 
   const utilization =
-    capacityKg !== null && capacityKg > 0 && breakdown.totalKg !== null
+    capacityKg !== null && capacityKg > 0 && breakdown.totalKg !== null && breakdown.unknownLoadCount === 0 && breakdown.unknownHardwareWeightCount === 0
       ? breakdown.totalKg / capacityKg
       : null;
 

@@ -45,6 +45,13 @@ export const openWorkspaceDb = (): Promise<IDBDatabase> => {
       request.onblocked = () => finish(() => reject(new Error('IndexedDB is blocked by another open tab')));
       request.onsuccess = () => {
         const db = request.result;
+        // A timed-out/blocked open can still succeed later. The promise has
+        // already rejected, so nobody owns this connection; close it or it can
+        // silently block the next schema upgrade in another tab.
+        if (settled) {
+          db.close();
+          return;
+        }
         // Another tab upgrading the schema: close so it can proceed; the next
         // access re-opens at the new version.
         db.onversionchange = () => {

@@ -32,6 +32,13 @@ const importProject = async (page: Page, project: Project) => {
   await expect(page.locator('input[title="Click to rename project"]')).toHaveValue(project.title);
 };
 
+const showProductionReadiness = async (page: Page) => {
+  await page.getByRole('button', { name: 'Viewing Options' }).click();
+  await page.getByLabel('Show Production Readiness').check();
+  await page.getByRole('button', { name: 'Close viewing & opacity controls' }).click();
+  await expect(page.getByTitle('Open production readiness')).toBeVisible();
+};
+
 test.beforeEach(async ({ context }) => {
   await context.clearCookies();
 });
@@ -45,6 +52,21 @@ test('creates and restores a project from browser storage', async ({ page }) => 
 
   await expect(page.locator('input[title="Click to rename project"]')).toHaveValue(title);
   await expect(page.getByRole('button', { name: 'Open live shot tracker' })).toBeVisible();
+});
+
+test('viewfinder visualises lens and sensor framing changes', async ({ page }) => {
+  await createExampleProject(page, `E2E Optics ${Date.now()}`);
+  await page.getByRole('button', { name: 'Viewfinder', exact: true }).click();
+  const viewfinder = page.getByRole('dialog', { name: /Director's Optical Viewfinder/ });
+  await expect(viewfinder).toBeVisible();
+  await viewfinder.getByRole('button', { name: '50mm', exact: true }).click();
+  const comparison = viewfinder.getByTestId('optical-framing-comparison');
+  await expect(comparison).toBeVisible();
+  await expect(comparison).toContainText('TIGHTER');
+  await expect(comparison).toContainText('24mm/Super35');
+  await viewfinder.getByLabel('Sensor').selectOption('FullFrame');
+  await expect(comparison).toContainText('WIDER');
+  await expect(comparison).toContainText('50mm/FullFrame');
 });
 
 test('GOOD take drives On-set coverage and the Continuity checklist', async ({ page }) => {
@@ -173,6 +195,8 @@ test('a multi-role crew member has one crew row on the call sheet', async ({ pag
 
 test('global command center finds production entities and readiness links to their module', async ({ page }) => {
   await createExampleProject(page, `Command center ${Date.now()}`);
+  await expect(page.getByTitle('Open production readiness')).toBeHidden();
+  await showProductionReadiness(page);
   await page.getByRole('button', { name: /Templates/ }).click();
   const fillExamples = page.getByRole('button', { name: /Fill empty modules with examples/ });
   await fillExamples.click();
@@ -189,7 +213,7 @@ test('global command center finds production entities and readiness links to the
   await page.getByTitle('Open production readiness').click();
   const readiness = page.getByRole('dialog', { name: 'Production readiness' });
   await expect(readiness).toBeVisible();
-  await expect(readiness.getByText(/No active blockers or warnings|attempted without coverage|is not ready to issue/).first()).toBeVisible();
+  await expect(readiness.getByRole('button', { name: /Open (power|budget|continuity|schedule)/ }).first()).toBeVisible();
   await readiness.getByRole('button', { name: 'Close readiness' }).click();
   await expect(readiness).toBeHidden();
 });
@@ -236,6 +260,7 @@ test('review notes survive reload and project storage exports a native .osd pack
 
 test('dismissed readiness findings remain recoverable after reload', async ({ page }) => {
   await createExampleProject(page, `Readiness dismissal ${Date.now()}`);
+  await showProductionReadiness(page);
   const fixture = await exportProject(page);
   fixture.id = `readiness-e2e-${Date.now()}`;
   fixture.title = 'Readiness dismissal fixture';
@@ -252,7 +277,7 @@ test('dismissed readiness findings remain recoverable after reload', async ({ pa
   let readiness = page.getByRole('dialog', { name: 'Production readiness' });
   await expect(readiness.getByText('Day Dismiss is not ready to issue')).toBeVisible();
   await readiness.getByRole('button', { name: 'Dismiss Day Dismiss is not ready to issue' }).click();
-  await expect(readiness.getByText('No active blockers or warnings')).toBeVisible();
+  await expect(readiness.getByText('Day Dismiss is not ready to issue')).toBeHidden();
   await expect(readiness.getByRole('button', { name: 'Show 1 dismissed' })).toBeVisible();
   await readiness.getByRole('button', { name: 'Close readiness' }).click();
 
@@ -262,7 +287,7 @@ test('dismissed readiness findings remain recoverable after reload', async ({ pa
   await page.waitForTimeout(500);
   await expect(page.getByText('Saved locally')).toBeVisible();
   await page.reload();
-  await expect(page.getByTitle('Open production readiness')).toContainText('0 blockers · 0 warnings · 1 hidden');
+  await expect(page.getByTitle('Open production readiness')).toContainText('1 hidden');
   await page.getByTitle('Open production readiness').click();
   readiness = page.getByRole('dialog', { name: 'Production readiness' });
   await readiness.getByRole('button', { name: 'Show 1 dismissed' }).click();

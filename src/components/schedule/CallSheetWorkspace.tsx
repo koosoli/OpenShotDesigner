@@ -19,7 +19,7 @@ interface CallSheetWorkspaceProps {
   onSelectDay: (dayId: string) => void;
   sheet: CallSheetData | null;
   updateDay: (dayId: string, updates: Partial<ProductionDay>) => void;
-  onPrint: (day: ProductionDay) => void;
+  onPrint: (day: ProductionDay, currentSheet?: CallSheetData) => void;
   isLight: boolean;
 }
 
@@ -144,6 +144,12 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
   const latestIssue = issues.at(-1);
   const latestSnapshot = latestIssue ? parseIssuedCallSheet(latestIssue.snapshotJson) : null;
   const changesSinceIssue = diffCallSheetSnapshots(latestSnapshot, sheet);
+  // An issued snapshot is immutable. As soon as any derived source changes,
+  // the live document becomes a draft again and must not keep wearing the old
+  // revision number or issued timestamp.
+  const liveSheet: CallSheetData = latestIssue && changesSinceIssue.length > 0
+    ? { ...sheet, isDraft: true, revision: undefined, issuedAt: undefined }
+    : sheet;
 
   const issueCurrentSheet = () => {
     const issuedAt = new Date().toISOString();
@@ -577,7 +583,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
 
           <section className={`p-4 ${isLight ? 'bg-slate-200/60' : 'bg-slate-950'}`}>
             <div className="flex items-center justify-between mb-3 gap-3">
-              <div><div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Live document preview</div><div className="text-xs font-bold">{sheet.warnings.length ? `${sheet.warnings.length} readiness warning${sheet.warnings.length === 1 ? '' : 's'}` : latestIssue ? `Issued revision ${latestIssue.revision}` : 'Ready to issue'}</div></div>
+              <div><div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Live document preview</div><div className="text-xs font-bold">{sheet.warnings.length ? `${sheet.warnings.length} readiness warning${sheet.warnings.length === 1 ? '' : 's'}` : changesSinceIssue.length ? `Draft · changed since Rev ${latestIssue?.revision}` : latestIssue ? `Issued revision ${latestIssue.revision}` : 'Ready to issue'}</div></div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => downloadCalendar(shootingDaysToIcs(days, project.title), 'shooting-days')}
@@ -594,7 +600,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                 >
                   <Send className="w-3.5 h-3.5" /> Issue {latestIssue ? `Rev ${latestIssue.revision + 1}` : 'Rev 1'}
                 </button>
-                <button onClick={() => onPrint(selectedDay)} className="h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-black flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /> Print / PDF</button>
+                <button onClick={() => onPrint(selectedDay, liveSheet)} className="h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-black flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /> Print / PDF</button>
               </div>
             </div>
 
@@ -627,9 +633,20 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
               <div className={`mb-3 rounded-xl border p-3 text-[10px] ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}>
                 <div className="flex items-center justify-between gap-2">
                   <strong className="uppercase tracking-wide">Rev {latestIssue.revision} · {new Date(latestIssue.issuedAt).toLocaleString()}</strong>
-                  <span className={changesSinceIssue.length ? 'text-amber-500' : 'text-emerald-500'}>
-                    {changesSinceIssue.length ? `${changesSinceIssue.length} change(s) since issue` : 'Current document matches issue'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={changesSinceIssue.length ? 'text-amber-500' : 'text-emerald-500'}>
+                      {changesSinceIssue.length ? `${changesSinceIssue.length} change(s) since issue` : 'Current document matches issue'}
+                    </span>
+                    {latestSnapshot && (
+                      <button
+                        onClick={() => onPrint(selectedDay, latestSnapshot)}
+                        title={`Print the immutable issued Rev ${latestIssue.revision}`}
+                        className={`h-7 px-2 rounded-md border font-bold flex items-center gap-1 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+                      >
+                        <Printer className="w-3 h-3" /> Print issued Rev {latestIssue.revision}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {changesSinceIssue.length > 0 && (
                   <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
@@ -669,7 +686,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                 same gap. `CallSheetPrintView` carries its own styles, so it
                 renders on screen exactly as it prints. */}
             <article className="mx-auto bg-white text-slate-950 shadow-xl border border-slate-300 min-h-[720px] p-6">
-              <CallSheetPrintView sheet={sheet} />
+              <CallSheetPrintView sheet={liveSheet} />
             </article>
           </section>
         </div>

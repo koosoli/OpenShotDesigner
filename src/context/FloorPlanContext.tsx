@@ -436,6 +436,8 @@ export interface DisplaySettings {
    * on in Viewing Options and keeps them.
    */
   showPlanningWarnings?: boolean;
+  /** Floating cross-department readiness summary. Off by default. */
+  showProductionReadiness?: boolean;
   // Decluttering toggles
   showWaypoints: boolean;
   showWaypointCues: boolean; // toggle dialogue / action cues on floorplan waypoints (default true)
@@ -504,6 +506,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
     measurements: 1.0,
   },
   showPlanningWarnings: false,
+  showProductionReadiness: false,
   showWaypoints: true,
   showWaypointCues: false,
   showSpeechBubbles: false,

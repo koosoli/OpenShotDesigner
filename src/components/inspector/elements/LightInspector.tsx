@@ -36,6 +36,8 @@ import {
 } from '../../../domain/fixtures/brandCatalog';
 import { useFixtureCatalog } from '../useFixtureCatalog';
 import { createId } from '../../../domain/ids';
+import { createIdbAssetStore } from '../../../domain/storage/idbAssetStore';
+import { validateGdtfArchive } from '../../../domain/technical/mvrExport';
 import { parseOption, parseOptionFrom } from '../../../domain/optionValue';
 import { FresnelLightIcon } from '../../icons/ProductionIcons';
 import { flagLabel, isFlagFixture } from '../../canvas/FlagFixtureIcon';
@@ -48,6 +50,8 @@ interface LightInspectorProps {
   light: LightElement;
   isLight: boolean;
 }
+
+const gdtfAssetStore = createIdbAssetStore();
 
 export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }) => {
   // Prefix for pairing each caption with its control (`htmlFor`/`id`). From
@@ -1001,6 +1005,49 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           isLight={isLight}
           onChange={(updates) => updateElement(light.id, updates)}
         />
+        <div className={`mt-3 rounded-lg border p-2.5 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950/50'}`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-wide">MVR / GDTF resource</div>
+              <div className="text-[10px] opacity-60 truncate">
+                {light.gdtfFileName || 'No real .gdtf archive attached'}
+              </div>
+            </div>
+            {light.gdtfAssetId && (
+              <button
+                type="button"
+                onClick={() => updateElement(light.id, { gdtfAssetId: undefined, gdtfFileName: undefined })}
+                className="text-[10px] font-bold text-rose-500 hover:text-rose-400"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <label className="mt-2 min-h-[32px] px-2.5 rounded border border-violet-500/50 bg-violet-500/10 text-violet-500 text-[10px] font-bold flex items-center justify-center cursor-pointer hover:bg-violet-500/20">
+            {light.gdtfAssetId ? 'Replace GDTF file' : 'Attach GDTF file'}
+            <input
+              type="file"
+              accept=".gdtf,application/zip"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (!file) return;
+                if (!file.name.toLowerCase().endsWith('.gdtf')) {
+                  window.alert('Please choose a real .gdtf archive.');
+                  return;
+                }
+                void validateGdtfArchive(file)
+                  .then(() => gdtfAssetStore.put(file, { source: `GDTF: ${file.name}` }, `gdtf:${light.id}`))
+                  .then((ref) => updateElement(light.id, { gdtfAssetId: ref.id, gdtfFileName: file.name }))
+                  .catch((error: unknown) => window.alert(error instanceof Error ? error.message : 'The GDTF file could not be stored.'));
+              }}
+            />
+          </label>
+          <p className="text-[9px] opacity-50 mt-1.5 leading-snug">
+            MVR embeds this exact archive. Set the fixture mode above to the matching GDTF DMX mode name.
+          </p>
+        </div>
       </RubricSection>
 
       {/* DMX-512 Control Patch */}

@@ -15,6 +15,13 @@ export interface TrussProfile {
   widthMm?: number;
   heightMm?: number;
   selfWeightKg?: number; // canonical kg
+  /** Imported or user-attached GDTF archive for this truss type. */
+  gdtfAssetId?: string;
+  gdtfFileName?: string;
+  gdtfModeName?: string;
+  /** Imported MVR geometry resource (GLB/GLTF/3DS), preserved for re-export. */
+  geometryAssetId?: string;
+  geometryFileName?: string;
   source?: {
     provider?: string;
     sourceId?: string;
@@ -32,6 +39,11 @@ export interface TrussElement {
   x: number;
   y: number;
   rotation: number;
+  /** Setup/layer this run belongs to. Legacy runs without it use the active setup. */
+  setupId?: string;
+  elevationMm?: number;
+  /** Original MVR UUID, retained across round-trips. */
+  mvrUuid?: string;
   lengthOverrideMm?: number;
 }
 

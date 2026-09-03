@@ -112,9 +112,11 @@ describe('an open blocked by another tab', () => {
     const opening = openWorkspaceDb();
     const rejected = expect(opening).rejects.toThrow(/blocked/i);
     request.onblocked?.();
-    request.result = {} as IDBDatabase;
+    const close = vi.fn();
+    request.result = { close } as unknown as IDBDatabase;
     request.onsuccess?.();
     await rejected;
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it('surfaces the underlying error when the open fails outright', async () => {

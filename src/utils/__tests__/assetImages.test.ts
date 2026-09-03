@@ -48,12 +48,7 @@ describe('asset-backed images', () => {
     expect(metadata).toMatchObject({ width: 512, height: 384, source: 'headshot:ada.jpg' });
   });
 
-  /**
-   * The reason the id format matters: `collectAssetIds` scans the project JSON
-   * for it, so anything referenced this way travels in an exported package
-   * without the packager needing to know the field exists.
-   */
-  it('produces ids the project packager finds wherever they are stored', async () => {
+  it('collects ids from the typed media fields used by the project packager', async () => {
     const ref = await assetImageStore.put(new Blob([new Uint8Array([1, 1, 2])], { type: 'image/jpeg' }));
     const project = {
       id: 'p',
@@ -64,11 +59,12 @@ describe('asset-backed images', () => {
     expect(collectAssetIds(project)).toEqual([ref.id]);
   });
 
-  it('finds ids on shots as readily as on people', async () => {
+  it('finds storyboard ids on shots and ignores asset-looking free text', async () => {
     const ref = await assetImageStore.put(new Blob([new Uint8Array([3, 3, 3])], { type: 'image/jpeg' }));
     const project = {
-      setups: [{ shots: [{ id: 's1', storyboardAssetId: ref.id }] }],
+      setups: [{ shots: [{ id: 's1', storyboardImage: ref.id }], elements: [] }],
+      reviewComments: [{ id: 'note', body: 'Do not package asset-sha256-not-media' }],
     } as unknown as Project;
-    expect(collectAssetIds(project)).toContain(ref.id);
+    expect(collectAssetIds(project)).toEqual([ref.id]);
   });
 });

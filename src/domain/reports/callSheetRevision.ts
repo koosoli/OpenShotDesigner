@@ -14,6 +14,11 @@ const display = (value: unknown): string => {
 };
 
 const LABELS: Partial<Record<keyof CallSheetData, string>> = {
+  productionTitle: 'Production title',
+  productionCompany: 'Production company',
+  productionCompanyInfo: 'Production company details',
+  productionLogo: 'Production logo',
+  dayName: 'Day name',
   date: 'Date',
   crewCall: 'Crew call',
   plannedWrap: 'Planned wrap',
@@ -24,10 +29,17 @@ const LABELS: Partial<Record<keyof CallSheetData, string>> = {
   nearestHospital: 'Nearest hospital',
   safetyNotes: 'Safety notes',
   generalNotes: 'General notes',
+  pickupNotes: 'Pick-up notes',
   schedule: 'Schedule',
   cast: 'Cast',
   crew: 'Crew',
   locations: 'Locations',
+  maps: 'Location maps',
+  departmentHeads: 'Department heads',
+  daylight: 'Daylight',
+  lookAhead: 'Next-day look-ahead',
+  castContactsHidden: 'Cast contact visibility',
+  type: 'Call sheet type',
   pickups: 'Pick-ups',
 };
 

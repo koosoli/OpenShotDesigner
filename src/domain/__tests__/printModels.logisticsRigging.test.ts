@@ -196,8 +196,10 @@ describe('buildRiggingPrintModel', () => {
     expect(run.safetyCount).toBe(0);
     expect(run.clampsKg).toBe(0.5);
     expect(run.cableAllowanceKg).toBeUndefined();
-    expect(run.totalKg).toBe(40.5);
-    expect(run.capacity.verdict).toBe('within');
+    // Known subtotal is displayed above, but an incomplete load must never be
+    // promoted to a safety-relevant total or a WITHIN verdict.
+    expect(run.totalKg).toBeNull();
+    expect(run.capacity.verdict).toBe('unknown');
     expect(run.capacity.capacityKg).toBe(250);
     expect(run.loads[0].lineWeightKg).toBe(20);
     expect(run.loads[1].lineWeightKg).toBeUndefined();
@@ -274,6 +276,6 @@ describe('buildRiggingPrintModel', () => {
     // A catalogue entry with no published mass prints as unknown, never as 0.
     expect(run.loads[1].weightKg).toBeUndefined();
     expect(run.unknownLoadCount).toBe(1);
-    expect(run.totalKg).toBe(22);
+    expect(run.totalKg).toBeNull();
   });
 });

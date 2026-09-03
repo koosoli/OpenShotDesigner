@@ -219,6 +219,12 @@ export interface LightElement extends BaseElement {
   fixtureProfileId?: string;
   /** Stable id of the selected control mode within fixtureProfileId. */
   fixtureModeId?: string;
+  /** Original MVR UUID, retained so import/export round-trips remain stable. */
+  mvrUuid?: string;
+  /** Content-addressed bytes of the real GDTF archive referenced by this fixture. */
+  gdtfAssetId?: string;
+  /** Root-level filename used by MVR's GDTFSpec node. */
+  gdtfFileName?: string;
   /**
    * Optional movement path — same beats and semantics as actors, cameras and
    * props. Lights move more often than the plan model used to assume: followspots

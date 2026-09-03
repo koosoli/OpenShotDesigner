@@ -164,7 +164,8 @@ export const ProjectDashboard: React.FC = () => {
   const downloadProjectPackage = (id: string) => {
     const project = readProject(id);
     if (!project) return;
-    void saveNativeProjectFile(project, { saveAs: true }).catch((error) => {
+    // Library exports must not steal Ctrl+S's binding from the open workspace.
+    void saveNativeProjectFile(project, { saveAs: true, bindHandle: false }).catch((error) => {
       if ((error as Error)?.name !== 'AbortError') {
         alert(`Project save failed: ${error instanceof Error ? error.message : 'unknown error'}`);
       }

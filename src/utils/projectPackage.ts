@@ -9,6 +9,7 @@
 import type { AssetMetadata, AssetStore } from '../domain/storage/types';
 import type { Project } from '../types';
 import { createIdbAssetStore, sha256Hex } from '../domain/storage/idbAssetStore';
+import { collectProjectAssetIds } from '../domain/media/projectAssetReferences';
 
 export interface ProjectPackageManifest {
   formatVersion: 1;
@@ -35,9 +36,8 @@ export interface ProjectPackage {
 let store: AssetStore | null = null;
 const getStore = (): AssetStore => (store ??= createIdbAssetStore());
 
-/** Find every referenced asset id in the project graph (future-proof string scan). */
-export const collectAssetIds = (project: Project): string[] =>
-  [...new Set(JSON.stringify(project).match(/asset-sha256-[A-Za-z0-9-]+/g) || [])];
+/** Backward-compatible export; the implementation is now a typed field inventory. */
+export const collectAssetIds = collectProjectAssetIds;
 
 const bytesToBase64 = (buffer: ArrayBuffer): string => {
   const bytes = new Uint8Array(buffer);

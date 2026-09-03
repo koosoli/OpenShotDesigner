@@ -1,15 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, EyeOff, RotateCcw, ShieldCheck, X } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useWorkspaceUI, type RightTab } from '../../context/WorkspaceUIContext';
 import { buildReadinessItems, readinessFingerprint, type ReadinessDismissal, type ReadinessItem } from '../../domain/readiness';
+import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 
 export const ProductionReadiness: React.FC = () => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, updateProjectMeta, displaySettings } = useFloorPlan();
   const { theme, setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
   const [open, setOpen] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
   const isLight = theme === 'light';
+  const dialogRef = useDialogFocusTrap(open);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [open]);
 
   const allItems = useMemo(() => buildReadinessItems(project), [project]);
   const dismissals = project.readinessDismissals ?? [];
@@ -26,16 +34,19 @@ export const ProductionReadiness: React.FC = () => {
     setRightPanelOpen(true);
     setOpen(false);
   };
-  const saveDismissals = (next: ReadinessDismissal[]) => updateProjectMeta({
-    readinessDismissals: next.length ? next : undefined,
+  const mutateDismissals = (change: (current: ReadinessDismissal[]) => ReadinessDismissal[]) => updateProjectMeta((previous) => {
+    const next = change(previous.readinessDismissals ?? []);
+    return { readinessDismissals: next.length ? next : undefined };
   });
-  const dismiss = (item: ReadinessItem) => saveDismissals([
-    ...dismissals.filter((entry) => entry.itemId !== item.id),
+  const dismiss = (item: ReadinessItem) => mutateDismissals((current) => [
+    ...current.filter((entry) => entry.itemId !== item.id),
     { itemId: item.id, fingerprint: readinessFingerprint(item), dismissedAt: new Date().toISOString() },
   ]);
-  const restore = (item: ReadinessItem) => saveDismissals(
-    dismissals.filter((entry) => !(entry.itemId === item.id && entry.fingerprint === readinessFingerprint(item))),
+  const restore = (item: ReadinessItem) => mutateDismissals((current) =>
+    current.filter((entry) => !(entry.itemId === item.id && entry.fingerprint === readinessFingerprint(item))),
   );
+
+  if (displaySettings.showProductionReadiness !== true) return null;
 
   return (
     <>
@@ -51,7 +62,7 @@ export const ProductionReadiness: React.FC = () => {
       {open && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <div className={`relative w-full max-w-2xl max-h-[78vh] overflow-hidden rounded-2xl border shadow-2xl ${isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-100'}`} role="dialog" aria-modal="true" aria-labelledby="readiness-title">
+          <div ref={dialogRef} tabIndex={-1} className={`relative w-full max-w-2xl max-h-[78vh] overflow-hidden rounded-2xl border shadow-2xl ${isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-100'}`} role="dialog" aria-modal="true" aria-labelledby="readiness-title">
             <div className="p-4 border-b border-inherit flex items-start justify-between gap-3">
               <div><h2 id="readiness-title" className="font-black flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-emerald-500" /> Production readiness</h2><p className="text-[11px] opacity-60 mt-1">Actionable facts already present in schedule, continuity, tasks, locations and power.</p></div>
               <button onClick={() => setOpen(false)} aria-label="Close readiness" className="p-1.5"><X className="w-4 h-4" /></button>

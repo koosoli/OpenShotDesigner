@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { ActorElement, CameraElement, PropElement } from '../../types';
-import { isPointInCameraFov } from '../../utils/geometry';
+import { calculateFovAngle, isPointInCameraFov } from '../../utils/geometry';
 import { loadStoryboardImageFile } from '../../utils/image';
 import { storeImageAsset } from '../../utils/assetImages';
 import { dataUrlToBlob } from '../../utils/projectMedia';
@@ -19,6 +19,7 @@ import {
 } from '../../constants/presets';
 import { ProjectImage } from '../common/ProjectImage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
+import { compareOpticalFraming, type OpticalSetting } from '../../domain/camera/opticalComparison';
 import {
   Camera,
   ChevronLeft,
@@ -73,6 +74,7 @@ export const ViewfinderModal: React.FC = () => {
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [photoFeedback, setPhotoFeedback] = useState(false);
   const [showStoryboard, setShowStoryboard] = useState(true);
+  const [opticalReference, setOpticalReference] = useState<(OpticalSetting & { cameraId: string }) | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Live camera (laptop webcam, phone or iPad camera) shown inside the finder
@@ -208,8 +210,25 @@ export const ViewfinderModal: React.FC = () => {
   // Camera parameters
   const cameraPos = { x: selectedCamera.x, y: selectedCamera.y };
   const focal = selectedCamera.focalLength || 35;
-  const fovAngle = selectedCamera.fovAngle || 45;
+  const fovAngle = calculateFovAngle(focal, selectedCamera.sensorFormat);
   const throwDist = selectedCamera.throwDistance || 400;
+  const currentOptics: OpticalSetting = { focalLength: focal, sensorFormat: selectedCamera.sensorFormat };
+  const opticalComparison = opticalReference?.cameraId === selectedCamera.id
+    ? compareOpticalFraming(opticalReference, currentOptics)
+    : null;
+  const simulatedMagnification = Math.max(0.45, Math.min(3.5, compareOpticalFraming(
+    { focalLength: 35, sensorFormat: 'Super35' },
+    currentOptics,
+  ).magnificationRatio));
+  const changeOptics = (next: Partial<OpticalSetting>) => {
+    setOpticalReference({ cameraId: selectedCamera.id, ...currentOptics });
+    const updated = { ...currentOptics, ...next };
+    updateElement(selectedCamera.id, {
+      focalLength: updated.focalLength,
+      sensorFormat: updated.sensorFormat,
+      fovAngle: calculateFovAngle(updated.focalLength, updated.sensorFormat),
+    });
+  };
 
   // Find all actors in FOV
   const actors = activeSetup.elements.filter((e) => e.type === 'actor') as ActorElement[];
@@ -757,7 +776,7 @@ export const ViewfinderModal: React.FC = () => {
 
             {/* Simulated 3D Props in FOV (hidden behind live video / artwork) */}
             {!showsRealImage && visibleProps.map(({ prop, normalizedX, distance }) => {
-              const scale = Math.max(0.3, Math.min(1.8, 160 / distance));
+              const scale = Math.max(0.3, Math.min(3.2, (160 / distance) * simulatedMagnification));
               const leftPercent = 50 + normalizedX * 42;
               return (
                 <div
@@ -791,7 +810,7 @@ export const ViewfinderModal: React.FC = () => {
             ) : (
               visibleActors.map(({ actor, normalizedX, distance }) => {
                 // Closer distance = larger silhouette scale
-                const scale = Math.max(0.35, Math.min(2.4, 190 / distance));
+                const scale = Math.max(0.35, Math.min(4, (190 / distance) * simulatedMagnification));
                 const leftPercent = 50 + normalizedX * 44;
                 const color = actor.color || '#3b82f6';
                 const meters = (distance / 50).toFixed(1);
@@ -837,6 +856,38 @@ export const ViewfinderModal: React.FC = () => {
                   </div>
                 );
               })
+            )}
+
+            {opticalComparison && opticalComparison.direction !== 'same' && (
+              <div className="absolute top-12 right-4 z-40 w-48 rounded-lg border border-slate-500/60 bg-black/80 p-2.5 text-[9px] font-mono text-slate-200 shadow-2xl backdrop-blur pointer-events-none" data-testid="optical-framing-comparison">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="font-black uppercase tracking-wide text-sky-300">Framing change</span>
+                  <span className={opticalComparison.direction === 'tighter' ? 'text-amber-300' : 'text-emerald-300'}>
+                    {opticalComparison.direction === 'tighter' ? 'TIGHTER' : 'WIDER'}
+                  </span>
+                </div>
+                <div className="relative h-20 rounded border border-slate-600 bg-slate-950/80 overflow-hidden">
+                  <div
+                    className="absolute left-1/2 top-1/2 h-[72%] -translate-x-1/2 -translate-y-1/2 border border-dashed border-slate-300/80"
+                    style={{ width: `${opticalComparison.previousWidthPercent * 0.9}%` }}
+                  >
+                    <span className="absolute -top-3 left-0 text-[7px] text-slate-300">PREV</span>
+                  </div>
+                  <div
+                    className="absolute left-1/2 top-1/2 h-[72%] -translate-x-1/2 -translate-y-1/2 border-2 border-sky-400 bg-sky-400/5"
+                    style={{ width: `${opticalComparison.currentWidthPercent * 0.9}%` }}
+                  >
+                    <span className="absolute -bottom-3 right-0 text-[7px] font-black text-sky-300">NOW</span>
+                  </div>
+                </div>
+                <div className="mt-2 flex justify-between gap-2">
+                  <span>{opticalReference?.focalLength}mm/{opticalReference?.sensorFormat}</span>
+                  <span className="text-sky-300">{focal}mm/{selectedCamera.sensorFormat}</span>
+                </div>
+                <div className="mt-1 text-slate-400">
+                  H-FOV {opticalComparison.previousFov.toFixed(1)}° → {opticalComparison.currentFov.toFixed(1)}° · subjects {opticalComparison.magnificationRatio.toFixed(2)}×
+                </div>
+              </div>
             )}
 
             {/* Live camera: a proper shutter button, on the picture itself */}
@@ -906,7 +957,7 @@ export const ViewfinderModal: React.FC = () => {
               </div>
               <div className="flex items-center gap-3 bg-black/60 px-2.5 py-0.5 rounded backdrop-blur-xs">
                 <span>SENSOR: {selectedCamera.sensorFormat}</span>
-                <span className="text-sky-400">H-FOV: {selectedCamera.fovAngle}°</span>
+                <span className="text-sky-400">H-FOV: {fovAngle}°</span>
                 <span>ROT: {selectedCamera.rotation}°</span>
               </div>
             </div>
@@ -1018,9 +1069,7 @@ export const ViewfinderModal: React.FC = () => {
             <span className="text-slate-500">Sensor</span>
             <select
               value={selectedCamera.sensorFormat}
-              onChange={(e) =>
-                updateElement(selectedCamera.id, { sensorFormat: e.target.value as CameraElement['sensorFormat'] })
-              }
+              onChange={(e) => changeOptics({ sensorFormat: e.target.value as CameraElement['sensorFormat'] })}
               className={hudSelect}
             >
               {SENSOR_FORMATS.map((entry) => (
@@ -1075,7 +1124,7 @@ export const ViewfinderModal: React.FC = () => {
               {FOCAL_LENGTH_PRESETS.slice(0, 7).map((mm) => (
                 <button
                   key={mm}
-                  onClick={() => updateElement(selectedCamera.id, { focalLength: mm })}
+                  onClick={() => changeOptics({ focalLength: mm })}
                   className={`px-2.5 py-1 text-xs font-mono rounded-lg border transition-colors ${
                     focal === mm
                       ? 'bg-sky-600 text-white border-sky-500 font-bold shadow-sm'
