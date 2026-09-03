@@ -41,11 +41,14 @@ import {
 } from 'lucide-react';
 import { downloadText, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { useLanguage } from '../../i18n/LanguageContext';
+import { SUPPORTED_LANGUAGES } from '../../i18n/dictionary';
 
 
 export const TopNavbar: React.FC = () => {
   const { project, activeSetup, historyIndex, historyLength, undo, redo, setActiveSetupId, addSetup, duplicateCurrentSetup, deleteSetup, updateProjectMeta, saveRevision, loadTemplateScene, loadExampleProductionData, loadProjectFromJson, setGridSettings, openViewfinder, displaySettings, updateDisplaySettings, isModuleVisible, setModuleVisible } = useFloorPlan();
   const { theme, toggleTheme, openExportModal, openDashboard } = useWorkspaceUI();
+  const { lang, setLang, t } = useLanguage();
 
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   /** Transient confirmation after filling empty modules with examples. */
@@ -114,8 +117,8 @@ export const TopNavbar: React.FC = () => {
       <div className="flex items-center gap-3">
         <button
           onClick={openDashboard}
-          title="All projects (dashboard)"
-          aria-label="All projects (dashboard)"
+          title={t('nav.dashboard')}
+          aria-label={t('nav.dashboard')}
           className={`p-2 rounded-lg border transition-colors flex-shrink-0 ${
             isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
           }`}
@@ -147,24 +150,39 @@ export const TopNavbar: React.FC = () => {
           className={`text-xs font-semibold px-2 py-1 rounded-lg border border-transparent focus:border-sky-500 focus:outline-none transition-colors max-w-[180px] sm:max-w-xs truncate ${
             isLight ? 'text-slate-800 hover:bg-slate-100 focus:bg-white' : 'text-slate-200 hover:bg-slate-800/60 focus:bg-slate-950'
           }`}
-          title="Click to rename project"
+          title={t('nav.rename')}
         />
 
         {saveState === 'saving' && (
           <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-amber-600 bg-amber-50' : 'text-amber-300 bg-amber-900/30'}`}>
-            Saving…
+            {t('save.saving')}
           </span>
         )}
         {saveState === 'saved' && (
           <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-emerald-600 bg-emerald-50' : 'text-emerald-300 bg-emerald-900/30'}`}>
-            Saved locally
+            {t('save.saved')}
           </span>
         )}
         {saveState === 'error' && (
           <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-red-600 bg-red-50' : 'text-red-300 bg-red-900/30'}`}>
-            Save failed
+            {t('save.error')}
           </span>
         )}
+        <select
+          value={lang}
+          onChange={(e) => setLang(e.target.value as typeof lang)}
+          title={t('nav.language')}
+          aria-label={t('nav.language')}
+          className={`hidden md:inline text-[10px] font-bold px-1.5 py-0.5 rounded border bg-transparent cursor-pointer ${
+            isLight ? 'border-slate-300 text-slate-600' : 'border-slate-700 text-slate-300'
+          }`}
+        >
+          {SUPPORTED_LANGUAGES.map((code) => (
+            <option key={code} value={code}>
+              {code.toUpperCase()}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* 2. Scene / Setup Switcher Dropdown */}

@@ -48,6 +48,25 @@ export default defineConfig({
           if (id.includes('node_modules/react/')) return 'vendor-react';
           if (id.includes('node_modules/scheduler')) return 'vendor-react';
           if (id.includes('node_modules/lucide-react')) return 'vendor-icons';
+          // App code splits: entry was ~978 KiB. Canvas + script parser +
+          // print stack are the heaviest eager paths — separate files download
+          // in parallel and cache independently across deploys. Lazy panels
+          // keep their own chunks (return undefined), they just share these.
+          if (id.includes('src/components/canvas')) return 'app-canvas';
+          if (id.includes('src/domain/script') || id.includes('src/utils/sample')) return 'domain-script';
+          if (
+            id.includes('src/components/reports') ||
+            id.includes('src/components/export') ||
+            id.includes('src/domain/reports')
+          )
+            return 'app-print';
+          if (
+            id.includes('src/domain/fixtures') ||
+            id.includes('src/domain/power') ||
+            id.includes('src/domain/rigging') ||
+            id.includes('src/domain/cable')
+          )
+            return 'domain-technical';
           return undefined;
         },
       },

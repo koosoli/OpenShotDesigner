@@ -78,10 +78,9 @@ import {
   readProject,
   removeProject,
   setActiveProjectId,
-  subscribeSaveState,
-  subscribeProjectWriteConflicts,
   writeProject,
 } from '../utils/projectLibrary';
+import { useAutosave } from './useAutosave';
 import { deriveSceneEquipment } from '../utils/equipmentList';
 import { migrateProject } from '../domain/migrations';
 import { cloneSetupWithNewIds } from '../domain/clone';
@@ -931,86 +930,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project]);
 
-  // Auto-save to localStorage. If the project grows too large for the browser's
-  // localStorage quota (most commonly because storyboards are embedded as
-  // base64 data URLs), surface a visible warning instead of failing silently —
-  // the user can still export the full project as a JSON file.
-  const [storageWarning, setStorageWarning] = useState<string | null>(null);
-  // Autosave is debounced: canvas gestures update the project many times per
-  // second and each write serialises the whole project. The latest project is
-  // kept in a ref so a flush (project switch, tab hidden, unload) always
-  // writes the newest state.
-  const autosaveProjectRef = useRef(project);
-  const autosaveTimerRef = useRef<number | null>(null);
-  const persistProjectNow = (target: Project = autosaveProjectRef.current) => {
-    if (autosaveTimerRef.current !== null) {
-      window.clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
-    try {
-      writeProject(target);
-      setActiveProjectId(target.id);
-      setProjects(loadLibrary());
-      setStorageWarning(null);
-    } catch (error) {
-      setStorageWarning(
-        error instanceof Error && /another browser tab/i.test(error.message)
-          ? error.message
-          : 'Autosave to this browser failed — the project (likely with embedded storyboards) ' +
-            'exceeds the local storage limit. Use the download button in the top bar to save your project file.'
-      );
-    }
-  };
-  useEffect(() => {
-    const previous = autosaveProjectRef.current;
-    // Switching projects must not lose the last edits of the one being left.
-    if (previous.id !== project.id) persistProjectNow(previous);
-    autosaveProjectRef.current = project;
-    if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = window.setTimeout(() => persistProjectNow(project), 300);
-     
-  }, [project]);
-  useEffect(() => {
-    const flush = () => {
-      if (autosaveTimerRef.current !== null) persistProjectNow();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') flush();
-    };
-    window.addEventListener('beforeunload', flush);
-    window.addEventListener('pagehide', flush);
-    document.addEventListener('visibilitychange', onVisibility);
-    // Asynchronous IndexedDB failures (quota, blocked database) never throw
-    // synchronously — they only reach us through the save-state channel.
-    const unsubscribe = subscribeSaveState((state) => {
-      if (state === 'error') {
-        setStorageWarning(
-          'Saving to this browser failed — the storage database rejected the write (usually quota). ' +
-            'Export your project file from the top bar so nothing is lost.'
-        );
-      }
-    });
-    return () => {
-      flush();
-      window.removeEventListener('beforeunload', flush);
-      window.removeEventListener('pagehide', flush);
-      document.removeEventListener('visibilitychange', onVisibility);
-      unsubscribe();
-    };
-     
-  }, []);
-
-  useEffect(
-    () => subscribeProjectWriteConflicts((projectId) => {
-      if (projectId !== autosaveProjectRef.current.id) return;
-      setStorageWarning(
-        'This project was changed in another browser tab. This tab will not overwrite it; reload before continuing.',
-      );
-    }),
-    [],
-  );
-
-  const dismissStorageWarning = () => setStorageWarning(null);
+  // Persistence lives in `useAutosave`: debounced IndexedDB writes, flush on
+  // hide/unload, quota + multi-tab warnings. Extracted so the 4400-line
+  // project context shrinks slice by slice instead of growing.
+  const { storageWarning, dismissStorageWarning } = useAutosave(project, setProjects);
 
   // Sync history when active setup changes externally (e.g. switched setup)
   const prevSetupIdRef = useRef(project.activeSetupId);

@@ -193,6 +193,19 @@ export const flushPendingWrites = (): Promise<void> =>
 /** Current library save state (see {@link subscribeSaveState}). */
 export const getSaveState = (): LibrarySaveState => saveState;
 
+/**
+ * Mark the library dirty before the debounced autosave fires.
+ *
+ * Without this, `saveState` stays `saved` from the previous write during the
+ * ~300 ms debounce window, so the UI shows a stale "Saved locally" and a fast
+ * reload (or a test asserting that label) can win the race and lose the edit.
+ * Calling this when the project changes makes the indicator honestly show
+ * `saving` until the debounced write settles.
+ */
+export const markSavePending = (): void => {
+  if (saveState === 'saved' || saveState === 'idle') setSaveState('saving');
+};
+
 const lsReadJson = <T,>(key: string): T | null => {
   try {
     const raw = localStorage.getItem(key);
@@ -669,6 +682,65 @@ export const cloneProject = (project: Project, title?: string): Project =>
   cloneProjectWithNewIds(project, {
     title: title || `${project.title} (Copy)`,
   });
+
+/**
+ * Rotating safety copy: one latest snapshot per project, best-effort.
+ *
+ * Rationale: the library keeps a single live copy per production. A corrupt
+ * write, a quota-evicted key or "cleared site data" therefore reads as data
+ * loss with no second chance. A full version history would double storage —
+ * exactly what quota failures cannot afford — so this keeps ONE extra copy,
+ * throttled to once per 5 minutes and skipped for payloads over ~2 MB.
+ * Everything is wrapped in try/catch: a backup must never break the save it
+ * shadows.
+ */
+const BACKUP_PREFIX = 'openshotdesigner_backup_';
+const BACKUP_THROTTLE_MS = 5 * 60 * 1000;
+const BACKUP_MAX_BYTES = 2_000_000;
+const lastBackupAt = new Map<string, number>();
+
+interface BackupEnvelope {
+  savedAt: string;
+  project: Project;
+}
+
+const backupKey = (projectId: string): string => `${BACKUP_PREFIX}${projectId}`;
+
+export const maybeWriteBackupSnapshot = (project: Project): void => {
+  try {
+    const now = Date.now();
+    if (now - (lastBackupAt.get(project.id) ?? 0) < BACKUP_THROTTLE_MS) return;
+    const raw = JSON.stringify({ savedAt: new Date().toISOString(), project } satisfies BackupEnvelope);
+    if (raw.length > BACKUP_MAX_BYTES) return;
+    localStorage.setItem(backupKey(project.id), raw);
+    lastBackupAt.set(project.id, now);
+  } catch {
+    // Best-effort by design.
+  }
+};
+
+export const readBackupSnapshot = (projectId: string): BackupEnvelope | null => {
+  try {
+    const raw = localStorage.getItem(backupKey(projectId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as BackupEnvelope;
+    if (!parsed?.project?.setups?.length || typeof parsed.savedAt !== 'string') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+export const restoreBackupSnapshot = (projectId: string): Project | null => {
+  const backup = readBackupSnapshot(projectId);
+  if (!backup) return null;
+  try {
+    writeProject({ ...backup.project, updatedAt: new Date().toISOString() }, { touch: false });
+    return backup.project;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * One-time move of the old single-project storage into the library, so an

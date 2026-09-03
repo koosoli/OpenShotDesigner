@@ -82,6 +82,7 @@ import { ReviewNotes } from './components/dashboard/ReviewNotes';
 import { useBreakpoint } from './utils/useMediaQuery';
 import { AlertTriangle, Zap, Package, ListOrdered, ClipboardList, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, KanbanSquare, Coins, MapPin, Maximize2, Minimize2, Users } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { LanguageProvider } from './i18n/LanguageContext';
 import { deriveSceneEquipment } from './utils/equipmentList';
 import { useWorkspaceUI, WorkspaceUIProvider } from './context/WorkspaceUIContext';
 import { loadLibrary } from './utils/projectLibrary';
@@ -278,6 +279,17 @@ const MainLayout: React.FC = () => {
           >
             <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
             <p className="text-[11px] leading-relaxed flex-1">{storageWarning}</p>
+            {storageWarning.includes('another browser tab') && (
+              <button
+                onClick={() => window.location.reload()}
+                title="Reload to load the newer version"
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold flex-shrink-0 ${
+                  isLight ? 'bg-amber-600 text-white hover:bg-amber-500' : 'bg-amber-500 text-black hover:bg-amber-400'
+                }`}
+              >
+                Reload
+              </button>
+            )}
             <button
               onClick={dismissStorageWarning}
               title="Dismiss"
@@ -510,6 +522,7 @@ const startOnDashboard = (): boolean => {
 export default function App() {
   return (
     <ErrorBoundary>
+      <LanguageProvider>
       {/* Outside FloorPlanProvider: selecting an element opens the inspector,
           so the project context drives workspace state and not the reverse. */}
       <WorkspaceUIProvider startOnDashboard={startOnDashboard()}>
@@ -517,6 +530,7 @@ export default function App() {
           <MainLayout />
         </FloorPlanProvider>
       </WorkspaceUIProvider>
+      </LanguageProvider>
     </ErrorBoundary>
   );
 }

@@ -118,6 +118,16 @@ describe('buildPrintableStripboardDays', () => {
     expect(day.totalMinutes).toBe(45);
     expect(day.items[1].minutes).toBeUndefined();
   });
+
+  it('keeps every printed strip under a readable scene heading', () => {
+    // AD contract: a strip is never an orphan number — the day prints grouped
+    // under "Sc N · SLUGLINE" so the sheet reads like a shooting schedule.
+    const [day] = buildPrintableStripboardDays(project);
+    for (const item of day.items) {
+      expect(item.label.trim().length).toBeGreaterThan(0);
+    }
+    expect(day.items[0].label).toMatch(/^Scene 4 — /);
+  });
 });
 
 describe('buildPrintableCoverageRows', () => {

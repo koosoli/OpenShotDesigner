@@ -38,6 +38,12 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Guard Playwright version drift
+        run: npm run check:playwright
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=critical
+
       - name: Type-check
         run: npm run typecheck
 

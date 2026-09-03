@@ -2,11 +2,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { CURRENT_PROJECT_SCHEMA_VERSION } from '../../domain/migrations';
 import {
   createProject,
+  flushPendingWrites,
+  getSaveState,
   getUnreadableProject,
   listUnreadableProjects,
   loadLibrary,
+  markSavePending,
+  maybeWriteBackupSnapshot,
+  readBackupSnapshot,
   readProject,
   removeProject,
+  restoreBackupSnapshot,
   summarize,
   ProjectWriteConflictError,
   writeProject,
@@ -111,6 +117,51 @@ describe('migration on read', () => {
     expect(loaded?.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     // Persisted, so a second read does not migrate again.
     expect(readProject(old.id)?.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+  });
+});
+
+describe('save-state dirty marking', () => {
+  it('moves idle to saving so the indicator never shows a stale saved state', () => {
+    // NOTE: without initProjectLibrary the backend is synchronous localStorage
+    // and writes never touch save-state — so this asserts the transition rule
+    // itself, not a write round-trip. In production (IndexedDB) writes flip
+    // idle -> saving -> saved via trackWrite; markSavePending covers the
+    // debounce window in between.
+    markSavePending();
+    expect(getSaveState()).toBe('saving');
+  });
+
+  it('is idempotent while a save is already in flight', async () => {
+    markSavePending();
+    markSavePending();
+    expect(getSaveState()).toBe('saving');
+    await flushPendingWrites();
+  });
+});
+
+describe('safety-copy backups', () => {
+  it('writes and reads back a snapshot for the same project', () => {
+    const saved = project({ title: 'Backup me' });
+    writeProject(saved);
+    maybeWriteBackupSnapshot({ ...saved, title: 'Backup me v2' });
+    const backup = readBackupSnapshot(saved.id);
+    expect(backup?.project.title).toBe('Backup me v2');
+    expect(typeof backup?.savedAt).toBe('string');
+  });
+
+  it('restores the backup into the library', () => {
+    const saved = project({ title: 'Live' });
+    writeProject(saved);
+    maybeWriteBackupSnapshot({ ...saved, title: 'From backup' });
+    // Throttle guard uses in-memory timestamps per project id — a fresh id
+    // guarantees the write above is not skipped in this test run.
+    const restored = restoreBackupSnapshot(saved.id);
+    expect(restored?.title).toBe('From backup');
+  });
+
+  it('returns null when no backup exists', () => {
+    expect(readBackupSnapshot('no-such-project')).toBeNull();
+    expect(restoreBackupSnapshot('no-such-project')).toBeNull();
   });
 });
 
