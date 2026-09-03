@@ -22,7 +22,7 @@ const pad = (value: number | undefined): string =>
  * in print media. Planning aid only — not a substitute for console software.
  */
 export const DmxPatchPrintView: React.FC<DmxPatchPrintViewProps> = ({ rows, productionTitle, sceneName, embedded = false }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const patched = rows.filter((row) => row.universe !== undefined && row.address !== undefined);
   const unpatched = rows.filter((row) => row.universe === undefined || row.address === undefined);
   const conflicts = patched.filter((row) => row.conflict);

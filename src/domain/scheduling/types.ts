@@ -7,6 +7,20 @@
  * manual entries such as meals and moves.
  */
 
+export interface CallSheetAcknowledgement {
+  personId: string;
+  confirmedAt?: string;
+}
+
+export interface CallSheetIssueRevision {
+  id: string;
+  revision: number;
+  issuedAt: string;
+  /** Immutable rendered data at the moment this revision was issued. */
+  snapshotJson: string;
+  acknowledgements: CallSheetAcknowledgement[];
+}
+
 export interface ProductionDay {
   id: string;
   /** ISO date string (yyyy-mm-dd), optional so planning can start undated. */
@@ -107,6 +121,8 @@ export interface ProductionDay {
       /** What the call is for: make-up, rigging, travel. */
       note?: string;
     }>;
+    /** Immutable issued copies; later edits create a new revision. */
+    issues?: CallSheetIssueRevision[];
   };
   scheduleBlockIds: string[];
 }

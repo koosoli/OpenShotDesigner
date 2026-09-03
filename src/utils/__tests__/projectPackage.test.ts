@@ -84,4 +84,33 @@ describe('project package', () => {
     );
     await expect(parseProjectPackage(noProject)).rejects.toThrow(/project/i);
   });
+
+  it('rejects a package whose media bytes no longer match their content id', async () => {
+    const store = createIdbAssetStore();
+    const { id } = await store.put(new Blob([new Uint8Array([1, 2, 3])]), {
+      mimeType: 'image/png',
+    });
+    const exported = JSON.parse(await (await exportProjectPackage(makeProjectWithAsset(id))).text());
+    exported.assets[0].dataBase64 = btoa('tampered');
+
+    await expect(parseProjectPackage(new Blob([JSON.stringify(exported)]))).rejects.toThrow(/checksum/i);
+  });
+
+  it('rejects packages that omit project-referenced media', async () => {
+    const store = createIdbAssetStore();
+    const { id } = await store.put(new Blob([new Uint8Array([7, 8, 9])]), {
+      mimeType: 'image/png',
+    });
+    const exported = JSON.parse(await (await exportProjectPackage(makeProjectWithAsset(id))).text());
+    exported.assets = [];
+    exported.manifest.assetCount = 0;
+
+    await expect(parseProjectPackage(new Blob([JSON.stringify(exported)]))).rejects.toThrow(/missing.*referenced/i);
+  });
+
+  it('refuses to export a package when referenced media is absent locally', async () => {
+    await expect(
+      exportProjectPackage(makeProjectWithAsset('asset-sha256-does-not-exist')),
+    ).rejects.toThrow(/missing/i);
+  });
 });

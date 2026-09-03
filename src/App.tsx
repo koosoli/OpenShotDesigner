@@ -77,6 +77,8 @@ const PanelFallback: React.FC = () => (
   <div className="h-full flex items-center justify-center text-xs opacity-50">Loading…</div>
 );
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
+import { ProductionReadiness } from './components/dashboard/ProductionReadiness';
+import { ReviewNotes } from './components/dashboard/ReviewNotes';
 import { useBreakpoint } from './utils/useMediaQuery';
 import { AlertTriangle, Zap, Package, ListOrdered, ClipboardList, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, KanbanSquare, Coins, MapPin, Maximize2, Minimize2, Users } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -84,6 +86,7 @@ import { deriveSceneEquipment } from './utils/equipmentList';
 import { useWorkspaceUI, WorkspaceUIProvider } from './context/WorkspaceUIContext';
 import { loadLibrary } from './utils/projectLibrary';
 import { lazyWithRetry, prefetchLazyChunks } from './utils/lazyChunks';
+import { saveNativeProjectFile } from './utils/nativeProjectFile';
 
 type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
 type WorkspaceGroup = 'creative' | 'production' | 'technical';
@@ -104,6 +107,19 @@ const MainLayout: React.FC = () => {
     // opening a tab does not then sit and wait for its download.
     prefetchLazyChunks();
   }, []);
+  useEffect(() => {
+    const saveShortcut = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return;
+      event.preventDefault();
+      void saveNativeProjectFile(project).catch((error) => {
+        if ((error as Error)?.name !== 'AbortError') {
+          window.alert(`Project save failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+        }
+      });
+    };
+    window.addEventListener('keydown', saveShortcut);
+    return () => window.removeEventListener('keydown', saveShortcut);
+  }, [project]);
   const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
   const calculateDefaultSidebarWidth = (): number => {
     if (typeof window === 'undefined') return 860;
@@ -241,6 +257,10 @@ const MainLayout: React.FC = () => {
 
         {/* Center Canvas Area with Timeline at Bottom */}
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+          {/* Keep workspace actions inside the canvas column so they can never
+              cover the resizable production sidebar. */}
+          <ProductionReadiness />
+          <ReviewNotes />
           <div className="flex-1 relative overflow-hidden">
             <FloorPlanCanvas />
           </div>

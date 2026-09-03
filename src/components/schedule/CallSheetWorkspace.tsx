@@ -1,16 +1,17 @@
-import React, { useRef } from 'react';
-import { AlertTriangle, Building2, CheckCircle2, ImagePlus, MapPin, Printer } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { AlertTriangle, Building2, CalendarDays, CheckCircle2, ImagePlus, MapPin, Printer, Send } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { loadLogoFile } from '../../utils/image';
 import { createId } from '../../domain/ids';
-import type { ProductionDay } from '../../domain/scheduling';
+import { personalCallsToIcs, shootingDaysToIcs, type ProductionDay } from '../../domain/scheduling';
 import type { CallSheetData, StandingCallSheetField } from '../../domain/reports';
-import { resolveStandingCallSheet } from '../../domain/reports';
+import { diffCallSheetSnapshots, parseIssuedCallSheet, resolveStandingCallSheet } from '../../domain/reports';
 import { StandingCallSheetEditor } from './StandingCallSheetEditor';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { LocationMapCapture } from './LocationMapCapture';
 import { SetLocationLink } from '../locations/SetLocationLink';
 import { ProjectImage } from '../common/ProjectImage';
+import { downloadBlob, safeFileName } from '../../utils/download';
 
 interface CallSheetWorkspaceProps {
   days: ProductionDay[];
@@ -57,6 +58,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
     isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-700 text-slate-100'
   }`;
   const people = project.people ?? [];
+  const [calendarPersonId, setCalendarPersonId] = useState('');
   const pickups = selectedDay?.callSheet?.pickups ?? [];
 
   /** Immutable pick-up-list mutations; each writes the whole day's call sheet. */
@@ -127,8 +129,78 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
     );
   }
 
-  const patchCallSheet = (updates: NonNullable<ProductionDay['callSheet']>) =>
-    updateDay(selectedDay.id, { callSheet: { ...selectedDay.callSheet, ...updates } });
+  const patchCallSheet = (updates: NonNullable<ProductionDay['callSheet']>) => {
+    const lifecycleOnly = Object.keys(updates).every((key) => key === 'status' || key === 'issues');
+    updateDay(selectedDay.id, {
+      callSheet: {
+        ...selectedDay.callSheet,
+        ...updates,
+        ...(lifecycleOnly ? {} : { status: 'draft' as const }),
+      },
+    });
+  };
+
+  const issues = selectedDay.callSheet?.issues ?? [];
+  const latestIssue = issues.at(-1);
+  const latestSnapshot = latestIssue ? parseIssuedCallSheet(latestIssue.snapshotJson) : null;
+  const changesSinceIssue = diffCallSheetSnapshots(latestSnapshot, sheet);
+
+  const issueCurrentSheet = () => {
+    const issuedAt = new Date().toISOString();
+    const revision = Math.max(0, ...issues.map((issue) => issue.revision)) + 1;
+    const issuedSheet: CallSheetData = {
+      ...sheet,
+      isDraft: false,
+      revision,
+      issuedAt,
+    };
+    const personIds = [...new Set([...sheet.cast, ...sheet.crew].flatMap((person) => person.id ? [person.id] : []))];
+    updateDay(selectedDay.id, {
+      callSheet: {
+        ...selectedDay.callSheet,
+        status: 'final',
+        issues: [
+          ...issues,
+          {
+            id: createId('call-sheet-issue'),
+            revision,
+            issuedAt,
+            snapshotJson: JSON.stringify(issuedSheet),
+            acknowledgements: personIds.map((personId) => ({ personId })),
+          },
+        ],
+      },
+    });
+  };
+
+  const toggleAcknowledgement = (personId: string) => {
+    if (!latestIssue) return;
+    const nextIssues = issues.map((issue) =>
+      issue.id !== latestIssue.id
+        ? issue
+        : {
+            ...issue,
+            acknowledgements: issue.acknowledgements.map((acknowledgement) =>
+              acknowledgement.personId === personId
+                ? {
+                    ...acknowledgement,
+                    confirmedAt: acknowledgement.confirmedAt ? undefined : new Date().toISOString(),
+                  }
+                : acknowledgement,
+            ),
+          },
+    );
+    updateDay(selectedDay.id, {
+      callSheet: { ...selectedDay.callSheet, issues: nextIssues },
+    });
+  };
+
+  const downloadCalendar = (contents: string, suffix: string) => {
+    downloadBlob(
+      new Blob([contents], { type: 'text/calendar;charset=utf-8' }),
+      `${safeFileName(project.title, 'production').toLowerCase()}_${suffix}.ics`,
+    );
+  };
 
   // What this day actually shows for each inheritable field, and where it came
   // from — the editor labels it so overriding is a visible decision.
@@ -504,10 +576,89 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
           </section>
 
           <section className={`p-4 ${isLight ? 'bg-slate-200/60' : 'bg-slate-950'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <div><div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Live document preview</div><div className="text-xs font-bold">{sheet.warnings.length ? `${sheet.warnings.length} readiness warning${sheet.warnings.length === 1 ? '' : 's'}` : 'Ready to issue'}</div></div>
-              <button onClick={() => onPrint(selectedDay)} className="h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-black flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /> Print / PDF</button>
+            <div className="flex items-center justify-between mb-3 gap-3">
+              <div><div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Live document preview</div><div className="text-xs font-bold">{sheet.warnings.length ? `${sheet.warnings.length} readiness warning${sheet.warnings.length === 1 ? '' : 's'}` : latestIssue ? `Issued revision ${latestIssue.revision}` : 'Ready to issue'}</div></div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => downloadCalendar(shootingDaysToIcs(days, project.title), 'shooting-days')}
+                  title="Download all dated shooting days as an iCalendar file"
+                  className={`h-9 px-2.5 rounded-lg border text-[11px] font-black flex items-center gap-1.5 ${isLight ? 'bg-white border-slate-300 hover:bg-slate-100' : 'bg-slate-900 border-slate-700 hover:bg-slate-800'}`}
+                >
+                  <CalendarDays className="w-3.5 h-3.5" /> .ics
+                </button>
+                <button
+                  onClick={issueCurrentSheet}
+                  disabled={sheet.warnings.length > 0}
+                  title={sheet.warnings.length ? 'Resolve readiness warnings before issuing' : 'Freeze and issue a new revision'}
+                  className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-black flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" /> Issue {latestIssue ? `Rev ${latestIssue.revision + 1}` : 'Rev 1'}
+                </button>
+                <button onClick={() => onPrint(selectedDay)} className="h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-black flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /> Print / PDF</button>
+              </div>
             </div>
+
+            {people.length > 0 && (
+              <div className={`mb-3 rounded-lg border p-2 flex items-center gap-2 ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}>
+                <span className="text-[9px] font-bold uppercase text-slate-500">Personal call calendar</span>
+                <select value={calendarPersonId} onChange={(event) => setCalendarPersonId(event.target.value)} className={`${fieldClass} py-1.5 flex-1`}>
+                  <option value="">Choose crew or cast…</option>
+                  {people.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+                </select>
+                <button
+                  disabled={!calendarPersonId}
+                  onClick={() => {
+                    const person = people.find((candidate) => candidate.id === calendarPersonId);
+                    if (person) {
+                      downloadCalendar(
+                        personalCallsToIcs(days, project.title, person.id, person.displayName),
+                        safeFileName(person.displayName, 'call-times').toLowerCase(),
+                      );
+                    }
+                  }}
+                  className="h-8 px-2.5 rounded-lg bg-violet-600 text-white text-[10px] font-bold disabled:opacity-40"
+                >
+                  Download .ics
+                </button>
+              </div>
+            )}
+
+            {latestIssue && (
+              <div className={`mb-3 rounded-xl border p-3 text-[10px] ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <strong className="uppercase tracking-wide">Rev {latestIssue.revision} · {new Date(latestIssue.issuedAt).toLocaleString()}</strong>
+                  <span className={changesSinceIssue.length ? 'text-amber-500' : 'text-emerald-500'}>
+                    {changesSinceIssue.length ? `${changesSinceIssue.length} change(s) since issue` : 'Current document matches issue'}
+                  </span>
+                </div>
+                {changesSinceIssue.length > 0 && (
+                  <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                    {changesSinceIssue.map((change) => (
+                      <li key={change.field}><b>{change.field}:</b> {change.before} → {change.after}</li>
+                    ))}
+                  </ul>
+                )}
+                {latestIssue.acknowledgements.length > 0 && (
+                  <div className="mt-3 pt-2 border-t border-inherit">
+                    <div className="font-bold uppercase tracking-wide mb-1.5">Manual confirmations</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {latestIssue.acknowledgements.map((acknowledgement) => {
+                        const person = people.find((candidate) => candidate.id === acknowledgement.personId);
+                        return (
+                          <button
+                            key={acknowledgement.personId}
+                            onClick={() => toggleAcknowledgement(acknowledgement.personId)}
+                            className={`px-2 py-1 rounded-full border flex items-center gap-1 ${acknowledgement.confirmedAt ? 'border-emerald-500 text-emerald-600' : isLight ? 'border-slate-300' : 'border-slate-700'}`}
+                          >
+                            <CheckCircle2 className="w-3 h-3" /> {person?.displayName ?? 'Removed person'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* The real printed sheet, not a second rendering of it.
                 Maintaining a separate preview meant every block added to the

@@ -977,6 +977,16 @@ export interface ProjectRevision {
   snapshot: Project;
 }
 
+export interface ScriptImportRevision {
+  id: string;
+  createdAt: string;
+  sourceFileName: string;
+  scriptTitle: string;
+  /** Fountain/plain-text source before the newer draft replaced it. */
+  scriptText: string;
+  summary: { added: number; removed: number; changed: number; unchanged: number };
+}
+
 export interface Project {
   id: string;
   /**
@@ -995,6 +1005,8 @@ export interface Project {
   scriptTitle?: string;
   scriptText?: string;
   scriptLines?: ScriptLine[];
+  /** Previous drafts retained when a revised screenplay is imported. */
+  scriptRevisions?: ScriptImportRevision[];
   /**
    * The screenplay's cover: title, credit, author, draft and contact block,
    * using Fountain's standard title-page keys so an import and an export
@@ -1070,6 +1082,8 @@ export interface Project {
   /** Production task board (v13). Optional and absent-safe. */
   taskBoards?: import('../domain/tasks').TaskBoard[];
   tasks?: import('../domain/tasks').Task[];
+  /** Offline review threads attached to production entities. */
+  reviewComments?: import('../domain/comments').ReviewComment[];
   /**
    * vNext rigging collections (plan §11, §23). Optional and absent-safe —
    * legacy projects without them load unchanged, so no migration is required

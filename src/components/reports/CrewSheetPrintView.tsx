@@ -25,7 +25,7 @@ const DEPARTMENT_LABELS: Record<string, string> = {
  * block): on screen it sits off-screen; in print media only this document shows.
  */
 export const CrewSheetPrintView: React.FC<CrewSheetPrintViewProps> = ({ sheet, logo }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
 
   return (
     <>

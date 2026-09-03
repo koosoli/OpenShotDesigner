@@ -143,7 +143,7 @@ export const RiggingPrintView: React.FC<RiggingPrintViewProps> = ({
   unassignedHardware,
   assumptions,
 }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const overCount = runs.filter((run) => run.capacity.verdict === 'over').length;
   const unknownCount = runs.filter((run) => run.capacity.verdict === 'unknown').length;
 

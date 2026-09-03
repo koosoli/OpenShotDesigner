@@ -62,7 +62,7 @@ export const DailyProgressPrintView: React.FC<DailyProgressPrintViewProps> = ({
   plannedDayMinutes: plannedMinutes,
   embedded = false,
 }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const behind = (report.scheduleVarianceMinutes ?? 0) > 0;
 
   return (

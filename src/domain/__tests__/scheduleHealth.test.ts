@@ -158,11 +158,24 @@ describe('distant_locations and cast_split_across_locations', () => {
       blocks: [],
       locationsForDay: () => [LUX, TRIER],
       castForDay: () => new Set(['p2', 'p1']),
+      locationsForPersonOnDay: (id) => (id === 'p1' ? [LUX, TRIER] : [LUX]),
       personName: (id) => ({ p1: 'JENNA', p2: 'MARCUS' })[id],
     });
     const split = issues.find((issue) => issue.code === 'cast_split_across_locations');
     // Sorted, so the message is stable rather than Set-ordered.
-    expect(split?.message).toContain('JENNA, MARCUS');
+    expect(split?.message).toContain('JENNA');
+    expect(split?.message).not.toContain('MARCUS');
+  });
+
+  it('does not claim every called performer crosses the full day-wide spread', () => {
+    const issues = scheduleIssues({
+      days: [day({ id: 'd1', name: 'Day 1' })],
+      blocks: [],
+      locationsForDay: () => [LUX, TRIER],
+      castForDay: () => new Set(['p1']),
+      personName: () => 'JENNA',
+    });
+    expect(codes(issues)).not.toContain('cast_split_across_locations');
   });
 
   it('skips the cast check when the caller cannot answer it', () => {

@@ -40,7 +40,7 @@ export const CoverageMatrixPrintView: React.FC<CoverageMatrixPrintViewProps> = (
   cameras,
   rows,
 }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
 
   return (
     <>

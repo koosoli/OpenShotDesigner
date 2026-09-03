@@ -67,3 +67,5 @@ export {
   renumberScenes,
 } from './numbering';
 export type { NumberableLine } from './numbering';
+export { compareScriptRevisions } from './revision';
+export type { ScriptRevisionComparison, ScriptSceneChange } from './revision';

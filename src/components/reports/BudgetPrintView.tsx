@@ -19,7 +19,7 @@ interface BudgetPrintViewProps {
  * table the accountant wants and the one nobody prints by hand.
  */
 export const BudgetPrintView: React.FC<BudgetPrintViewProps> = ({ productionTitle, company, logo, summary }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const money = (value: number) => formatMoney(value, summary.settings.currency);
 
   return (

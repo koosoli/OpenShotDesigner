@@ -71,7 +71,7 @@ const groupCrew = (crew: CallSheetPerson[]): Array<{ department: string; people:
  * it sits off-screen; in print media only this document is shown.
  */
 export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const crewGroups = groupCrew(sheet.crew);
   const companyLine = [sheet.productionCompanyInfo?.address, sheet.productionCompanyInfo?.phone, sheet.productionCompanyInfo?.email, sheet.productionCompanyInfo?.website]
     .filter(Boolean)
@@ -170,6 +170,9 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         <header className="cs-masthead">
           <div>
             <p className="cs-kicker">{sheet.productionCompany ? `${sheet.productionCompany} · Call sheet` : 'Call sheet'} · {sheet.type}</p>
+            {sheet.revision && (
+              <p className="cs-kicker">REV {sheet.revision} · issued {sheet.issuedAt ? new Date(sheet.issuedAt).toLocaleString() : '—'}</p>
+            )}
             <h1 className="cs-title">{sheet.productionTitle}</h1>
             <p className="cs-day">{sheet.dayName}</p>
             {companyLine && <p className="cs-company">{companyLine}</p>}

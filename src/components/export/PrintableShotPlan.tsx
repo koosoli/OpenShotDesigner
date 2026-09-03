@@ -541,7 +541,7 @@ export const PrintableShotPlan: React.FC = () => {
         title: project.title,
         subtitle: `SCENE ${activeSetup.sceneNumber}: ${activeSetup.name}`,
         meta: [
-          `DATE: ${project.date || new Date().toISOString().split('T')[0]}`,
+          `DATE: ${project.date || new Intl.DateTimeFormat('en-CA').format(new Date())}`,
           `DIR: ${project.director || '—'}`,
           `DP: ${project.cinematographer || '—'}`,
           `${activeSetup.location} (${activeSetup.timeOfDay})`,
@@ -1341,7 +1341,7 @@ export const PrintableShotPlan: React.FC = () => {
                 </div>
               </div>
               <div className="text-right text-xs text-slate-700 font-mono space-y-0.5">
-                <p><strong>DATE:</strong> {project.date || new Date().toISOString().split('T')[0]}</p>
+                <p><strong>DATE:</strong> {project.date || new Intl.DateTimeFormat('en-CA').format(new Date())}</p>
                 <p><strong>DIRECTOR:</strong> {project.director || '—'}</p>
                 <p><strong>CINEMATOGRAPHER:</strong> {project.cinematographer || '—'}</p>
                 <p><strong>LOCATION:</strong> {activeSetup.location} ({activeSetup.timeOfDay})</p>

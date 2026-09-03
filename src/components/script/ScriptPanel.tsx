@@ -7,6 +7,7 @@ import {
   Code2,
   Download,
   FileText,
+  GitCompareArrows,
   ImagePlus,
   Layers,
   Lock,
@@ -48,6 +49,7 @@ import {
   avRowNumber,
   omittedSceneLabel,
   reconcileScriptLineIds,
+  compareScriptRevisions,
   removeLineOrOmit,
   restoreScene,
   rowsForMissingShots,
@@ -56,7 +58,7 @@ import {
   breakdownItemsForLines,
   untagScriptLine,
 } from '../../domain/script';
-import type { BreakdownSourceRange } from '../../domain/script';
+import type { BreakdownSourceRange, ScriptRevisionComparison } from '../../domain/script';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
 import { TitlePageEditor } from './TitlePageEditor';
 import { SetLocationLink } from '../locations/SetLocationLink';
@@ -139,6 +141,7 @@ const AVStoryboardCell: React.FC<{
           </button>
         </div>
       )}
+
     </div>
   );
 };
@@ -214,6 +217,11 @@ export const ScriptPanel: React.FC = () => {
   } | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [pendingRevision, setPendingRevision] = useState<{
+    raw: string;
+    name: string;
+    comparison: ScriptRevisionComparison;
+  } | null>(null);
 
   const fontSize = autoFontSize * zoom;
   const indexById = useMemo(() => {
@@ -325,8 +333,46 @@ export const ScriptPanel: React.FC = () => {
 
   const loadScript = (file: File) => {
     const reader = new FileReader();
-    reader.onload = () => importRaw(String(reader.result || ''), file.name);
+    reader.onload = () => {
+      const raw = String(reader.result || '');
+      const parsed = parseScreenplay(raw, file.name);
+      if (lines.length === 0) {
+        importRaw(raw, file.name);
+        return;
+      }
+      setPendingRevision({
+        raw,
+        name: file.name,
+        comparison: compareScriptRevisions(lines, parsed),
+      });
+    };
     reader.readAsText(file);
+  };
+
+  const applyPendingRevision = () => {
+    if (!pendingRevision) return;
+    const { comparison, name, raw } = pendingRevision;
+    updateProjectMeta({
+      scriptRevisions: [
+        ...(project.scriptRevisions ?? []),
+        {
+          id: createId('script-revision'),
+          createdAt: new Date().toISOString(),
+          sourceFileName: name,
+          scriptTitle: scriptTitle || 'Screenplay',
+          scriptText:
+            project.scriptText ?? serializeToFountain(lines, scriptTitle || 'Screenplay', project.titlePage),
+          summary: {
+            added: comparison.added,
+            removed: comparison.removed,
+            changed: comparison.changed,
+            unchanged: comparison.unchanged,
+          },
+        },
+      ],
+    });
+    importRaw(raw, name);
+    setPendingRevision(null);
   };
 
   const exportFountainFile = () => {
@@ -2033,6 +2079,50 @@ export const ScriptPanel: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {pendingRevision && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/65" onClick={() => setPendingRevision(null)} />
+          <div className={`relative w-full max-w-2xl max-h-[80vh] overflow-hidden rounded-2xl border shadow-2xl ${isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-100'}`} role="dialog" aria-modal="true" aria-labelledby="script-revision-title">
+            <div className="p-4 border-b border-inherit flex items-start justify-between gap-3">
+              <div>
+                <h2 id="script-revision-title" className="text-sm font-black flex items-center gap-2"><GitCompareArrows className="w-4 h-4 text-violet-500" /> Review revised screenplay</h2>
+                <p className="mt-1 text-[11px] opacity-60">{pendingRevision.name} will replace the working draft. The current draft is retained in revision history.</p>
+              </div>
+              <button onClick={() => setPendingRevision(null)} aria-label="Cancel screenplay import" className="p-1.5"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[58vh]">
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  ['Added', pendingRevision.comparison.added, 'text-emerald-500'],
+                  ['Removed', pendingRevision.comparison.removed, 'text-rose-500'],
+                  ['Changed', pendingRevision.comparison.changed, 'text-amber-500'],
+                  ['Unchanged', pendingRevision.comparison.unchanged, 'text-slate-500'],
+                ].map(([label, count, tone]) => (
+                  <div key={String(label)} className={`rounded-xl border p-3 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/60'}`}>
+                    <div className="text-[9px] font-bold uppercase opacity-60">{label}</div>
+                    <div className={`text-xl font-mono font-black ${tone}`}>{count}</div>
+                  </div>
+                ))}
+              </div>
+              <ul className="mt-4 space-y-1.5">
+                {pendingRevision.comparison.scenes
+                  .filter((scene) => scene.kind !== 'unchanged')
+                  .map((scene) => (
+                    <li key={scene.key} className={`rounded-lg border px-3 py-2 text-[11px] flex items-center gap-2 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                      <span className={`w-16 font-black uppercase text-[9px] ${scene.kind === 'added' ? 'text-emerald-500' : scene.kind === 'removed' ? 'text-rose-500' : 'text-amber-500'}`}>{scene.kind}</span>
+                      <span className="truncate">{scene.label}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+            <div className="p-4 border-t border-inherit flex justify-end gap-2">
+              <button onClick={() => setPendingRevision(null)} className={headerButton}>Cancel</button>
+              <button onClick={applyPendingRevision} className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold">Import revised draft</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -84,6 +84,17 @@ export const idbGetAllValues = <T>(store: string): Promise<T[]> =>
       }),
   );
 
+export const idbGetAllKeys = (store: string): Promise<string[]> =>
+  openWorkspaceDb().then(
+    (db) =>
+      new Promise<string[]>((resolve, reject) => {
+        const tx = db.transaction(store, 'readonly');
+        const req = tx.objectStore(store).getAllKeys();
+        req.onsuccess = () => resolve((req.result || []).map(String));
+        req.onerror = () => reject(req.error);
+      }),
+  );
+
 export const idbPut = (store: string, key: string, value: unknown): Promise<void> =>
   openWorkspaceDb().then(
     (db) =>

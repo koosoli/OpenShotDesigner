@@ -8,6 +8,7 @@ import {
   readProject,
   removeProject,
   summarize,
+  ProjectWriteConflictError,
   writeProject,
 } from '../projectLibrary';
 
@@ -87,6 +88,18 @@ describe('write / read round trip', () => {
     removeProject(saved.id);
     expect(readProject(saved.id)).toBeNull();
     expect(loadLibrary().some((entry) => entry.id === saved.id)).toBe(false);
+  });
+
+  it('refuses to overwrite a newer save made by another browser tab', () => {
+    const saved = project({ updatedAt: '2026-01-01T10:00:00.000Z' });
+    localStorage.setItem(
+      `openshotdesigner_write_stamp_${saved.id}`,
+      JSON.stringify({ sessionId: 'another-tab', updatedAt: '2026-01-01T10:01:00.000Z' }),
+    );
+
+    expect(() => writeProject(saved, { touch: false })).toThrow(ProjectWriteConflictError);
+    expect(readProject(saved.id)).toBeNull();
+    localStorage.removeItem(`openshotdesigner_write_stamp_${saved.id}`);
   });
 });
 

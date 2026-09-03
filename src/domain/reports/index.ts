@@ -34,6 +34,8 @@ export type {
   SceneReport,
 } from './breakdown';
 export { deriveDaylight } from './callSheetSun';
+export { diffCallSheetSnapshots, parseIssuedCallSheet } from './callSheetRevision';
+export type { CallSheetChange } from './callSheetRevision';
 export type {
   CallSheetDaylight,
   DaylightOrigin,

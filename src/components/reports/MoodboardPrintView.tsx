@@ -13,7 +13,7 @@ interface MoodboardPrintViewProps {
  * standalone, or directly inside the export studio's paper area.
  */
 export const MoodboardPrintView: React.FC<MoodboardPrintViewProps> = ({ board, srcs }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const collage = board.collage ?? {};
   const palette = board.palette ?? [];
   const cards = [...board.cards].sort((a, b) => a.order - b.order);

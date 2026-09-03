@@ -99,6 +99,16 @@ export interface ScheduleHealthSources {
    * cast-split check is skipped rather than approximated.
    */
   castForDay?: (day: ProductionDay) => ReadonlySet<string>;
+  /**
+   * Locations a particular performer is actually required at on this day.
+   * A day-wide location list is not enough: different scenes can use different
+   * cast, so treating every called performer as travelling to every set creates
+   * false warnings. Without this resolver the cast travel check is skipped.
+   */
+  locationsForPersonOnDay?: (
+    personId: string,
+    day: ProductionDay,
+  ) => readonly HealthLocation[];
   /** Display name for a person id, for the message. */
   personName?: (personId: string) => string | undefined;
   /**
@@ -200,19 +210,28 @@ export const scheduleIssues = (
       // answer it: a wide day with no cast in common is a unit problem, and a
       // wide day that one actor is booked across is a different one.
       const cast = sources.castForDay?.(day);
-      if (cast && cast.size > 0) {
-        const names = [...cast]
+      if (cast && cast.size > 0 && sources.locationsForPersonOnDay) {
+        const travellingCast = [...cast].filter((personId) => {
+          const personLocations = distinctLocations(
+            sources.locationsForPersonOnDay!(personId, day),
+          );
+          const personGap = widestSeparation(personLocations);
+          return personGap != null && personGap.km > limits.maxSpreadKm;
+        });
+        const names = travellingCast
           .map((personId) => sources.personName?.(personId) ?? personId)
           .sort((a, b) => a.localeCompare(b));
-        issues.push({
-          code: 'cast_split_across_locations',
-          severity: 'warning',
-          productionDayId: day.id,
-          dayName: day.name,
-          message: `${names.length} cast member${
-            names.length === 1 ? ' is' : 's are'
-          } called across ${day.name}'s ${Math.round(gap.km)} km: ${names.join(', ')}.`,
-        });
+        if (names.length > 0) {
+          issues.push({
+            code: 'cast_split_across_locations',
+            severity: 'warning',
+            productionDayId: day.id,
+            dayName: day.name,
+            message: `${names.length} cast member${
+              names.length === 1 ? ' is' : 's are'
+            } called across ${day.name}'s ${Math.round(gap.km)} km: ${names.join(', ')}.`,
+          });
+        }
       }
     }
 

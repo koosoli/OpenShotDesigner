@@ -170,3 +170,66 @@ test('a multi-role crew member has one crew row on the call sheet', async ({ pag
   await expect(headsSection.getByText('Gaffer', { exact: true })).toBeVisible();
   await expect(headsSection.getByText('Key Grip', { exact: true })).toBeVisible();
 });
+
+test('global command center finds production entities and readiness links to their module', async ({ page }) => {
+  await createExampleProject(page, `Command center ${Date.now()}`);
+  await page.getByRole('button', { name: /Templates/ }).click();
+  const fillExamples = page.getByRole('button', { name: /Fill empty modules with examples/ });
+  await fillExamples.click();
+  await expect(fillExamples).toBeHidden();
+
+  await page.keyboard.press('Control+K');
+  const commands = page.getByRole('dialog', { name: 'Global command center' });
+  await expect(commands).toBeVisible();
+  await commands.getByPlaceholder(/Search shots, scenes, people/).fill('1/1');
+  await expect(commands.getByText(/^1\/1 —/).first()).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(commands).toBeHidden();
+
+  await page.getByTitle('Open production readiness').click();
+  const readiness = page.getByRole('dialog', { name: 'Production readiness' });
+  await expect(readiness).toBeVisible();
+  await expect(readiness.getByText(/No blockers or warnings found|attempted without coverage|is not ready to issue/).first()).toBeVisible();
+  await readiness.getByRole('button', { name: 'Close readiness' }).click();
+  await expect(readiness).toBeHidden();
+});
+
+test('review notes survive reload and project storage exports a native .osd package', async ({ page }) => {
+  const title = `Review package ${Date.now()}`;
+  const note = `@DP — verify the 50mm option ${Date.now()}`;
+  await createExampleProject(page, title);
+
+  await page.getByRole('button', { name: /Review · 0/ }).click();
+  let review = page.getByRole('dialog', { name: 'Review notes' });
+  await review.getByPlaceholder('@DP — 50mm instead?').fill(note);
+  await review.getByRole('button', { name: 'Add note' }).click();
+  await expect(review.getByText(note, { exact: true })).toBeVisible();
+  await review.getByRole('button', { name: 'Close review notes' }).click();
+  await expect(page.getByText('Saved locally')).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: /Review · 1/ }).click();
+  review = page.getByRole('dialog', { name: 'Review notes' });
+  await expect(review.getByText(note, { exact: true })).toBeVisible();
+  await review.getByRole('button', { name: 'Close review notes' }).click();
+
+  await page.getByRole('button', { name: 'All projects (dashboard)' }).click();
+  await page.getByRole('button', { name: 'Storage', exact: true }).click();
+  const storage = page.getByRole('dialog', { name: 'Browser media storage' });
+  await expect(storage.getByText('Stored files', { exact: true })).toBeVisible();
+  await expect(storage.getByText('Missing referenced files', { exact: true })).toBeVisible();
+  await storage.getByRole('button', { name: 'Close storage inspector' }).click();
+
+  // Chromium exposes the File System Access picker in headed environments.
+  // Force the product's documented browser-download fallback so CI can verify
+  // the resulting portable file without interacting with a native OS dialog.
+  await page.evaluate(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true });
+  });
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Save .osd project (including attached media)' }).first().click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/\.osd$/);
+  const path = await download.path();
+  expect(path).toBeTruthy();
+});

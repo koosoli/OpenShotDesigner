@@ -119,7 +119,7 @@ export const LogisticsPrintView: React.FC<LogisticsPrintViewProps> = ({
   scopeLabel,
   fleet,
 }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   // Judged on the rolled-up weight: a truck goes over its payload because of
   // what is in the cases, not because of what was thrown in loose beside them.
   const overloaded = groups

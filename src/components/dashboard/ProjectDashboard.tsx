@@ -6,6 +6,7 @@ import {
   Download,
   FileText,
   FolderOpen,
+  HardDrive,
   History,
   Layers,
   Package,
@@ -25,12 +26,25 @@ import {
   type WorkspacePresetId,
 } from '../../domain/workspace';
 import { BRANDING } from '../../config/branding';
-import { exportProjectPackage, importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
+import { importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { downloadBlob, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { saveNativeProjectFile } from '../../utils/nativeProjectFile';
+import {
+  deleteOrphanedAssets,
+  inspectAssetStorage,
+  type AssetStorageInspection,
+} from '../../utils/assetStorageInspection';
 
 const triggerDownload = (blob: Blob, filename: string) => downloadBlob(blob, filename);
+
+const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+};
 
 const formatUpdated = (iso: string): string => {
   if (!iso) return '—';
@@ -51,7 +65,7 @@ const formatUpdated = (iso: string): string => {
  * first run and whenever the user opens "Projects" from the top bar.
  */
 export const ProjectDashboard: React.FC = () => {
-  const { projects, activeProjectId, createNewProject, openProjectById, duplicateProject, renameProject, deleteProjectById, loadProjectFromJson, restoreRevision } = useFloorPlan();
+  const { project, projects, activeProjectId, createNewProject, openProjectById, duplicateProject, renameProject, deleteProjectById, loadProjectFromJson, restoreRevision } = useFloorPlan();
   const { isDashboardOpen, closeDashboard, theme } = useWorkspaceUI();
 
   const isLight = theme === 'light';
@@ -87,9 +101,14 @@ export const ProjectDashboard: React.FC = () => {
   const [revisionsProjectId, setRevisionsProjectId] = useState<string | null>(null);
   /** Revision id awaiting restore confirmation. */
   const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
+  const [storageOpen, setStorageOpen] = useState(false);
+  const [storageInspection, setStorageInspection] = useState<AssetStorageInspection | null>(null);
+  const [storageBusy, setStorageBusy] = useState(false);
+  const [confirmStorageCleanup, setConfirmStorageCleanup] = useState(false);
   // The revisions list is the one true modal on this screen — it dims the
   // dashboard behind it — so keyboard focus has to stay inside it while open.
   const revisionsDialogRef = useDialogFocusTrap(revisionsProjectId !== null);
+  const storageDialogRef = useDialogFocusTrap(storageOpen);
 
   if (!isDashboardOpen) return null;
 
@@ -145,8 +164,10 @@ export const ProjectDashboard: React.FC = () => {
   const downloadProjectPackage = (id: string) => {
     const project = readProject(id);
     if (!project) return;
-    void exportProjectPackage(project).then((blob) => {
-      triggerDownload(blob, `${safeFileName(project.title, 'project').toLowerCase()}_package.json`);
+    void saveNativeProjectFile(project, { saveAs: true }).catch((error) => {
+      if ((error as Error)?.name !== 'AbortError') {
+        alert(`Project save failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+      }
     });
   };
 
@@ -158,6 +179,36 @@ export const ProjectDashboard: React.FC = () => {
     restoreRevision(revisionId, revisionsProjectId);
     setConfirmRestoreId(null);
     setRevisionsProjectId(null);
+  };
+
+  const scanStorage = async () => {
+    setStorageBusy(true);
+    try {
+      const saved = projects
+        .map((entry) => (entry.id === project.id ? project : readProject(entry.id)))
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+      setStorageInspection(await inspectAssetStorage(saved));
+    } finally {
+      setStorageBusy(false);
+    }
+  };
+
+  const openStorage = () => {
+    setStorageOpen(true);
+    setConfirmStorageCleanup(false);
+    void scanStorage();
+  };
+
+  const cleanStorage = async () => {
+    if (!storageInspection?.orphanedIds.length) return;
+    setStorageBusy(true);
+    try {
+      await deleteOrphanedAssets(storageInspection.orphanedIds);
+      setConfirmStorageCleanup(false);
+      await scanStorage();
+    } finally {
+      setStorageBusy(false);
+    }
   };
 
   const panel = isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100';
@@ -188,16 +239,25 @@ export const ProjectDashboard: React.FC = () => {
             </div>
           </div>
 
-          {projects.length > 0 && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={closeDashboard}
-              title="Back to the workspace"
-              aria-label="Back to the workspace"
-              className={`p-2 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
+              onClick={openStorage}
+              title="Inspect browser media storage"
+              className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
             >
-              <X className="w-4 h-4" />
+              <HardDrive className="w-4 h-4" /> Storage
             </button>
-          )}
+            {projects.length > 0 && (
+              <button
+                onClick={closeDashboard}
+                title="Back to the workspace"
+                aria-label="Back to the workspace"
+                className={`p-2 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* New project */}
@@ -224,7 +284,7 @@ export const ProjectDashboard: React.FC = () => {
             <button onClick={() => fileInputRef.current?.click()} className={`${ghostButton} justify-center py-2`}>
               <FolderOpen className="w-3.5 h-3.5" /> Import project file
             </button>
-            <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
+            <input ref={fileInputRef} type="file" accept=".osd,.json,application/json" onChange={handleImport} className="hidden" />
           </div>
           <label className="mt-3 flex items-center gap-2 text-[11px] cursor-pointer w-fit">
             <input
@@ -465,8 +525,8 @@ export const ProjectDashboard: React.FC = () => {
                     </button>
                     <button
                       onClick={() => downloadProjectPackage(entry.id)}
-                      title="Download package (project + attached media)"
-                      aria-label="Download package (project + attached media)"
+                      title="Save .osd project (including attached media)"
+                      aria-label="Save .osd project (including attached media)"
                       className={ghostButton}
                     >
                       <Package className="w-3 h-3" />
@@ -515,6 +575,88 @@ export const ProjectDashboard: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {storageOpen && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div
+              className={`absolute inset-0 ${isLight ? 'bg-slate-950/40' : 'bg-black/60'}`}
+              onClick={() => setStorageOpen(false)}
+            />
+            <div
+              ref={storageDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="dashboard-storage-title"
+              tabIndex={-1}
+              className={`relative w-full max-w-lg border rounded-2xl shadow-2xl p-4 ${panel}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 id="dashboard-storage-title" className="text-sm font-bold flex items-center gap-1.5">
+                    <HardDrive className="w-4 h-4 text-sky-500" /> Browser media storage
+                  </h3>
+                  <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Checks attached media against every saved project. Cleanup never removes a file still referenced by a project.
+                  </p>
+                </div>
+                <button onClick={() => setStorageOpen(false)} aria-label="Close storage inspector" className={ghostButton}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {storageBusy && !storageInspection ? (
+                <p className="py-8 text-center text-xs opacity-60">Scanning media…</p>
+              ) : storageInspection ? (
+                <>
+                  <div className="grid grid-cols-3 gap-2 my-4">
+                    {[
+                      ['Stored', formatBytes(storageInspection.storedBytes)],
+                      ['In projects', formatBytes(storageInspection.referencedBytes)],
+                      ['Orphaned', formatBytes(storageInspection.orphanedBytes)],
+                    ].map(([label, value]) => (
+                      <div key={label} className={`rounded-xl border p-2.5 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/50'}`}>
+                        <div className="text-[9px] font-bold uppercase opacity-50">{label}</div>
+                        <div className="text-sm font-mono font-bold mt-0.5">{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={`rounded-xl border p-3 text-xs ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                    <div className="flex justify-between gap-3"><span>Stored files</span><strong>{storageInspection.assets.length}</strong></div>
+                    <div className="flex justify-between gap-3 mt-1"><span>Unreferenced files</span><strong>{storageInspection.orphanedIds.length}</strong></div>
+                    <div className={`flex justify-between gap-3 mt-1 ${storageInspection.missingIds.length ? 'text-rose-500' : ''}`}>
+                      <span>Missing referenced files</span><strong>{storageInspection.missingIds.length}</strong>
+                    </div>
+                  </div>
+                  {storageInspection.missingIds.length > 0 && (
+                    <p className="mt-3 text-[11px] text-rose-500">
+                      Some project media is missing. Export a package from a device that still has the files, then import it here.
+                    </p>
+                  )}
+                  <div className="mt-4 flex items-center justify-between gap-2">
+                    <button onClick={() => void scanStorage()} disabled={storageBusy} className={ghostButton}>
+                      {storageBusy ? 'Scanning…' : 'Scan again'}
+                    </button>
+                    {storageInspection.orphanedIds.length > 0 && (
+                      confirmStorageCleanup ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-[10px] opacity-60">Delete {storageInspection.orphanedIds.length} file(s)?</span>
+                          <button onClick={() => void cleanStorage()} disabled={storageBusy} className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-semibold">Delete</button>
+                          <button onClick={() => setConfirmStorageCleanup(false)} className={ghostButton}>Cancel</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setConfirmStorageCleanup(true)} className={`${ghostButton} text-rose-500`}>
+                          <Trash2 className="w-3 h-3" /> Clean orphaned media
+                        </button>
+                      )
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="py-8 text-center text-xs text-rose-500">Storage could not be inspected.</p>
+              )}
+            </div>
           </div>
         )}
 

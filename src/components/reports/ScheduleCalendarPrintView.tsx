@@ -79,7 +79,7 @@ export const ScheduleCalendarPrintView: React.FC<ScheduleCalendarPrintViewProps>
   mode,
   yearMonth,
 }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const firstDate = days.find((day) => day.date)?.date ?? events[0]?.startDate ?? generatedAt;
   const printedMonth = mode === 'month' ? yearMonth : yearMonthOf(firstDate);
   const month = buildMonthGrid(printedMonth);

@@ -47,10 +47,71 @@ import { todayIso } from '../domain/scheduling';
 const LIBRARY_KEY = 'openshotdesigner_library_v1';
 const ACTIVE_KEY = 'openshotdesigner_active_project_v1';
 const PROJECT_PREFIX = 'openshotdesigner_project_';
+const WRITE_STAMP_PREFIX = 'openshotdesigner_write_stamp_';
+const TAB_SESSION_ID = createId('session');
 /** Where the single-project builds of the app kept everything. */
 const SINGLE_PROJECT_KEY = 'openshotdesigner_project_v1';
 
 export type { ProjectSummary };
+
+interface ProjectWriteStamp {
+  sessionId: string;
+  updatedAt: string;
+}
+
+export class ProjectWriteConflictError extends Error {
+  constructor(public readonly projectId: string, public readonly externalUpdatedAt: string) {
+    super('This project was changed in another browser tab. Reload that tab before editing further.');
+    this.name = 'ProjectWriteConflictError';
+  }
+}
+
+const conflictListeners = new Set<(projectId: string, updatedAt: string) => void>();
+
+export const subscribeProjectWriteConflicts = (
+  listener: (projectId: string, updatedAt: string) => void,
+): (() => void) => {
+  conflictListeners.add(listener);
+  return () => conflictListeners.delete(listener);
+};
+
+const readWriteStamp = (projectId: string): ProjectWriteStamp | null => {
+  try {
+    return JSON.parse(localStorage.getItem(`${WRITE_STAMP_PREFIX}${projectId}`) || 'null') as ProjectWriteStamp | null;
+  } catch {
+    return null;
+  }
+};
+
+const announceWrite = (project: Project): void => {
+  const updatedAt = project.updatedAt ?? '';
+  if (!updatedAt) return;
+  try {
+    localStorage.setItem(
+      `${WRITE_STAMP_PREFIX}${project.id}`,
+      JSON.stringify({ sessionId: TAB_SESSION_ID, updatedAt } satisfies ProjectWriteStamp),
+    );
+  } catch {
+    // The project write itself remains authoritative; coordination is a guard.
+  }
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (!event.key?.startsWith(WRITE_STAMP_PREFIX) || !event.newValue) return;
+    try {
+      const stamp = JSON.parse(event.newValue) as ProjectWriteStamp;
+      if (stamp.sessionId === TAB_SESSION_ID) return;
+      const projectId = event.key.slice(WRITE_STAMP_PREFIX.length);
+      const localUpdatedAt = memory.get(projectId)?.updatedAt ?? '';
+      if (stamp.updatedAt > localUpdatedAt) {
+        conflictListeners.forEach((listener) => listener(projectId, stamp.updatedAt));
+      }
+    } catch {
+      // Ignore unrelated or malformed storage messages.
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Save-state tracking (plan §5.5 autosave/save-state contract)
@@ -257,6 +318,14 @@ export const listUnreadableProjects = (): UnreadableProject[] => [...unreadableP
 
 /** Save a project and refresh its entry in the index. Throws when out of quota. */
 export const writeProject = (project: Project, options: { touch?: boolean } = {}): ProjectSummary => {
+  const external = readWriteStamp(project.id);
+  if (
+    external &&
+    external.sessionId !== TAB_SESSION_ID &&
+    external.updatedAt > (project.updatedAt ?? '')
+  ) {
+    throw new ProjectWriteConflictError(project.id, external.updatedAt);
+  }
   let storable = project;
   if (detectSchemaVersion(project) !== CURRENT_PROJECT_SCHEMA_VERSION) {
     try {
@@ -275,6 +344,7 @@ export const writeProject = (project: Project, options: { touch?: boolean } = {}
 
   memory.set(storable.id, storable);
   persistProject(storable);
+  announceWrite(storable);
   return summarize(storable);
 };
 

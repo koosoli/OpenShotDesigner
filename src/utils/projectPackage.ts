@@ -8,7 +8,7 @@
 
 import type { AssetMetadata, AssetStore } from '../domain/storage/types';
 import type { Project } from '../types';
-import { createIdbAssetStore } from '../domain/storage/idbAssetStore';
+import { createIdbAssetStore, sha256Hex } from '../domain/storage/idbAssetStore';
 
 export interface ProjectPackageManifest {
   formatVersion: 1;
@@ -76,7 +76,9 @@ export const exportProjectPackage = async (project: Project): Promise<Blob> => {
 
   for (const id of ids) {
     const blob = await assetStore.get(id);
-    if (!blob) continue; // Missing assets are reported via manifest.assetCount mismatch.
+    if (!blob) {
+      throw new Error(`Project package cannot be created: referenced media ${id} is missing.`);
+    }
     const metadata = await assetStore.getMetadata(id) ?? undefined;
     if (metadata?.contentHash) checksums[id] = metadata.contentHash;
     assets.push({ id, metadata, dataBase64: bytesToBase64(await blobToArrayBuffer(blob)) });
@@ -88,7 +90,7 @@ export const exportProjectPackage = async (project: Project): Promise<Blob> => {
       generatedAt: new Date().toISOString(),
       projectId: project.id,
       title: project.title,
-      assetCount: assets.length,
+      assetCount: ids.length,
       checksums,
     },
     project,
@@ -111,12 +113,44 @@ export const parseProjectPackage = async (
   if (!raw.project || !Array.isArray(raw.project.setups)) {
     throw new Error('Package does not contain a valid project.');
   }
-  const assets = Array.isArray(raw.assets)
-    ? raw.assets.filter(
-        (a): a is PackageAsset =>
-          !!a && typeof a.id === 'string' && typeof a.dataBase64 === 'string',
-      )
-    : [];
+  if (!Array.isArray(raw.assets)) throw new Error('Package media list is missing.');
+  const assets: PackageAsset[] = [];
+  const seen = new Set<string>();
+  for (const candidate of raw.assets) {
+    if (!candidate || typeof candidate.id !== 'string' || typeof candidate.dataBase64 !== 'string') {
+      throw new Error('Package contains a malformed media record.');
+    }
+    if (seen.has(candidate.id)) throw new Error(`Package contains duplicate media ${candidate.id}.`);
+    seen.add(candidate.id);
+    const bytes = base64ToBytes(candidate.dataBase64);
+    const blob = new Blob([bytes], {
+      type: candidate.metadata?.mimeType || 'application/octet-stream',
+    });
+    const hash = await sha256Hex(blob);
+    if (!hash) throw new Error('This browser cannot verify package checksums.');
+    const expectedId = `asset-sha256-${hash}`;
+    if (candidate.id !== expectedId) {
+      throw new Error(`Package media ${candidate.id} failed its content checksum.`);
+    }
+    const manifestHash = raw.manifest.checksums?.[candidate.id];
+    if (manifestHash && manifestHash !== hash) {
+      throw new Error(`Package manifest checksum failed for ${candidate.id}.`);
+    }
+    if (candidate.metadata?.contentHash && candidate.metadata.contentHash !== hash) {
+      throw new Error(`Package media metadata checksum failed for ${candidate.id}.`);
+    }
+    assets.push(candidate as PackageAsset);
+  }
+  if (raw.manifest.assetCount !== assets.length) {
+    throw new Error(
+      `Package declares ${raw.manifest.assetCount} media file(s), but contains ${assets.length}.`,
+    );
+  }
+  const referenced = collectAssetIds(raw.project as Project);
+  const missing = referenced.filter((id) => !seen.has(id));
+  if (missing.length > 0) {
+    throw new Error(`Package is missing ${missing.length} referenced media file(s): ${missing.join(', ')}.`);
+  }
   return { project: raw.project as Project, assets };
 };
 
@@ -125,15 +159,14 @@ export const importProjectPackageAssets = async (assets: PackageAsset[]): Promis
   const assetStore = getStore();
   let written = 0;
   for (const asset of assets) {
-    try {
-      const blob = new Blob([base64ToBytes(asset.dataBase64)], {
-        type: asset.metadata?.mimeType || 'application/octet-stream',
-      });
-      await assetStore.put(blob, { ...(asset.metadata || {}), mimeType: blob.type });
-      written++;
-    } catch {
-      // A single corrupt asset must not fail the whole import.
+    const blob = new Blob([base64ToBytes(asset.dataBase64)], {
+      type: asset.metadata?.mimeType || 'application/octet-stream',
+    });
+    const ref = await assetStore.put(blob, { ...(asset.metadata || {}), mimeType: blob.type });
+    if (ref.id !== asset.id) {
+      throw new Error(`Imported media ${asset.id} did not match its verified content id.`);
     }
+    written++;
   }
   return written;
 };

@@ -50,7 +50,7 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
   logo,
   days,
 }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const grandTotal = days.reduce((sum, day) => sum + day.totalMinutes, 0);
 
   return (

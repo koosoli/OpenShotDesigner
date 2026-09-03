@@ -98,7 +98,7 @@ export const ContinuityPrintView: React.FC<ContinuityPrintViewProps> = ({
   gaps,
   totals,
 }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const missing = gaps.notShot.length + gaps.noGoodTake.length;
 
   return (

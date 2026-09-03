@@ -78,7 +78,7 @@ export const RunOfShowPrintView: React.FC<RunOfShowPrintViewProps> = ({
   totalRunTimeSeconds,
   issues,
 }) => {
-  const generatedAt = new Date().toISOString().split('T')[0];
+  const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
 
   return (
     <>

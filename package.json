@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
     "preview": "vite preview",
     "lint": "tsc --noEmit && eslint . --max-warnings=0 && node scripts/check-encoding.mjs",
     "lint:fix": "eslint . --fix",
@@ -26,6 +27,7 @@
     "fixtures:build": "tsx scripts/build-fixture-db.ts"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "lucide-react": "^0.546.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1"

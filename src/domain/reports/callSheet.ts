@@ -69,6 +69,8 @@ export interface CallSheetEntry {
 }
 
 export interface CallSheetPerson {
+  /** Canonical person id, used for delivery acknowledgements. */
+  id?: string;
   displayName: string;
   /** Headshot asset id, so the sheet can show a face beside the name. */
   headshotAssetId?: string;
@@ -130,6 +132,9 @@ export interface CallSheetData {
   type: NonNullable<ProductionDay['callSheet']>['type'];
   /** True until the day is explicitly marked final; drives the DRAFT watermark. */
   isDraft: boolean;
+  /** Latest issued revision when this data represents an issued sheet. */
+  revision?: number;
+  issuedAt?: string;
   /** True when cast numbers were deliberately withheld, so the sheet can say so. */
   castContactsHidden: boolean;
   parking?: string;
@@ -375,6 +380,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
         (!castIdFilter || castIdFilter.has(p.id) || personCalls.has(p.id) || personPickups.has(p.id)),
     )
     .map((p) => ({
+      id: p.id,
       displayName: p.displayName,
       ...(p.headshotAssetId ? { headshotAssetId: p.headshotAssetId } : {}),
       role: p.role,
@@ -385,6 +391,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   const crew = people
     .filter((p) => p.kind === 'crew')
     .map((p) => ({
+      id: p.id,
       ...callFor(p.id),
       displayName: p.displayName,
       department: p.department,
@@ -435,6 +442,12 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
     plannedWrap: day.plannedWrap,
     type: day.callSheet?.type ?? 'shoot',
     isDraft: day.callSheet?.status !== 'final',
+    ...(day.callSheet?.status === 'final' && day.callSheet.issues?.length
+      ? {
+          revision: day.callSheet.issues.at(-1)?.revision,
+          issuedAt: day.callSheet.issues.at(-1)?.issuedAt,
+        }
+      : {}),
     castContactsHidden: hideCastContacts,
     parking: standing.parking.value,
     walkieChannels: standing.walkieChannels.value,

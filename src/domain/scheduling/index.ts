@@ -1,4 +1,11 @@
-export type { ProductionDay, ScheduleBlock, ProductionCalendarEvent } from './types';
+export type {
+  CallSheetAcknowledgement,
+  CallSheetIssueRevision,
+  ProductionDay,
+  ScheduleBlock,
+  ProductionCalendarEvent,
+} from './types';
+export { personalCallsToIcs, shootingDaysToIcs } from './calendarExport';
 export { totalEstimatedMinutes, deriveDaySummary, findScheduleConflicts } from './logic';
 export type { DayDerivedSummary } from './logic';
 export type { RunOfShowCue } from './runOfShow';

@@ -4,6 +4,7 @@ import { createId } from '../../domain/ids';
 import { actualsByCategory, BUDGET_CATEGORIES,
   actualsVariance,
   formatMoney,
+  roundMoney,
   setEntryActual,
   sumActuals,
   varianceByEntry,
@@ -80,7 +81,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
     if (!draftLabel.trim() || !Number.isFinite(amount) || amount <= 0) return;
     patchActuals([
       ...actuals,
-      { id: createId('actual'), category: draftCategory, label: draftLabel.trim(), amount },
+      { id: createId('actual'), category: draftCategory, label: draftLabel.trim(), amount: roundMoney(amount) },
     ]);
     setDraftLabel('');
     setDraftAmount('');
@@ -272,7 +273,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
                 patchActuals(
                   actuals.map((existing) =>
                     existing.id === entry.id
-                      ? { ...existing, amount: Math.max(0, Number(e.target.value) || 0) }
+                      ? { ...existing, amount: roundMoney(Math.max(0, Number(e.target.value) || 0)) }
                       : existing,
                   ),
                 )

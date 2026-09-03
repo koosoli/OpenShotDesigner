@@ -24,8 +24,17 @@ import {
   X,
   Zap,
   Mic2,
+  CalendarDays,
+  Clapperboard,
+  Command,
+  FileOutput,
+  ListChecks,
+  MapPinned,
+  Users,
 } from 'lucide-react';
-import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { useWorkspaceUI, type RightTab } from '../../context/WorkspaceUIContext';
+import { exportProjectMvr } from '../../domain/technical/mvrExport';
+import { downloadBlob, safeFileName } from '../../utils/download';
 
 const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-sky-500' }) => (
   <svg
@@ -464,11 +473,28 @@ const SYMBOL_RESULT_LIMIT = 8;
 
 type ResultItem =
   | { kind: 'asset'; key: string; asset: QuickAsset }
-  | { kind: 'symbol'; key: string; symbol: PlanSymbolDefinition };
+  | { kind: 'symbol'; key: string; symbol: PlanSymbolDefinition }
+  | {
+      kind: 'command';
+      key: string;
+      label: string;
+      detail: string;
+      keywords: string;
+      icon: React.ReactNode;
+      run: () => void;
+    };
 
 export const QuickAssetSearch: React.FC = () => {
-  const { quickAddElement } = useFloorPlan();
-  const { quickSearchOpen, setQuickSearchOpen, theme } = useWorkspaceUI();
+  const { project, allShots, quickAddElement, setActiveSetupId, selectShot } = useFloorPlan();
+  const {
+    quickSearchOpen,
+    setQuickSearchOpen,
+    theme,
+    setActiveRightTab,
+    setRightPanelOpen,
+    openDashboard,
+    openExportModal,
+  } = useWorkspaceUI();
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | QuickAsset['categoryTag']>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -479,6 +505,52 @@ export const QuickAssetSearch: React.FC = () => {
   const dialogRef = useDialogFocusTrap(quickSearchOpen);
 
   const isLight = theme === 'light';
+
+  const openModule = useCallback((tab: RightTab) => {
+    setActiveRightTab(tab);
+    setRightPanelOpen(true);
+  }, [setActiveRightTab, setRightPanelOpen]);
+
+  const commandItems = useMemo((): ResultItem[] => {
+    const commands: ResultItem[] = [
+      { kind: 'command', key: 'command-projects', label: 'Open projects', detail: 'Command', keywords: 'project library dashboard open switch', icon: <Command className="w-4 h-4" />, run: openDashboard },
+      { kind: 'command', key: 'command-export', label: 'Open print & export studio', detail: 'Command', keywords: 'print export pdf report download', icon: <FileOutput className="w-4 h-4" />, run: () => openExportModal() },
+      { kind: 'command', key: 'command-mvr', label: 'Export MVR lighting patch', detail: 'Command · Technical', keywords: 'export mvr gdtf dmx lighting console previs', icon: <Zap className="w-4 h-4" />, run: () => {
+        const result = exportProjectMvr(project);
+        downloadBlob(result.blob, `${safeFileName(project.title, 'production').toLowerCase()}.mvr`);
+      } },
+      { kind: 'command', key: 'command-camera', label: 'Add camera', detail: 'Command · Floor plan', keywords: 'add create camera floor plan', icon: CAMERA_ICON, run: () => quickAddElement({ type: 'camera', rigType: 'Tripod' }) },
+      { kind: 'command', key: 'command-schedule', label: 'Open schedule', detail: 'Command', keywords: 'shooting day stripboard schedule call sheet', icon: <CalendarDays className="w-4 h-4" />, run: () => openModule('schedule') },
+      { kind: 'command', key: 'command-continuity', label: 'Open continuity & takes', detail: 'Command', keywords: 'log take good ng mos pickup coverage continuity', icon: <Clapperboard className="w-4 h-4" />, run: () => openModule('continuity') },
+      { kind: 'command', key: 'command-tasks', label: 'Open production tasks', detail: 'Command', keywords: 'tasks permit todo blocker', icon: <ListChecks className="w-4 h-4" />, run: () => openModule('tasks') },
+    ];
+    const entities: ResultItem[] = [];
+    allShots.forEach((shot) => entities.push({
+      kind: 'command', key: `shot-${shot.id}`, label: `${shot.shotNumber} — ${shot.name || 'Untitled shot'}`, detail: 'Shot', keywords: `shot ${shot.shotNumber} ${shot.name ?? ''}`, icon: CAMERA_ICON,
+      run: () => { selectShot(shot.id); openModule('shots'); },
+    }));
+    (project.setups ?? []).forEach((setup) => entities.push({
+      kind: 'command', key: `setup-${setup.id}`, label: `${setup.sceneNumber || '—'} — ${setup.name}`, detail: 'Scene / setup', keywords: `scene setup ${setup.sceneNumber} ${setup.name} ${setup.location}`, icon: <Clapperboard className="w-4 h-4" />,
+      run: () => setActiveSetupId(setup.id),
+    }));
+    (project.people ?? []).forEach((person) => entities.push({
+      kind: 'command', key: `person-${person.id}`, label: person.displayName, detail: person.kind === 'crew' ? `Crew · ${person.role || person.department || ''}` : `Cast · ${person.role || ''}`, keywords: `${person.displayName} ${person.role ?? ''} ${person.department ?? ''} ${person.kind}`, icon: <Users className="w-4 h-4" />,
+      run: () => openModule('contacts'),
+    }));
+    (project.locations ?? []).forEach((location) => entities.push({
+      kind: 'command', key: `location-${location.id}`, label: location.name, detail: 'Location', keywords: `location ${location.name} ${location.address ?? ''}`, icon: <MapPinned className="w-4 h-4" />,
+      run: () => openModule('locations'),
+    }));
+    (project.productionDays ?? []).forEach((day) => entities.push({
+      kind: 'command', key: `day-${day.id}`, label: day.name, detail: `Shooting day${day.date ? ` · ${day.date}` : ''}`, keywords: `shooting day schedule ${day.name} ${day.date ?? ''}`, icon: <CalendarDays className="w-4 h-4" />,
+      run: () => openModule('schedule'),
+    }));
+    (project.tasks ?? []).forEach((task) => entities.push({
+      kind: 'command', key: `task-${task.id}`, label: task.title, detail: 'Task', keywords: `task ${task.title} ${task.description ?? ''}`, icon: <ListChecks className="w-4 h-4" />,
+      run: () => openModule('tasks'),
+    }));
+    return [...commands, ...entities];
+  }, [allShots, openDashboard, openExportModal, openModule, project, quickAddElement, selectShot, setActiveSetupId]);
 
   const filtered = useMemo((): ResultItem[] => {
     const q = query.trim();
@@ -493,6 +565,14 @@ export const QuickAssetSearch: React.FC = () => {
     }
 
     const items: ResultItem[] = [];
+    if (activeCategory === 'all') {
+      const normalizedQuery = normalizeText(q);
+      commandItems
+        .filter((item): item is Extract<ResultItem, { kind: 'command' }> => item.kind === 'command')
+        .filter((item) => normalizeText(`${item.label} ${item.detail} ${item.keywords}`).includes(normalizedQuery))
+        .slice(0, 18)
+        .forEach((item) => items.push(item));
+    }
     const seenNames = new Set<string>();
     list
       .map((asset) => ({ asset, score: scoreAsset(asset, q) }))
@@ -512,7 +592,7 @@ export const QuickAssetSearch: React.FC = () => {
     }
 
     return items;
-  }, [query, activeCategory]);
+  }, [query, activeCategory, commandItems]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -527,7 +607,9 @@ export const QuickAssetSearch: React.FC = () => {
   }, [quickSearchOpen]);
 
   const place = useCallback((item: ResultItem) => {
-    if (item.kind === 'asset') {
+    if (item.kind === 'command') {
+      item.run();
+    } else if (item.kind === 'asset') {
       quickAddElement(item.asset.buildPartial());
     } else {
       const symbol = item.symbol;
@@ -549,9 +631,16 @@ export const QuickAssetSearch: React.FC = () => {
     setQuery('');
   }, [quickAddElement, setQuickSearchOpen]);
 
-  // Global hotkeys: Shift+Space opens the palette from anywhere
+  // Global hotkeys: Cmd/Ctrl+K is the command center; Shift+Space remains the
+  // fast floor-plan placement shortcut existing users already know.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        e.stopPropagation();
+        setQuickSearchOpen(true);
+        return;
+      }
       if (e.shiftKey && e.code === 'Space') {
         e.preventDefault();
         e.stopPropagation();
@@ -619,7 +708,7 @@ export const QuickAssetSearch: React.FC = () => {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Quick asset search"
+        aria-label="Global command center"
         tabIndex={-1}
         onPointerDown={(e) => e.stopPropagation()}
         className={`relative mt-16 sm:mt-20 w-[540px] max-w-[94vw] rounded-2xl border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 outline-hidden ${
@@ -635,7 +724,7 @@ export const QuickAssetSearch: React.FC = () => {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search all props, c-stands, lights, furniture, vehicles, actors… (↵ to place)"
+            placeholder="Search shots, scenes, people, days, locations, tasks, commands and assets…"
             className={`flex-1 bg-transparent outline-none text-sm font-medium placeholder:opacity-45 ${
               isLight ? 'text-slate-900 placeholder:text-slate-400' : 'text-slate-100 placeholder:text-slate-500'
             }`}
@@ -643,7 +732,7 @@ export const QuickAssetSearch: React.FC = () => {
           <kbd className={`px-1.5 py-0.5 text-[10px] font-mono rounded border flex-shrink-0 ${
             isLight ? 'border-slate-300 text-slate-500 bg-white' : 'border-slate-700 text-slate-400 bg-slate-800'
           }`}>
-            Shift Space
+            ⌘K / Ctrl K
           </kbd>
           <button
             onClick={() => {
@@ -695,10 +784,12 @@ export const QuickAssetSearch: React.FC = () => {
             </div>
           ) : (
             filtered.map((item, idx) => {
+              const showCommandHeader =
+                item.kind === 'command' && (idx === 0 || filtered[idx - 1].kind !== 'command');
               const showSymbolHeader =
                 item.kind === 'symbol' && (idx === 0 || filtered[idx - 1].kind !== 'symbol');
               const showGroup =
-                !showSymbolHeader &&
+                !showCommandHeader && !showSymbolHeader &&
                 item.kind === 'asset' &&
                 !query.trim() &&
                 item.asset.group !== lastGroup;
@@ -706,6 +797,13 @@ export const QuickAssetSearch: React.FC = () => {
               const active = idx === selectedIndex;
               return (
                 <div key={item.key}>
+                  {showCommandHeader && (
+                    <div className={`sticky top-0 z-10 px-4 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                      isLight ? 'bg-violet-50 text-violet-700 border-b border-violet-100' : 'bg-violet-950/50 text-violet-300 border-b border-violet-900'
+                    }`}>
+                      Commands &amp; project results
+                    </div>
+                  )}
                   {showSymbolHeader && (
                     <div className={`sticky top-0 z-10 px-4 py-1 text-[10px] font-bold uppercase tracking-wider ${
                       isLight ? 'bg-slate-100 text-slate-500 border-b border-slate-200' : 'bg-slate-950 text-slate-400 border-b border-slate-800'
@@ -737,7 +835,9 @@ export const QuickAssetSearch: React.FC = () => {
                         : 'text-slate-300 hover:bg-slate-800/60'
                     }`}
                   >
-                    {item.kind === 'asset' ? (
+                    {item.kind === 'command' ? (
+                      <span className="flex-shrink-0 p-1.5 rounded bg-violet-500/15 text-violet-500">{item.icon}</span>
+                    ) : item.kind === 'asset' ? (
                       <span className="flex-shrink-0 p-1 rounded bg-slate-800/40">{item.asset.icon}</span>
                     ) : (
                       <span
@@ -752,13 +852,13 @@ export const QuickAssetSearch: React.FC = () => {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate">{item.kind === 'asset' ? item.asset.label : item.symbol.name}</span>
+                        <span className="truncate">{item.kind === 'command' ? item.label : item.kind === 'asset' ? item.asset.label : item.symbol.name}</span>
                         {item.kind === 'asset' && item.asset.dimensions && (
                           <span className="text-[10px] font-mono opacity-50 flex-shrink-0">{item.asset.dimensions}</span>
                         )}
                       </div>
                       <div className="text-[10px] opacity-45 truncate font-normal">
-                        {item.kind === 'asset' ? item.asset.group : (
+                        {item.kind === 'command' ? item.detail : item.kind === 'asset' ? item.asset.group : (
                           <span className={`inline-block mt-0.5 px-1.5 py-px rounded-full border uppercase tracking-wide ${
                             isLight ? 'border-slate-200 bg-slate-100 text-slate-500' : 'border-slate-700 bg-slate-800/60 text-slate-400'
                           }`}>
@@ -767,7 +867,7 @@ export const QuickAssetSearch: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    {active && <span className="text-[10px] font-mono opacity-70 px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 flex-shrink-0">Place ↵</span>}
+                    {active && <span className="text-[10px] font-mono opacity-70 px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 flex-shrink-0">{item.kind === 'command' ? 'Open ↵' : 'Place ↵'}</span>}
                   </button>
                 </div>
               );
@@ -779,8 +879,8 @@ export const QuickAssetSearch: React.FC = () => {
         <div className={`px-4 py-2 border-t text-[10px] flex items-center justify-between ${
           isLight ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-800 bg-slate-950/70 text-slate-400'
         }`}>
-          <span>Press <strong>↵ Enter</strong> to spawn at canvas center. Drag to reposition.</span>
-          <span className="font-mono">{filtered.length} assets</span>
+          <span>Press <strong>↵ Enter</strong> to open a result or place an asset.</span>
+          <span className="font-mono">{filtered.length} results</span>
         </div>
       </div>
     </div>

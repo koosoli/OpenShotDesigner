@@ -102,7 +102,7 @@ const Masthead: React.FC<MastheadProps> = ({
       <h1 className="sr-title">{productionTitle}</h1>
       <p className="sr-sub">
         {totalRows} take{totalRows === 1 ? '' : 's'} · {totalGood} good · generated{' '}
-        {new Date().toISOString().split('T')[0]}
+        {new Intl.DateTimeFormat('en-CA').format(new Date())}
         {crewLine ? ` · ${crewLine}` : ''}
       </p>
     </div>

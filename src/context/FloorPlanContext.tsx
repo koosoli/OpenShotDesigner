@@ -79,6 +79,7 @@ import {
   removeProject,
   setActiveProjectId,
   subscribeSaveState,
+  subscribeProjectWriteConflicts,
   writeProject,
 } from '../utils/projectLibrary';
 import { deriveSceneEquipment } from '../utils/equipmentList';
@@ -948,10 +949,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setActiveProjectId(target.id);
       setProjects(loadLibrary());
       setStorageWarning(null);
-    } catch {
+    } catch (error) {
       setStorageWarning(
-        'Autosave to this browser failed — the project (likely with embedded storyboards) ' +
-          'exceeds the local storage limit. Use the download button in the top bar to save your project file.'
+        error instanceof Error && /another browser tab/i.test(error.message)
+          ? error.message
+          : 'Autosave to this browser failed — the project (likely with embedded storyboards) ' +
+            'exceeds the local storage limit. Use the download button in the top bar to save your project file.'
       );
     }
   };
@@ -993,6 +996,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
      
   }, []);
+
+  useEffect(
+    () => subscribeProjectWriteConflicts((projectId) => {
+      if (projectId !== autosaveProjectRef.current.id) return;
+      setStorageWarning(
+        'This project was changed in another browser tab. This tab will not overwrite it; reload before continuing.',
+      );
+    }),
+    [],
+  );
 
   const dismissStorageWarning = () => setStorageWarning(null);
 
