@@ -27,6 +27,7 @@ import {
 } from '../../domain/workspace';
 import { BRANDING } from '../../config/branding';
 import { importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
+import { remapProjectAssetIds } from '../../domain/media/projectAssetReferences';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { downloadBlob, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
@@ -134,11 +135,16 @@ export const ProjectDashboard: React.FC = () => {
           void (async () => {
             try {
               const { project, assets } = await parseProjectPackage(file);
-              const count = await importProjectPackageAssets(assets);
+              const { written, remapped } = await importProjectPackageAssets(assets);
               if (assets.length > 0) {
-                alert(`Imported ${count}/${assets.length} attached media file(s).`);
+                alert(`Imported ${written}/${assets.length} attached media file(s).`);
               }
-              loadProjectFromJson(project);
+              // Assets minted without hashing (`asset-local-…`) are adopted
+              // under content ids above; point the project at the new ids.
+              const finalProject = Object.keys(remapped).length > 0
+                ? remapProjectAssetIds(project, remapped).project
+                : project;
+              loadProjectFromJson(finalProject);
             } catch (err) {
               alert(`Package import failed: ${err instanceof Error ? err.message : 'unknown error'}`);
             }

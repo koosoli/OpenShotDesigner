@@ -9,6 +9,7 @@
 import type { AssetMetadata, AssetStore } from '../domain/storage/types';
 import type { Project } from '../types';
 import { createIdbAssetStore, sha256Hex } from '../domain/storage/idbAssetStore';
+import { ASSET_SHA_PREFIX, isSha256AssetRef } from '../domain/media/imageRef';
 import { collectProjectAssetIds } from '../domain/media/projectAssetReferences';
 
 export interface ProjectPackageManifest {
@@ -128,16 +129,23 @@ export const parseProjectPackage = async (
     });
     const hash = await sha256Hex(blob);
     if (!hash) throw new Error('This browser cannot verify package checksums.');
-    const expectedId = `asset-sha256-${hash}`;
-    if (candidate.id !== expectedId) {
-      throw new Error(`Package media ${candidate.id} failed its content checksum.`);
-    }
-    const manifestHash = raw.manifest.checksums?.[candidate.id];
-    if (manifestHash && manifestHash !== hash) {
-      throw new Error(`Package manifest checksum failed for ${candidate.id}.`);
-    }
-    if (candidate.metadata?.contentHash && candidate.metadata.contentHash !== hash) {
-      throw new Error(`Package media metadata checksum failed for ${candidate.id}.`);
+    if (isSha256AssetRef(candidate.id)) {
+      const expectedId = `${ASSET_SHA_PREFIX}${hash}`;
+      if (candidate.id !== expectedId) {
+        throw new Error(`Package media ${candidate.id} failed its content checksum.`);
+      }
+      const manifestHash = raw.manifest.checksums?.[candidate.id];
+      if (manifestHash && manifestHash !== hash) {
+        throw new Error(`Package manifest checksum failed for ${candidate.id}.`);
+      }
+      if (candidate.metadata?.contentHash && candidate.metadata.contentHash !== hash) {
+        throw new Error(`Package media metadata checksum failed for ${candidate.id}.`);
+      }
+    } else {
+      // `asset-local-…` records were minted where hashing was unavailable, so
+      // the id carries no claim to recompute. Shape was validated above; the
+      // bytes are accepted here and re-registered under a content id on
+      // import, with project references remapped (see below).
     }
     assets.push(candidate as PackageAsset);
   }
@@ -154,19 +162,35 @@ export const parseProjectPackage = async (
   return { project: raw.project as Project, assets };
 };
 
-/** Re-register packaged assets into the local asset store. Returns count written. */
-export const importProjectPackageAssets = async (assets: PackageAsset[]): Promise<number> => {
+/** Re-register packaged assets into the local asset store. */
+export interface ProjectPackageImportResult {
+  written: number;
+  /**
+   * Old id -> new id for assets that could not keep their packaged id:
+   * `asset-local-…` records are adopted under a content id on hashing
+   * browsers. Rewrite project references with `remapProjectAssetIds`.
+   */
+  remapped: Record<string, string>;
+}
+
+export const importProjectPackageAssets = async (
+  assets: PackageAsset[],
+): Promise<ProjectPackageImportResult> => {
   const assetStore = getStore();
   let written = 0;
+  const remapped: Record<string, string> = {};
   for (const asset of assets) {
     const blob = new Blob([base64ToBytes(asset.dataBase64)], {
       type: asset.metadata?.mimeType || 'application/octet-stream',
     });
     const ref = await assetStore.put(blob, { ...(asset.metadata || {}), mimeType: blob.type });
     if (ref.id !== asset.id) {
-      throw new Error(`Imported media ${asset.id} did not match its verified content id.`);
+      if (isSha256AssetRef(asset.id)) {
+        throw new Error(`Imported media ${asset.id} did not match its verified content id.`);
+      }
+      remapped[asset.id] = ref.id;
     }
     written++;
   }
-  return written;
+  return { written, remapped };
 };

@@ -18,9 +18,10 @@ import { isAssetRef } from '../domain/media';
  * the bytes are stored once, content-addressed, so two people sharing a
  * headshot share the blob.
  *
- * Ids are `asset-sha256-…`, which `collectAssetIds` finds anywhere in the
- * project JSON — so anything stored through here travels in an exported
- * package without further work.
+  * Ids are `asset-sha256-…` (or `asset-local-…` where hashing was
+  * unavailable), which `collectAssetIds` finds anywhere in the
+  * project JSON — so anything stored through here travels in an exported
+  * package without further work.
  */
 export const assetImageStore = createIdbAssetStore();
 

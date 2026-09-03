@@ -11,6 +11,7 @@
  */
 
 import { createId } from '../ids';
+import { ASSET_SHA_PREFIX } from '../media/imageRef';
 import { idbDelete, idbGet, idbPut, STORE_ASSETS, STORE_ASSET_META } from './idb';
 import type { AssetMetadata, AssetRef, AssetStore } from './types';
 
@@ -99,12 +100,20 @@ const withMetadataLock = <T>(id: string, work: () => Promise<T>): Promise<T> => 
 
 export const createIdbAssetStore = (): AssetStore => ({
   async put(blob: Blob, metadata: Partial<AssetMetadata> = {}, owner?: string): Promise<AssetRef> {
-    const contentHash = (await sha256Hex(blob)) ?? createId('hash');
-    const id = `asset-sha256-${contentHash}`;
+    const contentHash = await sha256Hex(blob);
+    // Honest ids: a real hash claims `asset-sha256-…` (deduplication,
+    // checksum verification); without `crypto.subtle` there is nothing to
+    // claim, so the id says `asset-local-…` (random, no dedup — the same
+    // bytes stored twice are two records until a hashing browser merges
+    // them on re-import).
+    const id = contentHash ? `${ASSET_SHA_PREFIX}${contentHash}` : createId('asset-local');
     const data = await blobToBytes(blob);
     return withMetadataLock(id, async () => {
-      // The id is the content hash, so putting the same image twice addresses
-      // one record. The second put may know less about it than the first did —
+      // A hashed id addresses one record, so putting the same image twice
+      // shares it. (`asset-local-…` ids are random per put — no dedup — but
+      // those only exist where hashing was unavailable, and re-import on a
+      // hashing browser folds them back into content ids.) Either way the
+      // second put may know less about it than the first did —
       // dimensions measured on import, a `source` recorded by the mood board —
       // so the earlier metadata is the base and only fields the caller actually
       // supplied override it. Replacing it wholesale silently dropped whatever
@@ -140,7 +149,10 @@ export const createIdbAssetStore = (): AssetStore => ({
         // bytes, so it defers to what an earlier, better-informed put knew.
         mimeType: blob.type || existing?.mimeType || 'application/octet-stream',
         byteSize: blob.size,
-        contentHash,
+        // A hash claim only when there is a hash: `asset-local-…` records
+        // must not carry a `contentHash` that is really a random id.
+        // (`...supplied` below can still restore one the caller verified.)
+        ...(contentHash ? { contentHash } : { contentHash: undefined }),
         ...supplied,
         ...(owners.length > 0 ? { owners } : null),
         ...(untrackedUser ? { untrackedUser: true as const } : null),

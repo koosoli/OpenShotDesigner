@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { blobToBytes, createIdbAssetStore, sha256Hex } from '../storage/idbAssetStore';
+import { ASSET_LOCAL_PREFIX, assetContentHash, isAssetRef, isSha256AssetRef } from '../media/imageRef';
 import { idbGet, idbGetAllValues, STORE_ASSETS, STORE_ASSET_META } from '../storage/idb';
 
 /**
@@ -130,8 +131,32 @@ describe('round trip', () => {
     const ref = await store.put(new Blob([bytes(1, 2, 3, 4)]));
     expect(ref.metadata.byteSize).toBe(4);
     expect(ref.metadata.mimeType).toBe('application/octet-stream');
-    expect(ref.metadata.contentHash).toBe(ref.id.replace('asset-sha256-', ''));
+    expect(assetContentHash(ref.id)).toBe(ref.metadata.contentHash);
     expect(await store.getMetadata(ref.id)).toEqual(ref.metadata);
+  });
+
+  it('mints an honest asset-local-… id — and no hash claim — without crypto.subtle', async () => {
+    // Non-secure contexts (plain-http LAN on set, old browsers) have no
+    // SubtleCrypto. The id must then say `asset-local-…`, never
+    // `asset-sha256-…`, and the metadata must not carry a `contentHash`
+    // that is really a random string.
+    vi.stubGlobal('crypto', undefined);
+    const store = createIdbAssetStore();
+    const payload = bytes(9, 9, 9);
+    const ref = await store.put(new Blob([payload], { type: 'image/png' }));
+
+    expect(ref.id.startsWith(ASSET_LOCAL_PREFIX)).toBe(true);
+    expect(isAssetRef(ref.id)).toBe(true);
+    expect(isSha256AssetRef(ref.id)).toBe(false);
+    expect(assetContentHash(ref.id)).toBeUndefined();
+    expect(ref.metadata.contentHash).toBeUndefined();
+    expect(new Uint8Array(await (await store.get(ref.id))!.arrayBuffer())).toEqual(payload);
+
+    // No hashing means no deduplication: the same bytes stored twice are
+    // two records. Documented, not fixed — merging happens on re-import
+    // where hashing exists.
+    const second = await store.put(new Blob([payload], { type: 'image/png' }));
+    expect(second.id).not.toBe(ref.id);
   });
 
   it('reports a missing asset as null rather than throwing', async () => {

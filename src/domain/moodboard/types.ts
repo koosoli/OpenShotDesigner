@@ -9,7 +9,7 @@
 
 export interface MoodBoardCard {
   id: string;
-  /** Asset store reference (asset-sha256-...) — NEVER a base64 data URL in project state. */
+  /** Asset store reference (asset-sha256-… or asset-local-…) — NEVER a base64 data URL in project state. */
   assetId?: string;
   /** Provenance/attribution for external references. */
   sourceUrl?: string;

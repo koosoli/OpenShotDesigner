@@ -5,6 +5,7 @@ import {
   importProjectPackageAssets,
   parseProjectPackage,
 } from '../projectPackage';
+import { remapProjectAssetIds } from '../../domain/media/projectAssetReferences';
 import { createIdbAssetStore } from '../../domain/storage/idbAssetStore';
 import type { Project } from '../../types';
 
@@ -67,8 +68,9 @@ describe('project package', () => {
     const restored = new Uint8Array(await (await store.get(id))!.arrayBuffer());
     void restored;
     // Re-import into a fresh read to verify base64 fidelity:
-    const written = await importProjectPackageAssets(parsed.assets);
+    const { written, remapped } = await importProjectPackageAssets(parsed.assets);
     expect(written).toBe(1);
+    expect(remapped).toEqual({});
     const roundTripped = await store.get(parsed.assets[0].id);
     expect(roundTripped).not.toBeNull();
     const roundTrippedBytes = new Uint8Array(await roundTripped!.arrayBuffer());
@@ -112,5 +114,45 @@ describe('project package', () => {
     await expect(
       exportProjectPackage(makeProjectWithAsset('asset-sha256-does-not-exist')),
     ).rejects.toThrow(/missing/i);
+  });
+
+  it('adopts an asset-local-… record under a content id on import and remaps references', async () => {
+    // A package written where crypto.subtle was unavailable carries honest
+    // `asset-local-…` ids with no checksum to verify. Importing where hashing
+    // exists must accept the bytes, register them under their content id, and
+    // hand back the rewrite — not throw a checksum error.
+    const bytes = new Uint8Array([5, 6, 7, 8]);
+    const localId = 'asset-local-test-record';
+    const pkg = {
+      manifest: {
+        formatVersion: 1,
+        generatedAt: new Date().toISOString(),
+        projectId: 'pkg-proj-1',
+        title: 'Packaged Production',
+        assetCount: 1,
+        checksums: {},
+      },
+      project: makeProjectWithAsset(localId),
+      assets: [
+        {
+          id: localId,
+          metadata: { mimeType: 'image/png', byteSize: 4, createdAt: new Date().toISOString() },
+          dataBase64: btoa(String.fromCharCode(...bytes)),
+        },
+      ],
+    };
+    expect(collectAssetIds(makeProjectWithAsset(localId))).toEqual([localId]);
+
+    const parsed = await parseProjectPackage(new Blob([JSON.stringify(pkg)]));
+    const { written, remapped } = await importProjectPackageAssets(parsed.assets);
+    expect(written).toBe(1);
+    const newId = remapped[localId];
+    expect(newId).toMatch(/^asset-sha256-[0-9a-f]{64}$/);
+
+    const { project: rewritten, applied } = remapProjectAssetIds(parsed.project, remapped);
+    expect(applied).toBe(1);
+    expect(collectAssetIds(rewritten)).toEqual([newId]);
+    const stored = new Uint8Array(await (await createIdbAssetStore().get(newId))!.arrayBuffer());
+    expect(Array.from(stored)).toEqual(Array.from(bytes));
   });
 });

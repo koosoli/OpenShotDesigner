@@ -3,8 +3,8 @@
  *
  * An image field holds one of two things:
  *
- *  - an **asset id** (`asset-sha256-…`) — the bytes live once in the asset
- *    store, content-addressed, and the project carries fifty bytes;
+ *  - an **asset id** (`asset-sha256-…` or `asset-local-…`) — the bytes live
+ *    once in the asset store and the project carries fifty bytes;
  *  - an **inline data URL** — the bytes live in the project itself.
  *
  * Only the first is acceptable for anything new. The second is what every
@@ -20,14 +20,37 @@
  * this module names the distinction, `projectMedia` moves the old form to the
  * new one when a project loads, and every reader goes through one resolver
  * that accepts either.
+ *
+ * Two asset id flavours, because honesty matters here: `asset-sha256-…` means
+ * the suffix IS the SHA-256 of the bytes (deduplication, checksum
+ * verification), while `asset-local-…` carries a random id minted where
+ * `crypto.subtle` was unavailable (plain-http LAN, old browser) and makes no
+ * hash claim. Readers must accept both; verifiers may only verify the first.
  */
 
-/** Ids minted by the content-addressed asset store. */
-export const ASSET_REF_PATTERN = /^asset-sha256-[A-Za-z0-9-]+$/;
+/** Prefix for content-hashed asset ids. The suffix is the SHA-256 hex. */
+export const ASSET_SHA_PREFIX = 'asset-sha256-';
+/** Prefix for random asset ids minted without `crypto.subtle`. No hash claim. */
+export const ASSET_LOCAL_PREFIX = 'asset-local-';
+
+/** Ids minted by the content-addressed asset store, either flavour. */
+export const ASSET_REF_PATTERN = /^asset-(sha256|local)-[A-Za-z0-9-]+$/;
 
 /** True when the reference points at the asset store. */
 export const isAssetRef = (ref: string | undefined): ref is string =>
   !!ref && ASSET_REF_PATTERN.test(ref);
+
+/** True when the id carries a verifiable SHA-256 content hash. */
+export const isSha256AssetRef = (ref: string | undefined): ref is string =>
+  !!ref && ref.startsWith(ASSET_SHA_PREFIX) && ASSET_REF_PATTERN.test(ref);
+
+/**
+ * The content hash when the id carries one, otherwise undefined.
+ * Use this instead of stripping the prefix by hand — `asset-local-…` ids
+ * have no hash to strip.
+ */
+export const assetContentHash = (id: string): string | undefined =>
+  isSha256AssetRef(id) ? id.slice(ASSET_SHA_PREFIX.length) : undefined;
 
 /** True when the reference carries the bytes inline — the form being retired. */
 export const isInlineImage = (ref: string | undefined): ref is string =>

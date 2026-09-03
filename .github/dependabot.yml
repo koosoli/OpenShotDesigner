@@ -17,13 +17,17 @@ updates:
     # eslint 10 is uninstallable: eslint-plugin-jsx-a11y 6.x (the latest
     # release) caps its peer at eslint ^9, and the grouped bump broke `npm ci`
     # with ERESOLVE. Re-allow v10 once jsx-a11y ships support for it.
-    # Same for typescript 7: typescript-eslint 8.x caps at TS <6.1.
+    # Same for typescript 7 (typescript-eslint 8.x caps at TS <6.1) and
+    # eslint-plugin-react-hooks 6+ (compiler-powered ruleset: 47 new
+    # violations across 10 files — adopt deliberately, not via a group bump).
     ignore:
       - dependency-name: 'eslint'
         versions: ['>= 10']
       - dependency-name: '@eslint/js'
         versions: ['>= 10']
       - dependency-name: 'typescript'
+        versions: ['>= 6']
+      - dependency-name: 'eslint-plugin-react-hooks'
         versions: ['>= 6']
     commit-message:
       prefix: deps
