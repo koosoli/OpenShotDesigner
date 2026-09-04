@@ -2868,19 +2868,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return id;
   };
 
-  // Keep the shot's CAM letter in the shot list and its camera element on the
-  // floor plan linked: changing the letter here re-labels the shot's own
-  // camera element (and renames it if it still uses the auto "Cam X" name) in
-  // ONE commit, so the icon on the canvas shows the new letter.
   /**
-   * Change which camera shoots a setup, **without moving the camera**.
+   * Change which camera shoots a setup.
    *
-   * A shot's camera element is that setup's position on the floor plan; the
-   * letter says which physical camera stands there. So assigning a shot from A
-   * to B re-letters the camera that is already blocked for that shot instead of
-   * jumping the coverage to wherever B happens to sit. If other shots share the
-   * same camera element, it is copied in place for this shot only, so their
-   * blocking is untouched.
+   * The camera element owns the path and the shot is its storyboard/viewfinder
+   * owner. If the selected camera belongs to another shot, copy it so changing
+   * this shot cannot steal that shot's camera, path, or associated owner.
    */
   const assignCameraToShot = (shotId: string, cameraId: string | null) => {
     const owner = project.setups.find((setup) => setup.shots.some((shot) => shot.id === shotId));
@@ -2931,59 +2924,44 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
       }
 
-      if ((current.cameraLabel || 'A').toUpperCase() === letter) {
-        focusCameraId = current.id;
+      if (current?.id === target.id) {
+        focusCameraId = target.id;
         return setup;
       }
 
-      // Auto-generated names ("Cam A", "Camera A (Shot 1/2)") follow the letter.
-      const renameToLetter = (name: string, from: string) => {
-        const auto = new RegExp(`^((?:Cam|Camera) )${from}(\\s*\\(.*\\))?$`, 'i');
-        return auto.test(name) ? name.replace(auto, `$1${letter}$2`) : name;
-      };
-
-      const sharedWithOtherShots = setup.shots.some(
-        (item) => item.id !== shotId && item.cameraId === current.id
+      const targetOwnedElsewhere =
+        target.associatedShotId !== undefined && target.associatedShotId !== shotId;
+      const targetUsedElsewhere = setup.shots.some(
+        (item) => item.id !== shotId && item.cameraId === target.id
       );
+      const assignedCamera = targetOwnedElsewhere || targetUsedElsewhere
+        ? (() => {
+            const copyId = createId('el-camera');
+            const copy: CameraElement = { ...target, id: copyId, associatedShotId: shotId };
+            return copy;
+          })()
+        : { ...target, associatedShotId: shotId };
 
-      if (sharedWithOtherShots) {
-        // Copy the position for this shot alone so the other shots keep theirs.
-        const copyId = createId('el-camera');
-        const copy: CameraElement = {
-          ...current,
-          id: copyId,
-          cameraLabel: letter,
-          color: target.color,
-          name: renameToLetter(current.name || `Cam ${letter}`, (current.cameraLabel || 'A').toUpperCase()),
-          associatedShotId: shotId,
-        };
-        focusCameraId = copyId;
-        return {
-          ...setup,
-          elements: [...setup.elements, copy],
-          shots: setup.shots.map((item) =>
-            item.id === shotId ? { ...item, cameraId: copyId, cameraLabel: letter } : item
-          ),
-        };
-      }
+      focusCameraId = assignedCamera.id;
+      const shots = setup.shots.map((item) =>
+        item.id === shotId
+          ? { ...item, cameraId: assignedCamera.id, cameraLabel: letter, lensMm: assignedCamera.focalLength ?? item.lensMm }
+          : item
+      );
+      const oldCameraIsUnused =
+        current &&
+        !shots.some((item) => item.cameraId === current.id) &&
+        (!current.associatedShotId || current.associatedShotId === shotId);
 
-      // Only this shot uses the camera: re-letter it where it stands.
-      focusCameraId = current.id;
       return {
         ...setup,
-        elements: setup.elements.map((element) =>
-          element.id === current.id
-            ? ({
-                ...element,
-                cameraLabel: letter,
-                color: target.color,
-                name: renameToLetter(current.name || `Cam ${letter}`, (current.cameraLabel || 'A').toUpperCase()),
-              } as CameraElement)
-            : element
-        ),
-        shots: setup.shots.map((item) =>
-          item.id === shotId ? { ...item, cameraId: current.id, cameraLabel: letter } : item
-        ),
+        elements: [
+          ...setup.elements.filter((element) => element.id !== current?.id && element.id !== target.id),
+          ...(oldCameraIsUnused ? [] : current ? [current] : []),
+          ...(assignedCamera.id === target.id ? [] : [target]),
+          assignedCamera,
+        ],
+        shots,
       };
     });
 

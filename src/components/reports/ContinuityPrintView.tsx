@@ -7,6 +7,7 @@ import {
   type ChecklistShot,
   type ResolveMetadataRow,
 } from '../../domain/continuity';
+import { CONTINUITY_DEPARTMENT_LABELS } from '../../domain/continuity/binder';
 import { keyCrewDisplayName } from '../../domain/people';
 import { continuitySourcesFrom } from '../../utils/exportContinuityCsv';
 import type { Project } from '../../types';
@@ -39,6 +40,42 @@ export interface PrintableTakeRow {
   comments: string;
   keywords: string;
   cameraSummary: string;
+  /**
+   * Everything the log table cannot fit, for the "Take details" appendix.
+   * All optional: a take fully described by the table carries no detail, and
+   * unknowns stay absent rather than printing as guesses (rule 13).
+   */
+  detail?: PrintableTakeDetail;
+}
+
+/** Take fields the summary log table has no room for. */
+export interface PrintableTakeDetail {
+  soundRoll?: string;
+  soundFileName?: string;
+  soundNotes?: string;
+  mos?: boolean;
+  wildTrack?: boolean;
+  slateDate?: string;
+  slateLocation?: string;
+  slateEnvironment?: string;
+  slateDayNight?: string;
+  cameraLabel?: string;
+  shutterSpeed?: string;
+  whitePointKelvin?: string;
+  filter?: string;
+  cameraNotes?: string;
+}
+
+/** One continuity-binder note, with its subject resolved for paper. */
+export interface PrintableContinuityNote {
+  department: string;
+  /** Character name, free-text subject, or empty when neither is set. */
+  subject: string;
+  sceneNumber?: string;
+  scriptDay?: string;
+  description: string;
+  notes?: string;
+  photoCount: number;
 }
 
 export interface PrintableChecklistRow {
@@ -62,6 +99,8 @@ export interface ContinuityPrintViewProps {
   takeRows: PrintableTakeRow[];
   checklist: PrintableChecklistRow[];
   unscheduled: PrintableChecklistRow[];
+  /** Binder notes, in entry order. Empty when the production keeps none. */
+  notes: PrintableContinuityNote[];
   gaps: {
     notShot: PrintableChecklistRow[];
     noGoodTake: PrintableChecklistRow[];
@@ -95,6 +134,7 @@ export const ContinuityPrintView: React.FC<ContinuityPrintViewProps> = ({
   takeRows,
   checklist,
   unscheduled,
+  notes,
   gaps,
   totals,
 }) => {
@@ -346,6 +386,74 @@ export const ContinuityPrintView: React.FC<ContinuityPrintViewProps> = ({
           </table>
         )}
 
+        {takeRows.some((row) => row.detail) && (
+          <>
+            <h2 className="ct-section">Take details</h2>
+            <table className="ct-table">
+              <thead>
+                <tr>
+                  <th>Take</th>
+                  <th>Sound</th>
+                  <th>Slate</th>
+                  <th>Camera</th>
+                </tr>
+              </thead>
+              <tbody>
+                {takeRows.flatMap((row, index) => {
+                  const detail = row.detail;
+                  if (!detail) return [];
+                  const sound = [
+                    detail.soundRoll && `Roll ${detail.soundRoll}`,
+                    detail.soundFileName,
+                    detail.mos && 'MOS',
+                    detail.wildTrack && 'Wild track',
+                    detail.soundNotes,
+                  ].filter(Boolean).join(' · ');
+                  const slate = [detail.slateDate, detail.slateLocation, detail.slateEnvironment, detail.slateDayNight]
+                    .filter(Boolean).join(' · ');
+                  const camera = [detail.cameraLabel, detail.shutterSpeed, detail.whitePointKelvin, detail.filter, detail.cameraNotes]
+                    .filter(Boolean).join(' · ');
+                  return (
+                    <tr key={`${row.shot}-${row.take}-detail-${index}`}>
+                      <td className="mono">{dash(`${row.scene}/${row.shot} T${row.take}`)}</td>
+                      <td>{dash(sound)}</td>
+                      <td>{dash(slate)}</td>
+                      <td>{dash(camera)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {notes.length > 0 && (
+          <>
+            <h2 className="ct-section">Continuity notes</h2>
+            <table className="ct-table">
+              <thead>
+                <tr><th>Department</th><th>Subject / established</th><th>Note</th></tr>
+              </thead>
+              <tbody>
+                {notes.map((note, index) => (
+                  <tr key={`${note.department}-${note.subject}-${index}`}>
+                    <td>{note.department}</td>
+                    <td>
+                      {dash(note.subject)}
+                      {(note.sceneNumber || note.scriptDay) && <><br /><span className="ct-flag">{[note.sceneNumber && `Sc ${note.sceneNumber}`, note.scriptDay && `Day ${note.scriptDay}`].filter(Boolean).join(' · ')}</span></>}
+                    </td>
+                    <td>
+                      {dash(note.description)}
+                      {note.notes && <><br /><i>{note.notes}</i></>}
+                      {note.photoCount > 0 && <><br /><span className="ct-flag">{note.photoCount} photo{note.photoCount === 1 ? '' : 's'}</span></>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
         <div className="ct-footer">
           <p>
             ● good take · ○ no good · — not judged
@@ -407,10 +515,45 @@ export const buildContinuityPrintModel = (
 
   const rows: ResolveMetadataRow[] = buildResolveRows(takes, continuitySourcesFrom(project));
 
-  const takeRows: PrintableTakeRow[] = rows.map((row) => {
+  const nonEmpty = (value: string | undefined): string | undefined => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+  };
+
+  const takeRows: PrintableTakeRow[] = takes.map((take, index) => {
+    const row = rows[index] ?? {};
     const camera = [row['Camera Type'], row['Camera FPS'] && `${row['Camera FPS']}fps`, row['Focal Point (mm)'], row['Camera Aperture'], row.ISO && `ISO ${row.ISO}`]
       .filter((part) => !!part && part !== '')
       .join(' · ');
+    // Everything the summary log table has no room for, for the appendix.
+    // Only explicitly filled values travel: unknowns stay absent (rule 13).
+    const detail: PrintableTakeDetail = {};
+    const soundRoll = nonEmpty(take.soundRoll);
+    if (soundRoll) detail.soundRoll = soundRoll;
+    const soundFileName = nonEmpty(take.soundFileName);
+    if (soundFileName) detail.soundFileName = soundFileName;
+    const soundNotes = nonEmpty(take.soundNotes);
+    if (soundNotes) detail.soundNotes = soundNotes;
+    if (take.mos === true) detail.mos = true;
+    if (take.wildTrack === true) detail.wildTrack = true;
+    const slateDate = nonEmpty(row['Date Recorded']);
+    if (slateDate) detail.slateDate = slateDate;
+    const slateLocation = nonEmpty(row.Location);
+    if (slateLocation) detail.slateLocation = slateLocation;
+    const slateEnvironment = nonEmpty(row.Environment);
+    if (slateEnvironment) detail.slateEnvironment = slateEnvironment;
+    const slateDayNight = nonEmpty(row['Day / Night']);
+    if (slateDayNight) detail.slateDayNight = slateDayNight;
+    const cameraLabel = nonEmpty(row['Camera #']);
+    if (cameraLabel) detail.cameraLabel = cameraLabel;
+    const shutterSpeed = nonEmpty(row['Shutter Speed']);
+    if (shutterSpeed) detail.shutterSpeed = shutterSpeed;
+    const whitePointKelvin = nonEmpty(row['White Point (Kelvin)']);
+    if (whitePointKelvin) detail.whitePointKelvin = whitePointKelvin;
+    const filter = nonEmpty(row.Filter);
+    if (filter) detail.filter = filter;
+    const cameraNotes = nonEmpty(row['Camera Notes']);
+    if (cameraNotes) detail.cameraNotes = cameraNotes;
     return {
       scene: row.Scene ?? '',
       shot: row.Shot ?? '',
@@ -422,6 +565,7 @@ export const buildContinuityPrintModel = (
       comments: row.Comments ?? '',
       keywords: row.Keywords ?? '',
       cameraSummary: camera,
+      ...(Object.keys(detail).length > 0 ? { detail } : {}),
     };
   });
 
@@ -429,6 +573,19 @@ export const buildContinuityPrintModel = (
   // people: the crew list first, the legacy project fields as fallback.
   const legacy = { director: project.director, cinematographer: project.cinematographer };
   const crew = (roleKey: string) => keyCrewDisplayName(project.people ?? [], roleKey, legacy);
+
+  // Binder notes, with the subject resolved the way the binder shows it:
+  // linked character first, free-text subject otherwise.
+  const characterNames = new Map((project.characters ?? []).map((character) => [character.id, character.canonicalName] as const));
+  const notes: PrintableContinuityNote[] = (project.continuityNotes ?? []).map((note) => ({
+    department: CONTINUITY_DEPARTMENT_LABELS[note.department] ?? note.department,
+    subject: (note.characterId && characterNames.get(note.characterId)) || note.characterName || '',
+    ...(note.sceneNumber ? { sceneNumber: note.sceneNumber } : {}),
+    ...(note.scriptDay ? { scriptDay: note.scriptDay } : {}),
+    description: note.description,
+    ...(note.notes ? { notes: note.notes } : {}),
+    photoCount: note.photoAssetIds?.length ?? 0,
+  }));
 
   return {
     productionTitle: project.title,
@@ -441,6 +598,7 @@ export const buildContinuityPrintModel = (
     takeRows,
     checklist: checklist.planned.map(toChecklistRow),
     unscheduled: checklist.unscheduled.map(toChecklistRow),
+    notes,
     gaps: {
       notShot: checklist.notShot.map(toChecklistRow),
       noGoodTake: checklist.noGoodTake.map(toChecklistRow),

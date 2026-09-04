@@ -15,6 +15,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { mountProvider, run, shotsOf, activeSetupOf, elementsOf } from './providerHarness';
+import type { CameraElement } from '../../types';
+import { slotsOf } from '../../utils/storyboardFrames';
 
 afterEach(cleanup);
 
@@ -147,6 +149,43 @@ describe('updateShot / deleteShot', () => {
     expect(result.current.project.productionDays?.[0].scheduleBlockIds).toEqual([]);
     expect(result.current.project.scriptLines?.[0].linkedShotId).toBeUndefined();
     expect(result.current.project.takes).toEqual([]);
+  });
+});
+
+describe('assignCameraToShot', () => {
+  it('copies an occupied camera path for the reassigned shot without changing its owner', async () => {
+    const { result } = await mountProvider();
+    let sourceCameraId = '';
+    let targetCameraId = '';
+    await run(() => {
+      sourceCameraId = result.current.addElement({ type: 'camera', x: 100, y: 100 });
+      targetCameraId = result.current.addElement({ type: 'camera', x: 300, y: 300 });
+    });
+    const [sourceShot, targetShot] = shotsOf(result.current).slice(-2);
+    const targetPath = [{ id: 'camera-b-waypoint', x: 400, y: 300, beat: 2 }];
+    await run(() => {
+      result.current.updateElement(targetCameraId, { cameraLabel: 'B', path: targetPath });
+      result.current.updateShot(sourceShot.id, {
+        storyboardFrames: { 'camera-b-waypoint': { image: 'data:camera-b-board' } },
+      });
+      result.current.assignCameraToShot(sourceShot.id, targetCameraId);
+    });
+
+    const setup = activeSetupOf(result.current);
+    const reassignedShot = setup.shots.find((shot) => shot.id === sourceShot.id)!;
+    const preservedTarget = setup.elements.find((element) => element.id === targetCameraId) as CameraElement;
+    const assignedCamera = setup.elements.find((element) => element.id === reassignedShot.cameraId) as CameraElement;
+
+    expect(reassignedShot.cameraLabel).toBe('B');
+    expect(assignedCamera.id).not.toBe(targetCameraId);
+    expect(assignedCamera.associatedShotId).toBe(sourceShot.id);
+    expect(assignedCamera.path).toEqual(targetPath);
+    expect(slotsOf(reassignedShot, assignedCamera).map((slot) => slot.key)).toEqual(['start', 'camera-b-waypoint']);
+    expect(slotsOf(reassignedShot, assignedCamera)[1].frame?.image).toBe('data:camera-b-board');
+    expect(preservedTarget.associatedShotId).toBe(targetShot.id);
+    expect(preservedTarget.path).toEqual(targetPath);
+    expect(setup.elements.some((element) => element.id === sourceCameraId)).toBe(false);
+    expect(setup.shots.find((shot) => shot.id === targetShot.id)?.cameraId).toBe(targetCameraId);
   });
 });
 

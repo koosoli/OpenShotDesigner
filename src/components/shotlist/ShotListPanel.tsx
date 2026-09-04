@@ -55,8 +55,8 @@ interface CamPickerProps {
 
 /**
  * CAM cell: a native <select> listing each distinct camera letter (A, B, C...)
- * present on the floor plan plus "No Camera". Changing the selection only
- * re-links the shot to that camera — it never creates a new one.
+ * present on the floor plan plus "No Camera". Changing the selection links the
+ * shot to that camera; an occupied camera is copied to preserve its owner's path.
  */
 const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, nextLetter, onPick, compact }) => {
   return (
@@ -205,10 +205,8 @@ export const ShotListPanel: React.FC = () => {
   // field for projects that still hold one, so both eras show a board.
   const storyboardImageFor = (shot: Shot): string | undefined => keyFrameImage(shot);
 
-  // Pick an existing camera (or null) for a shot. Choosing a letter re-labels
-  // the shot's own camera element on the floor plan so the icon shows that
-  // letter (the CAM dropdown and the element name/label stay linked). It never
-  // creates a new camera.
+  // Pick an existing camera (or null) for a shot. If another shot owns the
+  // selected camera, the context copies it so both shots retain their paths.
   const pickCamera = (shot: Shot, cameraId: string | null) => {
     // "+ New camera" adds camera B, C, … to the floor plan and shoots this
     // setup on it; any other choice simply re-links the shot to that camera.

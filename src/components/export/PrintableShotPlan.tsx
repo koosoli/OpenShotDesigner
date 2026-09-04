@@ -109,10 +109,13 @@ import { useImageRefSrcs } from '../../utils/assetImages';
 import { keyFrameImage } from '../../utils/storyboardFrames';
 import { castNumbersScheduledOn } from '../../domain/reports';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { useDialogs } from '../dialog/DialogProvider';
+import { downloadProductionPackPdfZip, downloadSectionPdf } from '../../utils/pdf/exportStudio';
 
 export const PrintableShotPlan: React.FC = () => {
   const { project, activeSetup, scriptLines, allScriptMarks, allShots, avScriptRows, displaySettings } = useFloorPlan();
   const { isExportModalOpen, closeExportModal, exportSection, setExportSection } = useWorkspaceUI();
+  const { notice } = useDialogs();
   // The power sheet reads the same two things the power panel does: the lights
   // standing on the plan, and the live fixture catalogue that gives them a
   // rated draw.
@@ -128,6 +131,7 @@ export const PrintableShotPlan: React.FC = () => {
   );
   const [equipmentScope, setEquipmentScope] = useState<'current' | 'all'>('current');
   const [exportViewMode, setExportViewMode] = useState<'full' | 'canvas'>('full');
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [customOverrides, setCustomOverrides] = useState<Partial<DisplaySettings>>({});
   const [scriptScope, setScriptScope] = useState<'lined' | 'full'>('lined');
   // Zoom/pan viewport over the floor plan: z scales the printed region around the
@@ -556,6 +560,55 @@ export const PrintableShotPlan: React.FC = () => {
     void waitForImages(document.body).then(() => window.print());
   };
 
+  const handleDownloadPdf = async () => {
+    if (exportSection === 'combined') return;
+    setIsDownloadingPdf(true);
+    try {
+      await downloadSectionPdf(exportSection, {
+        project,
+        activeSetup,
+        scriptLines,
+        avScriptRows,
+        allShots,
+        sidesSceneIds,
+        sidesCharacter: sidesCharacter || undefined,
+        equipmentScope,
+        moodboardId: exportBoardId,
+        floorPlanSvg: floorPlanSvgRef.current,
+        omitBlankStoryboardFrames: omitBlankWaypoints,
+      });
+    } catch (error) {
+      await notice({
+        title: 'PDF export failed',
+        message: error instanceof Error ? error.message : 'The PDF could not be created.',
+      });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadProductionPack = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      await downloadProductionPackPdfZip({
+        project,
+        activeSetup,
+        scriptLines,
+        avScriptRows,
+        allShots,
+        floorPlanSvg: floorPlanSvgRef.current,
+        omitBlankStoryboardFrames: omitBlankWaypoints,
+      });
+    } catch (error) {
+      await notice({
+        title: 'Production Pack export failed',
+        message: error instanceof Error ? error.message : 'The Production Pack could not be created.',
+      });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   // Bounding box of everything on the plan, to auto-fit the printable
   // blueprint. `includePath` keeps blocking beats in frame: they live away
   // from the element itself, and a camera move that runs off the page is the
@@ -892,6 +945,28 @@ export const PrintableShotPlan: React.FC = () => {
               <Printer className="w-3.5 h-3.5" />
               <span>Print / Save PDF</span>
             </button>
+
+            {exportSection !== 'combined' && (
+              <button
+                onClick={() => void handleDownloadPdf()}
+                disabled={isDownloadingPdf}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-900 disabled:text-violet-300 text-white rounded-lg text-xs font-semibold shadow-md transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{isDownloadingPdf ? 'Creating PDF...' : 'Download PDF'}</span>
+              </button>
+            )}
+
+            {exportSection === 'combined' && (
+              <button
+                onClick={() => void handleDownloadProductionPack()}
+                disabled={isDownloadingPdf}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-900 disabled:text-violet-300 text-white rounded-lg text-xs font-semibold shadow-md transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{isDownloadingPdf ? 'Creating Pack...' : 'Download Production Pack'}</span>
+              </button>
+            )}
 
             {/* PNG Export for Blueprint */}
             {(exportSection === 'floorplan' || exportSection === 'combined') && (

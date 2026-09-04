@@ -67,3 +67,7 @@ export const buildPdfFilename = (input: PdfFilenameInput): string => {
   if (input.date !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(input.date)) segments.push(input.date);
   return `${segments.join('_')}.pdf`;
 };
+
+/** Build the canonical outer filename for a direct production PDF archive. */
+export const buildProductionPackZipFilename = (production: string): string =>
+  `${slugifyPdfSegment(production, 'untitled-production')}_production-pack.zip`;

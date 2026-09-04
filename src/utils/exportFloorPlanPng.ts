@@ -14,10 +14,40 @@ export function exportSvgAsPng(
     logo?: string;
   }
 ): void {
+  void renderSvgToPngBytes(svg, opts).then((bytes) => {
+    if (!bytes) return;
+    const link = document.createElement('a');
+    link.download = opts.fileName;
+    link.href = `data:image/png;base64,${bytesToBase64(bytes)}`;
+    link.click();
+  });
+}
+
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+};
+
+/** Render the blueprint (with title block) to PNG bytes, or null when impossible. */
+export function renderSvgToPngBytes(
+  svg: SVGSVGElement,
+  opts: {
+    scale?: number;
+    title: string;
+    subtitle: string;
+    meta?: string[];
+    /** Production logo (data URL) drawn at the left of the title block. */
+    logo?: string;
+  }
+): Promise<Uint8Array | null> {
   const scale = opts.scale || 2;
 
   const rect = svg.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return;
+  if (rect.width === 0 || rect.height === 0) return Promise.resolve(null);
 
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute('width', String(rect.width));
@@ -70,43 +100,48 @@ export function exportSvgAsPng(
     }
   };
 
-  const img = new Image();
-  img.onload = () => {
+  const loadImage = (src: string): Promise<HTMLImageElement | null> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      // A logo that fails to load must not cost the user their export.
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+
+  const canvasToBytes = (canvas: HTMLCanvasElement): Promise<Uint8Array | null> =>
+    new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          resolve(null);
+          return;
+        }
+        blob.arrayBuffer().then(
+          (buffer) => resolve(new Uint8Array(buffer)),
+          () => resolve(null),
+        );
+      }, 'image/png');
+    });
+
+  return (async () => {
+    const img = await loadImage(svgUrl);
+    if (!img) return null;
     const canvas = document.createElement('canvas');
     canvas.width = Math.ceil(rect.width * scale);
     canvas.height = Math.ceil(rect.height * scale);
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return null;
 
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    const save = () => {
-      const link = document.createElement('a');
-      link.download = opts.fileName;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    };
-
-    // Stamp a production title block along the top of the image
+    // Stamp a production title block along the top of the image.
     if (opts.logo) {
-      const logo = new Image();
-      logo.onload = () => {
-        drawTitleBlock(ctx, canvas, logo);
-        save();
-      };
-      // A logo that fails to load must not cost the user their export
-      logo.onerror = () => {
-        drawTitleBlock(ctx, canvas, null);
-        save();
-      };
-      logo.src = opts.logo;
-      return;
+      drawTitleBlock(ctx, canvas, await loadImage(opts.logo));
+    } else {
+      drawTitleBlock(ctx, canvas, null);
     }
-
-    drawTitleBlock(ctx, canvas, null);
-    save();
-  };
-  img.src = svgUrl;
+    return canvasToBytes(canvas);
+  })();
 }
