@@ -11,6 +11,15 @@ import type {
   ScriptLine,
 } from '../../types';
 import { issue, type ValidationIssue } from './types';
+import {
+  indexProjectReferences,
+  validateAssetShapes,
+  validateCallSheets,
+  validatePeople,
+  validateReviewTargets,
+  validateSchedule,
+  validateTakes,
+} from './references';
 
 const CAMERA_TYPES = new Set(['camera']);
 
@@ -113,6 +122,17 @@ export const validateSetup = (
     }
   }
 
+  // --- Storyboard order ------------------------------------------------------
+  // The board keeps its own order over the setup's shots; every entry must
+  // name a shot that still exists. Shot deletion cleans the order alongside
+  // takes, script links and schedule strips, so a dangling entry means a
+  // writer bypassed that cleanup.
+  for (const orderedId of setup.storyboardOrder || []) {
+    if (!shotIds.has(orderedId)) {
+      issues.push(issue('error', 'DANGLING_STORYBOARD_REF', `Storyboard order in setup "${setup.name}" references missing shot "${orderedId}".`, setup.id));
+    }
+  }
+
   // --- Custom equipment ----------------------------------------------------
   for (const item of setup.customEquipment || []) {
     if (item.elementId && !elementIds.has(item.elementId)) {
@@ -184,6 +204,16 @@ export const validateProject = (project: Project): ValidationIssue[] => {
       }
     }
   }
+
+  // Cross-domain references (takes, schedule, people, call sheets, review
+  // notes, asset shapes). One shared index so six walks stay linear.
+  const referenceIndex = indexProjectReferences(project);
+  issues.push(...validateTakes(project, referenceIndex));
+  issues.push(...validateSchedule(project, referenceIndex));
+  issues.push(...validatePeople(project, referenceIndex));
+  issues.push(...validateCallSheets(project, referenceIndex));
+  issues.push(...validateReviewTargets(project, referenceIndex));
+  issues.push(...validateAssetShapes(project));
 
   return issues;
 };
