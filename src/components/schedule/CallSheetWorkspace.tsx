@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { AlertTriangle, Building2, CalendarDays, CheckCircle2, ImagePlus, MapPin, Printer, Send } from 'lucide-react';
+import { AlertTriangle, Building2, CalendarDays, CheckCircle2, FileText, ImagePlus, MapPin, Printer, Send } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import { loadLogoFile } from '../../utils/image';
@@ -7,6 +7,8 @@ import { createId } from '../../domain/ids';
 import { personalCallsToIcs, shootingDaysToIcs, type ProductionDay } from '../../domain/scheduling';
 import type { CallSheetData, StandingCallSheetField } from '../../domain/reports';
 import { diffCallSheetSnapshots, parseIssuedCallSheet, resolveStandingCallSheet } from '../../domain/reports';
+import { buildCallSheetPdfFilename, createCallSheetPdf } from '../../utils/pdf/callSheetPdf';
+import { callSheetPdfInputFromData } from '../../utils/pdf/callSheetData';
 import { StandingCallSheetEditor } from './StandingCallSheetEditor';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { LocationMapCapture } from './LocationMapCapture';
@@ -179,6 +181,23 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
         ],
       },
     });
+  };
+
+  /** Direct PDF download (no print dialog). Issued snapshots render from the
+   * frozen REV data, so the file can never drift from its revision. */
+  const downloadSheetPdf = (data: CallSheetData) => {
+    void (async () => {
+      const bytes = await createCallSheetPdf(callSheetPdfInputFromData(data));
+      downloadBlob(
+        new Blob([bytes], { type: 'application/pdf' }),
+        buildCallSheetPdfFilename({
+          productionTitle: project.title,
+          dayName: selectedDay.name,
+          ...(data.revision === undefined ? {} : { revision: data.revision }),
+          ...(selectedDay.date && /^\d{4}-\d{2}-\d{2}$/.test(selectedDay.date) ? { date: selectedDay.date } : {}),
+        }),
+      );
+    })();
   };
 
   const toggleAcknowledgement = (personId: string) => {
@@ -603,6 +622,13 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                   <Send className="w-3.5 h-3.5" /> Issue {latestIssue ? `Rev ${latestIssue.revision + 1}` : 'Rev 1'}
                 </button>
                 <button onClick={() => onPrint(selectedDay, liveSheet)} className="h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-black flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /> Print / PDF</button>
+                <button
+                  onClick={() => downloadSheetPdf(liveSheet)}
+                  title="Download the live sheet as PDF (no print dialog)"
+                  className="h-9 px-3 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-[11px] font-black flex items-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5" /> PDF
+                </button>
               </div>
             </div>
 
@@ -640,13 +666,22 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                       {changesSinceIssue.length ? `${changesSinceIssue.length} change(s) since issue` : 'Current document matches issue'}
                     </span>
                     {latestSnapshot && (
-                      <button
-                        onClick={() => onPrint(selectedDay, latestSnapshot)}
-                        title={`Print the immutable issued Rev ${latestIssue.revision}`}
-                        className={`h-7 px-2 rounded-md border font-bold flex items-center gap-1 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
-                      >
-                        <Printer className="w-3 h-3" /> Print issued Rev {latestIssue.revision}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => onPrint(selectedDay, latestSnapshot)}
+                          title={`Print the immutable issued Rev ${latestIssue.revision}`}
+                          className={`h-7 px-2 rounded-md border font-bold flex items-center gap-1 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+                        >
+                          <Printer className="w-3 h-3" /> Print issued Rev {latestIssue.revision}
+                        </button>
+                        <button
+                          onClick={() => downloadSheetPdf(latestSnapshot)}
+                          title={`Download the immutable issued Rev ${latestIssue.revision} as PDF`}
+                          className={`h-7 px-2 rounded-md border font-bold flex items-center gap-1 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+                        >
+                          <FileText className="w-3 h-3" /> PDF Rev {latestIssue.revision}
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

@@ -36,6 +36,12 @@ export type {
 export { deriveDaylight } from './callSheetSun';
 export { diffCallSheetSnapshots, parseIssuedCallSheet } from './callSheetRevision';
 export type { CallSheetChange } from './callSheetRevision';
+export {
+  hasChangedSinceIssue,
+  issueCallSheetRevision,
+  snapshotCallSheet,
+} from './callSheetRevisions';
+export type { IssuedCallSheetRevision } from './callSheetRevisions';
 export type {
   CallSheetDaylight,
   DaylightOrigin,
