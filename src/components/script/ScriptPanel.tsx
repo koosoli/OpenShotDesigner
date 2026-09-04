@@ -68,6 +68,7 @@ import { ProjectImage } from '../common/ProjectImage';
 import { keyFrameImage } from '../../utils/storyboardFrames';
 import { downloadCsv, downloadText, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { useDialogs } from '../dialog/DialogProvider';
 
 type ScriptWorkspaceView = ScriptFormatMode | 'reports' | 'title_page';
 
@@ -83,6 +84,7 @@ const AVStoryboardCell: React.FC<{
   onChange: (updates: Partial<AVScriptRow>) => void;
 }> = ({ row, linkedShot, isLight, onChange }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const { notice } = useDialogs();
   const inherited = !row.storyboardImage && linkedShot ? keyFrameImage(linkedShot) : undefined;
   const image = row.storyboardImage ?? inherited;
   const fit = row.storyboardFit ?? linkedShot?.storyboardFit ?? 'cover';
@@ -100,7 +102,7 @@ const AVStoryboardCell: React.FC<{
           if (!file) return;
           loadStoryboardImageFile(file)
             .then((dataUrl) => onChange({ storyboardImage: dataUrl, storyboardFit: 'cover' }))
-            .catch(() => alert('That image could not be read.'));
+            .catch(() => { void notice({ title: 'Image unreadable', message: 'That image could not be read.' }); });
         }}
       />
       <button
@@ -173,6 +175,7 @@ type SuggestionList =
 export const ScriptPanel: React.FC = () => {
   const { activeSetup, scriptLines, scriptTitle, allScriptMarks, allShots, setupIdForMark, setActiveSetupId, selectedShotId, selectShot, createShotFromScriptRange, linkShotToScriptRange, scriptLinkShotId, cancelScriptLinking, updateScriptMark, setLiningDescription, deleteScriptMark, setScriptLines, setSceneNumbersLocked, avScriptRows, setAVScriptRows, updateAVScriptRow, addAVScriptRow, deleteAVScriptRow, scriptFormatMode, setScriptFormatMode, syncAVRowToShot, displaySettings, project, updateProjectMeta } = useFloorPlan();
   const { openExportModal, theme } = useWorkspaceUI();
+  const { confirm } = useDialogs();
 
   /**
    * Every write to the script goes through here so breakdown elements cannot
@@ -401,20 +404,30 @@ export const ScriptPanel: React.FC = () => {
   };
 
   const handleClearScreenplay = () => {
-    if (!window.confirm('Are you sure you want to clear this entire screenplay? This will remove all script lines.')) {
-      return;
-    }
-    setScriptLines([], { scriptTitle: '', scriptText: '' });
-    clearSelection();
-    setRawFountainText('');
-    setActiveEditingLineId(null);
+    void confirm({
+      title: 'Clear screenplay?',
+      message: 'Are you sure you want to clear this entire screenplay? This will remove all script lines.',
+      confirmLabel: 'Clear',
+      danger: true,
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      setScriptLines([], { scriptTitle: '', scriptText: '' });
+      clearSelection();
+      setRawFountainText('');
+      setActiveEditingLineId(null);
+    });
   };
 
   const handleClearAVScript = () => {
-    if (!window.confirm('Are you sure you want to clear all rows from the AV script?')) {
-      return;
-    }
-    setAVScriptRows([]);
+    void confirm({
+      title: 'Clear AV script?',
+      message: 'Are you sure you want to clear all rows from the AV script?',
+      confirmLabel: 'Clear',
+      danger: true,
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      setAVScriptRows([]);
+    });
   };
 
   const handleStartBlankScreenplay = () => {
@@ -1125,11 +1138,18 @@ export const ScriptPanel: React.FC = () => {
             {activeTab === 'screenplay' && lines.length > 0 && (
               <button
                 onClick={() => {
-                  if (
-                    sceneNumbersLocked &&
-                    !window.confirm('Unlock scene numbers? Every scene is renumbered by position (1, 2, 3 …), so any breakdown, strip or call sheet that quotes a number may no longer match.')
-                  ) return;
-                  setSceneNumbersLocked(!sceneNumbersLocked);
+                  if (!sceneNumbersLocked) {
+                    setSceneNumbersLocked(true);
+                    return;
+                  }
+                  void confirm({
+                    title: 'Unlock scene numbers?',
+                    message: 'Unlock scene numbers? Every scene is renumbered by position (1, 2, 3 …), so any breakdown, strip or call sheet that quotes a number may no longer match.',
+                    confirmLabel: 'Unlock',
+                    danger: true,
+                  }).then((confirmed) => {
+                    if (confirmed) setSceneNumbersLocked(false);
+                  });
                 }}
                 title={sceneNumbersLocked
                   ? 'Scene numbers are LOCKED production numbers: a scene added between 3 and 4 becomes 3A, an omitted scene keeps its number, a removed one leaves a gap. Click to unlock and renumber by position.'

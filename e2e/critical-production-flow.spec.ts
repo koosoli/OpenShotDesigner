@@ -313,3 +313,34 @@ test('dismissed readiness findings remain recoverable after reload', async ({ pa
   await readiness.getByRole('button', { name: 'Restore Day Dismiss is not ready to issue' }).click();
   await expect(readiness.getByText('Day Dismiss is not ready to issue')).toBeVisible();
 });
+
+test('destructive confirm dialog aborts on cancel and proceeds on confirm', async ({ page }) => {
+  // Previously a native window.confirm: untestable and invisible in headless
+  // runs. The in-app dialog must guard the wipe both ways.
+  await createExampleProject(page, `Dialog guard ${Date.now()}`);
+  await page.locator('#tab-script').click();
+  const clearButton = page.getByTitle('Clear screenplay');
+  await expect(clearButton).toBeVisible();
+
+  await clearButton.click();
+  const dialog = page.getByRole('alertdialog', { name: 'Clear screenplay?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTitle('Clear screenplay')).toBeVisible();
+
+  await clearButton.click();
+  await expect(page.getByRole('alertdialog', { name: 'Clear screenplay?' })).toBeVisible();
+  await page.getByRole('alertdialog', { name: 'Clear screenplay?' }).getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.getByTitle('Clear screenplay')).toBeHidden();
+});
+
+test('shot list downloads as a real PDF file', async ({ page }) => {
+  await createExampleProject(page, `PDF export ${Date.now()}`);
+  await page.getByRole('button', { name: /Shot list/ }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download Shot List as PDF' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+  expect(await download.path()).toBeTruthy();
+});

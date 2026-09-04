@@ -20,6 +20,8 @@ import {
 } from '../../domain/locations';
 import type { LocationType } from '../../domain/locations';
 import { machineTimeZone, supportedTimeZones } from '../../domain/sun';
+import { buildUsageIndex, usagesFor } from '../../domain/usage';
+import { UsageList } from '../common/UsageList';
 import { OsmMiniMap } from './OsmMiniMap';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
@@ -52,6 +54,7 @@ export const LocationsPanel: React.FC = () => {
 
   const locations = useMemo(() => project.locations ?? [], [project.locations]);
   const people = useMemo(() => project.people ?? [], [project.people]);
+  const usageIndex = useMemo(() => buildUsageIndex(project), [project]);
 
   /** Link / unlink a contact to a location (people stay canonical, rule 37). */
   const toggleContact = (loc: { id: string; contactIds?: string[] }, personId: string) => {
@@ -527,6 +530,8 @@ export const LocationsPanel: React.FC = () => {
                   ? 'No scenes linked to this location.'
                   : `${usageCount} ${usageCount === 1 ? 'scene' : 'scenes'} linked.`}
               </p>
+              {/* Where this location is used: scenes, days, call sheets, tasks. */}
+              <UsageList entries={usagesFor(usageIndex, 'location', loc.id)} isLight={isLight} />
             </li>
           );
         })}

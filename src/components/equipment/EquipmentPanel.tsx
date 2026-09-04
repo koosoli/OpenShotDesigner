@@ -14,6 +14,7 @@ import {
   Crosshair,
   Edit2,
   FileSpreadsheet,
+  FileText,
   Info,
   LayoutGrid,
   Layers,
@@ -32,6 +33,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { waitForImages } from '../../utils/image';
@@ -48,6 +50,8 @@ import {
   getModelsForBrand,
 } from '../../utils/equipmentList';
 import { exportEquipmentToCsv } from '../../utils/exportEquipmentCsv';
+import { buildPdfFilename, createEquipmentManifestPdf, equipmentManifestItemsFromEquipmentItems } from '../../utils/pdf';
+import { downloadBlob } from '../../utils/download';
 import { computePowerSummary } from '../../utils/powerPlanning';
 import { autoPatchFixtures, collectFixturePatches, findConflicts, sortedPatchRows } from '../../utils/dmxPatch';
 import { DmxPatchPrintView } from '../reports/DmxPatchPrintView';
@@ -156,6 +160,7 @@ export const EquipmentPanel: React.FC = () => {
   const fieldId = useId();
   const { activeSetup, project, addCustomEquipmentItem, updateEquipmentItem, deleteEquipmentItem, resetSceneEquipment, addPackageItem, updatePackageItem, deletePackageItem, updateElement, quickAddElement, selectElement, selectedElementIds, setHighlightedElement } = useFloorPlan();
   const { openExportModal, theme } = useWorkspaceUI();
+  const { confirm } = useDialogs();
   // Re-render when the fixture catalog changes: the bundled snapshot arrives
   // asynchronously and an online refresh can replace it, and both change the
   // wattage and specs derived below — and the brand / model options offered
@@ -908,6 +913,30 @@ export const EquipmentPanel: React.FC = () => {
             <span>CSV Export</span>
           </button>
 
+          {/* Download PDF */}
+          <button
+            onClick={() => {
+              void (async () => {
+                const bytes = await createEquipmentManifestPdf({
+                  productionTitle: project.title,
+                  scopeLabel: scope === 'all' ? 'Master package' : `Scene ${activeSetup.sceneNumber || ''} — ${activeSetup.name || ''}`.trim(),
+                  items: equipmentManifestItemsFromEquipmentItems(activeItems),
+                });
+                downloadBlob(
+                  new Blob([bytes], { type: 'application/pdf' }),
+                  buildPdfFilename({ production: project.title, document: 'equipment-manifest' }),
+                );
+              })();
+            }}
+            title="Download equipment manifest as PDF"
+            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 ${
+              isLight ? 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900' : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>PDF</span>
+          </button>
+
           {/* Export / Print Gear Manifest */}
           <button
             onClick={() => openExportModal('equipment')}
@@ -924,9 +953,14 @@ export const EquipmentPanel: React.FC = () => {
           {scope === 'current' && (activeSetup.customEquipment || []).length > 0 && (
             <button
               onClick={() => {
-                if (window.confirm('Reset this scene’s equipment list to live floor plan elements?')) {
-                  resetSceneEquipment();
-                }
+                void confirm({
+                  title: 'Reset scene equipment?',
+                  message: 'Reset this scene’s equipment list to live floor plan elements?',
+                  confirmLabel: 'Reset',
+                  danger: true,
+                }).then((confirmed) => {
+                  if (confirmed) resetSceneEquipment();
+                });
               }}
               title="Reset scene equipment to floor plan canvas defaults"
               aria-label="Reset scene equipment to floor plan canvas defaults"

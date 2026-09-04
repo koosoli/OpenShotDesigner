@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Tag, Trash2 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import {
   BREAKDOWN_CATEGORIES,
   breakdownCategoryTint,
@@ -35,6 +36,7 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
   isLight,
 }) => {
   const { project, updateProjectMeta } = useFloorPlan();
+  const { confirm } = useDialogs();
   const [newCategory, setNewCategory] = useState<BreakdownCategory>('prop');
   const [newName, setNewName] = useState('');
 
@@ -53,13 +55,20 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
   // so the scenes that cached this element's id lose it too instead of
   // printing a blank row on the breakdown sheet (see domain/integrity.ts).
   const remove = (item: BreakdownItem) => {
-    if (!window.confirm(`Remove “${item.name}” from the breakdown?`)) return;
-    updateProjectMeta((prev) =>
-      removeBreakdownItemReferences(
-        { breakdownItems: prev.breakdownItems ?? [], scriptScenes: prev.scriptScenes },
-        item.id,
-      ),
-    );
+    void confirm({
+      title: 'Remove breakdown element?',
+      message: `Remove “${item.name}” from the breakdown?`,
+      confirmLabel: 'Remove',
+      danger: true,
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      updateProjectMeta((prev) =>
+        removeBreakdownItemReferences(
+          { breakdownItems: prev.breakdownItems ?? [], scriptScenes: prev.scriptScenes },
+          item.id,
+        ),
+      );
+    });
   };
 
   const add = () => {

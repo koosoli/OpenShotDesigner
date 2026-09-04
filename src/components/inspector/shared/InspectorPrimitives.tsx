@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import type { Shot, Waypoint } from '../../../types';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
+import { useDialogs } from '../../dialog/DialogProvider';
 import { framesOf, setFramePatch } from '../../../utils/storyboardFrames';
 import { loadStoryboardImageFile } from '../../../utils/image';
 import { ensureHexColor } from '../../../utils/geometry';
@@ -433,6 +434,7 @@ export const WaypointListEditor: React.FC<{
   boardShot?: Shot | null;
 }> = ({ elementId, path, baseRotation, accentClass, isLight, boardShot }) => {
   const { updateElement, updateShot } = useFloorPlan();
+  const { notice } = useDialogs();
   const beatInputRef = React.useRef<HTMLInputElement>(null);
   const [beatUploadSlot, setBeatUploadSlot] = useState<string | null>(null);
   const boardedFrames = boardShot ? framesOf(boardShot) : {};
@@ -554,7 +556,7 @@ export const WaypointListEditor: React.FC<{
                 .then((dataUrl) =>
                   updateShot(boardShot.id, setFramePatch(boardShot, beatUploadSlot, { image: dataUrl, fit: 'cover' }))
                 )
-                .catch(() => alert('That image could not be read.'));
+                .catch(() => { void notice({ title: 'Image unreadable', message: 'That image could not be read.' }); });
             }
             setBeatUploadSlot(null);
             e.target.value = '';

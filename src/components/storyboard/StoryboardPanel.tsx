@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import { AspectRatio, CameraElement, Shot } from '../../types';
 import { ASPECT_RATIOS } from '../../constants/presets';
 import { orderedStoryboardShots } from '../../utils/storyboardOrder';
@@ -49,6 +50,7 @@ export const shotHasMove = (shot: Shot): boolean =>
  */
 export const StoryboardPanel: React.FC = () => {
   const { activeSetup, selectedShotId, selectShot, updateShot, deleteShot, setStoryboardOrder, createCameraAndShot, openViewfinder, updateSetupMeta, displaySettings, updateDisplaySettings } = useFloorPlan();
+  const { notice } = useDialogs();
   const { openExportModal, theme } = useWorkspaceUI();
 
   const isLight = theme === 'light';
@@ -78,7 +80,7 @@ export const StoryboardPanel: React.FC = () => {
     // Downscaled on the way in so a phone-sized photo can't blow the quota.
     loadStoryboardImageFile(file)
       .then((dataUrl) => setImage(shot, slotKey, dataUrl))
-      .catch(() => alert('That image could not be read.'));
+      .catch(() => { void notice({ title: 'Image unreadable', message: 'That image could not be read.' }); });
   };
 
   const handleDrop = (index: number) => {

@@ -88,6 +88,7 @@ import { useWorkspaceUI, WorkspaceUIProvider } from './context/WorkspaceUIContex
 import { loadLibrary } from './utils/projectLibrary';
 import { lazyWithRetry, prefetchLazyChunks } from './utils/lazyChunks';
 import { saveNativeProjectFile } from './utils/nativeProjectFile';
+import { DialogProvider, useDialogs } from './components/dialog/DialogProvider';
 
 type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
 type WorkspaceGroup = 'creative' | 'production' | 'technical';
@@ -95,6 +96,7 @@ type WorkspaceGroup = 'creative' | 'production' | 'technical';
 const MainLayout: React.FC = () => {
   const { project, activeSetup, selectedElementIds, storageWarning, dismissStorageWarning, isModuleVisible, isViewfinderOpen } = useFloorPlan();
   const { activeRightTab, setActiveRightTab, theme, isExportModalOpen, isRightPanelOpen, setRightPanelOpen } = useWorkspaceUI();
+  const { notice } = useDialogs();
 
 
   // Pull the bundled fixture snapshot in after first paint. It is a dynamic
@@ -114,13 +116,13 @@ const MainLayout: React.FC = () => {
       event.preventDefault();
       void saveNativeProjectFile(project).catch((error) => {
         if ((error as Error)?.name !== 'AbortError') {
-          window.alert(`Project save failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+          void notice({ title: 'Project save failed', message: `Project save failed: ${error instanceof Error ? error.message : 'unknown error'}` });
         }
       });
     };
     window.addEventListener('keydown', saveShortcut);
     return () => window.removeEventListener('keydown', saveShortcut);
-  }, [project]);
+  }, [project, notice]);
   const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
   const calculateDefaultSidebarWidth = (): number => {
     if (typeof window === 'undefined') return 860;
@@ -527,7 +529,9 @@ export default function App() {
           so the project context drives workspace state and not the reverse. */}
       <WorkspaceUIProvider startOnDashboard={startOnDashboard()}>
         <FloorPlanProvider>
-          <MainLayout />
+          <DialogProvider>
+            <MainLayout />
+          </DialogProvider>
         </FloorPlanProvider>
       </WorkspaceUIProvider>
       </LanguageProvider>

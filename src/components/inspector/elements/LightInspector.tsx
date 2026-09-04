@@ -38,6 +38,7 @@ import { useFixtureCatalog } from '../useFixtureCatalog';
 import { createId } from '../../../domain/ids';
 import { createIdbAssetStore } from '../../../domain/storage/idbAssetStore';
 import { validateGdtfArchive } from '../../../domain/technical/mvrExport';
+import { useDialogs } from '../../dialog/DialogProvider';
 import { parseOption, parseOptionFrom } from '../../../domain/optionValue';
 import { FresnelLightIcon } from '../../icons/ProductionIcons';
 import { flagLabel, isFlagFixture } from '../../canvas/FlagFixtureIcon';
@@ -61,6 +62,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
   const fieldId = useId();
   const { activeSetup, displaySettings, updateDisplaySettings, updateElement, updateSetupMeta } =
     useFloorPlan();
+  const { notice } = useDialogs();
   const fixtureProfiles = useFixtureCatalog().profiles;
   const brandOptions = React.useMemo(
     () => listBrandOptions(LIGHTING_BRANDS, fixtureProfiles),
@@ -1034,13 +1036,15 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                 event.target.value = '';
                 if (!file) return;
                 if (!file.name.toLowerCase().endsWith('.gdtf')) {
-                  window.alert('Please choose a real .gdtf archive.');
+                  void notice({ title: 'Invalid GDTF file', message: 'Please choose a real .gdtf archive.' });
                   return;
                 }
                 void validateGdtfArchive(file)
                   .then(() => gdtfAssetStore.put(file, { source: `GDTF: ${file.name}` }, `gdtf:${light.id}`))
                   .then((ref) => updateElement(light.id, { gdtfAssetId: ref.id, gdtfFileName: file.name }))
-                  .catch((error: unknown) => window.alert(error instanceof Error ? error.message : 'The GDTF file could not be stored.'));
+                  .catch((error: unknown) => {
+                    void notice({ title: 'GDTF could not be stored', message: error instanceof Error ? error.message : 'The GDTF file could not be stored.' });
+                  });
               }}
             />
           </label>

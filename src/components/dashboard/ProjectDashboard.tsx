@@ -25,9 +25,16 @@ import {
   type ModuleId,
   type WorkspacePresetId,
 } from '../../domain/workspace';
-import { BRANDING } from '../../config/branding';
-import { importProjectPackageAssets, parseProjectPackage } from '../../utils/projectPackage';
-import { remapProjectAssetIds } from '../../domain/media/projectAssetReferences';
+import { useDialogs } from '../dialog/DialogProvider';
+import {
+  applyAssetRemap,
+  bindNativeProjectHandle,
+  listRecentProjectFiles,
+  openNativeProjectFile,
+  parseProjectFileBytes,
+  supportsNativeProjectOpen,
+  type ParsedProjectFile,
+} from '../../utils/nativeProjectFile';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { downloadBlob, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
@@ -68,6 +75,7 @@ const formatUpdated = (iso: string): string => {
 export const ProjectDashboard: React.FC = () => {
   const { project, projects, activeProjectId, createNewProject, openProjectById, duplicateProject, renameProject, deleteProjectById, loadProjectFromJson, restoreRevision } = useFloorPlan();
   const { isDashboardOpen, closeDashboard, theme } = useWorkspaceUI();
+  const { notice } = useDialogs();
 
   const isLight = theme === 'light';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,40 +131,65 @@ export const ProjectDashboard: React.FC = () => {
     setNewTitle('');
   };
 
+  /** Commit a parsed file: register media, remap upgraded ids, load, optionally bind. */
+  const commitParsedFile = async (
+    parsed: ParsedProjectFile,
+    bind?: { fileName: string; handle: unknown },
+  ): Promise<void> => {
+    const remapped = await parsed.importAssets();
+    const finalProject = applyAssetRemap(parsed.project, remapped);
+    const result = loadProjectFromJson(finalProject);
+    if (!result.ok) {
+      await notice({ title: 'Import failed', message: result.message });
+      return;
+    }
+    if (bind) bindNativeProjectHandle(result.project.id, bind.fileName, bind.handle);
+  };
+
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
+    // Read as bytes, not text: v2 packages are ZIP archives. Format is
+    // sniffed from the content so a renamed file still imports correctly.
+    void (async () => {
       try {
-        const parsed = JSON.parse(String(reader.result));
-        if (parsed?.manifest?.formatVersion === 1) {
-          // Project package (plan §5.2.2): re-register assets, then import.
-          void (async () => {
-            try {
-              const { project, assets } = await parseProjectPackage(file);
-              const { written, remapped } = await importProjectPackageAssets(assets);
-              if (assets.length > 0) {
-                alert(`Imported ${written}/${assets.length} attached media file(s).`);
-              }
-              // Assets minted without hashing (`asset-local-…`) are adopted
-              // under content ids above; point the project at the new ids.
-              const finalProject = Object.keys(remapped).length > 0
-                ? remapProjectAssetIds(project, remapped).project
-                : project;
-              loadProjectFromJson(finalProject);
-            } catch (err) {
-              alert(`Package import failed: ${err instanceof Error ? err.message : 'unknown error'}`);
-            }
-          })();
-        } else if (parsed?.setups?.length) loadProjectFromJson(parsed);
-        else alert(`That file is not a ${BRANDING.productName} project.`);
-      } catch {
-        alert('That file could not be read as a project.');
+        await commitParsedFile(await parseProjectFileBytes(await file.arrayBuffer()));
+      } catch (err) {
+        await notice({
+          title: 'Import failed',
+          message: err instanceof Error ? err.message : 'unknown error',
+        });
       }
-    };
-    reader.readAsText(file);
+    })();
     event.target.value = '';
+  };
+
+  /** Native Open…: pick a file with a bound handle so Ctrl+S writes back to it. */
+  const handleNativeOpen = () => {
+    void (async () => {
+      try {
+        const opened = await openNativeProjectFile();
+        if (!opened) {
+          // No File System Access API here — fall back to the classic input.
+          fileInputRef.current?.click();
+          return;
+        }
+        const remapped = opened.remapped;
+        const finalProject = applyAssetRemap(opened.project, remapped);
+        const result = loadProjectFromJson(finalProject);
+        if (!result.ok) {
+          await notice({ title: 'Import failed', message: result.message });
+          return;
+        }
+        bindNativeProjectHandle(result.project.id, opened.fileName, opened.handle);
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') return;
+        await notice({
+          title: 'Import failed',
+          message: err instanceof Error ? err.message : 'unknown error',
+        });
+      }
+    })();
   };
 
   const downloadProject = (id: string) => {
@@ -173,7 +206,10 @@ export const ProjectDashboard: React.FC = () => {
     // Library exports must not steal Ctrl+S's binding from the open workspace.
     void saveNativeProjectFile(project, { saveAs: true, bindHandle: false }).catch((error) => {
       if ((error as Error)?.name !== 'AbortError') {
-        alert(`Project save failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+        void notice({
+          title: 'Project save failed',
+          message: error instanceof Error ? error.message : 'unknown error',
+        });
       }
     });
   };
@@ -291,8 +327,32 @@ export const ProjectDashboard: React.FC = () => {
             <button onClick={() => fileInputRef.current?.click()} className={`${ghostButton} justify-center py-2`}>
               <FolderOpen className="w-3.5 h-3.5" /> Import project file
             </button>
+            {supportsNativeProjectOpen() && (
+              <button
+                onClick={handleNativeOpen}
+                title="Open a .osd file with write-back: Ctrl+S saves into the same file"
+                className={`${ghostButton} justify-center py-2`}
+              >
+                <FolderOpen className="w-3.5 h-3.5" /> Open…
+              </button>
+            )}
             <input ref={fileInputRef} type="file" accept=".osd,.json,application/json" onChange={handleImport} className="hidden" />
           </div>
+          {listRecentProjectFiles().length > 0 && (
+            <div className="mt-3 text-[11px] opacity-80">
+              <span className="font-bold uppercase tracking-wide text-[10px]">Recent files: </span>
+              {listRecentProjectFiles().map((entry) => (
+                <button
+                  key={`${entry.fileName}-${entry.savedAt}`}
+                  onClick={handleNativeOpen}
+                  title={`Locate ${entry.fileName} (${formatUpdated(entry.savedAt)})`}
+                  className="underline underline-offset-2 hover:opacity-100 mr-3"
+                >
+                  {entry.fileName}
+                </button>
+              ))}
+            </div>
+          )}
           <label className="mt-3 flex items-center gap-2 text-[11px] cursor-pointer w-fit">
             <input
               type="checkbox"

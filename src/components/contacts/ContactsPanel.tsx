@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import type { Person, PersonKind, UnavailableRange } from '../../domain/people';
 import {
   KEY_CREW_ROLES,
@@ -36,6 +37,8 @@ import {
   usesProductionPhone,
 } from '../../domain/people';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
+import { buildUsageIndex, usagesFor } from '../../domain/usage';
+import { UsageList } from '../common/UsageList';
 import { PersonAvatar } from './PersonAvatar';
 import { HeadshotField } from './HeadshotField';
 import { RateCardFields } from '../budget/RateCardFields';
@@ -279,6 +282,7 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
 export const ContactsPanel: React.FC = () => {
   const { project, updateProjectMeta, scriptLines } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
+  const { confirm } = useDialogs();
   const isLight = theme === 'light';
   const people = useMemo(() => project.people ?? [], [project.people]);
   const castAssignments = useMemo(() => project.castAssignments ?? [], [project.castAssignments]);
@@ -300,6 +304,7 @@ export const ContactsPanel: React.FC = () => {
     [people, query, kindFilter, departmentFilter],
   );
   const groups = useMemo(() => groupPeopleByDepartment(visible), [visible]);
+  const usageIndex = useMemo(() => buildUsageIndex(project), [project]);
 
   // Characters: persisted catalog merged with cues discovered in the script.
   const breakdown = useMemo(
@@ -326,7 +331,13 @@ export const ContactsPanel: React.FC = () => {
   };
 
   const deletePerson = (personId: string) => {
-    if (!window.confirm('Remove this contact? Cast assignments and location contact links to them are cleared too.')) return;
+    void confirm({
+      title: 'Remove contact?',
+      message: 'Remove this contact? Cast assignments and location contact links to them are cleared too.',
+      confirmLabel: 'Remove',
+      danger: true,
+    }).then((confirmed) => {
+      if (!confirmed) return;
     const next = removePerson(
       {
         people,
@@ -348,6 +359,7 @@ export const ContactsPanel: React.FC = () => {
       setEditing(null);
       setIsNew(false);
     }
+    });
   };
 
   const setCast = (characterId: string, personId: string) => {
@@ -570,15 +582,18 @@ export const ContactsPanel: React.FC = () => {
             </h3>
             {group.people.map((person) =>
               editing && !isNew && editing.id === person.id ? (
-                <PersonForm
-                  key={person.id}
-                  draft={editing}
-                  onChange={setEditing}
-                  onSave={savePerson}
-                  onCancel={() => setEditing(null)}
-                  onDelete={() => deletePerson(person.id)}
-                  isLight={isLight}
-                />
+                <React.Fragment key={person.id}>
+                  <PersonForm
+                    draft={editing}
+                    onChange={setEditing}
+                    onSave={savePerson}
+                    onCancel={() => setEditing(null)}
+                    onDelete={() => deletePerson(person.id)}
+                    isLight={isLight}
+                  />
+                  {/* Where this person is used: days, call times, tasks, budget. */}
+                  <UsageList entries={usagesFor(usageIndex, 'person', person.id)} isLight={isLight} />
+                </React.Fragment>
               ) : (
                 <button
                   key={person.id}

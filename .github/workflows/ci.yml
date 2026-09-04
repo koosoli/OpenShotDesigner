@@ -83,3 +83,39 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  firefox-smoke:
+    # Roadmap Phase 19: the full critical suite stays on Chromium; this job
+    # only proves boot/persist/export on Gecko without doubling browser time.
+    name: Firefox smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install locked Playwright Firefox
+        run: npm exec --no -- playwright install --with-deps firefox
+
+      - name: Run Firefox smoke journeys
+        run: npm run test:e2e:firefox
+
+      - name: Upload Firefox diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-report-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

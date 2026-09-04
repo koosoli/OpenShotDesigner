@@ -18,6 +18,13 @@ import { useBreakpoint } from '../../utils/useMediaQuery';
 import brandIcon from '../../assets/brand-icon.png';
 import { BRANDING } from '../../config/branding';
 import { subscribeSaveState, type LibrarySaveState } from '../../utils/projectLibrary';
+import { useDialogs } from '../dialog/DialogProvider';
+import {
+  applyAssetRemap,
+  getBoundProjectFileName,
+  getLastNativeSaveAt,
+  parseProjectFileBytes,
+} from '../../utils/nativeProjectFile';
 import { OnSetModeOverlay } from '../onset/OnSetModeOverlay';
 import { MODULE_PICKER_GROUPS, PICKABLE_MODULES } from '../../domain/workspace';
 import {
@@ -48,6 +55,7 @@ import { SUPPORTED_LANGUAGES } from '../../i18n/dictionary';
 export const TopNavbar: React.FC = () => {
   const { project, activeSetup, historyIndex, historyLength, undo, redo, setActiveSetupId, addSetup, duplicateCurrentSetup, deleteSetup, updateProjectMeta, saveRevision, loadTemplateScene, loadExampleProductionData, loadProjectFromJson, setGridSettings, openViewfinder, displaySettings, updateDisplaySettings, isModuleVisible, setModuleVisible } = useFloorPlan();
   const { theme, toggleTheme, openExportModal, openDashboard } = useWorkspaceUI();
+  const { confirm, notice } = useDialogs();
   const { lang, setLang, t } = useLanguage();
 
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
@@ -81,19 +89,24 @@ export const TopNavbar: React.FC = () => {
   const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
+    // Bytes, not text: .osd v2 packages are ZIP archives. Unversioned JSON
+    // backups keep working through the same path.
+    void (async () => {
       try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (parsed && parsed.setups) {
-          loadProjectFromJson(parsed);
+        const parsed = await parseProjectFileBytes(await file.arrayBuffer());
+        const remapped = await parsed.importAssets();
+        const result = loadProjectFromJson(applyAssetRemap(parsed.project, remapped));
+        if (!result.ok) {
+          await notice({ title: 'Import failed', message: result.message });
         }
       } catch (err) {
-        alert(`Invalid ${BRANDING.productName} project file.`);
+        await notice({
+          title: 'Import failed',
+          message: err instanceof Error ? err.message : `Invalid ${BRANDING.productName} project file.`,
+        });
       }
-    };
-    reader.readAsText(file);
+    })();
+    e.target.value = '';
   };
 
   const isLight = theme === 'light';
@@ -168,6 +181,25 @@ export const TopNavbar: React.FC = () => {
             {t('save.error')}
           </span>
         )}
+        {(() => {
+          // Bound native file state (plan §2.5): which file Ctrl+S writes to,
+          // and whether the browser holds newer changes than that file.
+          const boundFileName = getBoundProjectFileName(project.id);
+          if (!boundFileName) {
+            return (
+              <span title="Kept in this browser only — use Save to write a .osd file" className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-slate-500 bg-slate-100' : 'text-slate-400 bg-slate-800'}`}>
+                Browser only
+              </span>
+            );
+          }
+          const lastSave = getLastNativeSaveAt(project.id);
+          const dirty = !lastSave || (project.updatedAt ?? '') > lastSave;
+          return (
+            <span title={dirty ? `${boundFileName} — unsaved changes in browser` : `${boundFileName} — all changes saved`} className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${dirty ? (isLight ? 'text-amber-600 bg-amber-50' : 'text-amber-300 bg-amber-900/30') : (isLight ? 'text-emerald-600 bg-emerald-50' : 'text-emerald-300 bg-emerald-900/30')}`}>
+              {dirty ? '● ' : ''}{boundFileName}
+            </span>
+          );
+        })()}
         <select
           value={lang}
           onChange={(e) => setLang(e.target.value as typeof lang)}
@@ -243,9 +275,14 @@ export const TopNavbar: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Delete scene "${setup.name}"? Undo (Ctrl+Z) brings it back.`)) {
-                              deleteSetup(setup.id);
-                            }
+                            void confirm({
+                              title: 'Delete scene?',
+                              message: `Delete scene "${setup.name}"? Undo (Ctrl+Z) brings it back.`,
+                              confirmLabel: 'Delete',
+                              danger: true,
+                            }).then((confirmed) => {
+                              if (confirmed) deleteSetup(setup.id);
+                            });
                           }}
                           title="Delete this scene setup"
                           aria-label="Delete this scene setup"
@@ -281,12 +318,18 @@ export const TopNavbar: React.FC = () => {
                 </button>
                 {project.setups.length > 1 && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Delete current scene "${activeSetup.name}"?`)) {
-                        deleteSetup(activeSetup.id);
-                        setIsSetupsOpen(false);
-                      }
-                    }}
+                  onClick={() => {
+                    void confirm({
+                      title: 'Delete scene?',
+                      message: `Delete current scene "${activeSetup.name}"?`,
+                      confirmLabel: 'Delete',
+                      danger: true,
+                    }).then((confirmed) => {
+                      if (!confirmed) return;
+                      deleteSetup(activeSetup.id);
+                      setIsSetupsOpen(false);
+                    });
+                  }}
                     className="w-full text-left px-2.5 py-1 text-xs text-red-500 hover:bg-red-500/10 rounded flex items-center gap-1.5 font-medium"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

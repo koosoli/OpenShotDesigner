@@ -11,6 +11,8 @@ const SHOT_SORT_VALUES = ['custom', 'shotNumber', 'camera', 'lens', 'status'] as
 import { keyFrameImage } from '../../utils/storyboardFrames';
 import { effectiveMovement, hasCameraMove } from '../../utils/cameraMovement';
 import { exportShotListToCsv } from '../../utils/exportShotList';
+import { buildPdfFilename, createShotListPdf, shotListRowsFromSetups } from '../../utils/pdf';
+import { downloadBlob } from '../../utils/download';
 import { ProjectImage } from '../common/ProjectImage';
 import { CoverageWarnings } from './CoverageWarnings';
 import {
@@ -527,6 +529,30 @@ export const ShotListPanel: React.FC = () => {
               }`}
             >
               <Download className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Download PDF */}
+            <button
+              onClick={() => {
+                void (async () => {
+                  const bytes = await createShotListPdf({
+                    productionTitle: project.title,
+                    subtitle: `Scene ${activeSetup.sceneNumber || ''} — ${activeSetup.name || ''}`.trim(),
+                    rows: shotListRowsFromSetups([activeSetup]),
+                  });
+                  downloadBlob(
+                    new Blob([bytes], { type: 'application/pdf' }),
+                    buildPdfFilename({ production: project.title, document: 'shot-list' }),
+                  );
+                })();
+              }}
+              title="Download Shot List as PDF"
+              aria-label="Download Shot List as PDF"
+              className={`p-1.5 rounded-lg border text-xs transition-colors ${
+                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
             </button>
 
             {/* Print View */}

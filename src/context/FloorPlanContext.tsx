@@ -329,7 +329,7 @@ interface FloorPlanContextType {
   renameProject: (id: string, title: string) => void;
   deleteProjectById: (id: string) => void;
   loadTemplateScene: (templateIndex: number) => void;
-  loadProjectFromJson: (newProject: Project) => void;
+  loadProjectFromJson: (newProject: Project) => { ok: true; project: Project } | { ok: false; message: string };
 
   // History
   undo: () => void;
@@ -3924,8 +3924,14 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   };
 
-  const loadProjectFromJson = (newProject: Project) => {
-    if (!newProject?.setups?.length) return;
+  /**
+   * Staged import: migration + structural validation run before anything is
+   * committed to the library (plan §3.6), and the outcome is returned rather
+   * than alerted — the context owns no UI chrome, so callers surface
+   * rejections through the dialog system.
+   */
+  const loadProjectFromJson = (newProject: Project): { ok: true; project: Project } | { ok: false; message: string } => {
+    if (!newProject?.setups?.length) return { ok: false, message: 'That file is not an OpenShotDesigner project.' };
     // Imports are staged through migration + structural validation before
     // anything is committed to the library (plan §3.6): partially parsed or
     // corrupt files must never replace a valid saved project.
@@ -3933,21 +3939,20 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       candidate = migrateProject(newProject).project;
     } catch (err) {
-      alert(
-        `This project file could not be migrated: ${
-          err instanceof Error ? err.message : 'unknown error'
-        }`,
-      );
-      return;
+      return {
+        ok: false,
+        message: `This project file could not be migrated: ${err instanceof Error ? err.message : 'unknown error'}`,
+      };
     }
     const errors = validateProject(candidate).filter((issue) => issue.severity === 'error');
     if (errors.length > 0) {
-      alert(
-        `Import rejected — ${errors.length} structural problem${errors.length === 1 ? '' : 's'} found:\n\n` +
+      return {
+        ok: false,
+        message:
+          `Import rejected — ${errors.length} structural problem${errors.length === 1 ? '' : 's'} found:\n\n` +
           errors.slice(0, 5).map((issue) => `• ${issue.message}`).join('\n') +
           (errors.length > 5 ? `\n… and ${errors.length - 5} more` : ''),
-      );
-      return;
+      };
     }
     // Imported files land in the library as their own project, so importing
     // never overwrites what is already saved here.
@@ -3960,6 +3965,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     writeProject(imported);
     setProjects(loadLibrary());
     loadProjectIntoWorkspace(imported);
+    return { ok: true, project: imported };
   };
 
   // Canvas View Controls

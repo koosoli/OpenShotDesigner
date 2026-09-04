@@ -34,6 +34,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useWorkspaceUI, type RightTab } from '../../context/WorkspaceUIContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import { exportProjectMvr, importProjectMvr } from '../../domain/technical/mvrExport';
 import { downloadBlob, safeFileName } from '../../utils/download';
 
@@ -496,6 +497,7 @@ export const QuickAssetSearch: React.FC = () => {
     openDashboard,
     openExportModal,
   } = useWorkspaceUI();
+  const { notice } = useDialogs();
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | QuickAsset['categoryTag']>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -519,12 +521,12 @@ export const QuickAssetSearch: React.FC = () => {
       { kind: 'command', key: 'command-mvr', label: 'Export current setup as MVR', detail: 'Command · Technical', keywords: 'export current setup mvr gdtf dmx lighting console previs truss', icon: <Zap className="w-4 h-4" />, run: async () => {
         const result = await exportProjectMvr(project, { setupIds: [activeSetup.id] });
         downloadBlob(result.blob, `${safeFileName(`${project.title}-${activeSetup.name}`, 'production').toLowerCase()}.mvr`);
-        if (result.warnings.length) window.alert(`MVR exported with ${result.warnings.length} warning(s):\n\n${result.warnings.join('\n')}`);
+        if (result.warnings.length) await notice({ title: 'MVR exported with warnings', message: `MVR exported with ${result.warnings.length} warning(s):\n\n${result.warnings.join('\n')}` });
       } },
       { kind: 'command', key: 'command-mvr-all', label: 'Export all setups as MVR layers', detail: 'Command · Technical · Advanced', keywords: 'export all setups layers mvr gdtf dmx lighting console previs truss', icon: <Zap className="w-4 h-4" />, run: async () => {
         const result = await exportProjectMvr(project);
         downloadBlob(result.blob, `${safeFileName(project.title, 'production').toLowerCase()}-all-setups.mvr`);
-        if (result.warnings.length) window.alert(`MVR exported with ${result.warnings.length} warning(s):\n\n${result.warnings.join('\n')}`);
+        if (result.warnings.length) await notice({ title: 'MVR exported with warnings', message: `MVR exported with ${result.warnings.length} warning(s):\n\n${result.warnings.join('\n')}` });
       } },
       { kind: 'command', key: 'command-import-mvr', label: 'Import MVR scene', detail: 'Command · Technical', keywords: 'import open mvr gdtf dmx lighting console previs truss', icon: <FileInput className="w-4 h-4" />, run: () => {
         const picker = document.createElement('input');
@@ -540,9 +542,9 @@ export const QuickAssetSearch: React.FC = () => {
               trussProfiles: [...(previous.trussProfiles ?? []), ...result.trussProfiles],
               trussElements: [...(previous.trussElements ?? []), ...result.trussElements],
             }), { label: `Import MVR (${file.name})`, domain: 'technical' });
-            window.alert(`Imported ${result.fixtureCount} fixtures, ${result.trussCount} trusses and ${result.importedResourceCount} embedded resources.${result.warnings.length ? `\n\nWarnings:\n${result.warnings.join('\n')}` : ''}`);
+            void notice({ title: 'MVR imported', message: `Imported ${result.fixtureCount} fixtures, ${result.trussCount} trusses and ${result.importedResourceCount} embedded resources.${result.warnings.length ? `\n\nWarnings:\n${result.warnings.join('\n')}` : ''}` });
           }).catch((error: unknown) => {
-            window.alert(error instanceof Error ? error.message : 'The MVR file could not be imported.');
+            void notice({ title: 'MVR import failed', message: error instanceof Error ? error.message : 'The MVR file could not be imported.' });
           });
         };
         picker.click();
@@ -578,7 +580,7 @@ export const QuickAssetSearch: React.FC = () => {
       run: () => openModule('tasks'),
     }));
     return [...commands, ...entities];
-  }, [activeSetup, allShots, commitProject, openDashboard, openExportModal, openModule, project, quickAddElement, selectShot, setActiveSetupId]);
+  }, [activeSetup, allShots, commitProject, notice, openDashboard, openExportModal, openModule, project, quickAddElement, selectShot, setActiveSetupId]);
 
   const filtered = useMemo((): ResultItem[] => {
     const q = query.trim();

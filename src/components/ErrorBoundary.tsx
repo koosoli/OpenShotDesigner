@@ -9,6 +9,8 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
+  /** Two-step reset: the wipe only runs after an explicit in-app confirm. */
+  confirmingReset: boolean;
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
@@ -18,11 +20,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
       hasError: false,
       error: null,
       errorInfo: null,
+      confirmingReset: false,
     };
   }
 
   public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error, errorInfo: null };
+    return { hasError: true, error, errorInfo: null, confirmingReset: false };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -35,16 +38,22 @@ export class ErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleReset = () => {
+    // Deliberately NOT routed through the app dialog provider: this screen
+    // exists for when the React tree is broken, which may include the
+    // provider itself, so the confirm lives here as local two-step state.
+    if (!this.state.confirmingReset) {
+      this.setState({ confirmingReset: true });
+      return;
+    }
     // On the localStorage fallback backend this wipes every saved project.
-    const confirmed = window.confirm(
-      'Clear cached local settings and restart?\n\nIf your projects are stored in this browser\'s local storage ' +
-        '(older browsers / private mode), they will be deleted too. Export your project file first if in doubt.',
-    );
-    if (!confirmed) return;
     try {
       localStorage.clear();
     } catch {}
     window.location.reload();
+  };
+
+  private handleCancelReset = () => {
+    this.setState({ confirmingReset: false });
   };
 
   public render() {
@@ -81,14 +90,47 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 <RefreshCw className="w-4 h-4" />
                 <span>Reload Page</span>
               </button>
-              <button
-                onClick={this.handleReset}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold rounded-xl border border-slate-700 transition-colors"
-                title="Clear cached local storage and restart fresh"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Clear Cache & Reset</span>
-              </button>
+              {this.state.confirmingReset ? (
+                <div
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="error-reset-title"
+                  aria-describedby="error-reset-message"
+                  className="flex-1 rounded-xl border border-red-800/80 bg-red-950/40 p-3 space-y-2"
+                >
+                  <p id="error-reset-title" className="text-xs font-bold text-red-300">
+                    Clear cached local settings and restart?
+                  </p>
+                  <p id="error-reset-message" className="text-[11px] leading-relaxed text-slate-400">
+                    If your projects are stored in this browser&apos;s local storage (older
+                    browsers / private mode), they will be deleted too. Export your project
+                    file first if in doubt.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={this.handleReset}
+                      className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-colors"
+                    >
+                      Clear &amp; restart
+                    </button>
+                    <button
+                      onClick={this.handleCancelReset}
+                      className="flex-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 transition-colors"
+                    >
+                      Keep data
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={this.handleReset}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold rounded-xl border border-slate-700 transition-colors"
+                  title="Clear cached local storage and restart fresh"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Clear Cache & Reset</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

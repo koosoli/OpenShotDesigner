@@ -24,12 +24,14 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:offline": "playwright test --config=playwright.offline.config.ts",
+    "test:e2e:firefox": "playwright test --config=playwright.firefox.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "fixtures:build": "tsx scripts/build-fixture-db.ts"
   },
   "dependencies": {
     "fflate": "^0.8.3",
     "lucide-react": "^1.38.0",
+    "pdf-lib": "^1.17.1",
     "react": "^19.0.1",
     "react-dom": "^19.0.1"
   },

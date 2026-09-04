@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import { ActiveTool, CableType, ShapeType } from '../../types';
 import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import { loadBackgroundImageFile } from '../../utils/image';
@@ -117,6 +118,7 @@ const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className =
 
 export const LeftToolbar: React.FC = () => {
   const { activeTool, setTool, activePropSubtype, setPropSubtype, activeLightFixture, setLightFixture, activeCameraRig, setCameraRig, activeShapeType, setShapeType, activeCableType, setCableType, addBackgroundImage } = useFloorPlan();
+  const { notice } = useDialogs();
   const { setQuickSearchOpen, theme } = useWorkspaceUI();
   const [openSubmenu, setOpenSubmenu] = useState<Submenu | null>(null);
   const floorplanInputRef = useRef<HTMLInputElement>(null);
@@ -136,7 +138,7 @@ export const LeftToolbar: React.FC = () => {
     if (!file) return;
     loadBackgroundImageFile(file)
       .then((bg) => addBackgroundImage(bg))
-      .catch(() => alert('Could not load the selected image file.'));
+      .catch(() => { void notice({ title: 'Image unreadable', message: 'Could not load the selected image file.' }); });
     if (floorplanInputRef.current) floorplanInputRef.current.value = '';
   };
 

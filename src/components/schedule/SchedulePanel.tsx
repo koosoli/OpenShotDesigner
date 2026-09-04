@@ -20,6 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import { CoverageMatrixEditor } from './CoverageMatrixEditor';
 import { TimelineCalendar } from './TimelineCalendar';
 import { CalendarEventEditor, MonthCalendar } from './MonthCalendar';
@@ -76,6 +77,7 @@ const formatMinutes = (total: number): string => {
 export const SchedulePanel: React.FC = () => {
   const { project, updateProjectMeta } = useFloorPlan();
   const { theme, setActiveRightTab } = useWorkspaceUI();
+  const { confirm } = useDialogs();
   const isLight = theme === 'light';
 
   // Memoised: `?? []` mints a fresh array every render, which made every memo
@@ -428,10 +430,18 @@ export const SchedulePanel: React.FC = () => {
 
   const requestCallSheetPrint = (day: ProductionDay, currentSheet?: CallSheetData) => {
     const sheet = currentSheet ?? buildCallSheet(day);
-    if (sheet.warnings.length > 0 && !window.confirm(`This call sheet has ${sheet.warnings.length} readiness warning${sheet.warnings.length === 1 ? '' : 's'}:\n\n${sheet.warnings.join('\n')}\n\nPrint draft anyway?`)) {
+    if (sheet.warnings.length === 0) {
+      setPrintSheet(sheet);
       return;
     }
-    setPrintSheet(sheet);
+    void confirm({
+      title: 'Print draft call sheet?',
+      message: `This call sheet has ${sheet.warnings.length} readiness warning${sheet.warnings.length === 1 ? '' : 's'}:\n\n${sheet.warnings.join('\n')}\n\nPrint draft anyway?`,
+      confirmLabel: 'Print draft',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      setPrintSheet(sheet);
+    });
   };
 
   // --- Whole-view printouts (Board / Timeline / Coverage) ---

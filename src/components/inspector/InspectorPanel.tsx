@@ -1,5 +1,6 @@
 import React, { useId } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import {
   ActorElement,
   ArrowElement,
@@ -132,6 +133,7 @@ export const InspectorPanel: React.FC = () => {
   const fieldId = useId();
   const logoInputRef = React.useRef<HTMLInputElement>(null);
   const { activeSetup, project, updateProjectMeta, selectedElementIds, updateElement, deleteSelectedElements, duplicateSelected, updateSetupMeta, setActiveSetupId, rotateElementBy, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, updateBackgroundImage, removeBackgroundImage, displaySettings, updateDisplaySettings, updateMultipleElements, setGridSettings, calibratingBackgroundId, startBackgroundCalibration, cancelBackgroundCalibration } = useFloorPlan();
+  const { notice } = useDialogs();
   const { theme } = useWorkspaceUI();
 
   /**
@@ -894,7 +896,7 @@ export const InspectorPanel: React.FC = () => {
                       if (file) {
                         loadLogoFile(file)
                           .then(({ ref, name }) => updateProjectMeta({ logo: ref, logoName: name }))
-                          .catch(() => alert('Could not load that image as a logo.'));
+                          .catch(() => { void notice({ title: 'Logo unreadable', message: 'Could not load that image as a logo.' }); });
                       }
                       e.target.value = '';
                     }}

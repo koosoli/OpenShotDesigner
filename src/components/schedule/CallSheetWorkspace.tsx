@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { AlertTriangle, Building2, CalendarDays, CheckCircle2, ImagePlus, MapPin, Printer, Send } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import { loadLogoFile } from '../../utils/image';
 import { createId } from '../../domain/ids';
 import { personalCallsToIcs, shootingDaysToIcs, type ProductionDay } from '../../domain/scheduling';
@@ -52,6 +53,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
   isLight,
 }) => {
   const { project, updateProjectMeta } = useFloorPlan();
+  const { notice } = useDialogs();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const selectedDay = days.find((day) => day.id === selectedDayId) ?? days[0];
   const fieldClass = `w-full min-h-9 rounded-md border px-2.5 py-2 text-[11px] outline-none focus:ring-2 focus:ring-cyan-500/25 ${
@@ -268,7 +270,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                       if (file) {
                         loadLogoFile(file)
                           .then(({ ref, name }) => updateProjectMeta({ logo: ref, logoName: name }))
-                          .catch(() => alert('Could not load that image as a logo.'));
+                          .catch(() => { void notice({ title: 'Logo unreadable', message: 'Could not load that image as a logo.' }); });
                       }
                       event.target.value = '';
                     }}

@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { useDialogs } from '../dialog/DialogProvider';
 import { createId } from '../../domain/ids';
 import { groupPeopleByDepartment, personInitials } from '../../domain/people';
 import type { Person } from '../../domain/people';
@@ -202,6 +203,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
 export const TaskBoardPanel: React.FC = () => {
   const { project, updateProjectMeta } = useFloorPlan();
   const { theme } = useWorkspaceUI();
+  const { confirm } = useDialogs();
   const isLight = theme === 'light';
   const boards = useMemo(() => project.taskBoards ?? [], [project.taskBoards]);
   const allTasks = useMemo(() => project.tasks ?? [], [project.tasks]);
@@ -244,12 +246,22 @@ export const TaskBoardPanel: React.FC = () => {
   };
 
   const deleteBoard = () => {
-    if (!board || !window.confirm(`Delete board “${board.title}” and its ${boardTasks.length} task(s)?`)) return;
-    updateProjectMeta((prev) => ({
-      taskBoards: (prev.taskBoards ?? []).filter((candidate) => candidate.id !== board.id),
-      tasks: (prev.tasks ?? []).filter((task) => task.boardId !== board.id),
-    }));
-    setActiveBoardId(null);
+    if (!board) return;
+    const target = board;
+    const taskCount = boardTasks.length;
+    void confirm({
+      title: 'Delete board?',
+      message: `Delete board “${target.title}” and its ${taskCount} task(s)?`,
+      confirmLabel: 'Delete',
+      danger: true,
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      updateProjectMeta((prev) => ({
+        taskBoards: (prev.taskBoards ?? []).filter((candidate) => candidate.id !== target.id),
+        tasks: (prev.tasks ?? []).filter((task) => task.boardId !== target.id),
+      }));
+      setActiveBoardId(null);
+    });
   };
 
   const submitDraft = (columnId: string) => {
