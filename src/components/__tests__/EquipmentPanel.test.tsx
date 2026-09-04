@@ -90,9 +90,8 @@ describe('EquipmentPanel', () => {
     const added = (activeSetupOf(project()).customEquipment ?? []).at(-1);
     expect(added).toBeTruthy();
 
-    await user.click(
-      screen.getByRole('button', { name: 'Reset scene equipment to floor plan canvas defaults' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'More gear actions' }));
+    await user.click(screen.getByRole('button', { name: 'Reset overrides' }));
 
     const after = activeSetupOf(project()).customEquipment ?? [];
     expect(after.some((item) => item.id === added!.id)).toBe(true);

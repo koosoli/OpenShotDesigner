@@ -92,7 +92,7 @@ export const CoverageMatrixPrintView: React.FC<CoverageMatrixPrintViewProps> = (
           <table className="cv-table">
             <thead>
               <tr>
-                <th style={{ width: '34mm' }}>Row</th>
+                <th style={{ width: '34mm' }}>Shot / moment</th>
                 {cameras.map((camera) => (
                   <th key={camera} className="cam" style={{ '--tone': cameraAccent(camera) } as React.CSSProperties}>{camera}</th>
                 ))}

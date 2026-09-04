@@ -363,7 +363,7 @@ describe('coverage matrix PDF', () => {
     const reloaded = await PDFDocument.load(pdf);
     expect(reloaded.getPageCount()).toBeGreaterThan(1);
     const combined = inflateContentStreams(pdf).join('\n');
-    expect(countOccurrences(combined, pdfHexToken('Row'))).toBe(reloaded.getPageCount());
+    expect(countOccurrences(combined, pdfHexToken('Shot / moment'))).toBe(reloaded.getPageCount());
     expect(combined).toContain(pdfHexToken('CoverageMarker-79'));
   });
 

@@ -367,7 +367,7 @@ describe('ContinuityPanel — export', () => {
   it('asks the print studio for the continuity section', async () => {
     const user = userEvent.setup();
     renderWithProject(<ContinuityPanel />, dayProject());
-    await user.click(screen.getByRole('button', { name: 'Print' }));
+    await user.click(screen.getByRole('button', { name: 'Continuity-Report als PDF exportieren' }));
     expect(exportsOpened()).toContain('continuity');
   });
 });

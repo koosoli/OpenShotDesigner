@@ -29,6 +29,10 @@ export const CoverageMatrixEditor: React.FC = () => {
 
   const matrix: CoverageMatrix = project.coverageMatrix ?? emptyCoverageMatrix();
   const cues = useMemo(() => project.runOfShowCues ?? [], [project.runOfShowCues]);
+  const shots = useMemo(
+    () => project.setups.flatMap((setup) => setup.shots),
+    [project.setups],
+  );
 
   /** Camera columns: registered columns plus labels found on the active scene. */
   const cameraLabels = useMemo(
@@ -45,21 +49,29 @@ export const CoverageMatrixEditor: React.FC = () => {
   );
 
   /**
-   * Ordered rows: run-of-show cues first (in cue order), then manual rows in
-   * their stored order. Stale keys (deleted cues) drop out automatically.
+   * Ordered rows: project shots first, then run-of-show cues (in cue order),
+   * then manual rows in their stored order. A shot's real production number
+   * stays visible instead of forcing the operator to repeat it in free text.
    */
   const rows = useMemo(() => {
     const cueById = new Map(cues.map((cue) => [cue.id, cue] as const));
+    const shotById = new Map(shots.map((shot) => [shot.id, shot] as const));
+    const shotRows = shots.map((shot) => ({
+      key: shot.id,
+      label: shot.name,
+      shotNumber: shot.shotNumber,
+      kind: 'shot' as const,
+    }));
     const cueRows = cues.map((cue) => ({ key: cue.id, label: cue.label, kind: 'cue' as const }));
     const manualRows = matrix.rowKeys
-      .filter((key) => !cueById.has(key))
+      .filter((key) => !cueById.has(key) && !shotById.has(key))
       .map((key) => ({
         key,
         label: matrix.rowLabels?.[key]?.trim() || 'Untitled row',
         kind: 'manual' as const,
       }));
-    return [...cueRows, ...manualRows];
-  }, [cues, matrix.rowKeys, matrix.rowLabels]);
+    return [...shotRows, ...cueRows, ...manualRows];
+  }, [cues, shots, matrix.rowKeys, matrix.rowLabels]);
 
   const update = (next: CoverageMatrix) => updateProjectMeta({ coverageMatrix: next });
 
@@ -104,7 +116,7 @@ export const CoverageMatrixEditor: React.FC = () => {
           </p>
         </div>
         <span className="text-[10px] font-mono opacity-60">
-          {cameraLabels.length} cams · {rows.length} rows
+          {cameraLabels.length} cams · {shots.length} shots · {rows.length} rows
         </span>
       </div>
 
@@ -191,6 +203,12 @@ export const CoverageMatrixEditor: React.FC = () => {
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
+                        </span>
+                      ) : row.kind === 'shot' ? (
+                        <span className={`inline-flex items-center gap-1.5 font-medium ${isLight ? 'text-slate-700' : 'text-slate-200'}`} title={`Shot ${row.shotNumber} — ${row.label}`}>
+                          <span className="px-1 py-0.5 rounded text-[8px] uppercase font-black bg-violet-500/15 text-violet-600 dark:text-violet-300">shot</span>
+                          <span className="font-mono font-black text-violet-600 dark:text-violet-300">{row.shotNumber || '—'}</span>
+                          <span className="max-w-48 truncate">{row.label}</span>
                         </span>
                       ) : (
                         <span className={`font-medium ${isLight ? 'text-slate-700' : 'text-slate-200'}`} title={row.label}>

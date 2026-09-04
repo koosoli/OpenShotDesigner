@@ -225,10 +225,20 @@ export const buildPrintableCoverageRows = (
   const matrix = project.coverageMatrix;
   if (!matrix) return [];
   const cues = project.runOfShowCues ?? [];
+  const shots = (project.setups ?? []).flatMap((setup) => setup.shots ?? []);
+  const shotIds = new Set(shots.map((shot) => shot.id));
+  const cueIds = new Set(cues.map((cue) => cue.id));
   const labelFor = (key: string): string =>
     matrix.rowLabels?.[key] ?? cues.find((cue) => cue.id === key)?.label ?? `Row ${key.slice(0, 6)}`;
-  return matrix.rowKeys.map((key) => ({
-    label: labelFor(key),
+  const rowFor = (key: string, label: string): PrintableCoverageRowData => ({
+    label,
     cells: matrix.cameraIds.map((cameraId) => matrix.cells[key]?.[cameraId] ?? ''),
-  }));
+  });
+  return [
+    ...shots.map((shot) => rowFor(shot.id, `Shot ${shot.shotNumber} - ${shot.name}`)),
+    ...cues.map((cue) => rowFor(cue.id, cue.label)),
+    ...matrix.rowKeys
+      .filter((key) => !shotIds.has(key) && !cueIds.has(key))
+      .map((key) => rowFor(key, labelFor(key))),
+  ];
 };

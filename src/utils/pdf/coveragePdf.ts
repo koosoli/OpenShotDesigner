@@ -104,7 +104,7 @@ export const createCoveragePdf = async (input: CoveragePdfInput): Promise<Uint8A
   } else {
     const cameraFrac = 76 / input.cameras.length;
     const columns: PdfTableColumn[] = [
-      { header: 'Row', widthFrac: 24 },
+      { header: 'Shot / moment', widthFrac: 24 },
       ...input.cameras.map((camera): PdfTableColumn => ({ header: camera, widthFrac: cameraFrac })),
     ];
     const tableRows = input.rows.map((row) => [

@@ -160,14 +160,14 @@ describe('SchedulePanel', () => {
     expect(project().productionCalendarEvents ?? []).toHaveLength(eventsBefore);
   });
 
-  it('labels printing for only the active schedule view', async () => {
+  it('keeps one compact PDF action available across schedule views', async () => {
     const user = userEvent.setup();
     await mount();
 
-    expect(screen.getByRole('button', { name: 'Print Board' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Aktuelle Schedule-Ansicht als PDF exportieren' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Timeline' }));
-    expect(screen.getByRole('button', { name: 'Print Timeline' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Aktuelle Schedule-Ansicht als PDF exportieren' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Month' }));
-    expect(screen.getByRole('button', { name: 'Print Month' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Aktuelle Schedule-Ansicht als PDF exportieren' })).toBeTruthy();
   });
 });

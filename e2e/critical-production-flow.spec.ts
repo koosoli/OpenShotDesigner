@@ -339,7 +339,7 @@ test('shot list downloads as a real PDF file', async ({ page }) => {
   await createExampleProject(page, `PDF export ${Date.now()}`);
   await page.getByRole('button', { name: /Shot list/ }).click();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download Shot List as PDF' }).click();
+  await page.getByRole('button', { name: 'Shotliste als PDF exportieren' }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/\.pdf$/);
   expect(await download.path()).toBeTruthy();

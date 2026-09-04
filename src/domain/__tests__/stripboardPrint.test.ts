@@ -131,6 +131,29 @@ describe('buildPrintableStripboardDays', () => {
 });
 
 describe('buildPrintableCoverageRows', () => {
+  it('includes project shot numbers before cue and manual coverage rows', () => {
+    const rows = buildPrintableCoverageRows({
+      setups: [{ id: 'setup-1', name: 'Kitchen', shots: [{ id: 'shot-1', shotNumber: '12B', name: 'Door insert' }] }],
+      runOfShowCues: [{ id: 'cue-1', label: 'Opening' }],
+      coverageMatrix: {
+        cameraIds: ['A'],
+        rowKeys: ['manual-1'],
+        rowLabels: { 'manual-1': 'Safety' },
+        cells: {
+          'shot-1': { A: 'Insert' },
+          'cue-1': { A: 'Wide' },
+          'manual-1': { A: 'Locked off' },
+        },
+      },
+    });
+
+    expect(rows).toEqual([
+      { label: 'Shot 12B - Door insert', cells: ['Insert'] },
+      { label: 'Opening', cells: ['Wide'] },
+      { label: 'Safety', cells: ['Locked off'] },
+    ]);
+  });
+
   it('returns rows in matrix order with a cell per camera column', () => {
     const rows = buildPrintableCoverageRows({
       coverageMatrix: {
