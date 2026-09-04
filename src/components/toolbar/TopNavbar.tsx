@@ -39,7 +39,7 @@ import {
   MoreHorizontal,
   Moon,
   Plus,
-  Printer,
+  FileDown,
   Redo2,
   Sparkles,
   Sun,
@@ -756,10 +756,9 @@ export const TopNavbar: React.FC = () => {
           onClick={() => openExportModal()}
           title="Export & Print Studio"
           aria-label="Open the export and print studio"
-          className={`flex items-center gap-1.5 ${isCompact ? 'px-2 py-1.5' : 'px-3 py-1.5'} bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm`}
+          className="h-8 w-8 inline-flex items-center justify-center bg-sky-600 hover:bg-sky-500 text-white rounded-md transition-colors shadow-sm"
         >
-          <Printer className="w-3.5 h-3.5" />
-          {!isCompact && <span>Export Plan</span>}
+          <FileDown className="w-3.5 h-3.5" />
         </button>
 
         {!isCompact && (

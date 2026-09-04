@@ -23,6 +23,7 @@ import {
   createBudgetPdf,
   createContinuityPdf,
   createDailyProgressPdf,
+  createLocationReportPdf,
   createReadinessPdf,
   createTaskReportPdf,
   taskReportRowsFromTasks,
@@ -263,6 +264,28 @@ describe('task report PDF', () => {
     expect(buildTaskReportPdfFilename({ productionTitle: 'My Film', qualifier: 'week-12' })).toBe(
       'my-film_task-report_week-12.pdf',
     );
+  });
+});
+
+describe('location report PDF', () => {
+  it('renders a searchable production location table', async () => {
+    const pdf = await createLocationReportPdf({
+      productionTitle: 'My Film',
+      locations: [{
+        name: 'Warehouse Stage',
+        type: 'Studio',
+        address: '12 Dock Road',
+        timeZone: 'Europe/Berlin',
+        contacts: 'Jane Doe',
+        scenes: '3',
+        mapPin: '52.52000, 13.40500',
+        notes: 'Use north entrance',
+      }],
+    });
+    expect(bytesToBinary(pdf.slice(0, 5))).toBe('%PDF-');
+    const reloaded = await PDFDocument.load(pdf);
+    expect(reloaded.getTitle()).toBe('Location Report - My Film');
+    expect(inflateContentStreams(pdf).join('\n')).toContain(pdfHexToken('Warehouse Stage'));
   });
 });
 

@@ -24,6 +24,9 @@ import { buildUsageIndex, usagesFor } from '../../domain/usage';
 import { UsageList } from '../common/UsageList';
 import { OsmMiniMap } from './OsmMiniMap';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
+import { buildPdfFilename, createLocationReportPdf } from '../../utils/pdf';
+import { downloadBlob } from '../../utils/download';
 
 const LOCATION_TYPES: LocationType[] = ['location', 'studio', 'stage', 'venue', 'arena', 'outdoor', 'other'];
 
@@ -191,6 +194,24 @@ export const LocationsPanel: React.FC = () => {
     setActiveRightTab('shots');
   };
 
+  const exportPdf = async () => {
+    const personById = new Map(people.map((person) => [person.id, person.displayName] as const));
+    const bytes = await createLocationReportPdf({
+      productionTitle: project.title,
+      locations: locations.map((location) => ({
+        name: location.name,
+        type: TYPE_LABELS[location.type],
+        address: location.address ?? '—',
+        timeZone: location.timeZone ?? MACHINE_TIME_ZONE,
+        contacts: (location.contactIds ?? []).map((id) => personById.get(id)).filter(Boolean).join(', ') || '—',
+        scenes: String(setupsUsingLocation.get(location.id) ?? 0),
+        mapPin: location.lat !== undefined && location.lng !== undefined ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}` : '—',
+        notes: location.notes ?? '',
+      })),
+    });
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: project.title, document: 'locations' }));
+  };
+
   // --- Shared styles (LogisticsPanel/PowerPanel conventions) ---
   const cardClass = isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700';
   const subCardClass = isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800';
@@ -224,6 +245,7 @@ export const LocationsPanel: React.FC = () => {
           Locations
           <span className={chipClass}>{locations.length}</span>
         </h2>
+        <PdfExportButton onClick={() => { void exportPdf(); }} title="Locations als PDF exportieren" />
       </div>
 
       {/* New location */}
@@ -265,7 +287,16 @@ export const LocationsPanel: React.FC = () => {
           const master = masterSetupByLocation.get(loc.id);
           const usageCount = setupsUsingLocation.get(loc.id) ?? 0;
           return (
-            <li key={loc.id} className={`rounded-xl border p-2.5 space-y-2 ${cardClass}`}>
+            <li key={loc.id}>
+              <details className={`group rounded-xl border ${cardClass}`}>
+                <summary className="min-h-11 px-3 flex items-center gap-2 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+                  <MapPin className="w-3.5 h-3.5 text-sky-500" />
+                  <span className="flex-1 min-w-0 text-xs font-bold truncate">{loc.name}</span>
+                  <span className={chipClass}>{TYPE_LABELS[loc.type]}</span>
+                  <span className={`text-[10px] ${mutedText}`}>{usageCount} scene{usageCount === 1 ? '' : 's'}</span>
+                  <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
+                </summary>
+                <div className={`p-2.5 pt-2 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
                 <input
@@ -532,6 +563,8 @@ export const LocationsPanel: React.FC = () => {
               </p>
               {/* Where this location is used: scenes, days, call sheets, tasks. */}
               <UsageList entries={usagesFor(usageIndex, 'location', loc.id)} isLight={isLight} />
+                </div>
+              </details>
             </li>
           );
         })}

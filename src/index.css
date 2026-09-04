@@ -102,7 +102,12 @@
   }
 }
 
-/* Custom dark mode scrollbar */
+/* Shared panel scrollbar — horizontal and vertical, in both themes. */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.8) transparent;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -118,6 +123,18 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 1);
+}
+
+html:not(.dark) .custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.7);
+}
+
+html:not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.9);
+}
+
+html:not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 1);
 }
 

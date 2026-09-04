@@ -6,7 +6,6 @@ import {
   Lightbulb,
   Plug,
   Plus,
-  Printer,
   Trash2,
   Zap,
 } from 'lucide-react';
@@ -39,6 +38,7 @@ import {
   type ScenePowerConsumer,
 } from './powerPresets';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 /**
  * "12,500 VA" — apparent power. A supply is rated in volt-amps and a load that
@@ -343,17 +343,13 @@ export const PowerPanel: React.FC = () => {
       </div>
 
       {/* Derived report strip */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`} open>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
           {sectionHeading(<Gauge className="w-3.5 h-3.5" />, 'Estimated Load')}
-          {/* The distro sheet goes to the floor, where there is no laptop. */}
-          <button
-            onClick={() => openExportModal('power')}
-            title="Printable power and distribution sheet"
-            className={secondaryBtnClass}
-          >
-            <Printer className="w-3.5 h-3.5" /> Print
-          </button>
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2 flex justify-end">
+          <PdfExportButton onClick={() => openExportModal('power')} title="Strom- und Verteilungsplan als PDF exportieren" />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           <span className="font-semibold">
@@ -543,12 +539,15 @@ export const PowerPanel: React.FC = () => {
             Add a source, then circuits and consumers to see loads.
           </p>
         )}
-      </section>
+      </details>
 
       {/* Sources */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        <div className="flex items-center justify-between gap-2">
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
           {sectionHeading(<Plug className="w-3.5 h-3.5" />, 'Power Sources', sources.length)}
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2 flex justify-end">
           <button onClick={addSource} title="Add power source" className={secondaryBtnClass}>
             <Plus className="w-3.5 h-3.5" />
             Source
@@ -652,11 +651,15 @@ export const PowerPanel: React.FC = () => {
             );
           })}
         </ul>
-      </section>
+      </details>
 
       {/* Circuits */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        {sectionHeading(<Zap className="w-3.5 h-3.5" />, 'Circuits', circuits.length)}
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
+          {sectionHeading(<Zap className="w-3.5 h-3.5" />, 'Circuits', circuits.length)}
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2" />
         <div className="flex flex-wrap items-center gap-1.5">
           <input
             value={newCircuitName}
@@ -799,12 +802,15 @@ export const PowerPanel: React.FC = () => {
             </li>
           )}
         </ul>
-      </section>
+      </details>
 
       {/* Consumers */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
           {sectionHeading(<Lightbulb className="w-3.5 h-3.5" />, 'Consumers', consumers.length)}
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2 flex items-center justify-end">
           {/* No "add all lights" button any more: every light on the plan is
               already listed. What the gaffer needs to know instead is where
               the list came from, so the count is stated rather than implied. */}
@@ -990,7 +996,7 @@ export const PowerPanel: React.FC = () => {
             </li>
           )}
         </ul>
-      </section>
+      </details>
     </div>
   );
 };

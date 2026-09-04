@@ -4,7 +4,6 @@ import {
   Mail,
   Phone,
   Plus,
-  Printer,
   Search,
   Trash2,
   Upload,
@@ -46,6 +45,7 @@ import { DEFAULT_BUDGET_SETTINGS } from '../../domain/budget';
 import { createId } from '../../domain/ids';
 import { downloadCsv, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 const KIND_TINT: Record<PersonKind, string> = {
   crew: 'bg-sky-500/15 text-sky-500',
@@ -483,9 +483,7 @@ export const ContactsPanel: React.FC = () => {
           <button onClick={exportCsv} disabled={people.length === 0} className={`${btnCls} disabled:opacity-40`}>
             <Download className="w-3.5 h-3.5" /> Export CSV
           </button>
-          <button onClick={() => openExportModal('crew')} disabled={people.length === 0} className={`${btnCls} disabled:opacity-40`} title="Printable contact list grouped by department">
-            <Printer className="w-3.5 h-3.5" /> Print
-          </button>
+          <PdfExportButton onClick={() => openExportModal('crew')} disabled={people.length === 0} title="Kontaktliste als PDF exportieren" />
         </div>
       </div>
 
@@ -575,11 +573,13 @@ export const ContactsPanel: React.FC = () => {
         <p className={`text-xs ${mutedCls}`}>No contacts match the current filter.</p>
       ) : (
         groups.map((group) => (
-          <section key={group.department} className="space-y-1.5">
-            <h3 className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${mutedCls}`}>
+          <details key={group.department} className={`group rounded-xl border px-3 py-2 ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-950/40'}`}>
+            <summary className={`cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${mutedCls}`}>
               {group.department}
               <span className={`font-mono text-[9px] px-1.5 rounded-full ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'}`}>{group.people.length}</span>
-            </h3>
+              <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+            </summary>
+            <div className="space-y-1.5 pt-2">
             {group.people.map((person) =>
               editing && !isNew && editing.id === person.id ? (
                 <React.Fragment key={person.id}>
@@ -650,7 +650,8 @@ export const ContactsPanel: React.FC = () => {
                 </button>
               ),
             )}
-          </section>
+            </div>
+          </details>
         ))
       )}
 

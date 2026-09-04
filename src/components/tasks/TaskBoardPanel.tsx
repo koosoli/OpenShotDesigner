@@ -40,6 +40,9 @@ import {
   updateTask,
 } from '../../domain/tasks';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
+import { buildTaskReportPdfFilename, createTaskReportPdf, taskReportRowsFromTasks } from '../../utils/pdf';
+import { downloadBlob } from '../../utils/download';
 
 const PRIORITY_DOT: Record<TaskPriority, string> = {
   low: 'bg-slate-400',
@@ -228,6 +231,20 @@ export const TaskBoardPanel: React.FC = () => {
   const summary = board ? summarizeBoard(allTasks, board, today) : null;
   const editingTask = allTasks.find((task) => task.id === editingTaskId) ?? null;
 
+  const exportPdf = async () => {
+    if (!board) return;
+    const assigneeNames = new Map(people.map((person) => [person.id, person.displayName] as const));
+    const bytes = await createTaskReportPdf({
+      productionTitle: project.title,
+      subtitle: `${board.title} · ${visibleTasks.length} visible task${visibleTasks.length === 1 ? '' : 's'}`,
+      tasks: taskReportRowsFromTasks(visibleTasks, [board], assigneeNames, today),
+    });
+    downloadBlob(
+      new Blob([bytes], { type: 'application/pdf' }),
+      buildTaskReportPdfFilename({ productionTitle: project.title, qualifier: board.title }),
+    );
+  };
+
   const setTasks = (tasks: Task[]) => updateProjectMeta({ tasks });
 
   const createBoard = () => {
@@ -320,6 +337,7 @@ export const TaskBoardPanel: React.FC = () => {
           <input value={board.title} onChange={(e) => renameBoard(e.target.value)} className={`${inputCls} w-44`} title="Board name" />
           <button onClick={createBoard} className={btnCls}><Plus className="w-3.5 h-3.5" /> New board</button>
           <button onClick={deleteBoard} className={`min-h-[34px] min-w-[34px] grid place-items-center rounded-md ${isLight ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-red-950/40 hover:text-red-400'}`} title="Delete board" aria-label="Delete board"><Trash2 className="w-4 h-4" /></button>
+          <PdfExportButton onClick={() => { void exportPdf(); }} title="Sichtbare Aufgaben als PDF exportieren" />
           {summary && (
             <span className={`ml-auto text-[10px] font-mono flex items-center gap-2 ${mutedCls}`}>
               <span>{summary.done}/{summary.total} done</span>
@@ -366,13 +384,14 @@ export const TaskBoardPanel: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-3">
+      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-3 custom-scrollbar">
         <div className="flex gap-3 h-full min-w-max">
           {columns.map((column, columnIndex) => {
             const cards = tasksInColumn(visibleTasks, column.id);
             const isOver = dragOverColumn === column.id;
             return (
-              <section
+              <details
+                open
                 key={column.id}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -384,13 +403,13 @@ export const TaskBoardPanel: React.FC = () => {
                   isOver ? 'border-sky-400 ring-2 ring-sky-400/30' : isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/40'
                 }`}
               >
-                <header className="px-2.5 pt-2.5 pb-1.5 flex items-center justify-between">
+                <summary className="px-2.5 pt-2.5 pb-1.5 flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                   <span className="text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
                     {column.isDone && <CheckSquare className="w-3.5 h-3.5 text-emerald-500" />}
                     {column.title}
                   </span>
                   <span className={`text-[10px] font-mono px-1.5 rounded-full ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'}`}>{cards.length}</span>
-                </header>
+                </summary>
                 <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 space-y-1.5">
                   {cards.map((task, index) => {
                     const overdue = isTaskOverdue(task, today);
@@ -495,7 +514,7 @@ export const TaskBoardPanel: React.FC = () => {
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </form>
-              </section>
+              </details>
             );
           })}
         </div>

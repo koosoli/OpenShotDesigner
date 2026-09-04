@@ -29,7 +29,6 @@ import {
   Layers,
   LayoutGrid,
   Plus,
-  Printer,
   Table,
   FileText,
   Trash2,
@@ -37,6 +36,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 interface CamPickerOption {
   id: string;
@@ -112,7 +112,7 @@ export const ShotListPanel: React.FC = () => {
   // readers announced every one of these inputs unlabelled.
   const fieldId = useId();
   const { project, activeSetup, selectedShotId, selectedElementIds, selectShot, updateShot, deleteShot, insertShotAfter, reorderShots, renumberAllShots, sortShotsBy, createCameraAndShot, assignCameraToShot, addCameraForShot, openViewfinder, setActiveSetupId, startScriptLinking, allScriptMarks } = useFloorPlan();
-  const { openExportModal, theme } = useWorkspaceUI();
+  const { theme } = useWorkspaceUI();
 
   const isLight = theme === 'light';
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
@@ -530,7 +530,7 @@ export const ShotListPanel: React.FC = () => {
             </button>
 
             {/* Download PDF */}
-            <button
+            <PdfExportButton
               onClick={() => {
                 void (async () => {
                   const bytes = await createShotListPdf({
@@ -544,26 +544,8 @@ export const ShotListPanel: React.FC = () => {
                   );
                 })();
               }}
-              title="Download Shot List as PDF"
-              aria-label="Download Shot List as PDF"
-              className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Print View */}
-            <button
-              onClick={() => openExportModal('shotlist')}
-              title="Print Shot List or Blueprint Floor Plan"
-              aria-label="Print Shot List or Blueprint Floor Plan"
-              className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-              }`}
-            >
-              <Printer className="w-3.5 h-3.5" />
-            </button>
+              title="Shotliste als PDF exportieren"
+            />
           </div>
         </div>
 

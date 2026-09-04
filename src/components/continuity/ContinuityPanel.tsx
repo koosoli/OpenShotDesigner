@@ -32,7 +32,6 @@ import {
   FileDown,
   Link2,
   Plus,
-  Printer,
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
@@ -67,6 +66,7 @@ import {
 } from '../../utils/exportContinuityCsv';
 import type { Shot } from '../../types';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
 const parseOptionalNumber = (raw: string): number | undefined => {
@@ -484,13 +484,7 @@ export const ContinuityPanel: React.FC = () => {
           <FileDown className="w-3.5 h-3.5" /> Avid ALE
         </button>
         {/* The checklist is worked from paper at wrap. */}
-        <button
-          onClick={() => openExportModal('continuity')}
-          title="Printable continuity report and wrap checklist"
-          className={secondaryBtnClass}
-        >
-          <Printer className="w-3.5 h-3.5" /> Print
-        </button>
+        <PdfExportButton onClick={() => openExportModal('continuity')} title="Continuity-Report als PDF exportieren" />
       </div>
 
       {/*

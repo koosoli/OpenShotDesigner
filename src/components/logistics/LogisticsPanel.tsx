@@ -8,7 +8,7 @@
  * second time; the weights come from the fixture catalogue where it has them.
  */
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Box, Package, Plus, Printer, Trash2, Truck, Wand2 } from 'lucide-react';
+import { AlertTriangle, Box, Package, Plus, Trash2, Truck, Wand2 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import {
@@ -28,6 +28,7 @@ import {
 import { deriveAllScenesEquipment, deriveSceneEquipment } from '../../utils/equipmentList';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 const CONTAINER_KINDS: LogisticsContainerKind[] = ['case', 'rack', 'cart', 'pallet', 'van', 'truck'];
 const KIND_LABELS: Record<LogisticsContainerKind, string> = {
@@ -820,8 +821,12 @@ export const LogisticsPanel: React.FC = () => {
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-3">
       {/* Fleet summary strip — totals across top-level containers */}
-      <section className={`rounded-xl border p-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 ${surfaceClass}`}>
-        {sectionHeading(<Truck className="w-3.5 h-3.5" />, 'Fleet')}
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`} open>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
+          {sectionHeading(<Truck className="w-3.5 h-3.5" />, 'Fleet')}
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
         {/* Day scope: what the panel shows and what the print button prints. */}
         <label className="flex items-center gap-1.5">
           <span className={`text-[11px] ${mutedText}`}>Day</span>
@@ -840,13 +845,7 @@ export const LogisticsPanel: React.FC = () => {
           </select>
         </label>
         {/* The load list is worked from paper at the truck. */}
-        <button
-          onClick={() => openExportModal('logistics')}
-          title="Printable load list with a tick box per item"
-          className={`${secondaryBtnClass} ml-auto`}
-        >
-          <Printer className="w-3.5 h-3.5" /> Print
-        </button>
+        <PdfExportButton onClick={() => openExportModal('logistics')} title="Ladeliste als PDF exportieren" className="ml-auto" />
         <span className={`text-[11px] ${mutedText}`}>
           Containers <span className={`font-mono ${headingText}`}>{fleet.containerCount}</span>
         </span>
@@ -865,11 +864,16 @@ export const LogisticsPanel: React.FC = () => {
           Items without weight{' '}
           <span className={`font-mono ${headingText}`}>{fleet.unknownWeightItemCount}</span>
         </span>
-      </section>
+        </div>
+      </details>
 
       {/* Pack equipment — the manifest is already derived; nobody types it twice */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        {sectionHeading(<Wand2 className="w-3.5 h-3.5" />, 'Pack equipment', packSource.length)}
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
+          {sectionHeading(<Wand2 className="w-3.5 h-3.5" />, 'Pack equipment', packSource.length)}
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2 space-y-2">
         <p className={`text-[10px] ${mutedText}`}>
           Creates a packed item per line of the equipment list, with the weight the fixture
           catalogue knows. Gear it has no weight for is packed with none, so the container total
@@ -911,11 +915,16 @@ export const LogisticsPanel: React.FC = () => {
           </button>
         </div>
         {packReport && <p className={`text-[10px] ${mutedText}`}>{packReport}</p>}
-      </section>
+        </div>
+      </details>
 
       {/* Containers */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        {sectionHeading(<Package className="w-3.5 h-3.5" />, 'Containers', containers.length)}
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
+          {sectionHeading(<Package className="w-3.5 h-3.5" />, 'Containers', containers.length)}
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2 space-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
           <input
             value={newName}
@@ -985,11 +994,16 @@ export const LogisticsPanel: React.FC = () => {
         <div className="flex flex-col gap-2">
           {rootContainers.map((c) => renderContainerCard(c, 0, new Set([c.id])))}
         </div>
-      </section>
+        </div>
+      </details>
 
       {/* Unassigned pool — items not inside any known container */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        {sectionHeading(<Box className="w-3.5 h-3.5" />, 'Unassigned items', unassignedItems.length)}
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
+          {sectionHeading(<Box className="w-3.5 h-3.5" />, 'Unassigned items', unassignedItems.length)}
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2 space-y-2">
         <p className={`text-[10px] ${mutedText}`}>
           Gear not packed into any container (or whose container was deleted). Assign a
           container via the dropdown on each row.
@@ -1003,7 +1017,8 @@ export const LogisticsPanel: React.FC = () => {
           </ul>
         )}
         {renderAddItemForm(UNASSIGNED_CONTAINER_ID, 'unassigned pool')}
-      </section>
+        </div>
+      </details>
 
       {/* Safety note (plan §24) — rendered exactly once at the bottom */}
       <div

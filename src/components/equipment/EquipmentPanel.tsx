@@ -9,7 +9,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   Copy,
   Crosshair,
   Edit2,
@@ -19,6 +18,7 @@ import {
   LayoutGrid,
   Layers,
   Mic,
+  MoreHorizontal,
   Package,
   Plus,
   Printer,
@@ -248,6 +248,7 @@ export const EquipmentPanel: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<EquipmentCategory | 'all'>('all');
   const [isPresetDrawerOpen, setIsPresetDrawerOpen] = useState(false);
+  const [isGearActionsOpen, setIsGearActionsOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EquipmentItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -707,6 +708,18 @@ export const EquipmentPanel: React.FC = () => {
     );
   };
 
+  const handleDownloadPdf = async () => {
+    const bytes = await createEquipmentManifestPdf({
+      productionTitle: project.title,
+      scopeLabel: scope === 'all' ? 'Master package' : `Scene ${activeSetup.sceneNumber || ''} — ${activeSetup.name || ''}`.trim(),
+      items: equipmentManifestItemsFromEquipmentItems(activeItems),
+    });
+    downloadBlob(
+      new Blob([bytes], { type: 'application/pdf' }),
+      buildPdfFilename({ production: project.title, document: 'equipment-manifest' }),
+    );
+  };
+
   const cardBg = isLight ? 'bg-white border-slate-300 text-slate-950 shadow-xs' : 'bg-slate-900 border-slate-800 text-slate-100';
   const rowBg = isLight ? 'bg-white hover:bg-slate-50/90 border-b border-slate-200 text-slate-950' : 'bg-slate-950/60 border-b border-slate-800/80 hover:bg-slate-800/50 text-slate-100';
   const inputClass = isLight
@@ -876,7 +889,7 @@ export const EquipmentPanel: React.FC = () => {
             onClick={() => setIsPresetDrawerOpen((prev) => !prev)}
             title="Fast-add common production gear (Batteries, SD cards, Cables, Tape, Clamps)"
             aria-pressed={isPresetDrawerOpen}
-            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 transition-colors ${
+            className={`h-8 w-8 rounded-lg border flex items-center justify-center transition-colors ${
               isPresetDrawerOpen
                 ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-xs'
                 : isLight
@@ -885,8 +898,6 @@ export const EquipmentPanel: React.FC = () => {
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            <span>Fast Add</span>
-            {isPresetDrawerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
 
           {/* Add Custom Gear Button */}
@@ -901,74 +912,19 @@ export const EquipmentPanel: React.FC = () => {
             </button>
           )}
 
-          {/* Export to CSV / Excel Spreadsheet */}
-          <button
-            onClick={handleExportCsv}
-            title={`Download ${
-              scope === 'all' ? 'All Scenes Master Truck' : `Scene ${activeSetup.sceneNumber || '1'}`
-            } as an Excel / CSV spreadsheet`}
-            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black flex items-center gap-1 shadow-xs transition-colors"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>CSV Export</span>
-          </button>
-
-          {/* Download PDF */}
-          <button
-            onClick={() => {
-              void (async () => {
-                const bytes = await createEquipmentManifestPdf({
-                  productionTitle: project.title,
-                  scopeLabel: scope === 'all' ? 'Master package' : `Scene ${activeSetup.sceneNumber || ''} — ${activeSetup.name || ''}`.trim(),
-                  items: equipmentManifestItemsFromEquipmentItems(activeItems),
-                });
-                downloadBlob(
-                  new Blob([bytes], { type: 'application/pdf' }),
-                  buildPdfFilename({ production: project.title, document: 'equipment-manifest' }),
-                );
-              })();
-            }}
-            title="Download equipment manifest as PDF"
-            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 ${
-              isLight ? 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900' : 'border-slate-700 hover:bg-slate-800 text-slate-300'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>PDF</span>
-          </button>
-
-          {/* Export / Print Gear Manifest */}
-          <button
-            onClick={() => openExportModal('equipment')}
-            title="Export / print the equipment package manifest"
-            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 ${
-              isLight ? 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900' : 'border-slate-700 hover:bg-slate-800 text-slate-300'
-            }`}
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Print Sheet</span>
-          </button>
-
-          {/* Reset scene overrides */}
-          {scope === 'current' && (activeSetup.customEquipment || []).length > 0 && (
-            <button
-              onClick={() => {
-                void confirm({
-                  title: 'Reset scene equipment?',
-                  message: 'Reset this scene’s equipment list to live floor plan elements?',
-                  confirmLabel: 'Reset',
-                  danger: true,
-                }).then((confirmed) => {
-                  if (confirmed) resetSceneEquipment();
-                });
-              }}
-              title="Reset scene equipment to floor plan canvas defaults"
-              aria-label="Reset scene equipment to floor plan canvas defaults"
-              className="p-1 rounded-lg text-slate-600 hover:text-rose-600 hover:bg-rose-50 dark:text-slate-400 dark:hover:text-rose-400 dark:hover:bg-rose-500/10 transition-colors"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
+          <div className="relative">
+            <button type="button" onClick={() => setIsGearActionsOpen((open) => !open)} aria-expanded={isGearActionsOpen} title="More gear actions" aria-label="More gear actions" className={`h-8 w-8 rounded-lg border flex items-center justify-center ${isLight ? 'border-slate-300 bg-slate-100 hover:bg-slate-200' : 'border-slate-700 bg-slate-800 hover:bg-slate-700'}`}>
+              <MoreHorizontal className="w-4 h-4" />
             </button>
-          )}
+            {isGearActionsOpen && (
+              <div className={`absolute right-0 top-9 z-30 w-48 rounded-lg border p-1 shadow-xl ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-900'}`}>
+                <button onClick={() => { handleExportCsv(); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}><FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />CSV export</button>
+                <button onClick={() => { void handleDownloadPdf(); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}><FileText className="w-3.5 h-3.5 text-sky-600" />PDF export</button>
+                <button onClick={() => { openExportModal('equipment'); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}><Printer className="w-3.5 h-3.5 text-sky-600" />Print preview</button>
+                {scope === 'current' && (activeSetup.customEquipment || []).length > 0 && <button onClick={() => { void confirm({ title: 'Reset scene equipment?', message: 'Reset this scene’s equipment list to live floor plan elements?', confirmLabel: 'Reset', danger: true }).then((confirmed) => { if (confirmed) resetSceneEquipment(); }); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 text-rose-600 ${isLight ? 'hover:bg-rose-50' : 'hover:bg-rose-950/30'}`}><RotateCcw className="w-3.5 h-3.5" />Reset overrides</button>}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 2. Fast Add Presets Drawer */}
@@ -2169,12 +2125,12 @@ export const EquipmentPanel: React.FC = () => {
               }, 0);
 
               return (
-                <div key={cat.key} className={`border-2 rounded-xl overflow-hidden shadow-xs ${cardBg}`}>
+                <details key={cat.key} className={`group border-2 rounded-xl overflow-hidden shadow-xs ${cardBg}`}>
                   {/* Rubric Header */}
-                  <div
+                  <summary
                     className={`px-3.5 py-2.5 border-b flex items-center justify-between ${
                       isLight ? 'bg-slate-200 text-slate-950 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-800'
-                    }`}
+                    } cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
                   >
                     <div className="flex items-center gap-2">
                       <span className={`p-1.5 rounded-md border ${cat.badgeBg} ${cat.badgeText} ${cat.borderColor}`}>
@@ -2184,11 +2140,12 @@ export const EquipmentPanel: React.FC = () => {
                       <span className="text-[11px] font-mono font-bold opacity-80">
                         ({items.length} items · {rubricTotalQty} units)
                       </span>
+                      <span className="transition-transform group-open:rotate-90">›</span>
                     </div>
 
                     {scope === 'current' && (
                       <button
-                        onClick={() => openAddModal(cat.key)}
+                        onClick={(event) => { event.preventDefault(); event.stopPropagation(); openAddModal(cat.key); }}
                         title={`Add item to ${cat.label}`}
                         aria-label={`Add item to ${cat.label}`}
                         className="p-1.5 rounded text-slate-800 hover:text-sky-700 hover:bg-sky-100 dark:text-slate-400 dark:hover:text-sky-400 dark:hover:bg-sky-500/10 transition-colors"
@@ -2196,7 +2153,7 @@ export const EquipmentPanel: React.FC = () => {
                         <Plus className="w-4 h-4" />
                       </button>
                     )}
-                  </div>
+                  </summary>
 
                   {/* Rubric Items */}
                   <div className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -2437,7 +2394,7 @@ export const EquipmentPanel: React.FC = () => {
                       );
                     })}
                   </div>
-                </div>
+                </details>
               );
             })}
           </div>

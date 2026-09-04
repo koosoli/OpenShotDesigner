@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, CalendarRange, ClipboardCheck, Coins, Download, Plus, Printer, Trash2 } from 'lucide-react';
+import { AlertTriangle, CalendarRange, ClipboardCheck, Coins, Download, Plus, Trash2 } from 'lucide-react';
 import { BudgetPrintView } from '../reports/BudgetPrintView';
+import { PdfExportButton } from '../common/PdfExportButton';
 import { waitForImages } from '../../utils/image';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
@@ -245,9 +246,7 @@ export const BudgetPanel: React.FC = () => {
             ))}
           </div>
           {view === 'budget' && (
-            <button onClick={() => setPrinting(true)} className={`h-8 px-2.5 rounded-md border text-[9px] font-black flex items-center gap-1.5 ${isLight ? 'bg-white border-slate-300 hover:border-emerald-500' : 'bg-slate-950 border-slate-800 hover:border-emerald-500'}`}>
-              <Printer className="w-3.5 h-3.5" /> Print / PDF
-            </button>
+            <PdfExportButton onClick={() => setPrinting(true)} title="Budget als PDF exportieren" />
           )}
           {view === 'budget' && (
             <button onClick={exportCsv} className={`h-8 px-2.5 rounded-md border text-[9px] font-black flex items-center gap-1.5 ${isLight ? 'bg-white border-slate-300 hover:border-emerald-500' : 'bg-slate-950 border-slate-800 hover:border-emerald-500'}`}>
@@ -341,23 +340,23 @@ export const BudgetPanel: React.FC = () => {
               here: a budget that only lists the people who already have one
               reads as "no cast and crew" to anyone opening it fresh. */}
           {[['Above the line', aboveLine, 'Producers, director, writers and principal cast. Untick to move someone below the line.'], ['Below the line — crew & cast', belowLine, 'Everyone else on the unit. Cast and crew without a rate are listed but not counted.']].map(([title, list, hint]) => (
-            <section key={title as string} className={cardCls}>
-              <div className="flex items-baseline justify-between gap-2 mb-1">
+            <details key={title as string} className={`${cardCls} group`}>
+              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-baseline justify-between gap-2 mb-1">
                 <h3 className={`text-[10px] font-black uppercase tracking-wider ${mutedCls}`}>{title as string}</h3>
-                <div className="text-xs font-mono"><b>{money((title === 'Above the line' ? summary.aboveTheLine : summary.categories.filter((c) => c.category === 'crew' || c.category === 'cast').reduce((acc, c) => ({ gross: acc.gross + c.gross }), { gross: 0 })).gross)}</b></div>
-              </div>
+                <div className="text-xs font-mono flex items-center gap-2"><b>{money((title === 'Above the line' ? summary.aboveTheLine : summary.categories.filter((c) => c.category === 'crew' || c.category === 'cast').reduce((acc, c) => ({ gross: acc.gross + c.gross }), { gross: 0 })).gross)}</b><span className="transition-transform group-open:rotate-90">›</span></div>
+              </summary>
               <p className={`text-[10px] mb-2 ${mutedCls}`}>{hint as string}</p>
               {(list as Person[]).length === 0 && <p className={`text-[10px] ${mutedCls}`}>Nobody here yet — add people on the Crew tab.</p>}
               <div className="space-y-1.5">{(list as Person[]).map(personRow)}</div>
-            </section>
+            </details>
           ))}
 
           {summary.categories.filter((category) => !['above_the_line', 'crew', 'cast'].includes(category.category)).map((category) => (
-            <section key={category.category} className={cardCls}>
-              <div className="flex items-baseline justify-between gap-2 mb-1">
+            <details key={category.category} className={`${cardCls} group`}>
+              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-baseline justify-between gap-2 mb-1">
                 <h3 className={`text-[10px] font-black uppercase tracking-wider ${mutedCls}`}>{category.label}</h3>
-                <div className="text-xs font-mono"><span className={mutedCls}>net {money(category.net)} · </span><b>{money(category.gross)}</b></div>
-              </div>
+                <div className="text-xs font-mono flex items-center gap-2"><span className={mutedCls}>net {money(category.net)} · </span><b>{money(category.gross)}</b><span className="transition-transform group-open:rotate-90">›</span></div>
+              </summary>
               <table className="w-full text-xs">
                 <thead>
                   <tr className={`text-[9px] uppercase ${mutedCls}`}>
@@ -371,7 +370,7 @@ export const BudgetPanel: React.FC = () => {
                 </thead>
                 <tbody>{category.entries.map(entryRow)}</tbody>
               </table>
-            </section>
+            </details>
           ))}
 
           {/* Equipment rates: every item on any plan, priced or not. */}

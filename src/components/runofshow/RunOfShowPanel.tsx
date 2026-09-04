@@ -8,7 +8,6 @@ import {
   Copy,
   ListOrdered,
   Plus,
-  Printer,
   Trash2,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
@@ -28,6 +27,7 @@ import {
 } from '../../domain/scheduling/runOfShow';
 import { removeRunOfShowCue } from '../../domain';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 
 const parseClockToSeconds = (value: string): number | null => {
@@ -444,17 +444,7 @@ export const RunOfShowPanel: React.FC = () => {
         </label>
         {/* The show caller works from paper, and the printed sheet uses the
             same show start typed above. */}
-        <button
-          onClick={() => openExportModal('runofshow')}
-          title="Printable run of show with cue times and department notes"
-          className={`flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 ${
-            isLight
-              ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
-              : 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-          }`}
-        >
-          <Printer className="w-3.5 h-3.5" /> Print
-        </button>
+        <PdfExportButton onClick={() => openExportModal('runofshow')} title="Run of Show als PDF exportieren" />
         <button
           onClick={addCue}
           title="Add cue"

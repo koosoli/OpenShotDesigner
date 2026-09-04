@@ -12,7 +12,6 @@ import {
   Anchor,
   Info,
   Plus,
-  Printer,
   Ruler,
   Trash2,
   Weight,
@@ -44,6 +43,7 @@ import {
   type TrussProfile,
 } from '../../domain/rigging';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 const GEOMETRY_ORDER = ['box', 'triangle', 'ladder', 'other'] as const;
 type TrussGeometry = (typeof GEOMETRY_ORDER)[number];
@@ -431,17 +431,13 @@ export const RiggingPanel: React.FC = () => {
       </div>
 
       {/* Hardware weight assumptions (rule 13: blank stays unknown, never 0) */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
           {sectionHeading(<Info className="w-3.5 h-3.5" />, 'Weight Assumptions')}
-          {/* The rigging plot is checked on the deck, off paper. */}
-          <button
-            onClick={() => openExportModal('rigging')}
-            title="Printable rigging plot with load and capacity per truss run"
-            className={secondaryBtnClass}
-          >
-            <Printer className="w-3.5 h-3.5" /> Print
-          </button>
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2 flex justify-end">
+          <PdfExportButton onClick={() => openExportModal('rigging')} title="Rigging-Plot als PDF exportieren" />
         </div>
         <div className="grid grid-cols-3 gap-1.5">
           <label className="flex flex-col gap-0.5">
@@ -490,13 +486,15 @@ export const RiggingPanel: React.FC = () => {
           and counted in every planned total, here and on the printed plot; a box left blank
           counts nothing rather than guessing.
         </p>
-      </section>
+      </details>
 
       {/* Truss profiles */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        <div className="flex items-center justify-between gap-2">
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
           {sectionHeading(<Ruler className="w-3.5 h-3.5" />, 'Truss Profiles', profiles.length)}
-          <div className="flex items-center gap-1.5">
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+          <div className="pt-2 flex items-center justify-end gap-1.5">
             {profiles.length === 0 && (
               <button onClick={seedStarterProfiles} title="Add the two generic starter profiles" className={secondaryBtnClass}>
                 <Plus className="w-3.5 h-3.5" />
@@ -508,7 +506,6 @@ export const RiggingPanel: React.FC = () => {
               Profile
             </button>
           </div>
-        </div>
         {profiles.length === 0 && (
           <p className={`text-[11px] ${mutedText}`}>No profiles yet.</p>
         )}
@@ -595,11 +592,15 @@ export const RiggingPanel: React.FC = () => {
             </li>
           ))}
         </ul>
-      </section>
+      </details>
 
       {/* Truss elements */}
-      <section className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
-        {sectionHeading(<Anchor className="w-3.5 h-3.5" />, 'Truss Elements', elements.length)}
+      <details className={`group rounded-xl border p-2.5 ${surfaceClass}`}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-2">
+          {sectionHeading(<Anchor className="w-3.5 h-3.5" />, 'Truss Elements', elements.length)}
+          <span className="ml-auto transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="pt-2" />
         <div className="flex flex-wrap items-center gap-1.5">
           <input
             value={newElementLabel}
@@ -1093,7 +1094,7 @@ export const RiggingPanel: React.FC = () => {
             );
           })}
         </ul>
-      </section>
+      </details>
     </div>
   );
 };

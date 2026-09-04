@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { AlertTriangle, Building2, CalendarDays, CheckCircle2, FileText, ImagePlus, MapPin, Printer, Send } from 'lucide-react';
+import { PdfExportButton } from '../common/PdfExportButton';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import { loadLogoFile } from '../../utils/image';
@@ -621,7 +622,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
                 >
                   <Send className="w-3.5 h-3.5" /> Issue {latestIssue ? `Rev ${latestIssue.revision + 1}` : 'Rev 1'}
                 </button>
-                <button onClick={() => onPrint(selectedDay, liveSheet)} className="h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-black flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /> Print / PDF</button>
+                <PdfExportButton onClick={() => onPrint(selectedDay, liveSheet)} title="Call Sheet als PDF exportieren" className="!h-9 !w-9 !border-sky-600 !bg-sky-600 !text-white hover:!bg-sky-500" />
                 <button
                   onClick={() => downloadSheetPdf(liveSheet)}
                   title="Download the live sheet as PDF (no print dialog)"

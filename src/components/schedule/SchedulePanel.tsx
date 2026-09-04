@@ -13,7 +13,6 @@ import {
   FileCheck2,
   GripVertical,
   LayoutList,
-  Printer,
   Search,
   Plus,
   Trash2,
@@ -56,6 +55,7 @@ import { CoverageMatrixPrintView } from '../reports/CoverageMatrixPrintView';
 import type { PrintableCoverageRow } from '../reports/CoverageMatrixPrintView';
 import { CallSheetWorkspace } from './CallSheetWorkspace';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 const MANUAL_TYPES: ManualType[] = [
   'meal',
@@ -763,14 +763,6 @@ export const SchedulePanel: React.FC = () => {
   const hasIssues = conflicts.length > 0 || danglingRefs.length > 0;
   const selectedCallSheetDay = days.find((day) => day.id === selectedCallSheetDayId) ?? days[0];
   const selectedCallSheet = selectedCallSheetDay ? buildCallSheet(selectedCallSheetDay) : null;
-  const printLabel = workspaceView === 'stripboard'
-    ? 'Print Board'
-    : workspaceView === 'calendar'
-      ? `Print ${calendarMode[0].toUpperCase()}${calendarMode.slice(1)}`
-      : workspaceView === 'callsheets'
-        ? 'Print Call sheet'
-        : 'Print Coverage';
-
   return (
     <div className={`h-full overflow-hidden flex flex-col ${isLight ? 'bg-[#f3f5f7]' : 'bg-slate-950'}`}>
       <header className={`shrink-0 border-b ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
@@ -790,19 +782,7 @@ export const SchedulePanel: React.FC = () => {
             <div className={`flex h-8 rounded-md border p-0.5 ${isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
               {([['stripboard', LayoutList, 'Board'], ['calendar', CalendarRange, 'Timeline'], ['callsheets', FileCheck2, 'Call sheets'], ['coverage', Users, 'Coverage']] as const).map(([view, Icon, label]) => <button key={view} onClick={() => setWorkspaceView(view)} aria-pressed={workspaceView === view} className={`px-2.5 rounded text-[9px] font-black flex items-center gap-1.5 transition-colors ${workspaceView === view ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-sm' : mutedText}`}><Icon className="w-3.5 h-3.5" />{label}</button>)}
             </div>
-            <button
-              onClick={handlePrintCurrent}
-              disabled={workspaceView === 'callsheets' && !selectedCallSheetDay}
-              title={
-                workspaceView === 'stripboard' ? 'Print the stripboard (all shooting days)'
-                  : workspaceView === 'calendar' ? 'Print the production calendar'
-                    : workspaceView === 'callsheets' ? 'Print the selected call sheet'
-                      : 'Print the coverage matrix'
-              }
-              className={`h-8 px-2.5 rounded-md border text-[9px] font-black flex items-center gap-1.5 transition-colors disabled:opacity-40 ${isLight ? 'bg-white border-slate-300 hover:border-cyan-500 hover:text-cyan-700' : 'bg-slate-950 border-slate-800 hover:border-cyan-500 hover:text-cyan-400'}`}
-            >
-              <Printer className="w-3.5 h-3.5" />{printLabel}
-            </button>
+            <PdfExportButton onClick={handlePrintCurrent} disabled={workspaceView === 'callsheets' && !selectedCallSheetDay} title="Aktuelle Schedule-Ansicht als PDF exportieren" />
           </div>
         </div>
       </header>

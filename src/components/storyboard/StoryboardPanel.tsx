@@ -8,7 +8,6 @@ import {
   Layers,
   Maximize2,
   Plus,
-  Printer,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -34,6 +33,7 @@ import {
 import { loadStoryboardImageFile } from '../../utils/image';
 import { ProjectImage } from '../common/ProjectImage';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 /** A moving shot is boarded on each of its camera's keyframes. */
 export const shotHasMove = (shot: Shot): boolean =>
@@ -286,15 +286,7 @@ export const StoryboardPanel: React.FC = () => {
           <span>{hideBlankWaypoints ? 'Blank waypoints omitted' : 'Omit blank waypoints'}</span>
         </button>
 
-        <button
-          onClick={() => openExportModal('storyboard')}
-          title="Export / print the storyboard"
-          className={`px-2 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 ${
-            isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
-          }`}
-        >
-          <Printer className="w-3.5 h-3.5" /> Export
-        </button>
+        <PdfExportButton onClick={() => openExportModal('storyboard')} title="Storyboard als PDF exportieren" />
 
         <button
           onClick={() => createCameraAndShot()}

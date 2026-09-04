@@ -9,7 +9,6 @@ import {
   Link2,
   Palette,
   Plus,
-  Printer,
   Rows3,
   Trash2,
   X,
@@ -31,6 +30,7 @@ import { useMoodboardImageSrcs, moodboardAssetStore } from './moodboardAssets';
 import { CollageFreeform, CollageGrid } from './MoodboardCollage';
 import { extractBoardPalette } from './paletteClient';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 
 type LinkKind = NonNullable<MoodBoardCard['linkedEntity']>['kind'];
 
@@ -630,9 +630,7 @@ export const MoodBoardPanel: React.FC = () => {
                 <LayoutGrid className="w-3 h-3" /> Collage
               </button>
             </div>
-            <button onClick={() => openExportModal('moodboard')} title="Print or export this mood board" className={btnCls}>
-              <Printer className="w-3.5 h-3.5" /> Print
-            </button>
+            <PdfExportButton onClick={() => openExportModal('moodboard')} title="Moodboard als PDF exportieren" />
             <button
               onClick={handleDeleteBoard}
               title="Delete this board"

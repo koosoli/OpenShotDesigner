@@ -235,6 +235,8 @@ export type {
   TaskReportPdfInput,
   TaskReportPdfTask,
 } from './taskReportPdf';
+export { createLocationReportPdf } from './locationReportPdf';
+export type { LocationReportPdfInput, LocationReportPdfRow } from './locationReportPdf';
 export { drawPdfTable, paginateTableRows, wrapPdfCellText } from './tables';
 export type { PdfTableColumn, PdfTableResult, PdfTableStyle } from './tables';
 export { PDF_UNENCODABLE_REPLACEMENT, isWinAnsiPrintable, sanitizePdfText } from './text';

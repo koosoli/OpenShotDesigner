@@ -15,7 +15,6 @@ import {
   Minus,
   PenTool,
   Plus,
-  Printer,
   Scissors,
   Trash2,
   Tv,
@@ -68,6 +67,7 @@ import { ProjectImage } from '../common/ProjectImage';
 import { keyFrameImage } from '../../utils/storyboardFrames';
 import { downloadCsv, downloadText, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { PdfExportButton } from '../common/PdfExportButton';
 import { useDialogs } from '../dialog/DialogProvider';
 
 type ScriptWorkspaceView = ScriptFormatMode | 'reports' | 'title_page';
@@ -1093,23 +1093,14 @@ export const ScriptPanel: React.FC = () => {
             </button>
 
             {activeTab === 'reports' && lines.length > 0 && (
-              <button
-                onClick={() => openExportModal('scriptreports')}
-                className={headerButton}
-                title="Print the scene list, character report, location report and day-out-of-days"
-              >
-                <Printer className="w-3.5 h-3.5" /> Print reports
-              </button>
+              <PdfExportButton onClick={() => openExportModal('scriptreports')} title="Script-Reports als PDF exportieren" />
             )}
 
             {activeTab !== 'reports' && activeTab !== 'title_page' && lines.length > 0 && (
-              <button
+              <PdfExportButton
                 onClick={() => openExportModal(activeTab === 'av_script' ? 'avscript' : 'linedscript')}
-                className={headerButton}
-                title={activeTab === 'av_script' ? 'Print the AV script on its own' : 'Export / print formatted script'}
-              >
-                <Printer className="w-3.5 h-3.5" /> Print PDF
-              </button>
+                title={activeTab === 'av_script' ? 'AV-Skript als PDF exportieren' : 'Skript als PDF exportieren'}
+              />
             )}
 
             {activeTab === 'screenplay' && lines.length > 0 && (
