@@ -77,3 +77,4 @@ export type {
   ScheduleIssueCode,
   ScheduleIssueSeverity,
 } from './health';
+export { scheduleHealthSourcesFor } from './healthSources';

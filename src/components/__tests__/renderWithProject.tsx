@@ -27,9 +27,25 @@ type UpdateProjectMeta = (
   updates: Partial<Project> | ((prev: Project) => Partial<Project>),
 ) => void;
 
+/**
+ * Same shape as the provider's `runCommand`: a pure domain command plus its
+ * input, applied to the project.
+ *
+ * Stubbed here rather than left out because a panel that has been migrated to
+ * commands reaches for this on every write. Leaving it undefined would make
+ * those panels throw in tests while working in the app — the stub lying, which
+ * is the one thing this harness must never do.
+ */
+type RunCommand = <TInput>(
+  command: (project: Project, input: TInput) => { project: Project; meta: unknown; warnings?: string[] },
+  input: TInput,
+  options?: unknown,
+) => unknown;
+
 interface FloorPlanDeps {
   project: Project;
   updateProjectMeta: UpdateProjectMeta;
+  runCommand: RunCommand;
   activeSetup?: unknown;
 }
 
@@ -123,6 +139,20 @@ export const renderWithProject = (
             holder.latest = next;
             return next;
           }),
+        // Mirrors the provider: the command runs against `prev` inside the
+        // updater, so two writes in one tick compose instead of the second
+        // overwriting the first — the same functional-update guarantee
+        // `updateProjectMeta` gives above, and for the same reason.
+        runCommand: ((command, input) => {
+          let meta: unknown;
+          setProject((prev) => {
+            const result = command(prev, input);
+            meta = result.meta;
+            holder.latest = result.project;
+            return result.project;
+          });
+          return meta;
+        }) as RunCommand,
         activeSetup: project.setups[0],
         // The real provider always merges these over its defaults, so a stub
         // that omits them is the stub lying rather than the component being

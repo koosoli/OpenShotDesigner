@@ -30,6 +30,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="propinspector.prop-dimensions-type"
         title="Prop Dimensions & Type"
         icon={<Tv className="w-3.5 h-3.5 text-purple-500" />}
         defaultOpen={true}
@@ -201,6 +202,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
 
         return (
           <RubricSection
+            persistKey="propinspector.waypoints-trajectory"
             title="Waypoints & Trajectory"
             icon={<Compass className="w-3.5 h-3.5 text-purple-500" />}
             defaultOpen={true}

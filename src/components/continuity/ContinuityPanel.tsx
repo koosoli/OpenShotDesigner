@@ -67,6 +67,7 @@ import {
 import type { Shot } from '../../types';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
+import { logTakeCommand } from '../../domain/commands';
 
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
 const parseOptionalNumber = (raw: string): number | undefined => {
@@ -90,7 +91,7 @@ const numberLabel = (sceneNumber: string | undefined, shotNumber: string | undef
 };
 
 export const ContinuityPanel: React.FC = () => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, updateProjectMeta, runCommand } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
 
@@ -250,17 +251,19 @@ export const ContinuityPanel: React.FC = () => {
    */
   const logTake = (shotId: string, slateTag?: Take['slateTag']) => {
     const previous = visibleTakes[visibleTakes.length - 1];
-    mutateTakes((prev) => {
-      const { take } = seedNextTake(prev, {
-        id: createId('take'),
+    // The day-scoped `previous` is passed explicitly: `logTakeCommand` used to
+    // pick the last take in the whole project, which on any day but the newest
+    // seeds the row from a take the user is not looking at.
+    runCommand(
+      logTakeCommand,
+      {
         shotId,
-        slateTag,
-        productionDayId: day?.id,
-        loggedAt: new Date().toISOString(),
-        previous,
-      });
-      return [...prev, take];
-    });
+        ...(slateTag !== undefined ? { slateTag } : {}),
+        ...(day?.id ? { productionDayId: day.id } : {}),
+        ...(previous ? { previousTakeId: previous.id } : {}),
+      },
+      { domain: 'shots' },
+    );
   };
 
   /**

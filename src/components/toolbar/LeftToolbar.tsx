@@ -373,6 +373,7 @@ export const LeftToolbar: React.FC = () => {
   return (
     <aside
       id="left-toolbar"
+      aria-label="Drawing tools"
       ref={asideRef}
       className={`relative ${isCompact ? 'w-12 py-1.5 gap-1' : 'w-14 py-3 gap-1.5'} border-r flex flex-col items-center select-none z-20 transition-colors ${
         isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'

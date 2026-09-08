@@ -68,6 +68,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
         <div className="space-y-3 pt-1">
           {/* Rubric 1: Character & Stance */}
           <RubricSection
+            persistKey="actorinspector.character-stance"
             title="Character & Stance"
             icon={<User className="w-3.5 h-3.5 text-emerald-500" />}
             badge={
@@ -182,6 +183,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
           </RubricSection>
 
           <RubricSection
+            persistKey="actorinspector.speech-by-beat"
             title="Speech by Beat"
             icon={<MessageCircle className="w-3.5 h-3.5 text-emerald-500" />}
             badge={
@@ -287,6 +289,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
 
             return (
               <RubricSection
+            persistKey="actorinspector.waypoints-trajectory"
                 title="Waypoints & Trajectory"
                 icon={<Compass className="w-3.5 h-3.5 text-sky-500" />}
                 defaultOpen={true}

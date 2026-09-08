@@ -44,7 +44,7 @@ import type {
   CallSheetData,
 } from '../../domain/reports';
 import type { ProductionCalendarEvent, ProductionDay, ScheduleBlock } from '../../domain/scheduling';
-import { buildStripContextResolver, castFilterForDay, castNumbersScheduledOn, deriveCallSheet, formatPageEighths, resolveDayLocations as resolveDayLocationsForBlocks } from '../../domain/reports';
+import { castNumbersScheduledOn, formatPageEighths, resolveDayLocations as resolveDayLocationsForBlocks } from '../../domain/reports';
 import { ScheduleHealth } from './ScheduleHealth';
 import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { StripboardPrintView } from '../reports/StripboardPrintView';
@@ -56,6 +56,8 @@ import type { PrintableCoverageRow } from '../reports/CoverageMatrixPrintView';
 import { CallSheetWorkspace } from './CallSheetWorkspace';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
+import { moveScheduleBlockCommand } from '../../domain/commands';
+import { buildCallSheetProjectContext, callSheetForDay } from '../../domain/reports';
 
 const MANUAL_TYPES: ManualType[] = [
   'meal',
@@ -75,7 +77,7 @@ const formatMinutes = (total: number): string => {
 };
 
 export const SchedulePanel: React.FC = () => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, updateProjectMeta, runCommand } = useFloorPlan();
   const { theme, setActiveRightTab } = useWorkspaceUI();
   const { confirm } = useDialogs();
   const isLight = theme === 'light';
@@ -123,16 +125,6 @@ export const SchedulePanel: React.FC = () => {
   // Scene / setup / segment / shot display names, derived once in the domain
   // so the workspace and the exporter label strips identically.
   const labelCtx = useMemo(() => buildStripboardLabelContext(project), [project]);
-  // Scene number and location per strip, so the sheet can be read by scene.
-  const stripContext = useMemo(
-    () => buildStripContextResolver({
-      scriptScenes: project.scriptScenes,
-      locations: project.locations,
-      setups: project.setups,
-    }),
-    [project.scriptScenes, project.locations, project.setups],
-  );
-
   // Mount the hidden print document, let the browser paint it, print, then
   // unmount. Covers the per-day call sheet and the whole-view printouts.
   useEffect(() => {
@@ -256,49 +248,17 @@ export const SchedulePanel: React.FC = () => {
       setups: project.setups,
     });
 
-  /** Performers assigned to characters that appear in a day's scheduled scenes. */
   /**
-   * Who is called on a day. Derived in the domain so scenes, setups AND shots
-   * all contribute their cast — scheduling by setup used to yield nobody — and
-   * so a production with no cast model at all (a concert, a broadcast) calls
-   * everyone rather than nobody. `undefined` means "no filter".
+   * Derive the call sheet for one day.
+   *
+   * The assembly moved to `domain/reports/callSheetForDay`, so the readiness
+   * centre can ask the same question without rendering this panel. The panel
+   * keeps only the memoised project context, which is the part worth caching
+   * across the days it renders.
    */
-  const castPersonIdsForDay = (day: ProductionDay): string[] | undefined =>
-    castFilterForDay(day.scheduleBlockIds, blocks, {
-      scriptScenes: project.scriptScenes,
-      setups: project.setups,
-      castAssignments: project.castAssignments,
-    });
-
-  /** Derive the call sheet for one day, reusing the panel's label resolution. */
-  const buildCallSheet = (day: ProductionDay): CallSheetData => {
-    const locations = resolveDayLocations(day);
-    const castPersonIds = castPersonIdsForDay(day);
-    // Look-ahead: the next day in board order (by date when both are dated).
-    const dayIndex = days.findIndex((candidate) => candidate.id === day.id);
-    const following = days[dayIndex + 1];
-    const nextDay = following
-      ? { day: following, locations: resolveDayLocations(following), castPersonIds: castPersonIdsForDay(following) }
-      : undefined;
-    return deriveCallSheet({
-      nextDay,
-      day,
-      blocks,
-      productionTitle: project.title,
-      productionCompany: project.productionCompany,
-      productionCompanyInfo: project.productionCompanyInfo,
-      productionLogo: project.logo,
-      standingCallSheet: project.standingCallSheet,
-      people: project.people ?? [],
-      castPersonIds,
-      locations,
-      resolveSceneLabel: (id) => labelCtx.sceneNames.get(id),
-      resolveSetupLabel: (id) => labelCtx.setupNames.get(id),
-      resolveSegmentLabel: (id) => labelCtx.segmentNames.get(id),
-      resolveShotLabel: (ids) => ids.map((id) => labelCtx.shotNames.get(id)).filter((label): label is string => Boolean(label)).join(' + ') || undefined,
-      resolveStripContext: stripContext,
-    });
-  };
+  const callSheetContext = useMemo(() => buildCallSheetProjectContext(project), [project]);
+  const buildCallSheet = (day: ProductionDay): CallSheetData =>
+    callSheetForDay(project, day, callSheetContext);
 
   // --- Mutations (all via updateProjectMeta, immutable) ---
 
@@ -358,26 +318,21 @@ export const SchedulePanel: React.FC = () => {
   };
 
   /**
-   * Place a block into a day at `index` (or the pool when dayId is null).
-   * Removes it from every day first so a block can only live in one place.
+   * Place a block into a day at `index`, or back into the pool when dayId is
+   * null. A block can only live in one place, so it leaves every other day.
+   *
+   * Delegates to `moveScheduleBlockCommand`. That command existed and was
+   * tested but had never been wired in, and the panel kept an equivalent copy
+   * here — two implementations of the same stripboard rule, free to drift.
+   * The command also names what happened ("Move Sc. 14 from Day 3 to Day 4"),
+   * where the patch this replaced logged "Update project metadata".
    */
   const placeBlock = (blockId: string, dayId: string | null, index?: number) => {
-    updateProjectMeta((prev) => {
-      let nextDays = (prev.productionDays ?? []).map((d) => ({
-        ...d,
-        scheduleBlockIds: d.scheduleBlockIds.filter((id) => id !== blockId),
-      }));
-      if (dayId !== null) {
-        nextDays = nextDays.map((d) => {
-          if (d.id !== dayId) return d;
-          const ids = [...d.scheduleBlockIds];
-          const at = index === undefined ? ids.length : Math.max(0, Math.min(index, ids.length));
-          ids.splice(at, 0, blockId);
-          return { ...d, scheduleBlockIds: ids };
-        });
-      }
-      return { productionDays: nextDays };
-    });
+    runCommand(
+      moveScheduleBlockCommand,
+      { blockId, toDayId: dayId, ...(index === undefined ? {} : { toIndex: Math.max(0, index) }) },
+      { domain: 'schedule' },
+    );
   };
 
   const addCalendarEvent = () => {

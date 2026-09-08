@@ -76,14 +76,30 @@ export const buildAssemblyFromElements = (name: string, elements: FloorPlanEleme
   };
 };
 
-/** Prompt-and-save flow shared by the context menu and the Inspector button. */
-export const promptSaveAssemblyFromIds = (ids: string[], allElements: FloorPlanElement[]): boolean => {
+/**
+ * Prompt-and-save flow shared by the context menu and the Inspector button.
+ *
+ * The prompt arrives as a parameter rather than being reached for directly:
+ * this is a plain function, not a hook, so it cannot call `useDialogs()`, and
+ * hard-coding `window.prompt` was the last native dialog in the app. Callers
+ * pass `dialogs.prompt`, which also makes the flow testable without a browser.
+ */
+export const promptSaveAssemblyFromIds = async (
+  ids: string[],
+  allElements: FloorPlanElement[],
+  askForName: (options: { title: string; label: string; defaultValue: string; requireValue: boolean }) => Promise<string | null>,
+): Promise<boolean> => {
   if (ids.length === 0) return false;
   const elements = ids
     .map((id) => allElements.find((el) => el.id === id))
     .filter((el): el is FloorPlanElement => !!el);
   if (elements.length === 0) return false;
-  const name = window.prompt('Name this assembly:', elements.length === 1 ? elements[0].name : `${elements.length} elements`);
+  const name = await askForName({
+    title: 'Name this assembly',
+    label: 'Assembly name',
+    defaultValue: elements.length === 1 ? elements[0].name : `${elements.length} elements`,
+    requireValue: true,
+  });
   if (!name) return false;
   const definition = buildAssemblyFromElements(name, elements);
   if (!definition) return false;

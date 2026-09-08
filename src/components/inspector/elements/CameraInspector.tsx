@@ -46,6 +46,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
 
           {/* Rubric 1: Camera Identification & Rig */}
           <RubricSection
+            persistKey="camerainspector.camera-identity-rig"
             title="Camera Identity & Rig"
             icon={<MovieCameraIcon className="w-3.5 h-3.5 text-sky-500" />}
             badge={
@@ -228,6 +229,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
 
           {/* Rubric 2: Lens, Sensor & Optics */}
           <RubricSection
+            persistKey="camerainspector.lens-optics"
             title="Lens & Optics"
             icon={<Eye className="w-3.5 h-3.5 text-indigo-500" />}
             badge={
@@ -340,6 +342,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
 
           {/* Rubric 3: Cinematography Exposure HUD */}
           <RubricSection
+            persistKey="camerainspector.cinematography-exposure"
             title="Cinematography Exposure"
             icon={<Gauge className="w-3.5 h-3.5 text-amber-500" />}
             badge={
@@ -448,6 +451,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
 
             return (
               <RubricSection
+            persistKey="camerainspector.waypoints-storyboard"
                 title="Waypoints & Storyboard"
                 icon={<Compass className="w-3.5 h-3.5 text-emerald-500" />}
                 defaultOpen={false}

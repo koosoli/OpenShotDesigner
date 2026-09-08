@@ -64,7 +64,7 @@ export const ProductionReadiness: React.FC = () => {
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
           <div ref={dialogRef} tabIndex={-1} className={`relative w-full max-w-2xl max-h-[78vh] overflow-hidden rounded-2xl border shadow-2xl ${isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-100'}`} role="dialog" aria-modal="true" aria-labelledby="readiness-title">
             <div className="p-4 border-b border-inherit flex items-start justify-between gap-3">
-              <div><h2 id="readiness-title" className="font-black flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-emerald-500" /> Production readiness</h2><p className="text-[11px] opacity-60 mt-1">Actionable facts already present in schedule, continuity, tasks, locations and power.</p></div>
+              <div><h2 id="readiness-title" className="font-black flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-emerald-500" /> Production readiness</h2><p className="text-[11px] opacity-60 mt-1">Findings already computed across schedule health, call sheets, continuity, tasks, locations, power, DMX, rigging and budget — gathered, not recalculated.</p></div>
               <button onClick={() => setOpen(false)} aria-label="Close readiness" className="p-1.5"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-4 overflow-y-auto max-h-[62vh]">

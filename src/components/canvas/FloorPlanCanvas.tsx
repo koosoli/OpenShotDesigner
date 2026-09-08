@@ -2663,6 +2663,30 @@ export const FloorPlanCanvas: React.FC = () => {
 
   const isLightMode = theme === 'light';
 
+  /**
+   * One sentence describing what is on the plan, for the SVG's accessible name.
+   *
+   * Counts by type rather than listing elements: a screen reader reading out
+   * forty individual props before the user reaches the toolbar is worse than
+   * silence, and the per-element detail is already available as real DOM in the
+   * shot list and the inspector. This is the orientation line — what scene, how
+   * much is on it — and the panels are the navigation.
+   */
+  const planSummaryLabel = useMemo(() => {
+    const visible = (activeSetup?.elements ?? []).filter((element) => !isElementHidden(element));
+    if (visible.length === 0) {
+      return `Floor plan for ${activeSetup?.name || 'this scene'} — empty`;
+    }
+    const counts = new Map<string, number>();
+    for (const element of visible) {
+      counts.set(element.type, (counts.get(element.type) ?? 0) + 1);
+    }
+    const parts = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([type, count]) => `${count} ${type}${count === 1 ? '' : 's'}`);
+    return `Floor plan for ${activeSetup?.name || 'this scene'} — ${parts.join(', ')}`;
+  }, [activeSetup?.elements, activeSetup?.name, isElementHidden]);
+
   const applyBackgroundCalibration = () => {
     if (!calibratingBackgroundId || calibrationPoints.length !== 2) return;
     const image = backgroundImages.find((background) => background.id === calibratingBackgroundId);
@@ -2740,9 +2764,16 @@ export const FloorPlanCanvas: React.FC = () => {
         setRightPanelOpen(true);
       }}
     >
+      {/* The plan is the app's primary content and was previously invisible to
+          assistive tech: an unlabelled <svg> is announced, if at all, as
+          "graphic". role="img" plus a summary at least says what is on the
+          plan and how much of it; the per-element detail lives in the
+          inspector and the shot list, which are real DOM. */}
       <svg
         ref={svgRef}
         id="floor-plan-svg"
+        role="img"
+        aria-label={planSummaryLabel}
         className="w-full h-full block"
       >
         {/* 0. Endless Vector Grid & Axes — rendered outside the pan/zoom

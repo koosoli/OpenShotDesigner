@@ -12,6 +12,7 @@ import {
 } from '../../domain/power';
 import type { LightElement, Project } from '../../types';
 import type { FixtureProfile } from '../../domain/fixtures';
+import { formatDocumentNumber } from '../../domain/documentFormat';
 
 export interface PrintablePowerConsumer {
   name: string;
@@ -64,13 +65,13 @@ export interface PowerPrintViewProps {
 }
 
 const formatWatts = (watts: number | null): string =>
-  watts === null ? '—' : `${Math.round(watts).toLocaleString()} W`;
+  watts === null ? '—' : `${formatDocumentNumber(Math.round(watts))} W`;
 
 const formatAmps = (amps: number | null): string =>
   amps === null ? '—' : `${amps.toFixed(1)} A`;
 
 const formatVA = (va: number | null): string =>
-  va === null ? '—' : `${Math.round(va).toLocaleString()} VA`;
+  va === null ? '—' : `${formatDocumentNumber(Math.round(va))} VA`;
 
 /**
  * Self-contained printable power plan — the distro sheet a gaffer or a sparks

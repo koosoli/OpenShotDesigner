@@ -28,6 +28,7 @@ import { drawPdfTable, wrapPdfCellText } from './tables';
 import type { PdfTableColumn } from './tables';
 import { sanitizePdfText } from './text';
 import type { BudgetActual, BudgetCategory, BudgetEntry } from '../../domain/budget';
+import { formatDocumentMoney } from '../../domain/documentFormat';
 import type { PDFPage } from 'pdf-lib';
 
 /** One estimate line the ledger is compared against; plannedNet stays absent while unpriced. */
@@ -92,14 +93,12 @@ export const budgetActualsEstimatesFromEntries = (entries: readonly BudgetEntry[
     plannedNet: entry.net,
   }));
 
-/** Local mirror of `formatMoney`: stable `Intl` currency text, plain glyphs only. */
-const formatMoneyPlain = (value: number, currency: string): string => {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency, minimumFractionDigits: 2 }).format(value);
-  } catch {
-    return `${currency} ${value.toFixed(2)}`;
-  }
-};
+/**
+ * Currency for the PDF. Pinned to `DOCUMENT_LOCALE`, not the exporting
+ * browser: two people exporting the same budget must get the same bytes.
+ */
+const formatMoneyPlain = (value: number, currency: string): string =>
+  formatDocumentMoney(value, currency);
 
 const DASH = '—';
 

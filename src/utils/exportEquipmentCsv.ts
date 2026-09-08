@@ -6,6 +6,7 @@ import {
   getCategoryMeta,
 } from './equipmentList';
 import { downloadCsv, safeFileName } from './download';
+import { formatDocumentDateTime } from '../domain/documentFormat';
 
 /**
  * Escapes a field for CSV (wraps in quotes if it contains commas, newlines, or quotes).
@@ -56,7 +57,7 @@ export const exportEquipmentToCsv = (
         : `Scene ${activeSetup.sceneNumber || '1'} (${activeSetup.name})`
     }`,
   ]);
-  rows.push([`# Generated: ${new Date().toLocaleString()}`]);
+  rows.push([`# Generated: ${formatDocumentDateTime()}`]);
   rows.push([]); // Empty spacer row
 
   // CSV Data Headers

@@ -101,6 +101,27 @@ export default tseslint.config(
         'warn',
         { roles: ['application', 'group'], tags: [] },
       ],
+
+      // Native dialogs are gone; this keeps them gone. `DialogProvider` gives
+      // promise-based confirm/notice/prompt with a focus trap, Escape handling
+      // and testable seams, and the native calls block the whole tab.
+      //
+      // `prompt` is the sharp one: a component that forgets to destructure it
+      // from `useDialogs()` silently falls through to the global, which still
+      // compiles and still opens a dialog — just the wrong one. This rule
+      // catches that at the point it is written.
+      'no-restricted-globals': [
+        'error',
+        { name: 'alert', message: 'Use notice() from useDialogs() instead.' },
+        { name: 'confirm', message: 'Use confirm() from useDialogs() instead.' },
+        { name: 'prompt', message: 'Use prompt() from useDialogs() instead.' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'window', property: 'alert', message: 'Use notice() from useDialogs() instead.' },
+        { object: 'window', property: 'confirm', message: 'Use confirm() from useDialogs() instead.' },
+        { object: 'window', property: 'prompt', message: 'Use prompt() from useDialogs() instead.' },
+      ],
     },
   },
   {

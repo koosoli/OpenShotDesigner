@@ -8,6 +8,7 @@
  */
 
 import type { Person } from '../people';
+import { documentLocaleForCurrency } from '../documentFormat';
 import type {
   BudgetCategory,
   BudgetLine,
@@ -354,10 +355,27 @@ export const deriveBudget = (input: DeriveBudgetInput): BudgetSummary => {
   };
 };
 
-/** Stable key for the money formatters: `formatMoney(1234.5, 'EUR')` → "€1,234.50". */
-export const formatMoney = (value: number, currency: string): string => {
+/**
+ * Money for the screen: `formatMoney(1234.5, 'EUR')` → "1.234,50 €".
+ *
+ * Follows the CURRENCY, not the reader's machine — the same rule the export
+ * layer uses. That is deliberate: a producer who sees `1.234,50 €` in the
+ * budget panel and then prints `€1,234.50` has to work out whether the
+ * document is wrong, and the honest answer would be "neither, they just
+ * disagree". One rule for both surfaces removes the question.
+ *
+ * `locale` stays overridable for the rare caller that genuinely wants
+ * something else. Anything written to a shared file should call
+ * `formatDocumentMoney` (see `src/domain/documentFormat.ts`), which adds the
+ * WinAnsi guard the PDF layer needs.
+ */
+export const formatMoney = (value: number, currency: string, locale?: string): string => {
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency, minimumFractionDigits: 2 }).format(value);
+    return new Intl.NumberFormat(locale ?? documentLocaleForCurrency(currency), {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+    }).format(value);
   } catch {
     return `${currency} ${value.toFixed(2)}`;
   }

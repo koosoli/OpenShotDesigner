@@ -133,7 +133,7 @@ export const InspectorPanel: React.FC = () => {
   const fieldId = useId();
   const logoInputRef = React.useRef<HTMLInputElement>(null);
   const { activeSetup, project, updateProjectMeta, selectedElementIds, updateElement, deleteSelectedElements, duplicateSelected, updateSetupMeta, setActiveSetupId, rotateElementBy, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, updateBackgroundImage, removeBackgroundImage, displaySettings, updateDisplaySettings, updateMultipleElements, setGridSettings, calibratingBackgroundId, startBackgroundCalibration, cancelBackgroundCalibration } = useFloorPlan();
-  const { notice } = useDialogs();
+  const { notice, prompt } = useDialogs();
   const { theme } = useWorkspaceUI();
 
   /**
@@ -507,6 +507,7 @@ export const InspectorPanel: React.FC = () => {
         <div className="space-y-3">
           {/* Rubric 1: Scene & Environment */}
           <RubricSection
+            persistKey="inspectorpanel.scene-environment"
             title="Scene & Environment"
             icon={<Sliders className="w-3.5 h-3.5 text-sky-500" />}
             badge={
@@ -668,6 +669,7 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Rubric 1b: Location link (plan §4.13, §13 master plans) */}
           <RubricSection
+            persistKey="inspectorpanel.location"
             title="Location"
             icon={<MapPin className="w-3.5 h-3.5 text-sky-500" />}
             badge={
@@ -783,6 +785,7 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Rubric 2: Production Info */}
           <RubricSection
+            persistKey="inspectorpanel.production-details-whole-project"
             title="Production Details (whole project)"
             icon={<Film className="w-3.5 h-3.5 text-sky-500" />}
             badge={
@@ -1003,6 +1006,7 @@ export const InspectorPanel: React.FC = () => {
               without one there is nothing to compute from and we say so
               rather than guessing a position. */}
           <RubricSection
+            persistKey="inspectorpanel.sun-time-of-day"
             title="Sun & Time of Day"
             icon={<Sun className="w-3.5 h-3.5 text-amber-500" />}
             badge={
@@ -1126,6 +1130,7 @@ export const InspectorPanel: React.FC = () => {
           </RubricSection>
 
           <RubricSection
+            persistKey="inspectorpanel.display-labels"
             title="Display & Labels"
             icon={<Tags className="w-3.5 h-3.5 text-violet-500" />}
             defaultOpen={false}
@@ -1258,6 +1263,7 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Rubric 4: Camera & Light HUD Badge Info */}
           <RubricSection
+            persistKey="inspectorpanel.camera-light-hud-details"
             title="Camera & Light HUD Details"
             icon={<Tv className="w-3.5 h-3.5 text-sky-500" />}
             defaultOpen={false}
@@ -1313,6 +1319,7 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Rubric 5: Label Colors & Opacity */}
           <RubricSection
+            persistKey="inspectorpanel.label-colors-opacity"
             title="Label Colors & Opacity"
             icon={<Palette className="w-3.5 h-3.5 text-amber-500" />}
             defaultOpen={false}
@@ -1429,6 +1436,7 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Plan Layers (§6.1): visibility, lock & opacity per layer */}
           <RubricSection
+            persistKey="inspectorpanel.layers"
             title="Layers"
             icon={<Layers className="w-3.5 h-3.5 text-violet-500" />}
             defaultOpen={false}
@@ -1439,6 +1447,7 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Rubric 6: Declutter Floor Plan */}
           <RubricSection
+            persistKey="inspectorpanel.declutter-floor-plan"
             title="Declutter Floor Plan"
             icon={<Grid3x3 className="w-3.5 h-3.5 text-emerald-500" />}
             defaultOpen={false}
@@ -1491,6 +1500,10 @@ export const InspectorPanel: React.FC = () => {
           {/* Rubric 7: Reference Images */}
           {backgroundImages.length > 0 && (
             <RubricSection
+              // Key is fixed while the title carries a live count: a key that
+              // changed with the count would file the preference under a new
+              // slot every time an image was added.
+              persistKey="inspectorpanel.reference-images"
               title={`Reference Images (${backgroundImages.length})`}
               icon={<ImageIcon className="w-3.5 h-3.5 text-teal-500" />}
               defaultOpen={false}
@@ -1708,7 +1721,7 @@ export const InspectorPanel: React.FC = () => {
 
         {/* Reusable assemblies (plan §6.5): save the selection as a template */}
         <button
-          onClick={() => promptSaveAssemblyFromIds(selectedElementIds, activeSetup.elements)}
+          onClick={() => void promptSaveAssemblyFromIds(selectedElementIds, activeSetup.elements, prompt)}
           className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold border transition-colors ${
             isLight
               ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
@@ -2083,6 +2096,7 @@ export const InspectorPanel: React.FC = () => {
 
         {/* Position, Rotation & Transform Rubric */}
         <RubricSection
+            persistKey="inspectorpanel.position-orientation"
           title="Position & Orientation"
           icon={<Move3d className="w-3.5 h-3.5 text-slate-400" />}
           badge={

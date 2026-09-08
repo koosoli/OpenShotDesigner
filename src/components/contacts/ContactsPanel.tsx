@@ -13,26 +13,27 @@ import {
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
+import {
+  assignCastCommand,
+  assignKeyRoleCommand,
+  importPeopleCommand,
+  removePersonCommand,
+  setCastNumberCommand,
+  upsertPersonCommand,
+} from '../../domain/commands';
 import type { Person, PersonKind, UnavailableRange } from '../../domain/people';
 import {
   KEY_CREW_ROLES,
   PERSON_KINDS,
   PERSON_KIND_LABELS,
   PRODUCTION_DEPARTMENTS,
-  assignCast,
-  assignKeyCrew,
   keyCrewMember,
-  projectHeadFieldsFor,
   callSheetPhone,
   castPersonForCharacter,
   filterPeople,
   groupPeopleByDepartment,
   parsePeopleCsv,
   peopleToCsv,
-  removePerson,
-  setCastNumber,
-  unassignCast,
-  upsertPerson,
   usesProductionPhone,
 } from '../../domain/people';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
@@ -280,7 +281,7 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
  * works without a screenplay — the cast section simply stays empty.
  */
 export const ContactsPanel: React.FC = () => {
-  const { project, updateProjectMeta, scriptLines } = useFloorPlan();
+  const { project, runCommand, scriptLines } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   const { confirm } = useDialogs();
   const isLight = theme === 'light';
@@ -325,7 +326,7 @@ export const ContactsPanel: React.FC = () => {
 
   const savePerson = () => {
     if (!editing) return;
-    updateProjectMeta({ people: upsertPerson(people, editing) });
+    runCommand(upsertPersonCommand, { person: editing }, { domain: 'people' });
     setEditing(null);
     setIsNew(false);
   };
@@ -338,40 +339,28 @@ export const ContactsPanel: React.FC = () => {
       danger: true,
     }).then((confirmed) => {
       if (!confirmed) return;
-    const next = removePerson(
-      {
-        people,
-        castAssignments,
-        locations: project.locations ?? [],
-        tasks: project.tasks ?? [],
-        productionDays: project.productionDays ?? [],
-      },
-      personId,
-    );
-    updateProjectMeta({
-      people: next.people,
-      castAssignments: next.castAssignments,
-      locations: next.locations as typeof project.locations,
-      tasks: next.tasks as typeof project.tasks,
-      productionDays: next.productionDays as typeof project.productionDays,
-    });
-    if (editing?.id === personId) {
-      setEditing(null);
-      setIsNew(false);
-    }
+      // The reference sweep across cast, locations, tasks and call-sheet
+      // pick-ups moved into `removePersonCommand`, so it is no longer
+      // reachable only by rendering this panel.
+      runCommand(removePersonCommand, { personId }, { domain: 'people' });
+      if (editing?.id === personId) {
+        setEditing(null);
+        setIsNew(false);
+      }
     });
   };
 
   const setCast = (characterId: string, personId: string) => {
-    // Persist the merged catalog so discovered character ids stay stable.
-    updateProjectMeta({
-      characters: breakdown.characters,
-      castAssignments: personId ? assignCast(castAssignments, characterId, personId) : unassignCast(castAssignments, characterId),
-    });
+    // The merged catalog rides along so discovered character ids stay stable.
+    runCommand(
+      assignCastCommand,
+      { characterId, personId, characters: breakdown.characters },
+      { domain: 'people' },
+    );
   };
 
   const renumberCast = (characterId: string, castNumber: number) => {
-    updateProjectMeta({ castAssignments: setCastNumber(castAssignments, characterId, castNumber) });
+    runCommand(setCastNumberCommand, { characterId, castNumber }, { domain: 'people' });
   };
 
   /**
@@ -380,16 +369,10 @@ export const ContactsPanel: React.FC = () => {
    * scene inspector can never drift apart.
    */
   const assignRole = (roleKey: string, personId: string) => {
-    const nextPeople = assignKeyCrew(people, roleKey, personId);
-    const heads = projectHeadFieldsFor(nextPeople);
-    const role = KEY_CREW_ROLES.find((entry) => entry.key === roleKey);
-    const patch: Parameters<typeof updateProjectMeta>[0] = { people: nextPeople };
-    if (role?.projectField) {
-      // Vacating a role blanks the mirrored field rather than leaving a stale
-      // name behind; filling it writes the assigned person's name.
-      patch[role.projectField] = heads[role.projectField] ?? '';
-    }
-    updateProjectMeta(patch);
+    // Mirroring director / DP onto the project's own fields is the command's
+    // job now, so the crew page and the printed header cannot drift apart
+    // depending on which screen made the change.
+    runCommand(assignKeyRoleCommand, { roleKey, personId }, { domain: 'people' });
   };
 
   /** Heads named only as free text in the project details, with nobody linked. */
@@ -429,7 +412,7 @@ export const ContactsPanel: React.FC = () => {
         setImportMessage('No contacts found — the first row must be a header (Name, Department, Role, Phone, Email…).');
         return;
       }
-      updateProjectMeta((prev) => ({ people: [...(prev.people ?? []), ...imported] }));
+      runCommand(importPeopleCommand, { people: imported }, { domain: 'people' });
       setImportMessage(`Imported ${imported.length} contact${imported.length === 1 ? '' : 's'}.`);
     };
     reader.readAsText(file);

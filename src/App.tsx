@@ -124,15 +124,28 @@ const MainLayout: React.FC = () => {
     return () => window.removeEventListener('keydown', saveShortcut);
   }, [project, notice]);
   const [isSidebarFullscreen, setIsSidebarFullscreen] = useState(false);
+  /**
+   * Default width of the production sidebar, as a share of the viewport.
+   *
+   * Previously a fixed 860px, chosen so the widest panel (the gear manifest)
+   * opened fully readable. The cost was paid by the canvas: on a 1600px screen
+   * the sidebar took 54% and the floor plan — the thing the app is for — got
+   * less room than the panel beside it, on first run, before the user has
+   * touched anything.
+   *
+   * So the default now favours the plan and the panels stay one drag away.
+   * Anyone who works mostly in the gear manifest widens it once and that
+   * preference is kept; the reverse was not true before, because the restore
+   * below overrode narrow saved widths.
+   */
   const calculateDefaultSidebarWidth = (): number => {
-    if (typeof window === 'undefined') return 860;
+    if (typeof window === 'undefined') return 620;
     const vw = window.innerWidth;
-    // Extended ~10% more (860px) so Shot List, Storyboard, Script, Gear Manifest, and Inspector
-    // are completely open and readable with comfortable breathing room.
-    if (vw >= 1600) return 860;
-    if (vw >= 1280) return 820;
-    if (vw >= 1024) return 760;
-    return 660;
+    if (vw >= 1920) return 700;
+    if (vw >= 1600) return 620;
+    if (vw >= 1280) return 580;
+    if (vw >= 1024) return 520;
+    return 440;
   };
 
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -140,10 +153,12 @@ const MainLayout: React.FC = () => {
       const saved = localStorage.getItem('openshotdesigner_sidebar_width');
       if (saved) {
         const parsed = Number(saved);
-        if (!isNaN(parsed) && parsed >= 320 && parsed <= 1400) {
-          if (parsed <= 800) return 860;
-          return parsed;
-        }
+        // A saved width is the user's decision and is restored as-is. The
+        // previous version snapped anything at or below 800px back up to 860,
+        // so dragging the sidebar narrower survived until the next reload and
+        // then silently undid itself — the setting looked broken rather than
+        // opinionated.
+        if (!isNaN(parsed) && parsed >= 320 && parsed <= 1400) return parsed;
       }
     } catch {}
     return calculateDefaultSidebarWidth();
@@ -250,6 +265,30 @@ const MainLayout: React.FC = () => {
     <div id="app-root" className={`flex flex-col w-screen h-screen overflow-hidden font-sans select-none transition-colors ${
       isLight ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'
     } ${isResizing ? 'cursor-col-resize' : ''}`}>
+      {/*
+        Keyboard escape hatch out of the chrome.
+        The toolbars ahead of the plan are roughly forty tab stops, and a
+        keyboard user opening the app currently walks all of them before
+        reaching the thing they came for. Visually hidden until focused, which
+        is the one moment it is useful.
+      */}
+      <a
+        href="#floor-plan-region"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:top-2 focus:left-2 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-sky-600 focus:text-white focus:text-xs focus:font-bold"
+      >
+        Skip to the floor plan
+      </a>
+
+      {/*
+        The document's only h1. Everything on screen is one production, and
+        without it the heading outline started at h2 inside whichever panel
+        happened to be open — a screen-reader user had no way to tell which
+        project they were in from the structure alone. Visually hidden because
+        the title is already shown in the navbar; this is the same information
+        for a different reader, not a second one.
+      */}
+      <h1 className="sr-only">{project.title || 'Untitled production'}</h1>
+
       {/* 1. Top Navbar */}
       <TopNavbar />
 
@@ -259,7 +298,12 @@ const MainLayout: React.FC = () => {
         <LeftToolbar />
 
         {/* Center Canvas Area with Timeline at Bottom */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        <main
+          id="floor-plan-region"
+          aria-label="Floor plan"
+          tabIndex={-1}
+          className="flex-1 flex flex-col h-full overflow-hidden relative outline-none"
+        >
           {/* Keep workspace actions inside the canvas column so they can never
               cover the resizable production sidebar. */}
           <ProductionReadiness />
@@ -270,7 +314,7 @@ const MainLayout: React.FC = () => {
 
           {/* Director's Blocking Playback Timeline */}
           <TimelineBar />
-        </div>
+        </main>
 
         {/* Storage Warning Banner (large embedded storyboards exceed localStorage quota) */}
         {storageWarning && (
@@ -308,6 +352,7 @@ const MainLayout: React.FC = () => {
         {isRightPanelOpen ? (
           <aside
             id="right-sidebar"
+            aria-label="Workspace panels"
             style={
               ({
                     '--sidebar-width': `${sidebarWidth}px`,

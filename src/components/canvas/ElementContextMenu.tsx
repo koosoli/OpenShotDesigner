@@ -15,6 +15,7 @@ import {
   Unlock,
 } from 'lucide-react';
 import { promptSaveAssemblyFromIds } from './AssembliesPanel';
+import { useDialogs } from '../dialog/DialogProvider';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 export interface ElementContextMenuState {
@@ -42,6 +43,7 @@ interface ElementContextMenuProps {
 export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, onClose }) => {
   const { activeSetup, selectedElementIds, selectElement, updateMultipleElements, deleteSelectedElements, duplicateSelected, copySelectedElements, pasteElements, updateSetupMeta, groupSelection, ungroupSelection } = useFloorPlan();
   const { theme, setActiveRightTab } = useWorkspaceUI();
+  const { prompt } = useDialogs();
 
   const isLight = theme === 'light';
   const menuRef = useRef<HTMLDivElement>(null);
@@ -148,7 +150,7 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
   // Reusable assemblies (plan §6.5): serialize the selection into a named
   // workspace-level template (localStorage, not project data).
   const saveAsAssembly = run(() => {
-    promptSaveAssemblyFromIds(targetIds.current, activeSetup.elements);
+    void promptSaveAssemblyFromIds(targetIds.current, activeSetup.elements, prompt);
   });
 
   // Keep the anchored menu inside the viewport (estimated max size).

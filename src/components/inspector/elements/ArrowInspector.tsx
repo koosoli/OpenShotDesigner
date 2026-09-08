@@ -40,6 +40,7 @@ export const ArrowInspector: React.FC<ArrowInspectorProps> = ({ arr, isLight }) 
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="arrowinspector.arrow-direction-style"
         title="Arrow Direction & Style"
         icon={<MoveRight className="w-3.5 h-3.5 text-orange-500" />}
         defaultOpen={true}

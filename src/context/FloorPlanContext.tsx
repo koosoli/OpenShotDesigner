@@ -33,7 +33,9 @@ import {
 } from '../types';
 import { createId } from '../domain/ids';
 import { applyProjectCommand } from '../domain/project';
-import type { ProjectChange, ProjectCommandMetadata } from '../domain/project';
+import type { ProjectChange, ProjectCommandDomain, ProjectCommandMetadata } from '../domain/project';
+import type { CommandResult } from '../domain/commands';
+import { deleteShotCommand } from '../domain/commands';
 import { nextActorLetter, nextCameraLabel } from '../domain/plan/cameraLabels';
 import { endpointsOf, hasEndpoints, hasSize } from '../domain/plan/elementGuards';
 import { buildShotForSetup } from '../domain/shots/createShot';
@@ -300,6 +302,22 @@ interface FloorPlanContextType {
   ) => void;
   /** Central command boundary used by new domain slices; updateProjectMeta remains compatible. */
   commitProject: (change: ProjectChange, metadata: ProjectCommandMetadata) => void;
+  /**
+   * Run a pure domain command from `src/domain/commands`.
+   *
+   * The bridge that makes those commands usable from the UI, and the reason
+   * they are worth writing: the command computes the next project AND says
+   * what it did, so the undo entry reads "Remove Sam Ortiz and 3 references"
+   * instead of the "Update project metadata" that every `updateProjectMeta`
+   * call produces. Returns the command's metadata and warnings so a caller can
+   * surface them; throws whatever the command throws, since a command that
+   * rejects its input has found a bug at the call site, not a user error.
+   */
+  runCommand: <TInput>(
+    command: (project: Project, input: TInput) => CommandResult,
+    input: TInput,
+    options?: { domain?: ProjectCommandDomain; record?: boolean },
+  ) => CommandResult['meta'] & { warnings?: string[] };
   /**
    * Fill the modules that are still empty with the bundled example production.
    * Strictly additive — anything the user already has is untouched. Returns the
@@ -3158,51 +3176,25 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   };
 
+  /**
+   * Delete a shot and everything that pointed at it.
+   *
+   * Delegates to `deleteShotCommand`, which was written and tested but never
+   * wired in — the app kept its own copy of the same cleanup, split across
+   * TWO state writes (the owning setup, then the project-level references).
+   * Two writes in one tick is exactly the bug this codebase has hit before:
+   * the second updater reads a `prev` that already has the first applied only
+   * because React happens to batch them, and any change to that ordering
+   * silently drops one half of the delete.
+   *
+   * The command does it as one pure transformation on a clone, so a shot
+   * either goes completely or not at all, and the undo entry finally says
+   * which shot it was.
+   */
   const deleteShot = (id: string) => {
-    const owner = project.setups.find((setup) => setup.shots.some((s) => s.id === id));
-    if (!owner) return;
+    if (!project.setups.some((setup) => setup.shots.some((shot) => shot.id === id))) return;
     if (selectedShotId === id) setSelectedShotId(null);
-
-    commitSetupById(owner.id, (setup) => {
-      const updatedShots = setup.shots.filter((s) => s.id !== id);
-      const removedShot = setup.shots.find((s) => s.id === id);
-      let updatedElements = setup.elements;
-
-      // If the removed shot was the only one using its camera, remove that
-      // camera from the floor plan too so it doesn't linger on the canvas.
-      if (removedShot?.cameraId && !updatedShots.some((s) => s.cameraId === removedShot.cameraId)) {
-        updatedElements = setup.elements.filter((e) => e.id !== removedShot.cameraId);
-      }
-
-      return {
-        ...setup,
-        elements: updatedElements,
-        shots: updatedShots,
-        storyboardOrder: setup.storyboardOrder?.filter((shotId) => shotId !== id),
-        scriptMarks: (setup.scriptMarks || []).filter((mark) => mark.shotId !== id),
-      };
-    });
-
-    setRecordedProject((prev) => {
-      // Everything outside the owning setup that pointed at this shot: its
-      // schedule strip, and the script line it was lined for. Left behind,
-      // those rendered as an empty strip on the board and on every call sheet
-      // for that day, with nothing the user could do about it.
-      const cleaned = removeShotReferences(
-        {
-          scheduleBlocks: prev.scheduleBlocks,
-          productionDays: prev.productionDays,
-          scriptLines: prev.scriptLines,
-          takes: prev.takes,
-        },
-        id,
-      );
-      return {
-        ...prev,
-        ...cleaned,
-        avScriptRows: rowsAfterShotRemoval(prev.avScriptRows || [], new Set([id]), allShotsOf(prev)),
-      };
-    });
+    runCommand(deleteShotCommand, { shotId: id }, { domain: 'shots' });
   };
 
   /**
@@ -3753,6 +3745,32 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   /**
+   * Run a pure domain command and record it under its own description.
+   *
+   * The command runs twice-safe: it is a pure function of the project, so
+   * calling it once outside the updater to read its metadata and once inside
+   * to produce the state is deterministic. Metadata is returned synchronously
+   * because callers use it immediately — to show what a delete swept up, for
+   * instance — and waiting for a re-render to read it would be a worse API
+   * than the free-form patch this replaces.
+   */
+  const runCommand = <TInput,>(
+    command: (currentProject: Project, input: TInput) => CommandResult,
+    input: TInput,
+    options: { domain?: ProjectCommandDomain; record?: boolean } = {},
+  ): CommandResult['meta'] & { warnings?: string[] } => {
+    // Validation errors surface here, at the call site, rather than inside a
+    // state updater where React would report them from an unhelpful stack.
+    const preview = command(project, input);
+    commitProject((previous) => command(previous, input).project, {
+      label: preview.meta.description,
+      domain: options.domain ?? 'project',
+      ...(options.record === undefined ? {} : { record: options.record }),
+    });
+    return { ...preview.meta, ...(preview.warnings ? { warnings: preview.warnings } : {}) };
+  };
+
+  /**
    * Functional project mutation recorded in undo history. Used by every
    * content mutation that builds its next state from `prev` directly
    * (AV-script rows, setup add/duplicate/delete, cross-scene lining edits…).
@@ -4256,6 +4274,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateSetupMeta,
         commitProject,
         updateProjectMeta,
+        runCommand,
         loadExampleProductionData,
         revisions,
         saveRevision,

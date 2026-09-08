@@ -97,3 +97,61 @@ describe('EquipmentPanel', () => {
     expect(after.some((item) => item.id === added!.id)).toBe(true);
   });
 });
+
+/**
+ * Chrome reduction (audit 2026-09-08, P2 "GUI-Dichte").
+ *
+ * The panel used to stack eight full-width bands above the first data row, so
+ * roughly half its height was controls. Two of those — the power summary and
+ * the DMX summary — are now one collapsible digest, and the editing hint can
+ * be dismissed permanently.
+ *
+ * These tests pin the two properties that make that an improvement rather than
+ * a hiding place: an urgent number stays readable while collapsed, and both
+ * choices survive a reload. A collapse that forgets itself is worse than no
+ * collapse at all, because the user has to close it every single time.
+ */
+describe('EquipmentPanel chrome', () => {
+  const bandButton = () => screen.getByRole('button', { name: /Load & patch/i });
+
+  it('starts with the technical detail collapsed', async () => {
+    await mount();
+    expect(bandButton().getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByText(/power run/i)).toBeNull();
+  });
+
+  it('keeps the headline load and patch figures visible while collapsed', async () => {
+    await mount();
+    // The point of collapsing is to remove noise, not to hide a fault: an
+    // overload or a patch conflict must still be legible without expanding.
+    expect(bandButton().textContent).toMatch(/W/);
+    expect(bandButton().textContent).toMatch(/DMX \d+\/\d+/);
+  });
+
+  it('reveals the full power and DMX strips on expand', async () => {
+    const user = userEvent.setup();
+    await mount();
+    await user.click(bandButton());
+    expect(bandButton().getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText(/power run/i)).toBeTruthy();
+  });
+
+  it('records the expanded state as a viewer preference', async () => {
+    const user = userEvent.setup();
+    await mount();
+    await user.click(bandButton());
+    // Persistence itself is the hook's contract and is tested there
+    // (utils/__tests__/usePersistentUiState.test.ts). What belongs here is
+    // that the panel actually writes through it rather than holding the state
+    // in a plain useState that dies with the component.
+    expect(localStorage.getItem('openshotdesigner_ui_gear.technicalBand')).toBe('true');
+  });
+
+  it('dismisses the editing hint and records that too', async () => {
+    const user = userEvent.setup();
+    await mount();
+    await user.click(screen.getByRole('button', { name: 'Dismiss this hint' }));
+    expect(screen.queryByRole('button', { name: 'Dismiss this hint' })).toBeNull();
+    expect(localStorage.getItem('openshotdesigner_ui_gear.editingHint.dismissed')).toBe('true');
+  });
+});

@@ -264,3 +264,136 @@ describe('schedule and coverage detectors', () => {
     expect(idsWithPrefix(project, 'day-location-')).toEqual([]);
   });
 });
+
+/**
+ * Aggregated findings (audit 2026-09-08).
+ *
+ * These two areas already computed their own answers and readiness simply did
+ * not ask. The tests assert the aggregation — that a finding produced
+ * elsewhere reaches the centre — rather than re-testing the underlying rules,
+ * which have their own suites.
+ */
+describe('schedule health reaches the readiness centre', () => {
+  const twoDayProject = (): Project => {
+    const project = blankProject();
+    project.productionDays = [
+      {
+        id: 'day-1',
+        name: 'Day 1',
+        date: '2026-09-10',
+        crewCall: '08:00',
+        plannedWrap: '22:00',
+        scheduleBlockIds: [],
+      },
+      {
+        id: 'day-2',
+        name: 'Day 2',
+        date: '2026-09-11',
+        // Six hours after the previous wrap: below any turnaround agreement.
+        crewCall: '04:00',
+        plannedWrap: '18:00',
+        scheduleBlockIds: [],
+      },
+    ] as Project['productionDays'];
+    return project;
+  };
+
+  it('reports a short turnaround between two days', () => {
+    const items = buildReadinessItems(twoDayProject());
+    const turnaround = items.find((item) => item.id.startsWith('schedule-short_turnaround-'));
+    expect(turnaround).toBeTruthy();
+    expect(turnaround?.tab).toBe('schedule');
+  });
+
+  it('says what to do about it, not just what it found', () => {
+    const items = buildReadinessItems(twoDayProject());
+    const turnaround = items.find((item) => item.id.startsWith('schedule-short_turnaround-'));
+    // The domain's message states the fact; readiness owes the reader the
+    // second half.
+    expect(turnaround?.detail).toMatch(/rest/i);
+    expect(turnaround?.label.length).toBeGreaterThan(10);
+  });
+
+  it('keeps a turnaround finding addressable by BOTH days', () => {
+    // Turnaround is about a pair. Two findings landing on the same day would
+    // collide on id, and dismissing one would silence the other.
+    const items = buildReadinessItems(twoDayProject());
+    const turnaround = items.find((item) => item.id.startsWith('schedule-short_turnaround-'));
+    const facts = turnaround?.facts as { dayId?: string; relatedDayId?: string } | undefined;
+    expect(facts?.dayId).toBeTruthy();
+    expect(facts?.relatedDayId).toBeTruthy();
+    expect(facts?.dayId).not.toBe(facts?.relatedDayId);
+  });
+
+  it('stays quiet on a schedule with nothing to say', () => {
+    const project = blankProject();
+    project.productionDays = [
+      { id: 'day-1', name: 'Day 1', date: '2026-09-10', crewCall: '08:00', plannedWrap: '18:00', scheduleBlockIds: [] },
+    ] as Project['productionDays'];
+    expect(
+      buildReadinessItems(project).filter((item) => item.id.startsWith('schedule-')),
+    ).toEqual([]);
+  });
+});
+
+describe('a stale issued call sheet is a blocker', () => {
+  const issuedProject = (): Project => {
+    const project = blankProject();
+    project.title = 'Test Production';
+    project.productionDays = [
+      {
+        id: 'day-1',
+        name: 'Day 1',
+        date: '2026-09-10',
+        crewCall: '08:00',
+        plannedWrap: '18:00',
+        scheduleBlockIds: [],
+        callSheet: {
+          status: 'final',
+          issues: [
+            {
+              id: 'issue-1',
+              revision: 1,
+              issuedAt: '2026-09-09T10:00:00.000Z',
+              // A snapshot that deliberately disagrees with the live document.
+              snapshotJson: JSON.stringify({ crewCall: '07:00', dayName: 'Day 1' }),
+              acknowledgements: [],
+            },
+          ],
+        },
+      },
+    ] as Project['productionDays'];
+    return project;
+  };
+
+  it('flags a day whose live document no longer matches its issued revision', () => {
+    const stale = buildReadinessItems(issuedProject()).find(
+      (item) => item.id === 'callsheet-stale-day-1',
+    );
+    expect(stale).toBeTruthy();
+    // People are already driving to the address on it.
+    expect(stale?.severity).toBe('blocker');
+    expect(stale?.label).toContain('Rev 1');
+  });
+
+  it('names the fields that moved, so the reader can judge it', () => {
+    const stale = buildReadinessItems(issuedProject()).find(
+      (item) => item.id === 'callsheet-stale-day-1',
+    );
+    const facts = stale?.facts as { fields?: string[] } | undefined;
+    expect(facts?.fields?.length).toBeGreaterThan(0);
+    // Field NAMES, not values: fixing a typo in a note must not resurrect a
+    // dismissal, but a different part of the document moving must.
+    expect(facts?.fields).toContain('Crew call');
+  });
+
+  it('says nothing about a day that was never issued', () => {
+    const project = blankProject();
+    project.productionDays = [
+      { id: 'day-1', name: 'Day 1', date: '2026-09-10', crewCall: '08:00', scheduleBlockIds: [] },
+    ] as Project['productionDays'];
+    expect(
+      buildReadinessItems(project).filter((item) => item.id.startsWith('callsheet-stale-')),
+    ).toEqual([]);
+  });
+});

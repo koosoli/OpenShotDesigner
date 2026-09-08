@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import type { Shot, Waypoint } from '../../../types';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
+import { usePersistentUiState } from '../../../utils/usePersistentUiState';
 import { useDialogs } from '../../dialog/DialogProvider';
 import { framesOf, setFramePatch } from '../../../utils/storyboardFrames';
 import { loadStoryboardImageFile } from '../../../utils/image';
@@ -289,6 +290,19 @@ export const RubricSection: React.FC<{
   icon?: React.ReactNode;
   badge?: React.ReactNode;
   defaultOpen?: boolean;
+  /**
+   * Remember open/closed under this key, across tab switches and reloads.
+   *
+   * Without it a section reverts to `defaultOpen` every time the panel
+   * remounts — and the inspector remounts on every tab switch. Someone
+   * working in "Sun & Time of Day" had to reopen it each time they glanced at
+   * the shot list, eleven collapsed rows to scan through, all day.
+   *
+   * Opt-in rather than automatic because the key has to be stable and unique,
+   * and a title alone is neither: two panels can legitimately both have a
+   * "Notes" section, and a renamed title would silently orphan the setting.
+   */
+  persistKey?: string;
   isLight: boolean;
   children: React.ReactNode;
   headerRight?: React.ReactNode;
@@ -298,12 +312,16 @@ export const RubricSection: React.FC<{
   icon,
   badge,
   defaultOpen = true,
+  persistKey,
   isLight,
   children,
   headerRight,
   className = '',
 }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isOpen, setIsOpen] = usePersistentUiState(
+    persistKey ? `inspector.section.${persistKey}` : null,
+    defaultOpen,
+  );
 
   return (
     <div

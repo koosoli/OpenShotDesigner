@@ -222,13 +222,49 @@ describe('logTakeCommand', () => {
     expect((again.project.takes ?? []).at(-1)?.takeNumber).toBe(3);
   });
 
-  it('inherits the sticky columns from the last logged take', () => {
+  it('inherits the sticky columns from the take the caller names', () => {
+    const base = buildProject();
+    base.takes = [
+      { id: 'take-1', shotId: 'shot-1', takeNumber: 1, rollCard: 'A001' } as Take,
+    ];
+    const { project: next } = logTakeCommand(base, {
+      shotId: 'shot-2',
+      previousTakeId: 'take-1',
+    });
+    expect((next.takes ?? []).at(-1)?.rollCard).toBe('A001');
+  });
+
+  it('inherits nothing when the caller names no previous take', () => {
+    // The command used to reach for `takes[takes.length - 1]` on its own.
+    // That is wrong whenever the caller is looking at a filtered view: the
+    // continuity panel means "the last take on THIS day", and on any day but
+    // the newest the global last take belongs to a day nobody is looking at.
+    // Guessing is now impossible; the caller decides or nothing is inherited.
     const base = buildProject();
     base.takes = [
       { id: 'take-1', shotId: 'shot-1', takeNumber: 1, rollCard: 'A001' } as Take,
     ];
     const { project: next } = logTakeCommand(base, { shotId: 'shot-2' });
+    expect((next.takes ?? []).at(-1)?.rollCard).toBeUndefined();
+  });
+
+  it('lets the caller inherit from a take that is not the most recent', () => {
+    const base = buildProject();
+    base.takes = [
+      { id: 'take-1', shotId: 'shot-1', takeNumber: 1, rollCard: 'A001' } as Take,
+      { id: 'take-2', shotId: 'shot-1', takeNumber: 2, rollCard: 'B002' } as Take,
+    ];
+    const { project: next } = logTakeCommand(base, {
+      shotId: 'shot-2',
+      previousTakeId: 'take-1',
+    });
     expect((next.takes ?? []).at(-1)?.rollCard).toBe('A001');
+  });
+
+  it('rejects a previous take id that does not exist', () => {
+    expect(() =>
+      logTakeCommand(buildProject(), { shotId: 'shot-1', previousTakeId: 'take-9' }),
+    ).toThrow(/unknown previous take id/);
   });
 
   it('rejects an unknown shot id', () => {
@@ -349,5 +385,66 @@ describe('moveScheduleBlockCommand', () => {
       moveScheduleBlockCommand(project, { blockId: 'missing', toDayId: 'day-1' }),
     ).toThrow();
     expect(project).toEqual(snapshot);
+  });
+});
+
+/**
+ * Unscheduling — the half of the stripboard operation the command was missing.
+ *
+ * `moveScheduleBlockCommand` required a target day, so it modelled a subset of
+ * what the board actually does and could not replace `SchedulePanel`'s own
+ * copy. Dragging a strip back to the pool is not an edge case; it is how a
+ * scene comes off a day.
+ */
+describe('moveScheduleBlockCommand — unscheduling', () => {
+  // Uses the shared fixture so the blocks referenced here really exist:
+  // 'block-solo' sits on Day 1, 'block-scene' on Day 2.
+  const scheduled = buildProject;
+
+  it('takes a block off every day when the target is null', () => {
+    const { project } = moveScheduleBlockCommand(scheduled(), {
+      blockId: 'block-solo',
+      toDayId: null,
+    });
+    for (const day of project.productionDays ?? []) {
+      expect(day.scheduleBlockIds).not.toContain('block-solo');
+    }
+  });
+
+  it('says which day it came off', () => {
+    const { meta } = moveScheduleBlockCommand(scheduled(), {
+      blockId: 'block-solo',
+      toDayId: null,
+    });
+    expect(meta.description).toMatch(/Unschedule/);
+    expect(meta.description).toMatch(/Day 1/);
+  });
+
+  it('is a no-op on a block that was never scheduled', () => {
+    const project = scheduled();
+    project.productionDays![0].scheduleBlockIds = [];
+    project.productionDays![1].scheduleBlockIds = [];
+    const result = moveScheduleBlockCommand(project, { blockId: 'block-solo', toDayId: null });
+    // Same reference back: nothing to commit, so nothing enters undo history.
+    expect(result.project).toBe(project);
+    expect(result.meta.description).toMatch(/no change/);
+  });
+
+  it('leaves the input project untouched', () => {
+    const before = scheduled();
+    moveScheduleBlockCommand(before, { blockId: 'block-solo', toDayId: null });
+    expect(before.productionDays?.[0].scheduleBlockIds).toEqual(['block-solo', 'block-shared']);
+  });
+
+  it('still rejects a day id that does not exist', () => {
+    expect(() =>
+      moveScheduleBlockCommand(scheduled(), { blockId: 'block-solo', toDayId: 'day-9' }),
+    ).toThrow(/unknown production day/);
+  });
+
+  it('rejects an empty string, which is a mistake rather than "unschedule"', () => {
+    expect(() =>
+      moveScheduleBlockCommand(scheduled(), { blockId: 'block-solo', toDayId: '' }),
+    ).toThrow(/non-empty string or null/);
   });
 });

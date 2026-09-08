@@ -61,6 +61,7 @@ export const LightModifiersSection: React.FC<LightModifiersSectionProps> = ({ li
   return (
     <>
       <RubricSection
+            persistKey="lightmodifierssection.modifiers-accessories"
         title="Modifiers & Accessories"
         icon={<WandSparkles className="w-3.5 h-3.5 text-violet-500" />}
         badge={modifiers.filter((modifier) => modifier.enabled).length > 0 ? (
@@ -159,6 +160,7 @@ export const LightModifiersSection: React.FC<LightModifiersSectionProps> = ({ li
       </RubricSection>
 
       <RubricSection
+            persistKey="lightmodifierssection.photometric-calculator"
         title="Photometric Calculator"
         icon={<Gauge className="w-3.5 h-3.5 text-cyan-500" />}
         badge={reference ? <span className="text-[9px] font-mono text-cyan-500 font-bold">SOURCE SET</span> : undefined}

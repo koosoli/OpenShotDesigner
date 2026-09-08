@@ -55,7 +55,7 @@ import { SUPPORTED_LANGUAGES } from '../../i18n/dictionary';
 export const TopNavbar: React.FC = () => {
   const { project, activeSetup, historyIndex, historyLength, undo, redo, setActiveSetupId, addSetup, duplicateCurrentSetup, deleteSetup, updateProjectMeta, saveRevision, loadTemplateScene, loadExampleProductionData, loadProjectFromJson, setGridSettings, openViewfinder, displaySettings, updateDisplaySettings, isModuleVisible, setModuleVisible } = useFloorPlan();
   const { theme, toggleTheme, openExportModal, openDashboard } = useWorkspaceUI();
-  const { confirm, notice } = useDialogs();
+  const { confirm, notice, prompt } = useDialogs();
   const { lang, setLang, t } = useLanguage();
 
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
@@ -122,6 +122,7 @@ export const TopNavbar: React.FC = () => {
   return (
     <header
       id="top-navbar"
+      aria-label="Project and workspace actions"
       className={`${isCompact ? 'h-12 px-2 gap-1.5' : 'h-14 px-4 gap-3'} border-b flex items-center justify-between select-none z-30 transition-colors ${
         isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'
       }`}
@@ -847,14 +848,25 @@ export const TopNavbar: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
-                      const name = window.prompt(
-                        'Name this revision',
-                        `Revision ${(project.revisions?.length || 0) + 1}`
-                      );
-                      if (name === null) return;
-                      const note = window.prompt('Optional note (cancel to skip)');
-                      saveRevision(name, note ?? undefined);
-                      setIsOverflowOpen(false);
+                      // Two sequential prompts, as before: the note stays
+                      // optional, so cancelling it still saves the revision.
+                      void (async () => {
+                        const name = await prompt({
+                          title: 'Name this revision',
+                          label: 'Revision name',
+                          defaultValue: `Revision ${(project.revisions?.length || 0) + 1}`,
+                          requireValue: true,
+                        });
+                        if (name === null) return;
+                        const note = await prompt({
+                          title: 'Add a note',
+                          message: 'Optional — leave empty or cancel to skip.',
+                          label: 'Note',
+                          confirmLabel: 'Save revision',
+                        });
+                        saveRevision(name, note ?? undefined);
+                        setIsOverflowOpen(false);
+                      })();
                     }}
                     className={overflowItemClass}
                   >

@@ -4,9 +4,10 @@
  * Take numbering follows the slate rules in `domain/continuity`: the number
  * counts on from the highest number already logged against the same shot and
  * slate tag, so a base slate and its `-PU` pickup are independent series that
- * can each honestly have a Take 1. The new take inherits the sticky columns
- * (roll cards, keywords, camera and slate overrides) from the last logged
- * take, whatever shot it was on.
+ * can each honestly have a Take 1. Sticky columns (roll cards, keywords,
+ * camera and slate overrides) are inherited from the take the CALLER names —
+ * see `previousTakeId`, and the note there on why the command does not pick
+ * one itself.
  */
 import type { Project } from '../../types';
 import type { Take } from '../continuity';
@@ -23,6 +24,21 @@ export interface LogTakeInput {
   takeId?: string;
   /** Override the logged-at timestamp. Defaults to now. */
   loggedAt?: string;
+  /**
+   * Which take the new one inherits its sticky columns from (roll cards,
+   * keywords, camera and slate overrides).
+   *
+   * Explicit, because "the previous take" is a question only the caller can
+   * answer. The continuity panel means the last take on the DAY being viewed —
+   * that is what makes "the scene moved and the location changed with it" a
+   * one-field edit. A command that instead guessed "the last take in the
+   * project" would, on any day but the newest, seed the row from a take the
+   * user is not even looking at. This command used to guess exactly that,
+   * which is why it was never safe to wire in.
+   *
+   * Omitted means "no inheritance"; the take starts from the shot's own plan.
+   */
+  previousTakeId?: string;
 }
 
 const SLATE_TAGS: ReadonlySet<string> = new Set(['PU', 'RTK']);
@@ -59,9 +75,19 @@ export const logTakeCommand = (project: Project, input: LogTakeInput): CommandRe
     throw new Error(`logTake: loggedAt "${loggedAt}" is not a valid timestamp.`);
   }
 
+  if (
+    input.previousTakeId !== undefined &&
+    !(project.takes ?? []).some((take) => take.id === input.previousTakeId)
+  ) {
+    throw new Error(`logTake: unknown previous take id "${input.previousTakeId}".`);
+  }
+
   // Clone first so the append below cannot half-apply to the caller's project.
   const next: Project = structuredClone(project);
-  const previous = (next.takes ?? [])[(next.takes ?? []).length - 1];
+  const previous =
+    input.previousTakeId === undefined
+      ? undefined
+      : (next.takes ?? []).find((take) => take.id === input.previousTakeId);
   const { take } = seedNextTake(next.takes ?? [], {
     id: takeId,
     shotId: input.shotId,

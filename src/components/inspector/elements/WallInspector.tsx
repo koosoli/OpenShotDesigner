@@ -30,6 +30,7 @@ export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) =
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="wallinspector.wall-dimensions-inserts"
         title="Wall Dimensions & Inserts"
         icon={<Square className="w-3.5 h-3.5 text-slate-400" />}
         badge={

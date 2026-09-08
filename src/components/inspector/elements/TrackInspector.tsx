@@ -32,6 +32,7 @@ export const TrackInspector: React.FC<TrackInspectorProps> = ({ track, isLight }
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="trackinspector.dolly-track-geometry"
         title="Dolly Track Geometry"
         icon={<MoveRight className="w-3.5 h-3.5 text-slate-400" />}
         badge={

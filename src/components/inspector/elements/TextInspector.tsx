@@ -28,6 +28,7 @@ export const TextInspector: React.FC<TextInspectorProps> = ({ txt, isLight }) =>
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="textinspector.text-content-typography"
         title="Text Content & Typography"
         icon={<Type className="w-3.5 h-3.5 text-blue-500" />}
         defaultOpen={true}

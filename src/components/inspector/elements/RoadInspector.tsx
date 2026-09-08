@@ -39,6 +39,7 @@ export const RoadInspector: React.FC<RoadInspectorProps> = ({ road, isLight }) =
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="roadinspector.street-surface-markings"
         title="Street Surface & Markings"
         icon={<Square className="w-3.5 h-3.5 text-zinc-400" />}
         badge={

@@ -27,6 +27,7 @@ export const WindowInspector: React.FC<WindowInspectorProps> = ({ win, isLight }
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="windowinspector.window-dimensions-sunlight"
         title="Window Dimensions & Sunlight"
         icon={<AppWindow className="w-3.5 h-3.5 text-sky-500" />}
         defaultOpen={true}

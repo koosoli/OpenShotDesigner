@@ -54,7 +54,8 @@ export const renderPanel = async ({ module, exportName }: RenderPanelOptions) =>
   const contextModule = await import('../../context/FloorPlanContext');
   // Imported after the reset, so it is the same module instance the freshly
   // imported FloorPlanProvider consumes.
-  const { WorkspaceUIProvider } = await import('../../context/WorkspaceUIContext');
+  const workspaceModule = await import('../../context/WorkspaceUIContext');
+  const { WorkspaceUIProvider, useWorkspaceUI } = workspaceModule;
   const panelModule = (await import(`../${module}`)) as Record<string, React.ComponentType>;
   const Panel = panelModule[exportName];
   if (!Panel) throw new Error(`${module} has no export named ${exportName}`);
@@ -62,8 +63,13 @@ export const renderPanel = async ({ module, exportName }: RenderPanelOptions) =>
   const { FloorPlanProvider, useFloorPlan } = contextModule;
 
   let api: ReturnType<typeof useFloorPlan> | null = null;
+  // The workspace half is probed too: the export studio and the viewfinder are
+  // driven entirely by flags that live there, so a test cannot open them
+  // through the panel it is testing.
+  let ui: ReturnType<typeof useWorkspaceUI> | null = null;
   const Probe: React.FC = () => {
     api = useFloorPlan();
+    ui = useWorkspaceUI();
     return null;
   };
 
@@ -98,6 +104,7 @@ export const renderPanel = async ({ module, exportName }: RenderPanelOptions) =>
     ...result,
     project: () => api!.project,
     api: () => api!,
+    ui: () => ui!,
     act: async (fn: () => void) => {
       await act(async () => {
         fn();

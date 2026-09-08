@@ -70,6 +70,7 @@ export const CableInspector: React.FC<CableInspectorProps> = ({ cable, isLight }
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="cableinspector.cable-patch-run"
         title="Cable / Patch Run"
         icon={<Cable className="w-3.5 h-3.5 text-cyan-500" />}
         defaultOpen={true}

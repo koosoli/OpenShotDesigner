@@ -111,6 +111,7 @@ import { castNumbersScheduledOn } from '../../domain/reports';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import { downloadProductionPackPdfZip, downloadSectionPdf } from '../../utils/pdf/exportStudio';
+import { formatDocumentDate } from '../../domain/documentFormat';
 
 export const PrintableShotPlan: React.FC = () => {
   const { project, activeSetup, scriptLines, allScriptMarks, allShots, avScriptRows, displaySettings } = useFloorPlan();
@@ -2373,7 +2374,7 @@ export const PrintableShotPlan: React.FC = () => {
           {/* Print Footer */}
           <div className="hidden print:flex items-center justify-between border-t border-slate-300 pt-3 mt-6 text-[10px] text-slate-500 font-mono">
             <span>{project.title || 'Cinematography Plan'} — Scene {activeSetup.sceneNumber}: {activeSetup.name}</span>
-            <span>Generated on {new Date().toLocaleDateString()} · OpenShotDesigner</span>
+            <span>Generated on {formatDocumentDate()} · OpenShotDesigner</span>
           </div>
         </div>
       </div>

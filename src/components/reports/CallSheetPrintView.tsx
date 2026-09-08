@@ -6,6 +6,7 @@ import { classifyDepartment, CREW_DEPARTMENTS } from '../../domain/reports/crewS
 import { PersonAvatar } from '../contacts/PersonAvatar';
 import { CallSheetMap } from './CallSheetMap';
 import { ProjectImage } from '../common/ProjectImage';
+import { formatDocumentDateTime } from '../../domain/documentFormat';
 
 interface CallSheetPrintViewProps {
   sheet: CallSheetData;
@@ -171,7 +172,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
           <div>
             <p className="cs-kicker">{sheet.productionCompany ? `${sheet.productionCompany} · Call sheet` : 'Call sheet'} · {sheet.type}</p>
             {sheet.revision && (
-              <p className="cs-kicker">REV {sheet.revision} · issued {sheet.issuedAt ? new Date(sheet.issuedAt).toLocaleString() : '—'}</p>
+              <p className="cs-kicker">REV {sheet.revision} · issued {sheet.issuedAt ? formatDocumentDateTime(sheet.issuedAt) : '—'}</p>
             )}
             <h1 className="cs-title">{sheet.productionTitle}</h1>
             <p className="cs-day">{sheet.dayName}</p>

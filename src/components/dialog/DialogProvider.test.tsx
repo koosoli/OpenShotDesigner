@@ -23,7 +23,7 @@ afterEach(() => {
 
 /** A trigger plus a readout of how the awaiting caller settled. */
 const Probe: React.FC = () => {
-  const { confirm, notice } = useDialogs();
+  const { confirm, notice, prompt } = useDialogs();
   const [outcome, setOutcome] = useState('pending');
   return (
     <div>
@@ -47,6 +47,29 @@ const Probe: React.FC = () => {
         }}
       >
         tell
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          void prompt({
+            title: 'Name this assembly',
+            label: 'Assembly name',
+            defaultValue: '3 elements',
+            requireValue: true,
+          }).then((value) => setOutcome(value === null ? 'cancelled' : `named:${value}`));
+        }}
+      >
+        name
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          void prompt({ title: 'Add a note', label: 'Note' }).then((value) =>
+            setOutcome(value === null ? 'cancelled' : `note:${value}`),
+          );
+        }}
+      >
+        note
       </button>
       <span data-testid="outcome">{outcome}</span>
     </div>
@@ -124,5 +147,80 @@ describe('notice', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     await expectOutcome('noticed');
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('prompt', () => {
+  it('opens pre-filled and resolves the edited value', async () => {
+    renderProbe();
+    fireEvent.click(screen.getByText('name'));
+    await screen.findByRole('dialog');
+    const field = screen.getByTestId('dialog-input') as HTMLInputElement;
+    expect(field.value).toBe('3 elements');
+    fireEvent.change(field, { target: { value: 'Interview corner' } });
+    fireEvent.click(screen.getByTestId('dialog-confirm'));
+    await expectOutcome('named:Interview corner');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('resolves null on cancel, matching the native prompt contract', async () => {
+    renderProbe();
+    fireEvent.click(screen.getByText('name'));
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByTestId('dialog-cancel'));
+    await expectOutcome('cancelled');
+  });
+
+  it('resolves null on Escape', async () => {
+    renderProbe();
+    fireEvent.click(screen.getByText('name'));
+    await screen.findByRole('dialog');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await expectOutcome('cancelled');
+  });
+
+  it('commits on Enter without reaching for the button', async () => {
+    renderProbe();
+    fireEvent.click(screen.getByText('name'));
+    await screen.findByRole('dialog');
+    const field = screen.getByTestId('dialog-input');
+    fireEvent.change(field, { target: { value: 'Kitchen rig' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await expectOutcome('named:Kitchen rig');
+  });
+
+  it('blocks an empty value when the caller requires one', async () => {
+    renderProbe();
+    fireEvent.click(screen.getByText('name'));
+    await screen.findByRole('dialog');
+    const field = screen.getByTestId('dialog-input');
+    fireEvent.change(field, { target: { value: '   ' } });
+    const confirmButton = screen.getByTestId('dialog-confirm') as HTMLButtonElement;
+    expect(confirmButton.disabled).toBe(true);
+    // Enter must respect the same guard, or the keyboard path bypasses it.
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(screen.getByTestId('dialog-input')).toBeTruthy();
+  });
+
+  it('accepts an empty value when the caller does not require one', async () => {
+    renderProbe();
+    fireEvent.click(screen.getByText('note'));
+    await screen.findByRole('dialog');
+    expect((screen.getByTestId('dialog-confirm') as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByTestId('dialog-confirm'));
+    await expectOutcome('note:');
+  });
+
+  it('opens each prompt on its own default rather than the last answer', async () => {
+    renderProbe();
+    fireEvent.click(screen.getByText('name'));
+    await screen.findByRole('dialog');
+    fireEvent.change(screen.getByTestId('dialog-input'), { target: { value: 'first' } });
+    fireEvent.click(screen.getByTestId('dialog-confirm'));
+    await expectOutcome('named:first');
+
+    fireEvent.click(screen.getByText('name'));
+    await screen.findByRole('dialog');
+    expect((screen.getByTestId('dialog-input') as HTMLInputElement).value).toBe('3 elements');
   });
 });

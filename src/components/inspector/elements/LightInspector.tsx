@@ -80,6 +80,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
     <div className="space-y-3 pt-1">
       {/* Rubric 1: Role, Fixture & Model */}
       <RubricSection
+            persistKey="lightinspector.role-fixture-model"
         title="Role, Fixture & Model"
         icon={<FresnelLightIcon className="w-3.5 h-3.5 text-amber-500" />}
         badge={
@@ -559,6 +560,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
         <>
           {/* Rubric 2: Color Temperature & Intensity */}
           <RubricSection
+            persistKey="lightinspector.color-intensity"
             title="Color & Intensity"
             icon={<Sun className="w-3.5 h-3.5 text-amber-500" />}
             badge={
@@ -813,6 +815,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
           {/* Rubric 3: Beam Geometry & Throw */}
           <RubricSection
+            persistKey="lightinspector.beam-throw-angle"
             title="Beam Throw & Angle"
             icon={<Maximize className="w-3.5 h-3.5 text-sky-500" />}
             badge={
@@ -859,6 +862,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
       {/* Rubric 4: Floorplan Badge & Custom Label Color */}
       <RubricSection
+            persistKey="lightinspector.badge-info-label-color"
         title="Badge Info & Label Color"
         icon={<Tags className="w-3.5 h-3.5 text-purple-500" />}
         defaultOpen={false}
@@ -997,6 +1001,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
       {/* Real fixture data (OFL snapshot + custom profiles) */}
       <RubricSection
+            persistKey="lightinspector.fixture-data-dmx-modes"
         title="Fixture Data & DMX Modes"
         icon={<Database className="w-3.5 h-3.5 text-violet-500" />}
         defaultOpen={false}
@@ -1056,6 +1061,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
       {/* DMX-512 Control Patch */}
       <RubricSection
+            persistKey="lightinspector.dmx-512-control"
         title="DMX-512 Control"
         icon={<Zap className="w-3.5 h-3.5 text-yellow-500" />}
         defaultOpen={light.dmxUniverse || light.dmxAddress ? true : false}
@@ -1195,6 +1201,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
         return (
           <RubricSection
+            persistKey="lightinspector.waypoints-trajectory"
             title="Waypoints & Trajectory"
             icon={<Compass className="w-3.5 h-3.5 text-amber-500" />}
             defaultOpen={(light.path || []).length > 0}

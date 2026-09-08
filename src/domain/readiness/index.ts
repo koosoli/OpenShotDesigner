@@ -8,8 +8,17 @@ import { deriveAllScenesEquipment } from '../../utils/equipmentList';
 import { deriveBudget } from '../budget';
 import { isGoodCoverageTake, shotIdsScheduledOn, takesForShot } from '../continuity';
 import { circuitHeadroom, phaseBalance } from '../power';
-import { equipmentKey, equipmentLabel, resolveDayLocations } from '../reports';
-import { todayIso } from '../scheduling';
+import {
+  buildCallSheetProjectContext,
+  callSheetForDay,
+  diffCallSheetSnapshots,
+  equipmentKey,
+  equipmentLabel,
+  parseIssuedCallSheet,
+  resolveDayLocations,
+} from '../reports';
+import { scheduleHealthSourcesFor, scheduleIssues, todayIso } from '../scheduling';
+import type { ScheduleIssueCode } from '../scheduling';
 
 export type ReadinessTarget = 'schedule' | 'continuity' | 'tasks' | 'locations' | 'power' | 'equipment' | 'rigging' | 'budget';
 
@@ -47,6 +56,34 @@ const isPatchableAddress = (address: number | undefined): address is number =>
   Number.isFinite(address) &&
   address >= 1 &&
   address <= DMX_CHANNELS_PER_UNIVERSE;
+
+/**
+ * What to do about each schedule finding.
+ *
+ * The domain's `message` already states the fact ("Day 3 shoots at 3
+ * locations"); readiness needs the second half a producer acts on. Kept as a
+ * lookup rather than inlined so a new issue code fails to compile here instead
+ * of shipping with an empty line under it.
+ */
+const SCHEDULE_ISSUE_DETAIL: Record<ScheduleIssueCode, string> = {
+  company_moves: 'Each move costs setup time the day plan may not account for.',
+  distant_locations: 'Travel between these sets will eat into the shooting day.',
+  cast_split_across_locations: 'A performer has to travel mid-day; check their call and wrap.',
+  short_turnaround: 'Crew rest falls below the agreed minimum between wrap and call.',
+  day_overruns: 'Estimated work does not fit between the call and the planned wrap.',
+  cast_unavailable: 'A performer is called on a day they are marked unavailable.',
+};
+
+/**
+ * Schedule severities do not map onto readiness ones.
+ *
+ * The domain distinguishes `warning` from `note`; readiness only has
+ * `blocker` and `warning`, and none of these five findings blocks a day from
+ * being issued — they are judgement calls a producer makes with the facts in
+ * front of them. So both become warnings, and the `note` tier is lost rather
+ * than silently promoted to blocker or dropped altogether.
+ */
+const READINESS_SEVERITY_FOR_SCHEDULE: ReadinessItem['severity'] = 'warning';
 
 export const buildReadinessItems = (project: Project): ReadinessItem[] => {
   const result: ReadinessItem[] = [];
@@ -344,5 +381,72 @@ export const buildReadinessItems = (project: Project): ReadinessItem[] => {
       facts: { dayId: day.id, blockIds: [...day.scheduleBlockIds] },
     });
   }
+
+  /**
+   * Schedule health, adapted rather than recomputed.
+   *
+   * `scheduleIssues` already finds company moves, distant locations, cast
+   * split across sets, short turnaround and days that overrun. Until now that
+   * ran only inside `ScheduleHealth`, a panel that is OFF by default — so a
+   * producer could open the readiness centre, see nothing, and still be
+   * looking at a day that does not fit between its own call and wrap.
+   *
+   * No second calculation here: this maps the domain's own result. Severity
+   * follows it too, with `note` treated as a warning because readiness has no
+   * quieter tier and dropping notes would be worse than promoting them.
+   */
+  for (const issue of scheduleIssues(scheduleHealthSourcesFor(project))) {
+    result.push({
+      // The related day is part of the id: a turnaround issue is about a PAIR
+      // of days, and two of them on the same day would otherwise collide and
+      // one dismissal would silence both.
+      id: `schedule-${issue.code}-${issue.productionDayId}${issue.relatedDayId ? `-${issue.relatedDayId}` : ''}`,
+      severity: READINESS_SEVERITY_FOR_SCHEDULE,
+      label: issue.message,
+      detail: SCHEDULE_ISSUE_DETAIL[issue.code],
+      tab: 'schedule',
+      facts: {
+        code: issue.code,
+        dayId: issue.productionDayId,
+        ...(issue.relatedDayId ? { relatedDayId: issue.relatedDayId } : {}),
+        message: issue.message,
+      },
+    });
+  }
+
+  /**
+   * A call sheet the crew is holding that no longer matches the plan.
+   *
+   * The highest-consequence finding in this file. An issued REV is a frozen
+   * promise: people have it on their phones and are driving to the address on
+   * it. The live document silently reverts to draft as soon as ANY derived
+   * source moves — the schedule, the cast, a location, the crew call — and
+   * until now only the call-sheet workspace could see that. Someone working in
+   * the stripboard could move a scene to another day and never learn that
+   * yesterday's Rev 1 had just gone stale.
+   *
+   * Blocker, not warning: there is a concrete, wrong document in circulation.
+   */
+  const callSheetContext = buildCallSheetProjectContext(project);
+  for (const day of days) {
+    const issued = (day.callSheet?.issues ?? []).at(-1);
+    if (!issued) continue;
+    const live = callSheetForDay(project, day, callSheetContext);
+    const changes = diffCallSheetSnapshots(parseIssuedCallSheet(issued.snapshotJson), live);
+    if (changes.length === 0) continue;
+    const fields = changes.map((change) => change.field).sort();
+    result.push({
+      id: `callsheet-stale-${day.id}`,
+      severity: 'blocker',
+      label: `${day.name} changed since Rev ${issued.revision} was issued`,
+      detail: `${fields.length} field${fields.length === 1 ? '' : 's'} differ (${fields.slice(0, 3).join(', ')}${fields.length > 3 ? ', …' : ''}). Issue a new revision or revert.`,
+      tab: 'schedule',
+      // The changed FIELDS, not their values: a dismissal should survive
+      // someone fixing a typo in a note, and re-appear when a different part
+      // of the document moves.
+      facts: { dayId: day.id, revision: issued.revision, fields },
+    });
+  }
+
   return result;
 };

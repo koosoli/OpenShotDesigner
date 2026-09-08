@@ -27,6 +27,7 @@ export const DoorInspector: React.FC<DoorInspectorProps> = ({ door, isLight }) =
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="doorinspector.door-dimensions-swing"
         title="Door Dimensions & Swing"
         icon={<DoorClosed className="w-3.5 h-3.5 text-amber-500" />}
         defaultOpen={true}

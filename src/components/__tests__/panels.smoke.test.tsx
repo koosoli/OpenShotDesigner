@@ -38,7 +38,16 @@ const PANELS: Array<{ module: string; exportName: string }> = [
   { module: 'runofshow/RunOfShowPanel', exportName: 'RunOfShowPanel' },
   { module: 'storyboard/StoryboardPanel', exportName: 'StoryboardPanel' },
   { module: 'moodboard/MoodBoardPanel', exportName: 'MoodBoardPanel' },
+  // The canvas is not a right-hand panel, but it is the surface that takes the
+  // app down hardest when it throws on mount, and it was the largest file in
+  // the tree with no test of any kind.
+  { module: 'canvas/FloorPlanCanvas', exportName: 'FloorPlanCanvas' },
 ];
+
+// ProjectDashboard is deliberately absent: it renders null unless
+// `isDashboardOpen` is set, so a row here would assert that a closed overlay
+// is closed. Its real coverage lives in ProjectDashboard.test.tsx.
+
 
 describe.each(PANELS)('$module', ({ module, exportName }) => {
   it('mounts against a real project without errors', async () => {

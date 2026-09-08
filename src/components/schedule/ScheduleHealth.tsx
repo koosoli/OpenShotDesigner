@@ -1,8 +1,6 @@
 import React from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { castFilterForDay, resolveDayLocations } from '../../domain/reports';
-import { personUnavailableOn } from '../../domain/people';
-import { scheduleIssues } from '../../domain/scheduling';
+import { scheduleHealthSourcesFor, scheduleIssues } from '../../domain/scheduling';
 import { PlanningWarnings } from '../common/PlanningWarnings';
 
 /**
@@ -27,48 +25,21 @@ export interface ScheduleHealthProps {
 export const ScheduleHealth: React.FC<ScheduleHealthProps> = ({ isLight }) => {
   const { project, displaySettings } = useFloorPlan();
 
-  const issues = React.useMemo(() => {
-    const days = project.productionDays ?? [];
-    const blocks = project.scheduleBlocks ?? [];
-    const people = project.people ?? [];
-
-    return scheduleIssues({
-      days,
-      blocks,
-      locationsForDay: (day) =>
-        resolveDayLocations(day.scheduleBlockIds, blocks, {
-          locations: project.locations,
-          scriptScenes: project.scriptScenes,
-          setups: project.setups,
-        }),
-      castForDay: (day) => {
-        // `undefined` from the filter means "no cast model at all" — a concert,
-        // a broadcast — which is not the same as "nobody is called". An empty
-        // set is the honest answer there: the check needs named performers to
-        // say anything, and it says nothing.
-        const personIds = castFilterForDay(day.scheduleBlockIds, blocks, {
-          scriptScenes: project.scriptScenes,
-          setups: project.setups,
-          castAssignments: project.castAssignments,
-        });
-        return new Set(personIds ?? []);
-      },
-      personName: (personId) => people.find((person) => person.id === personId)?.displayName,
-      personUnavailableOn: (personId, day) =>
-        personUnavailableOn(
-          people.find((person) => person.id === personId),
-          day.date,
-        ),
-    });
-  }, [
-    project.productionDays,
-    project.scheduleBlocks,
-    project.locations,
-    project.scriptScenes,
-    project.setups,
-    project.castAssignments,
-    project.people,
-  ]);
+  const issues = React.useMemo(
+    () => scheduleIssues(scheduleHealthSourcesFor(project)),
+    // Memoised on the slices `scheduleHealthSourcesFor` reads, not on
+    // `project`: the object identity changes on every keystroke anywhere.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      project.productionDays,
+      project.scheduleBlocks,
+      project.locations,
+      project.scriptScenes,
+      project.setups,
+      project.castAssignments,
+      project.people,
+    ],
+  );
 
   // Off unless asked for. These sit above the content someone opened the panel
   // to read, and advice nobody requested earns less patience than advice they

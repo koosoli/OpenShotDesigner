@@ -245,6 +245,33 @@ export const ShotListPanel: React.FC = () => {
     return true;
   });
 
+  /**
+   * How many rows are actually put in the DOM.
+   *
+   * Measured on 2026-09-08: one shot row is 111 DOM nodes, and building 1.000
+   * of them costs ~700 ms of raw DOM work in Chrome before React's own
+   * reconciliation. The derivations behind them are free by comparison —
+   * flattening, sorting and camera lookup over 1.000 shots are all under a
+   * millisecond (see utils/__tests__/scale.bench.test.ts). The cost is
+   * creating the nodes, which is why `content-visibility: auto` only bought
+   * 1.2x when tried: it skips layout, not construction.
+   *
+   * A feature runs 800–1500 shots, so on an "All scenes" view this is a real
+   * ceiling, not a theoretical one.
+   *
+   * The window slices from the START of `filteredShots`, deliberately: every
+   * row's `index` then still matches its position in the full array, so
+   * drag-to-reorder arithmetic is untouched. That is what makes this a small,
+   * reversible change rather than a virtualisation project — and unlike true
+   * virtualisation it keeps browser find-in-page working on what is shown.
+   */
+  const ROW_WINDOW = 200;
+  const [rowLimit, setRowLimit] = useState(ROW_WINDOW);
+  const visibleShots = filteredShots.length > rowLimit
+    ? filteredShots.slice(0, rowLimit)
+    : filteredShots;
+  const hiddenShotCount = filteredShots.length - visibleShots.length;
+
   const linedShotIds = new Set(allScriptMarks.map((mark) => mark.shotId));
 
   /** Selecting a shot from another scene switches to that scene first. */
@@ -848,7 +875,7 @@ export const ShotListPanel: React.FC = () => {
           /* ========================================================================= */
           /* CARDS VIEW                                                                */
           /* ========================================================================= */
-          filteredShots.map((shot, index) => {
+          visibleShots.map((shot, index) => {
             const isSelected = selectedShotId === shot.id;
             const isCameraSelected = selectedElementIds.includes(shot.cameraId);
             const isExpanded = expandedShotId === shot.id;
@@ -1250,7 +1277,7 @@ export const ShotListPanel: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {filteredShots.map((shot, index) => {
+                {visibleShots.map((shot, index) => {
                   const isSelected = selectedShotId === shot.id;
                   const foreign = isForeignShot(shot);
                   const linkedCamera = cameras.find((c) => c.id === shot.cameraId);
@@ -1556,6 +1583,29 @@ export const ShotListPanel: React.FC = () => {
         aria-hidden="true"
         style={{ position: 'fixed', top: 0, left: -10000, pointerEvents: 'none' }}
       />
+      {/*
+        Never hide rows silently. A shot list that quietly stops at 200 would
+        have a producer conclude their shots were lost; the count and the way
+        out are both stated, and the list is complete in every export
+        regardless of what is on screen here.
+      */}
+      {hiddenShotCount > 0 && (
+        <div className={`px-2.5 py-2 border-t flex items-center justify-between gap-2 text-[11px] ${
+          isLight ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-amber-900/60 bg-amber-950/30 text-amber-200'
+        }`}>
+          <span>
+            Showing the first <strong>{visibleShots.length}</strong> of {filteredShots.length} shots.
+            Exports and reports always include all of them.
+          </span>
+          <button
+            type="button"
+            onClick={() => setRowLimit(filteredShots.length)}
+            className="shrink-0 px-2 py-1 rounded-md font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+          >
+            Show all {filteredShots.length}
+          </button>
+        </div>
+      )}
       <div className={`p-2.5 border-t text-[11px] flex items-center justify-between ${
         isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-slate-800 bg-slate-950/80 text-slate-400'
       }`}>

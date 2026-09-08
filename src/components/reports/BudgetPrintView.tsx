@@ -1,6 +1,7 @@
 import React from 'react';
 import type { BudgetSummary } from '../../domain/budget';
-import { RATE_BASIS_LABELS, formatMoney } from '../../domain/budget';
+import { RATE_BASIS_LABELS } from '../../domain/budget';
+import { formatDocumentMoney } from '../../domain/documentFormat';
 import { ProjectImage } from '../common/ProjectImage';
 
 interface BudgetPrintViewProps {
@@ -20,7 +21,9 @@ interface BudgetPrintViewProps {
  */
 export const BudgetPrintView: React.FC<BudgetPrintViewProps> = ({ productionTitle, company, logo, summary }) => {
   const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
-  const money = (value: number) => formatMoney(value, summary.settings.currency);
+  // Printed paperwork, not screen: pinned locale so every reader sees the
+  // same grouping and symbol placement.
+  const money = (value: number) => formatDocumentMoney(value, summary.settings.currency);
 
   return (
     <>

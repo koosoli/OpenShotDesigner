@@ -5,6 +5,7 @@
 export * from './ids';
 export * from './clone';
 export * from './units';
+export * from './documentFormat';
 export {
   CURRENT_PROJECT_SCHEMA_VERSION,
   MigrationError,

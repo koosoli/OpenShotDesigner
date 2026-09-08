@@ -26,7 +26,8 @@
     "test:e2e:offline": "playwright test --config=playwright.offline.config.ts",
     "test:e2e:firefox": "playwright test --config=playwright.firefox.config.ts",
     "test:e2e:ui": "playwright test --ui",
-    "fixtures:build": "tsx scripts/build-fixture-db.ts"
+    "fixtures:build": "tsx scripts/build-fixture-db.ts",
+    "check:commands": "node scripts/check-command-ratchet.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

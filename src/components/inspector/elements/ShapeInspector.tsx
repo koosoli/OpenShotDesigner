@@ -58,6 +58,7 @@ export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
+            persistKey="shapeinspector.shape-geometry-styling"
         title="Shape Geometry & Styling"
         icon={<Circle className="w-3.5 h-3.5 text-cyan-500" />}
         badge={

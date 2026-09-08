@@ -15,8 +15,16 @@ import { commandTimestamp } from './types';
 
 export interface MoveScheduleBlockInput {
   blockId: string;
-  toDayId: string;
-  /** Position in the target day. Defaults to the end; clamps into range. */
+  /**
+   * Target day, or `null` to unschedule the block back to the pool.
+   *
+   * The pool case is not an edge case bolted on — it is half of what the
+   * stripboard actually does, and leaving it out was why this command modelled
+   * a subset of the operation it was named after and could not replace the
+   * panel's own code.
+   */
+  toDayId: string | null;
+  /** Position in the target day. Defaults to the end; clamps into range. Ignored when unscheduling. */
   toIndex?: number;
 }
 
@@ -30,8 +38,8 @@ export const moveScheduleBlockCommand = (
   if (typeof input.blockId !== 'string' || input.blockId.trim() === '') {
     throw new Error('moveScheduleBlock: blockId must be a non-empty string.');
   }
-  if (typeof input.toDayId !== 'string' || input.toDayId.trim() === '') {
-    throw new Error('moveScheduleBlock: toDayId must be a non-empty string.');
+  if (input.toDayId !== null && (typeof input.toDayId !== 'string' || input.toDayId.trim() === '')) {
+    throw new Error('moveScheduleBlock: toDayId must be a non-empty string or null.');
   }
   const block: ScheduleBlock | undefined = (project.scheduleBlocks ?? []).find(
     (candidate) => candidate.id === input.blockId,
@@ -40,10 +48,6 @@ export const moveScheduleBlockCommand = (
     throw new Error(`moveScheduleBlock: unknown schedule block id "${input.blockId}".`);
   }
   const days = project.productionDays ?? [];
-  const target = days.find((day) => day.id === input.toDayId);
-  if (!target) {
-    throw new Error(`moveScheduleBlock: unknown production day id "${input.toDayId}".`);
-  }
   if (
     input.toIndex !== undefined &&
     (!Number.isInteger(input.toIndex) || input.toIndex < 0)
@@ -54,6 +58,41 @@ export const moveScheduleBlockCommand = (
   const label = blockLabel(block, buildStripboardLabelContext(project));
   const sources = days.filter((day) => day.scheduleBlockIds.includes(input.blockId));
   const fromName = sources.length > 0 ? sources[0].name : 'unscheduled';
+
+  if (input.toDayId === null) {
+    // Unschedule: drop the block from every day, leaving it in the pool.
+    // Handled before the target lookup so the rest of the function can treat
+    // `target` as a day that definitely exists.
+    if (sources.length === 0) {
+      return {
+        project,
+        meta: {
+          type: 'moveScheduleBlock',
+          entityId: input.blockId,
+          timestamp: commandTimestamp(),
+          description: `Unschedule ${label} — already unscheduled, no change`,
+        },
+      };
+    }
+    const cleared: Project = structuredClone(project);
+    for (const day of cleared.productionDays ?? []) {
+      day.scheduleBlockIds = day.scheduleBlockIds.filter((id) => id !== input.blockId);
+    }
+    return {
+      project: cleared,
+      meta: {
+        type: 'moveScheduleBlock',
+        entityId: input.blockId,
+        timestamp: commandTimestamp(),
+        description: `Unschedule ${label} from ${fromName}`,
+      },
+    };
+  }
+
+  const target = days.find((day) => day.id === input.toDayId);
+  if (!target) {
+    throw new Error(`moveScheduleBlock: unknown production day id "${input.toDayId}".`);
+  }
 
   const withoutBlock = target.scheduleBlockIds.filter((id) => id !== input.blockId);
   const position = Math.min(input.toIndex ?? withoutBlock.length, withoutBlock.length);

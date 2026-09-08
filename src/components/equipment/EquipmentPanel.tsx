@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { usePersistentUiState } from '../../utils/usePersistentUiState';
 import { createPortal } from 'react-dom';
 import {
   Anchor,
@@ -326,12 +327,28 @@ export const EquipmentPanel: React.FC = () => {
   const dmxableCount = dmxPatches.filter((p) => p.dmxable).length;
   const dmxPatchedCount = dmxPatches.filter((p) => p.dmxable && p.universe && p.address).length;
   const dmxConflictCount = dmxPatches.filter((p) => p.dmxable && p.conflict).length;
+  /** Nothing to collapse when the scene has neither a power draw nor a patchable fixture. */
+  const hasTechnicalBand =
+    powerSummary.poweredCablesCount > 0 || powerSummary.totalWatts > 0 || dmxableCount > 0;
   const [dmxPatchStart, setDmxPatchStart] = useState({ universe: 1, address: 1 });
   const [dmxPatchOpen, setDmxPatchOpen] = useState(false);
   const [isUniverseViewOpen, setIsUniverseViewOpen] = useState(false);
   const [isSignalFlowOpen, setIsSignalFlowOpen] = useState(false);
   /** When true, the printable DMX patch sheet is mounted and printing starts. */
   const [dmxPrintOpen, setDmxPrintOpen] = useState(false);
+  /**
+   * Chrome-reduction state (see the technical band below).
+   *
+   * The panel used to stack eight full-width bands above the first row of
+   * data: title, context line, view switches, search, department chips, a
+   * permanent hint, the power summary and the DMX summary. Roughly half the
+   * panel height was controls. Two of those bands now live behind one
+   * collapsible digest, and the hint can be dismissed for good — both
+   * persisted, because a band that reopens on reload is worse than one that
+   * never collapsed.
+   */
+  const [isTechnicalBandOpen, setTechnicalBandOpen] = usePersistentUiState('gear.technicalBand', false);
+  const [isEditingHintDismissed, setEditingHintDismissed] = usePersistentUiState('gear.editingHint.dismissed', false);
   // Both gear modals are overlays rather than real <dialog>s, so they need their
   // own focus trap to stay reachable by keyboard and to hand focus back on close.
   const addModalRef = useDialogFocusTrap(isAddModalOpen);
@@ -1041,7 +1058,10 @@ export const EquipmentPanel: React.FC = () => {
           })}
         </div>
 
-        {/* 4. Interactive Editing Hint Banner */}
+        {/* 4. Interactive editing hint — teaches one thing, once.
+             Dismissible and persisted: it was a permanent full-width band
+             explaining a click target the user learns on their first attempt. */}
+        {!isEditingHintDismissed && (
         <div
           className={`px-3 py-1.5 rounded-lg border flex items-center justify-between gap-2 text-xs font-semibold ${
             scope === 'current'
@@ -1061,14 +1081,66 @@ export const EquipmentPanel: React.FC = () => {
                 : '🔒 All Scenes master truck is a consolidated summary across the entire project.'}
             </span>
           </div>
-          {scope === 'current' && (
-            <span className="text-[10px] font-bold opacity-80 hidden sm:inline text-slate-700 dark:text-slate-300">
-              Double-click row to open full editor
-            </span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {scope === 'current' && (
+              <span className="text-[10px] font-bold opacity-80 hidden sm:inline text-slate-700 dark:text-slate-300">
+                Double-click row to open full editor
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setEditingHintDismissed(true)}
+              title="Dismiss this hint"
+              aria-label="Dismiss this hint"
+              className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
+        )}
 
-        {/* 4b. Cables & Power Load Summary (floor plan cable planner) */}
+        {/*
+          4b/4c. Technical load & patch, behind one digest line.
+
+          Power and DMX were two always-open full-width strips carrying eleven
+          numbers between them. They matter enormously to a gaffer patching a
+          rig and not at all to someone adding a lens to the camera kit, and
+          the panel showed both to everyone all the time. The collapsed row
+          keeps the headline figures — a real overload or a patch conflict is
+          still visible without expanding — and the detail is one click away.
+        */}
+        {scope === 'current' && hasTechnicalBand && (
+          <div className={`rounded-lg border overflow-hidden ${isLight ? 'border-slate-300 bg-white' : 'border-slate-800 bg-slate-950/40'}`}>
+            <button
+              type="button"
+              onClick={() => setTechnicalBandOpen((open) => !open)}
+              aria-expanded={isTechnicalBandOpen}
+              className={`w-full px-3 py-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-left text-[11px] font-bold transition-colors ${isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-900'}`}
+            >
+              <span className="flex items-center gap-1.5 uppercase tracking-wider">
+                <Zap className="w-3.5 h-3.5 text-amber-500" />
+                Load &amp; patch
+              </span>
+              {powerSummary.totalWatts > 0 && (
+                <span className="font-mono text-rose-600 dark:text-rose-400">
+                  {powerSummary.totalWatts.toLocaleString()} W
+                </span>
+              )}
+              {powerSummary.poweredCablesCount > 0 && (
+                <span className="font-mono opacity-70">{powerSummary.poweredCablesCount} run{powerSummary.poweredCablesCount === 1 ? '' : 's'}</span>
+              )}
+              {dmxableCount > 0 && (
+                <span className={`font-mono ${dmxConflictCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'opacity-70'}`}>
+                  DMX {dmxPatchedCount}/{dmxableCount}
+                  {dmxConflictCount > 0 ? ` · ${dmxConflictCount} conflict${dmxConflictCount === 1 ? '' : 's'}` : ''}
+                </span>
+              )}
+              <span className="ml-auto opacity-60">{isTechnicalBandOpen ? '▾' : '▸'}</span>
+            </button>
+            {isTechnicalBandOpen && (
+              <div className="p-2 pt-0 space-y-2">
+
         {scope === 'current' && (powerSummary.poweredCablesCount > 0 || powerSummary.totalWatts > 0) && (
           <div
             className={`px-3 py-2.5 rounded-lg border flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs ${
@@ -1210,6 +1282,10 @@ export const EquipmentPanel: React.FC = () => {
                     )
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
               </div>
             )}
           </div>
