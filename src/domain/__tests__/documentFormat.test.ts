@@ -19,6 +19,7 @@ import {
   formatDocumentDateTime,
   formatDocumentMoney,
   formatDocumentNumber,
+  formatQuantity,
 } from '../documentFormat';
 
 /**
@@ -141,5 +142,43 @@ describe('the currency decides the convention', () => {
     // Guards an accidental change: unlisted currencies and every non-money
     // document value assume this.
     expect(DOCUMENT_LOCALE).toBe('en-US');
+  });
+});
+
+describe('formatQuantity', () => {
+  /**
+   * Currency carries its own convention; a raw quantity does not, and the two
+   * conventions collide head-on. `12,500 W` is twelve and a half watts to a
+   * German gaffer. On a power sheet that is a factor of a thousand.
+   */
+  it('groups with a space, which no locale reads as a decimal point', () => {
+    expect(formatQuantity(12500)).toBe('12 500');
+    expect(formatQuantity(1234567)).toBe('1 234 567');
+  });
+
+  it('leaves small numbers ungrouped', () => {
+    expect(formatQuantity(0)).toBe('0');
+    expect(formatQuantity(20)).toBe('20');
+    expect(formatQuantity(999)).toBe('999');
+  });
+
+  it('never emits a comma or a full stop', () => {
+    for (const value of [1000, 12500, 999999, 1234567]) {
+      expect(formatQuantity(value)).not.toMatch(/[.,]/);
+    }
+  });
+
+  it('uses a plain space so it survives WinAnsi and CSV columns', () => {
+    // A non-breaking space here would break a numeric column in Excel and
+    // travel oddly through PDF text extraction.
+    expect(formatQuantity(12500)).not.toMatch(/[\u00a0\u202f\u2009]/);
+    expect(formatQuantity(12500)).toContain(' ');
+  });
+
+  it('is identical whatever locale the machine runs', () => {
+    const rendered = AMBIENT_LOCALES.map((locale) =>
+      withAmbientLocale(locale, () => formatQuantity(12500)),
+    );
+    expect(new Set(rendered).size).toBe(1);
   });
 });

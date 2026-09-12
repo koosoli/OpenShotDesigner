@@ -5,6 +5,7 @@
  * lookup (rules 4 & 11: shared presets, not one-off symbols in components).
  */
 import type { PlanPowerConsumer, PowerConsumer, PowerPlan, PowerSourceKind } from '../../domain/power';
+import { formatQuantity } from '../../domain/documentFormat';
 
 export interface PowerSourcePreset {
   label: string;
@@ -67,7 +68,7 @@ export const getPowerPlan = (project: { powerPlan?: PowerPlan }): PowerPanelPlan
   (project.powerPlan ?? EMPTY_PLAN) as PowerPanelPlan;
 
 /** "1,200 W" — display-only formatting; stored values stay canonical W. */
-export const formatWatts = (watts: number): string => `${Math.round(watts).toLocaleString()} W`;
+export const formatWatts = (watts: number): string => `${formatQuantity(Math.round(watts))} W`;
 
 /** "5.2 A" / "16 A" — display-only; stored values stay canonical A. */
 export const formatAmps = (amps: number): string =>

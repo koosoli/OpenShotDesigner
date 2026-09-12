@@ -12,11 +12,14 @@
  * any German developer machine, which is the worst possible failure mode —
  * red only where nobody is watching CI.
  *
- * So documents pin their locale here. On-screen UI deliberately does NOT use
- * this module: a German user should keep seeing German dates in the dashboard.
- * The split is the point — screen follows the reader, documents follow the
- * document.
+ * So documents pin their formatting here. Dates and free text on screen
+ * deliberately do NOT use this module — a German user should keep seeing
+ * German dates in the dashboard. Money and physical quantities are the
+ * exceptions, and each for its own reason: money follows its CURRENCY (see
+ * `documentLocaleForCurrency`), which is the same on screen and on paper, and
+ * a quantity uses a form nobody can misread (see `formatQuantity`).
  */
+import { isWinAnsiPrintable } from '../utils/pdf/text';
 
 /**
  * Fallback locale for anything with no better answer.
@@ -25,8 +28,6 @@
  * and its conventions are the ones every department recognises. Money does
  * NOT use this directly — see `documentLocaleForCurrency` below.
  */
-import { isWinAnsiPrintable } from '../utils/pdf/text';
-
 export const DOCUMENT_LOCALE = 'en-US';
 
 /**
@@ -114,6 +115,27 @@ export const formatDocumentMoney = (value: number, currency: string): string => 
 /** Grouped integer for document tables: `formatDocumentNumber(12500)` -> `"12,500"`. */
 export const formatDocumentNumber = (value: number): string =>
   new Intl.NumberFormat(DOCUMENT_LOCALE).format(value);
+
+/**
+ * A physical quantity, grouped so nobody can misread it: `12 500`, not
+ * `12,500` and not `12.500`.
+ *
+ * Currency carries its own convention — `€` says "European", `$` says
+ * "American" — so `formatDocumentMoney` can follow it. A raw quantity carries
+ * no such signal, and the two conventions collide head-on: a German gaffer
+ * reads `12,500 W` as twelve and a half watts, an American reads `12.500 W`
+ * the same way. On a power sheet that is a factor of a thousand, which is the
+ * difference between a distro that copes and one that does not.
+ *
+ * A space separator is the SI convention precisely because it is unambiguous
+ * in every locale, and it is what electrical documentation uses. Plain U+0020
+ * rather than the typographic thin space, so it survives WinAnsi and CSV.
+ *
+ * Used on screen as well as on paper: unlike currency, there is no reader for
+ * whom the local form is clearer here.
+ */
+export const formatQuantity = (value: number): string =>
+  withPlainSpaces(new Intl.NumberFormat('fr-FR', { useGrouping: true }).format(value));
 
 /**
  * ISO calendar date (`2026-09-08`) for document headers and footers.

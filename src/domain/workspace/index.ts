@@ -15,3 +15,5 @@ export {
 } from './presets';
 export { getWorkspaceProfile, setWorkspaceProfile } from './localPrefs';
 export { MODULE_PICKER_GROUPS, PICKABLE_MODULES } from './moduleLabels';
+export { MODULE_GUIDE, moduleGuideFor } from './moduleGuide';
+export type { ModuleGuide } from './moduleGuide';

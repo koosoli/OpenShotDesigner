@@ -124,3 +124,51 @@ describe('usePersistentUiState with a null key', () => {
     expect(result.current[0]).toBe(false);
   });
 });
+
+describe('usePersistentUiState across a changing key', () => {
+  /**
+   * One component serving several subjects. `PanelIntro` renders for sixteen
+   * different panels; with a read-once hook, dismissing the explanation on the
+   * gear panel silently dismissed it on all of them.
+   */
+  it('re-reads when the key changes', () => {
+    localStorage.setItem('openshotdesigner_ui_panel.a', 'true');
+
+    const { result, rerender } = renderHook(({ key }) => usePersistentUiState(key, false), {
+      initialProps: { key: 'panel.a' },
+    });
+    expect(result.current[0]).toBe(true);
+
+    rerender({ key: 'panel.b' });
+    // Nothing stored for b, so it falls back to the default rather than
+    // inheriting a's value.
+    expect(result.current[0]).toBe(false);
+  });
+
+  it('keeps the value of each key separate as it moves between them', () => {
+    const { result, rerender } = renderHook(({ key }) => usePersistentUiState(key, false), {
+      initialProps: { key: 'panel.a' },
+    });
+    act(() => result.current[1](true));
+
+    rerender({ key: 'panel.b' });
+    expect(result.current[0]).toBe(false);
+    act(() => result.current[1](true));
+
+    rerender({ key: 'panel.a' });
+    expect(result.current[0]).toBe(true);
+    expect(localStorage.getItem('openshotdesigner_ui_panel.a')).toBe('true');
+    expect(localStorage.getItem('openshotdesigner_ui_panel.b')).toBe('true');
+  });
+
+  it('writes to the current key, never the previous one', () => {
+    const { result, rerender } = renderHook(({ key }) => usePersistentUiState(key, false), {
+      initialProps: { key: 'panel.a' },
+    });
+    rerender({ key: 'panel.b' });
+    act(() => result.current[1](true));
+
+    expect(localStorage.getItem('openshotdesigner_ui_panel.b')).toBe('true');
+    expect(localStorage.getItem('openshotdesigner_ui_panel.a')).toBeNull();
+  });
+});

@@ -56,6 +56,13 @@ export const renderPanel = async ({ module, exportName }: RenderPanelOptions) =>
   // imported FloorPlanProvider consumes.
   const workspaceModule = await import('../../context/WorkspaceUIContext');
   const { WorkspaceUIProvider, useWorkspaceUI } = workspaceModule;
+  // Mounted for the same reason the two contexts are: without it `useDialogs`
+  // falls back to its fail-closed default, so every `confirm` resolves false
+  // and every `notice` vanishes. That is the right default for a component
+  // rendered with no provider, but here it would mean the harness quietly
+  // changes the behaviour under test — a panel that reports a problem to the
+  // user would look, in tests, exactly like one that says nothing.
+  const { DialogProvider } = await import('../dialog/DialogProvider');
   const panelModule = (await import(`../${module}`)) as Record<string, React.ComponentType>;
   const Panel = panelModule[exportName];
   if (!Panel) throw new Error(`${module} has no export named ${exportName}`);
@@ -76,8 +83,10 @@ export const renderPanel = async ({ module, exportName }: RenderPanelOptions) =>
   const result = render(
     <WorkspaceUIProvider>
       <FloorPlanProvider>
-        <Probe />
-        <Panel />
+        <DialogProvider>
+          <Probe />
+          <Panel />
+        </DialogProvider>
       </FloorPlanProvider>
     </WorkspaceUIProvider>,
   );

@@ -36,7 +36,6 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { createId } from '../../domain/ids';
 import {
   applyReconciliation,
   buildResolveRows,
@@ -46,7 +45,6 @@ import {
   nextTakeNumber,
   parseCardListing,
   reconcileFileNames,
-  seedNextTake,
   taggedShotNumber,
   takesForDay,
   type ChecklistShot,
@@ -57,7 +55,6 @@ import {
   type TakeSlateOverrides,
 } from '../../domain/continuity';
 import { keyCrewMember } from '../../domain/people';
-import { insertedShotNumber, nextShotNumberAfter, takenShotNumbers } from '../../domain/shots/numbering';
 import { ContinuityBinder } from './ContinuityBinder';
 import {
   continuitySourcesFrom,
@@ -67,7 +64,13 @@ import {
 import type { Shot } from '../../types';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
-import { logTakeCommand } from '../../domain/commands';
+import {
+  addUnplannedShotCommand,
+  deleteTakeCommand,
+  logTakeCommand,
+  setContinuityDayFilterCommand,
+  updateTakeCommand,
+} from '../../domain/commands';
 
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
 const parseOptionalNumber = (raw: string): number | undefined => {
@@ -197,9 +200,10 @@ export const ContinuityPanel: React.FC = () => {
     updateProjectMeta((prev) => ({ takes: fn(prev.takes ?? []) }));
 
   const updateTake = (id: string, patch: Partial<Take>) =>
-    mutateTakes((prev) => prev.map((take) => (take.id === id ? { ...take, ...patch } : take)));
+    runCommand(updateTakeCommand, { takeId: id, patch }, { domain: 'shots' });
 
-  const deleteTake = (id: string) => mutateTakes((prev) => prev.filter((take) => take.id !== id));
+  const deleteTake = (id: string) =>
+    runCommand(deleteTakeCommand, { takeId: id }, { domain: 'shots' });
 
   /**
    * Set one camera/slate override, dropping the key when cleared so the field
@@ -276,69 +280,21 @@ export const ContinuityPanel: React.FC = () => {
    * exactly what was on the slate.
    */
   const addUnplannedShot = (setupId: string, afterShotId?: string) => {
-    const setup = setups.find((candidate) => candidate.id === setupId);
-    if (!setup) return;
-    const existingShots = setup.shots ?? [];
-    const afterIndex = afterShotId
-      ? existingShots.findIndex((candidate) => candidate.id === afterShotId)
-      : -1;
-    const shotNumber = afterIndex >= 0
-      ? insertedShotNumber(
-          existingShots[afterIndex]?.shotNumber,
-          existingShots[afterIndex + 1]?.shotNumber,
-          takenShotNumbers(existingShots),
-          setup.sceneNumber,
-        )
-      : nextShotNumberAfter(existingShots, setup.sceneNumber);
-    const shot: Shot = {
-      id: createId('shot'),
-      sceneNumber: setup.sceneNumber,
-      shotNumber,
-      name: 'Unplanned',
-      cameraId: '',
-      cameraLabel: '',
-      shotSize: 'MS',
-      lensMm: 35,
-      cameraAngle: 'Eye Level',
-      movement: 'Static',
-      aspectRatio: '16:9',
-      frameRate: 25,
-      subjectActorIds: [],
-      framingDescription: '',
-      status: 'planned',
-      takesCount: 0,
-      estDurationSeconds: 0,
-      order: afterIndex >= 0 ? afterIndex + 1 : existingShots.length,
-      unplanned: true,
-    };
-    // One update, not two: adding the shot and logging its first take are a
-    // single user action, and splitting them would leave a half-state on the
-    // undo stack — an unplanned shot with no take, or worse, undone to a take whose
-    // shot is gone.
+    // Shot and first take in ONE commit. Splitting them would put a half-state
+    // on the undo stack: a shot nobody shot, or a take pointing at a shot that
+    // no longer exists. The command owns that atomicity now, so a later tidy-up
+    // cannot separate the two by accident.
     const previous = visibleTakes[visibleTakes.length - 1];
-    updateProjectMeta((prev) => {
-      const { take } = seedNextTake(prev.takes ?? [], {
-        id: createId('take'),
-        shotId: shot.id,
-        productionDayId: day?.id,
-        loggedAt: new Date().toISOString(),
-        previous,
-      });
-      return {
-        setups: (prev.setups ?? []).map((candidate) => {
-          if (candidate.id !== setupId) return candidate;
-          const current = candidate.shots ?? [];
-          const currentAfterIndex = afterShotId
-            ? current.findIndex((entry) => entry.id === afterShotId)
-            : -1;
-          const insertionIndex = currentAfterIndex >= 0 ? currentAfterIndex + 1 : current.length;
-          const next = [...current];
-          next.splice(insertionIndex, 0, shot);
-          return { ...candidate, shots: next.map((entry, order) => ({ ...entry, order })) };
-        }),
-        takes: [...(prev.takes ?? []), take],
-      };
-    });
+    runCommand(
+      addUnplannedShotCommand,
+      {
+        setupId,
+        ...(afterShotId ? { afterShotId } : {}),
+        ...(day?.id ? { productionDayId: day.id } : {}),
+        ...(previous ? { previousTakeId: previous.id } : {}),
+      },
+      { domain: 'shots' },
+    );
   };
 
   const runReconcile = () => {
@@ -455,7 +411,11 @@ export const ContinuityPanel: React.FC = () => {
           <select
             value={dayId ?? ''}
             onChange={(event) =>
-              updateProjectMeta({ continuityDayFilterId: event.target.value || undefined })
+              runCommand(
+                setContinuityDayFilterCommand,
+                { productionDayId: event.target.value || undefined },
+                { domain: 'schedule' },
+              )
             }
             className={`${inputClass} !w-auto ml-2`}
           >

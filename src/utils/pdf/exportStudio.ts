@@ -655,32 +655,63 @@ const CORE_PRODUCTION_PACK_SECTIONS: readonly ProductionPackPdfSection[] = [
 
 type SectionPdfRenderer = (section: SectionPdfKind, ctx: SectionPdfContext) => Promise<RenderedPdf>;
 
-/** Render available core paperwork, isolating optional-document failures. */
+/** A section that could not be rendered, and why. */
+export interface ProductionPackFailure {
+  section: ProductionPackPdfSection;
+  reason: string;
+}
+
+export interface ProductionPackResult {
+  documents: RenderedPdf[];
+  /** Sections that failed. Empty when the pack is complete. */
+  failures: ProductionPackFailure[];
+}
+
+/**
+ * Render the core paperwork, isolating one document's failure from the rest.
+ *
+ * Isolation is right: a missing live floor-plan SVG must not cost the producer
+ * the other six documents. Isolation SILENTLY was not. This used to return
+ * only the successes, so a pack missing its call sheet was indistinguishable
+ * from a complete one — you get a ZIP, you hand it out, and the gap turns up
+ * on the shooting day. The failures now travel with the result so the caller
+ * can say what is not in the archive.
+ */
 export const renderProductionPackPdfs = async (
   ctx: SectionPdfContext,
   options: ProductionPackPdfZipOptions = {},
   render: SectionPdfRenderer = renderSectionPdf,
-): Promise<RenderedPdf[]> => {
+): Promise<ProductionPackResult> => {
   const documents: RenderedPdf[] = [];
+  const failures: ProductionPackFailure[] = [];
   for (const section of options.sections ?? CORE_PRODUCTION_PACK_SECTIONS) {
     try {
       documents.push(await render(section, ctx));
-    } catch {
-      // A missing live floor-plan SVG or optional source must not lose the pack.
+    } catch (error) {
+      failures.push({
+        section,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
-  return documents;
+  return { documents, failures };
 };
 
-/** Render the core paperwork and download it as one deterministic ZIP archive. */
+/**
+ * Render the core paperwork and download it as one deterministic ZIP archive.
+ *
+ * Returns the filename AND whatever could not be rendered, so the caller can
+ * tell the user the pack is short a document rather than letting them assume
+ * a ZIP is a complete ZIP.
+ */
 export const downloadProductionPackPdfZip = async (
   ctx: SectionPdfContext,
   options?: ProductionPackPdfZipOptions,
-): Promise<string> => {
-  const documents = await renderProductionPackPdfs(ctx, options);
+): Promise<{ filename: string; failures: ProductionPackFailure[] }> => {
+  const { documents, failures } = await renderProductionPackPdfs(ctx, options);
   if (documents.length === 0) throw new Error('No production-pack PDFs could be created.');
   const filename = buildProductionPackZipFilename(productionTitleOf(ctx.project));
   const archive = zipPdfs(Object.fromEntries(documents.map((document) => [document.filename, document.bytes])));
   downloadBlob(new Blob([archive], { type: 'application/zip' }), filename);
-  return filename;
+  return { filename, failures };
 };

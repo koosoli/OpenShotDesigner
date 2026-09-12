@@ -27,6 +27,7 @@ import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
 import { buildPdfFilename, createLocationReportPdf } from '../../utils/pdf';
 import { downloadBlob } from '../../utils/download';
+import { removeLocationCommand, setLocationsCommand } from '../../domain/commands';
 
 const LOCATION_TYPES: LocationType[] = ['location', 'studio', 'stage', 'venue', 'arena', 'outdoor', 'other'];
 
@@ -51,7 +52,7 @@ const TIME_ZONES = supportedTimeZones();
 const MACHINE_TIME_ZONE = machineTimeZone();
 
 export const LocationsPanel: React.FC = () => {
-  const { project, updateProjectMeta, setActiveSetupId } = useFloorPlan();
+  const { project, runCommand, setActiveSetupId } = useFloorPlan();
   const { theme, setActiveRightTab } = useWorkspaceUI();
   const isLight = theme === 'light';
 
@@ -63,11 +64,17 @@ export const LocationsPanel: React.FC = () => {
   const toggleContact = (loc: { id: string; contactIds?: string[] }, personId: string) => {
     const current = loc.contactIds ?? [];
     const next = current.includes(personId) ? current.filter((id) => id !== personId) : [...current, personId];
-    updateProjectMeta({
-      locations: (project.locations ?? []).map((candidate) =>
-        candidate.id === loc.id ? { ...candidate, contactIds: next } : candidate,
-      ),
-    });
+    runCommand(
+      setLocationsCommand,
+      {
+        update: (previous) =>
+          previous.map((candidate) =>
+            candidate.id === loc.id ? { ...candidate, contactIds: next } : candidate,
+          ),
+        description: 'Update location contacts',
+      },
+      { domain: 'project' },
+    );
   };
 
   /** setup id that is the declared master plan for each location id. */
@@ -104,7 +111,11 @@ export const LocationsPanel: React.FC = () => {
       type: newType,
       referenceAssetIds: [],
     };
-    updateProjectMeta((prev) => ({ locations: [...(prev.locations ?? []), location] }));
+    runCommand(
+      setLocationsCommand,
+      { update: (previous) => [...previous, location], description: `Add ${location.name || 'location'}` },
+      { domain: 'project' },
+    );
     setNewName('');
     setNewType('location');
   };
@@ -115,9 +126,14 @@ export const LocationsPanel: React.FC = () => {
    * building the patch from `prev` keeps edits made during the request.
    */
   const updateLocation = (id: string, updates: Partial<{ name: string; type: LocationType; address?: string; parentLocationId?: string; notes?: string; lat?: number; lng?: number; timeZone?: string }>) => {
-    updateProjectMeta((prev) => ({
-      locations: (prev.locations ?? []).map((l) => (l.id === id ? { ...l, ...updates } : l)),
-    }));
+    runCommand(
+      setLocationsCommand,
+      {
+        update: (previous) => previous.map((l) => (l.id === id ? { ...l, ...updates } : l)),
+        description: 'Edit location',
+      },
+      { domain: 'project' },
+    );
   };
 
   /** Resolve the location's address (or name) into a map pin via OSM Nominatim. */
@@ -175,18 +191,7 @@ export const LocationsPanel: React.FC = () => {
    * cleared so no dangling references remain.
    */
   const deleteLocation = (id: string) => {
-    updateProjectMeta({
-      locations: locations
-        .filter((l) => l.id !== id)
-        .map((l) =>
-          l.parentLocationId === id ? { ...l, parentLocationId: undefined } : l
-        ),
-      setups: project.setups.map((s) =>
-        s.locationId === id || s.masterPlanForLocationId === id
-          ? { ...s, locationId: undefined, masterPlanForLocationId: undefined }
-          : s
-      ),
-    });
+    runCommand(removeLocationCommand, { locationId: id }, { domain: 'project' });
   };
 
   const jumpToMasterPlan = (setupId: string) => {

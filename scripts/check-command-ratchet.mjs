@@ -22,9 +22,10 @@ import { join, relative } from 'node:path';
  * Highest number of `updateProjectMeta(` call sites allowed in components.
  *
  * 93 at the 2026-09-08 audit; 84 after the people domain moved to commands;
- * 83 once SchedulePanel's block placement went through moveScheduleBlockCommand.
+ * 83 once SchedulePanel's block placement went through moveScheduleBlockCommand;
+ * 78 after the rigging domain followed; 76 after continuity; 72 after locations.
  */
-const CEILING = 83;
+const CEILING = 72;
 
 const ROOT = join(process.cwd(), 'src', 'components');
 const CALL = /\bupdateProjectMeta\s*\(/g;

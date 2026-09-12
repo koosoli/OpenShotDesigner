@@ -68,6 +68,7 @@ import {
   mergeGearModels,
 } from '../../domain/fixtures';
 import type { FixtureProfile, GearBrandOption, GearModelOption } from '../../domain/fixtures';
+import { formatQuantity } from '../../domain/documentFormat';
 
 /**
  * Only the lighting department has a real-fixture database behind it. Every
@@ -1124,7 +1125,7 @@ export const EquipmentPanel: React.FC = () => {
               </span>
               {powerSummary.totalWatts > 0 && (
                 <span className="font-mono text-rose-600 dark:text-rose-400">
-                  {powerSummary.totalWatts.toLocaleString()} W
+                  {formatQuantity(powerSummary.totalWatts)} W
                 </span>
               )}
               {powerSummary.poweredCablesCount > 0 && (
@@ -1152,10 +1153,10 @@ export const EquipmentPanel: React.FC = () => {
               Power Load
             </div>
             <span className="font-mono font-bold">
-              {powerSummary.totalWatts.toLocaleString()} W total
+              {formatQuantity(powerSummary.totalWatts)} W total
             </span>
             <span className="opacity-80">
-              🕹 {powerSummary.lightingWatts.toLocaleString()} W lights · 🎥 {powerSummary.cameraWatts.toLocaleString()} W cameras · 🎭 {powerSummary.propWatts.toLocaleString()} W set
+              🕹 {formatQuantity(powerSummary.lightingWatts)} W lights · 🎥 {formatQuantity(powerSummary.cameraWatts)} W cameras · 🎭 {formatQuantity(powerSummary.propWatts)} W set
             </span>
             <span className="flex items-center gap-1.5 ml-auto">
               <Cable className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />

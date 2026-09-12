@@ -15,7 +15,7 @@
  * panel from rendering — the preference is a convenience, and the fallback is
  * simply the default.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 const KEY_PREFIX = 'openshotdesigner_ui_';
 
@@ -33,8 +33,15 @@ const read = <T,>(key: string, fallback: T): T => {
  * `useState` with a localStorage backing.
  *
  * Same shape as `useState`, including the functional updater, so a call site
- * can adopt it by changing one line. `key` must be stable for the life of the
- * component — it is read once, on first render, like a `useState` initialiser.
+ * can adopt it by changing one line.
+ *
+ * A CHANGING key re-reads. That is not just convenience: a single component
+ * rendered for several subjects — one explanation strip serving sixteen
+ * panels, say — would otherwise carry the first subject's stored value into
+ * every later one, so dismissing the explanation on one panel silently
+ * dismissed it on all of them. Read-once was the documented contract and it
+ * was violated on the first shared call site, which is a good sign the
+ * contract was the wrong one.
  *
  * A `null` key means "behave exactly like `useState`". That exists so a shared
  * component can offer persistence as an opt-in without its callers branching
@@ -46,6 +53,16 @@ export const usePersistentUiState = <T,>(
   initial: T,
 ): [T, (next: T | ((previous: T) => T)) => void] => {
   const [value, setValue] = useState<T>(() => (key === null ? initial : read(key, initial)));
+
+  // Re-read on a key change, during render rather than in an effect: an effect
+  // would paint one frame with the previous subject's value, which for a
+  // dismissed/undismissed strip is a visible flash of the wrong state.
+  const lastKey = useRef(key);
+  if (lastKey.current !== key) {
+    lastKey.current = key;
+    const restored = key === null ? initial : read(key, initial);
+    if (!Object.is(restored, value)) setValue(restored);
+  }
 
   const update = useCallback(
     (next: T | ((previous: T) => T)) => {

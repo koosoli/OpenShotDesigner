@@ -28,6 +28,7 @@ import { buildPdfFilename } from './filenames';
 import { drawPdfTable, wrapPdfCellText } from './tables';
 import type { PdfTableColumn } from './tables';
 import { sanitizePdfText } from './text';
+import { formatQuantity } from '../../domain/documentFormat';
 
 /** Where a consumer wattage came from, so catalogue figures read differently. */
 export type PowerPdfWattsSource = 'override' | 'profile' | 'fallback' | 'unknown';
@@ -158,13 +159,13 @@ const WATTS_SOURCE_LABELS: Record<PowerPdfWattsSource, string> = {
 };
 
 const formatWatts = (watts: number | null): string =>
-  watts === null ? '---' : `${Math.round(watts).toLocaleString('en-US')} W`;
+  watts === null ? '---' : `${formatQuantity(Math.round(watts))} W`;
 
 const formatAmps = (amps: number | null): string =>
   amps === null ? '---' : `${amps.toFixed(1)} A`;
 
 const formatVA = (va: number | null): string =>
-  va === null ? '---' : `${Math.round(va).toLocaleString('en-US')} VA`;
+  va === null ? '---' : `${formatQuantity(Math.round(va))} VA`;
 
 const formatService = (source: PowerPdfSource): string => {
   const bits = [

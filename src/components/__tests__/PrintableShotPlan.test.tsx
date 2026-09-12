@@ -17,7 +17,7 @@
  * never on props or internal state.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
 import { renderPanel } from './renderPanel';
 import type { ExportSection } from '../../context/WorkspaceUIContext';
 
@@ -163,5 +163,71 @@ describe('export studio — documents carry their production identity', () => {
     // Pinned by `domain/documentFormat`; an ISO calendar date is the contract
     // every report view shares.
     expect(container.textContent).toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+});
+
+/**
+ * A partial Production Pack has to say so.
+ *
+ * `renderProductionPackPdfs` isolates one document's failure so the rest of
+ * the pack survives — right — but it used to return only the successes. A ZIP
+ * missing its call sheet was indistinguishable from a complete one: you hand
+ * it out, and the gap turns up on the shooting day.
+ *
+ * These drive the real button. Mocking is limited to the module that talks to
+ * the filesystem, because that is the seam a browser test cannot cross either.
+ */
+describe('Production Pack completeness', () => {
+  const packButton = () =>
+    screen.getByText(/Download Production Pack/i).closest('button') as HTMLButtonElement;
+
+  it('tells the user which documents are missing from the archive', async () => {
+    vi.resetModules();
+    vi.doMock('../../utils/pdf/exportStudio', async () => {
+      const actual = await vi.importActual<typeof import('../../utils/pdf/exportStudio')>(
+        '../../utils/pdf/exportStudio',
+      );
+      return {
+        ...actual,
+        downloadProductionPackPdfZip: async () => ({
+          filename: 'pack.zip',
+          failures: [{ section: 'floorplan', reason: 'No live SVG' }],
+        }),
+      };
+    });
+
+    const { act } = await openStudio('combined');
+    await act(() => {
+      packButton().click();
+    });
+
+    await waitFor(() => expect(screen.getByTestId('dialog-title')).toBeTruthy());
+    expect(screen.getByTestId('dialog-title').textContent).toMatch(/incomplete/i);
+    // Names the section AND the reason, so the user can act rather than guess.
+    expect(screen.getByTestId('dialog-message').textContent).toContain('floorplan');
+    expect(screen.getByTestId('dialog-message').textContent).toContain('No live SVG');
+    vi.doUnmock('../../utils/pdf/exportStudio');
+  });
+
+  it('stays quiet when the pack is complete', async () => {
+    vi.resetModules();
+    vi.doMock('../../utils/pdf/exportStudio', async () => {
+      const actual = await vi.importActual<typeof import('../../utils/pdf/exportStudio')>(
+        '../../utils/pdf/exportStudio',
+      );
+      return {
+        ...actual,
+        downloadProductionPackPdfZip: async () => ({ filename: 'pack.zip', failures: [] }),
+      };
+    });
+
+    const { act } = await openStudio('combined');
+    await act(() => {
+      packButton().click();
+    });
+
+    // A successful export earns no dialog; a receipt nobody asked for is noise.
+    expect(screen.queryByTestId('dialog-title')).toBeNull();
+    vi.doUnmock('../../utils/pdf/exportStudio');
   });
 });

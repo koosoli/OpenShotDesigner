@@ -7,6 +7,7 @@ import { PersonAvatar } from '../contacts/PersonAvatar';
 import { CallSheetMap } from './CallSheetMap';
 import { ProjectImage } from '../common/ProjectImage';
 import { formatDocumentDateTime } from '../../domain/documentFormat';
+import { documentTextFor } from '../../domain/documentText';
 
 interface CallSheetPrintViewProps {
   sheet: CallSheetData;
@@ -72,6 +73,10 @@ const groupCrew = (crew: CallSheetPerson[]): Array<{ department: string; people:
  * it sits off-screen; in print media only this document is shown.
  */
 export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet }) => {
+  // The language travels ON the sheet, not from the browser: a call sheet is a
+  // shared document, and one that followed the exporter's locale would reach
+  // the crew as two different pages depending on who pressed print.
+  const t = documentTextFor(sheet.documentLanguage);
   const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const crewGroups = groupCrew(sheet.crew);
   const companyLine = [sheet.productionCompanyInfo?.address, sheet.productionCompanyInfo?.phone, sheet.productionCompanyInfo?.email, sheet.productionCompanyInfo?.website]
@@ -165,7 +170,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             issued. */}
         {sheet.isDraft && (
           <div className="cs-draft-mark" aria-hidden="true">
-            <span>DRAFT</span>
+            <span>{t('callsheet.draft')}</span>
           </div>
         )}
         <header className="cs-masthead">
@@ -181,7 +186,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
           <div className="cs-callbox">
             {sheet.productionLogo && <ProjectImage imageRef={sheet.productionLogo} alt="Production logo" />}
             <div>
-              <div className="cs-call-label">General crew call</div>
+              <div className="cs-call-label">{t('callsheet.generalCrewCall')}</div>
               <div className="cs-call-time">{sheet.crewCall ?? '—'}</div>
               <div className="cs-call-date">{sheet.date ?? 'DATE NOT SET'}</div>
             </div>
@@ -189,19 +194,19 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         </header>
 
         <div className="cs-strip">
-          <div><b>Planned wrap</b>{sheet.plannedWrap ?? '—'}</div>
-          <div><b>Weather</b>{sheet.weatherSummary ?? '—'}</div>
+          <div><b>{t('callsheet.plannedWrap')}</b>{sheet.plannedWrap ?? '—'}</div>
+          <div><b>{t('callsheet.weather')}</b>{sheet.weatherSummary ?? '—'}</div>
           {/* Marked when typed, so a corrected time is never mistaken for an
               astronomical one — and vice versa. */}
           <div>
-            <b>Sunrise</b>
+            <b>{t('callsheet.sunrise')}</b>
             {sheet.daylight.sunrise ?? '—'}
             {sheet.daylight.sunriseOrigin === 'override' && (
               <span style={{ fontSize: '7px', marginLeft: '2px', color: '#475569' }}>set</span>
             )}
           </div>
           <div>
-            <b>Sunset</b>
+            <b>{t('callsheet.sunset')}</b>
             {sheet.daylight.sunset ?? '—'}
             {sheet.daylight.sunsetOrigin === 'override' && (
               <span style={{ fontSize: '7px', marginLeft: '2px', color: '#475569' }}>set</span>
@@ -213,20 +218,20 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
               sun's elevation. */}
           {sheet.daylight.goldenHourMorning && (
             <div>
-              <b>Magic hour AM</b>
+              <b>{t('callsheet.magicHourAm')}</b>
               {sheet.daylight.goldenHourMorning.from}–{sheet.daylight.goldenHourMorning.to}
             </div>
           )}
           {sheet.daylight.goldenHourEvening && (
             <div>
-              <b>Magic hour PM</b>
+              <b>{t('callsheet.magicHourPm')}</b>
               {sheet.daylight.goldenHourEvening.from}–{sheet.daylight.goldenHourEvening.to}
             </div>
           )}
-          <div><b>Parking / access</b>{sheet.parking ?? '—'}</div>
-          {sheet.unitBase && <div><b>Unit base</b>{sheet.unitBase}</div>}
-          {sheet.walkieChannels && <div><b>Walkies</b>{sheet.walkieChannels}</div>}
-          <div><b>Nearest hospital</b>{sheet.nearestHospital ?? '—'}</div>
+          <div><b>{t('callsheet.parking')}</b>{sheet.parking ?? '—'}</div>
+          {sheet.unitBase && <div><b>{t('callsheet.unitBase')}</b>{sheet.unitBase}</div>}
+          {sheet.walkieChannels && <div><b>{t('callsheet.walkies')}</b>{sheet.walkieChannels}</div>}
+          <div><b>{t('callsheet.nearestHospital')}</b>{sheet.nearestHospital ?? '—'}</div>
         </div>
 
         {sheet.daylight.note && (
@@ -235,24 +240,24 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
 
         {sheet.safetyNotes && (
           <section className="cs-safety">
-            <b>Safety bulletin</b>
+            <b>{t('callsheet.safetyBulletin')}</b>
             <span className="cs-notes">{sheet.safetyNotes}</span>
           </section>
         )}
 
         <section>
-          <h2 className="cs-section-title accent">Locations</h2>
+          <h2 className="cs-section-title accent">{t('callsheet.locations')}</h2>
           {sheet.locations.length > 0 ? (
             <table className="cs-table">
               <thead>
-                <tr><th style={{ width: '36%' }}>Name</th><th>Address</th><th style={{ width: '18mm' }}>Map</th></tr>
+                <tr><th style={{ width: '36%' }}>{t('callsheet.name')}</th><th>{t('callsheet.address')}</th><th style={{ width: '18mm' }}>{t('callsheet.map')}</th></tr>
               </thead>
               <tbody>
                 {sheet.locations.map((loc, i) => (
                   <tr key={`loc-${i}`}>
                     <td><strong>{loc.name}</strong></td>
                     <td>{loc.address ?? '—'}</td>
-                    <td><a href={locationMapLinkUrl(loc)} style={{ color: '#0e7490' }}>Open map</a></td>
+                    <td><a href={locationMapLinkUrl(loc)} style={{ color: '#0e7490' }}>{t('callsheet.openMap')}</a></td>
                   </tr>
                 ))}
               </tbody>
@@ -270,16 +275,16 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
         </section>
 
         <section>
-          <h2 className="cs-section-title">Shooting schedule</h2>
+          <h2 className="cs-section-title">{t('callsheet.shootingSchedule')}</h2>
           <table className="cs-table">
             <thead>
               <tr>
                 <th className="num">#</th>
-                <th style={{ width: '14mm' }}>Start</th>
+                <th style={{ width: '14mm' }}>{t('callsheet.start')}</th>
                 <th className="num" style={{ width: '10mm' }}>Sc.</th>
-                <th>Item</th>
-                <th style={{ width: '32mm' }}>Location</th>
-                <th style={{ width: '18mm' }}>Type</th>
+                <th>{t('callsheet.item')}</th>
+                <th style={{ width: '32mm' }}>{t('callsheet.location')}</th>
+                <th style={{ width: '18mm' }}>{t('callsheet.type')}</th>
                 <th className="num">Est.</th>
               </tr>
             </thead>
@@ -299,7 +304,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                   <td className="num">{entry.sceneNumber ?? ''}</td>
                   <td className={entry.unresolved ? 'cs-unresolved' : undefined}>
                     <span className="cs-item-label">{entry.label}</span>
-                    {entry.omitted && <span className="cs-badge">Omitted</span>}
+                    {entry.omitted && <span className="cs-badge">{t('callsheet.omitted')}</span>}
                   </td>
                   <td>{entry.location ?? ''}</td>
                   <td><span className="cs-kind" style={{ '--tone': KIND_TONES[entry.kind] } as React.CSSProperties}>{KIND_LABELS[entry.kind]}</span></td>
@@ -308,7 +313,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
                 </React.Fragment>
               ))}
               <tr className="cs-total-row">
-                <td colSpan={6}>Total estimated time</td>
+                <td colSpan={6}>{t('callsheet.totalEstimatedTime')}</td>
                 <td className="num">{formatMinutes(sheet.totalEstimatedMinutes ?? undefined)}</td>
               </tr>
             </tbody>
@@ -317,10 +322,10 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
 
         <div className="cs-two">
           <section>
-            <h2 className="cs-section-title accent">Cast</h2>
+            <h2 className="cs-section-title accent">{t('callsheet.cast')}</h2>
             {sheet.cast.length > 0 ? (
               <table className="cs-table">
-                <thead><tr><th style={{ width: '14mm' }}>P/U</th><th style={{ width: '14mm' }}>Call</th><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
+                <thead><tr><th style={{ width: '14mm' }}>{t('callsheet.pickup')}</th><th style={{ width: '14mm' }}>{t('callsheet.call')}</th><th>{t('callsheet.name')}</th><th>{t('callsheet.role')}</th><th>{t('callsheet.contact')}</th></tr></thead>
                 <tbody>
                   {sheet.cast.map((p, i) => (
                     <tr key={`cast-${i}`}>
@@ -359,9 +364,9 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
               sorted by name, which is only findable if you already know it. */}
           {sheet.departmentHeads.length > 0 && (
             <section>
-              <h2 className="cs-section-title">Heads of department</h2>
+              <h2 className="cs-section-title">{t('callsheet.headsOfDepartment')}</h2>
               <table className="cs-table">
-                <thead><tr><th>Role</th><th>Name</th><th>Contact</th></tr></thead>
+                <thead><tr><th>{t('callsheet.role')}</th><th>{t('callsheet.name')}</th><th>{t('callsheet.contact')}</th></tr></thead>
                 <tbody>
                   {sheet.departmentHeads.map((head, i) => (
                     <tr key={`hod-${i}`}>
@@ -380,10 +385,10 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
             </section>
           )}
           <section>
-            <h2 className="cs-section-title">Crew</h2>
+            <h2 className="cs-section-title">{t('callsheet.crew')}</h2>
             {sheet.crew.length > 0 ? (
               <table className="cs-table">
-                <thead><tr><th style={{ width: '14mm' }}>P/U</th><th style={{ width: '14mm' }}>Call</th><th>Name</th><th>Role</th><th>Contact</th></tr></thead>
+                <thead><tr><th style={{ width: '14mm' }}>{t('callsheet.pickup')}</th><th style={{ width: '14mm' }}>{t('callsheet.call')}</th><th>{t('callsheet.name')}</th><th>{t('callsheet.role')}</th><th>{t('callsheet.contact')}</th></tr></thead>
                 <tbody>
                   {crewGroups.map((group) => (
                     <React.Fragment key={group.department}>
@@ -412,7 +417,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
 
         {(sheet.pickups.length > 0 || sheet.pickupNotes) && (
           <section>
-            <h2 className="cs-section-title accent">Transport &amp; pick-ups</h2>
+            <h2 className="cs-section-title accent">{t('callsheet.transportAndPickups')}</h2>
             {sheet.pickupNotes && (
               <p className="cs-notes" style={{ margin: '6px 0 0' }}>{sheet.pickupNotes}</p>
             )}
@@ -420,10 +425,10 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
               <table className="cs-table" style={{ marginTop: sheet.pickupNotes ? '6px' : 0 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: '18mm' }}>Time</th>
-                    <th style={{ width: '32%' }}>Name</th>
-                    <th>Pick-up from</th>
-                    <th style={{ width: '28%' }}>Contact / notes</th>
+                    <th style={{ width: '18mm' }}>{t('callsheet.time')}</th>
+                    <th style={{ width: '32%' }}>{t('callsheet.name')}</th>
+                    <th>{t('callsheet.pickUpFrom')}</th>
+                    <th style={{ width: '28%' }}>{t('callsheet.contactNotes')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -447,7 +452,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
 
         {sheet.generalNotes && (
           <section>
-            <h2 className="cs-section-title">General notes</h2>
+            <h2 className="cs-section-title">{t('callsheet.generalNotes')}</h2>
             <p className="cs-notes" style={{ margin: '6px 0 0' }}>{sheet.generalNotes}</p>
           </section>
         )}
@@ -480,7 +485,7 @@ export const CallSheetPrintView: React.FC<CallSheetPrintViewProps> = ({ sheet })
 
         {sheet.warnings.length > 0 && (
           <section className="cs-warnings">
-            <strong>Readiness warnings</strong>
+            <strong>{t('callsheet.readinessWarnings')}</strong>
             <ul>
               {sheet.warnings.map((w, i) => (
                 <li key={`warn-${i}`}>{w}</li>

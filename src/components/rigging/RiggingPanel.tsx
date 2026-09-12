@@ -19,7 +19,6 @@ import {
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { createId } from '../../domain/ids';
-import { removeTrussElement } from '../../domain';
 import { searchFixtureProfiles } from '../../domain/fixtures';
 import type { LightElement } from '../../types';
 import {
@@ -44,6 +43,13 @@ import {
 } from '../../domain/rigging';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
+import {
+  removeTrussElementCommand,
+  setRiggingItemsCommand,
+  setSuspendedLoadsCommand,
+  setTrussProfilesCommand,
+  upsertTrussElementCommand,
+} from '../../domain/commands';
 
 const GEOMETRY_ORDER = ['box', 'triangle', 'ladder', 'other'] as const;
 type TrussGeometry = (typeof GEOMETRY_ORDER)[number];
@@ -140,7 +146,7 @@ const makeStarterProfiles = (): TrussProfile[] => [
 ];
 
 export const RiggingPanel: React.FC = () => {
-  const { project, updateProjectMeta, activeSetup } = useFloorPlan();
+  const { project, updateProjectMeta, runCommand, activeSetup } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   // The bundled fixture snapshot arrives asynchronously and an online refresh
   // can replace it; both change the weights resolved below, so the panel has
@@ -218,37 +224,45 @@ export const RiggingPanel: React.FC = () => {
 
   // --- Mutations (all immutable via updateProjectMeta) ---
 
-  const mutateProfiles = (fn: (prev: TrussProfile[]) => TrussProfile[]) =>
-    updateProjectMeta((prev) => ({ trussProfiles: fn(prev.trussProfiles ?? []) }));
-  const mutateElements = (fn: (prev: TrussElement[]) => TrussElement[]) =>
-    updateProjectMeta((prev) => ({ trussElements: fn(prev.trussElements ?? []) }));
-  const mutateLoads = (fn: (prev: SuspendedLoad[]) => SuspendedLoad[]) =>
-    updateProjectMeta((prev) => ({ suspendedLoads: fn(prev.suspendedLoads ?? []) }));
-  const mutateItems = (fn: (prev: RiggingItem[]) => RiggingItem[]) =>
-    updateProjectMeta((prev) => ({ riggingItems: fn(prev.riggingItems ?? []) }));
+  /**
+   * Every rigging write goes through a command.
+   *
+   * The updater still receives `prev`, which is the point: `runCommand` runs
+   * the command inside the state updater, so two edits in one tick compose
+   * instead of the second overwriting the first.
+   *
+   * The `description` is the visible gain here. These used to be
+   * `updateProjectMeta`, which logged "Update project metadata" for all
+   * fifteen call sites — a rigger undoing three steps had no way to tell what
+   * they were undoing.
+   */
+  const mutateProfiles = (fn: (prev: TrussProfile[]) => TrussProfile[], description: string) =>
+    runCommand(setTrussProfilesCommand, { update: fn, description }, { domain: 'technical' });
+  const mutateLoads = (fn: (prev: SuspendedLoad[]) => SuspendedLoad[], description: string) =>
+    runCommand(setSuspendedLoadsCommand, { update: fn, description }, { domain: 'technical' });
+  const mutateItems = (fn: (prev: RiggingItem[]) => RiggingItem[], description: string) =>
+    runCommand(setRiggingItemsCommand, { update: fn, description }, { domain: 'technical' });
 
   const addProfile = () => {
-    mutateProfiles((prev) => [
-      ...prev,
-      {
-        id: createId('trussprof'),
-        geometry: 'box',
-      },
-    ]);
+    mutateProfiles(
+      (prev) => [...prev, { id: createId('trussprof'), geometry: 'box' }],
+      'Add truss profile',
+    );
   };
 
   const seedStarterProfiles = () => {
-    mutateProfiles(() => makeStarterProfiles());
+    mutateProfiles(() => makeStarterProfiles(), 'Load starter truss profiles');
   };
 
   const updateProfile = (profileId: string, updates: Partial<TrussProfile>) => {
-    mutateProfiles((prev) =>
-      prev.map((p) => (p.id === profileId ? { ...p, ...updates } : p))
+    mutateProfiles(
+      (prev) => prev.map((p) => (p.id === profileId ? { ...p, ...updates } : p)),
+      'Edit truss profile',
     );
   };
 
   const removeProfile = (profileId: string) => {
-    mutateProfiles((prev) => prev.filter((p) => p.id !== profileId));
+    mutateProfiles((prev) => prev.filter((p) => p.id !== profileId), 'Remove truss profile');
   };
 
   const addElement = () => {
@@ -264,14 +278,18 @@ export const RiggingPanel: React.FC = () => {
       setupId: activeSetup.id,
       lengthOverrideMm: parseOptionalNumber(newElementLength),
     };
-    mutateElements((prev) => [...prev, element]);
+    runCommand(upsertTrussElementCommand, { element }, { domain: 'technical' });
     setNewElementLabel('');
     setNewElementLength('');
   };
 
   const updateElement = (elementId: string, updates: Partial<TrussElement>) => {
-    mutateElements((prev) =>
-      prev.map((e) => (e.id === elementId ? { ...e, ...updates } : e))
+    const current = (project.trussElements ?? []).find((e) => e.id === elementId);
+    if (!current) return;
+    runCommand(
+      upsertTrussElementCommand,
+      { element: { ...current, ...updates } },
+      { domain: 'technical' },
     );
   };
 
@@ -279,21 +297,7 @@ export const RiggingPanel: React.FC = () => {
     // Referential integrity in one shot (domain/integrity.ts): the run, its
     // loads, its rigging hardware, and the truss reference on any power
     // consumer that was hanging on it.
-    const next = removeTrussElement(
-      {
-        trussElements: project.trussElements ?? [],
-        suspendedLoads: project.suspendedLoads ?? [],
-        riggingItems: project.riggingItems ?? [],
-        powerPlan: project.powerPlan,
-      },
-      elementId,
-    );
-    updateProjectMeta({
-      trussElements: next.trussElements,
-      suspendedLoads: next.suspendedLoads,
-      riggingItems: next.riggingItems,
-      ...(next.powerPlan ? { powerPlan: next.powerPlan } : {}),
-    });
+    runCommand(removeTrussElementCommand, { trussElementId: elementId }, { domain: 'technical' });
   };
 
   const addLoad = (trussElementId: string) => {
@@ -306,7 +310,7 @@ export const RiggingPanel: React.FC = () => {
         quantity: 1,
         source: 'manual',
       },
-    ]);
+    ], 'Add suspended load');
   };
 
   /** Hang a light that is already standing on the plan (see `suspendedLoadFromPlanLight`). */
@@ -314,7 +318,7 @@ export const RiggingPanel: React.FC = () => {
     mutateLoads((prev) => [
       ...prev,
       suspendedLoadFromPlanLight(light, trussElementId, createId('load')),
-    ]);
+    ], 'Hang a plan light on the truss');
   };
 
   /** Hang a catalogue fixture that nobody has drawn on the plan yet. */
@@ -324,13 +328,13 @@ export const RiggingPanel: React.FC = () => {
     mutateLoads((prev) => [
       ...prev,
       suspendedLoadFromFixtureProfile(profile, trussElementId, createId('load')),
-    ]);
+    ], 'Hang a catalogue fixture on the truss');
   };
 
   const updateLoad = (loadId: string, updates: Partial<SuspendedLoad>) => {
     mutateLoads((prev) =>
       prev.map((l) => (l.id === loadId ? { ...l, ...updates } : l))
-    );
+    , 'Edit suspended load');
   };
 
   /**
@@ -339,12 +343,12 @@ export const RiggingPanel: React.FC = () => {
    */
   const overrideLoadWeight = (loadId: string) => {
     mutateLoads((prev) =>
-      prev.map((l) => (l.id === loadId ? detachLoadFromProfile(l, fixtureLookup) : l)),
-    );
+      prev.map((l) => (l.id === loadId ? detachLoadFromProfile(l, fixtureLookup) : l))
+    , 'Override load weight');
   };
 
   const removeLoad = (loadId: string) => {
-    mutateLoads((prev) => prev.filter((l) => l.id !== loadId));
+    mutateLoads((prev) => prev.filter((l) => l.id !== loadId), 'Remove suspended load');
   };
 
   const addItem = (trussElementId: string) => {
@@ -355,17 +359,17 @@ export const RiggingPanel: React.FC = () => {
         trussElementId,
         kind: 'clamp',
       },
-    ]);
+    ], 'Add rigging hardware');
   };
 
   const updateItem = (itemId: string, updates: Partial<RiggingItem>) => {
     mutateItems((prev) =>
       prev.map((i) => (i.id === itemId ? { ...i, ...updates } : i))
-    );
+    , 'Edit rigging hardware');
   };
 
   const removeItem = (itemId: string) => {
-    mutateItems((prev) => prev.filter((i) => i.id !== itemId));
+    mutateItems((prev) => prev.filter((i) => i.id !== itemId), 'Remove rigging hardware');
   };
 
   // --- Shared styles (PowerPanel/SchedulePanel conventions) ---

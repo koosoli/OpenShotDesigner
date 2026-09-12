@@ -591,7 +591,7 @@ export const PrintableShotPlan: React.FC = () => {
   const handleDownloadProductionPack = async () => {
     setIsDownloadingPdf(true);
     try {
-      await downloadProductionPackPdfZip({
+      const { failures } = await downloadProductionPackPdfZip({
         project,
         activeSetup,
         scriptLines,
@@ -600,6 +600,21 @@ export const PrintableShotPlan: React.FC = () => {
         floorPlanSvg: floorPlanSvgRef.current,
         omitBlankStoryboardFrames: omitBlankWaypoints,
       });
+      // A partial pack must announce itself. Silence here means the producer
+      // hands out an archive believing it is complete, and finds the gap on
+      // the day. The ZIP still downloaded — this is the receipt, not an error.
+      if (failures.length > 0) {
+        await notice({
+          title: 'Production Pack is incomplete',
+          message: [
+            `The archive downloaded, but ${failures.length} document${failures.length === 1 ? '' : 's'} could not be created:`,
+            '',
+            ...failures.map((failure) => `• ${failure.section} — ${failure.reason}`),
+            '',
+            'Everything else is in the ZIP. Export the missing sections individually to see the full error.',
+          ].join('\n'),
+        });
+      }
     } catch (error) {
       await notice({
         title: 'Production Pack export failed',

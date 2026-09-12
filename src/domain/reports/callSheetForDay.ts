@@ -80,6 +80,7 @@ export const callSheetForDay = (
   const following = index >= 0 ? days[index + 1] : undefined;
 
   return deriveCallSheet({
+    ...(project.documentLanguage ? { documentLanguage: project.documentLanguage } : {}),
     day,
     blocks,
     ...(following

@@ -119,6 +119,9 @@ import { LightInspector } from './elements/LightInspector';
 import { compassPoint, formatSunTime, sceneSunPlan } from '../../domain/sun';
 import { ProjectImage } from '../common/ProjectImage';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { DOCUMENT_LANGUAGE_LABELS, DOCUMENT_LANGUAGES } from '../../domain/documentText';
+import { setDocumentLanguageCommand } from '../../domain/commands';
+import type { DocumentLanguage } from '../../domain/documentText';
 import {
   ColorField,
   PillToggle,
@@ -132,7 +135,7 @@ export const InspectorPanel: React.FC = () => {
   // readers announced every one of these inputs unlabelled.
   const fieldId = useId();
   const logoInputRef = React.useRef<HTMLInputElement>(null);
-  const { activeSetup, project, updateProjectMeta, selectedElementIds, updateElement, deleteSelectedElements, duplicateSelected, updateSetupMeta, setActiveSetupId, rotateElementBy, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, updateBackgroundImage, removeBackgroundImage, displaySettings, updateDisplaySettings, updateMultipleElements, setGridSettings, calibratingBackgroundId, startBackgroundCalibration, cancelBackgroundCalibration } = useFloorPlan();
+  const { activeSetup, project, updateProjectMeta, runCommand, selectedElementIds, updateElement, deleteSelectedElements, duplicateSelected, updateSetupMeta, setActiveSetupId, rotateElementBy, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, updateBackgroundImage, removeBackgroundImage, displaySettings, updateDisplaySettings, updateMultipleElements, setGridSettings, calibratingBackgroundId, startBackgroundCalibration, cancelBackgroundCalibration } = useFloorPlan();
   const { notice, prompt } = useDialogs();
   const { theme } = useWorkspaceUI();
 
@@ -847,6 +850,27 @@ export const InspectorPanel: React.FC = () => {
             <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
               Assign these by role — with phone, email and department — on the Crew tab.
             </p>
+            {/* Paperwork language. Deliberately here and not in the app's own
+                language switch: the interface follows the reader, the call
+                sheet follows the production, and a German AD can be shooting
+                an English-language co-production. */}
+            <div>
+              <label htmlFor={`${fieldId}-document-language`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Paperwork language</label>
+              <select id={`${fieldId}-document-language`}
+                value={project.documentLanguage ?? 'en'}
+                onChange={(e) => runCommand(setDocumentLanguageCommand, { language: e.target.value as DocumentLanguage }, { domain: 'project' })}
+                className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
+                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                }`}
+              >
+                {DOCUMENT_LANGUAGES.map((language) => (
+                  <option key={language} value={language}>{DOCUMENT_LANGUAGE_LABELS[language]}</option>
+                ))}
+              </select>
+              <p className={`text-[10px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Call sheets print in this language for everyone, whatever language the app itself is set to.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label htmlFor={`${fieldId}-production-company`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Company</label>

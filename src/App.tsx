@@ -89,13 +89,14 @@ import { loadLibrary } from './utils/projectLibrary';
 import { lazyWithRetry, prefetchLazyChunks } from './utils/lazyChunks';
 import { saveNativeProjectFile } from './utils/nativeProjectFile';
 import { DialogProvider, useDialogs } from './components/dialog/DialogProvider';
+import { PanelIntro } from './components/common/PanelIntro';
 
 type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedule' | 'moodboard' | 'locations' | 'power' | 'logistics' | 'run_of_show' | 'continuity' | 'rigging' | 'contacts' | 'tasks' | 'budget' | 'inspector';
 type WorkspaceGroup = 'creative' | 'production' | 'technical';
 
 const MainLayout: React.FC = () => {
   const { project, activeSetup, selectedElementIds, storageWarning, dismissStorageWarning, isModuleVisible, isViewfinderOpen } = useFloorPlan();
-  const { activeRightTab, setActiveRightTab, theme, isExportModalOpen, isRightPanelOpen, setRightPanelOpen } = useWorkspaceUI();
+  const { activeRightTab, setActiveRightTab, theme, isExportModalOpen, isRightPanelOpen, setRightPanelOpen, isDashboardOpen } = useWorkspaceUI();
   const { notice } = useDialogs();
 
 
@@ -280,14 +281,23 @@ const MainLayout: React.FC = () => {
       </a>
 
       {/*
-        The document's only h1. Everything on screen is one production, and
-        without it the heading outline started at h2 inside whichever panel
-        happened to be open — a screen-reader user had no way to tell which
-        project they were in from the structure alone. Visually hidden because
-        the title is already shown in the navbar; this is the same information
-        for a different reader, not a second one.
+        The document's h1. Everything behind it is one production, and without
+        it the heading outline started at h2 inside whichever panel happened to
+        be open — a screen-reader user had no way to tell which project they
+        were in from the structure alone. Visually hidden because the title is
+        already shown in the navbar; this is the same information for a
+        different reader, not a second one.
+
+        Suppressed while the dashboard is open. The dashboard is a full-screen
+        overlay with its own h1 ("Your productions"), and on a first run both
+        rendered at once — two top-level headings, which makes the outline
+        ambiguous and leaves a screen-reader user unable to tell what the page
+        currently IS. Whichever surface the user is actually looking at owns
+        the h1; only one of them is ever on screen.
       */}
-      <h1 className="sr-only">{project.title || 'Untitled production'}</h1>
+      {!isDashboardOpen && (
+        <h1 className="sr-only">{project.title?.trim() || 'Untitled production'}</h1>
+      )}
 
       {/* 1. Top Navbar */}
       <TopNavbar />
@@ -475,6 +485,10 @@ const MainLayout: React.FC = () => {
             {/* Tab Content. One Suspense boundary around the whole switch: only
                 one panel is mounted at a time, and a per-panel boundary would
                 just repeat the same fallback. */}
+            {/* One insertion point covers all sixteen panels: only one is
+                mounted at a time, and threading an intro through each panel
+                would be sixteen edits that could each drift. */}
+            <PanelIntro key={activeRightTab} moduleId={activeRightTab} isLight={isLight} />
             <div className="flex-1 overflow-hidden">
               <Suspense fallback={<PanelFallback />}>
               {activeRightTab === 'shots' ? (

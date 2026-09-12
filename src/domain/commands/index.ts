@@ -22,3 +22,33 @@ export type {
   SetCastNumberInput,
   UpsertPersonInput,
 } from './people';
+export {
+  removeTrussElementCommand,
+  setRiggingItemsCommand,
+  setSuspendedLoadsCommand,
+  setTrussProfilesCommand,
+  upsertTrussElementCommand,
+} from './rigging';
+export type {
+  RemoveTrussElementInput,
+  SetRiggingItemsInput,
+  SetSuspendedLoadsInput,
+  SetTrussProfilesInput,
+  UpsertTrussElementInput,
+} from './rigging';
+export { setDocumentLanguageCommand } from './project';
+export type { SetDocumentLanguageInput } from './project';
+export {
+  addUnplannedShotCommand,
+  deleteTakeCommand,
+  setContinuityDayFilterCommand,
+  updateTakeCommand,
+} from './continuity';
+export type {
+  AddUnplannedShotInput,
+  DeleteTakeInput,
+  SetContinuityDayFilterInput,
+  UpdateTakeInput,
+} from './continuity';
+export { removeLocationCommand, setLocationsCommand } from './locations';
+export type { RemoveLocationInput, SetLocationsInput } from './locations';

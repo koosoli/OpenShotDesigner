@@ -39,13 +39,14 @@ import {
 } from './powerPresets';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
+import { formatQuantity } from '../../domain/documentFormat';
 
 /**
  * "12,500 VA" — apparent power. A supply is rated in volt-amps and a load that
  * is not at unity power factor asks for more of them than it consumes watts,
  * so the two units are shown apart rather than one standing in for the other.
  */
-const formatVA = (va: number): string => `${Math.round(va).toLocaleString()} VA`;
+const formatVA = (va: number): string => `${formatQuantity(Math.round(va))} VA`;
 
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
 const parseOptionalNumber = (raw: string): number | undefined => {

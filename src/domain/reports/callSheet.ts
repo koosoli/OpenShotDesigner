@@ -6,6 +6,7 @@
  */
 
 import { callSheetPhone } from '../people';
+import type { DocumentLanguage } from '../documentText';
 import { deriveDaylight } from './callSheetSun';
 import type { CallSheetDaylight } from './callSheetSun';
 import { deriveDepartmentHeads } from './departmentHeads';
@@ -121,6 +122,15 @@ export interface CallSheetLookAhead {
 }
 
 export interface CallSheetData {
+  /**
+   * Language this sheet prints in.
+   *
+   * Part of the DOCUMENT, not of the viewer's preferences — which is why it
+   * lives here and is therefore compared by `hasChangedSinceIssue`. Reissuing
+   * a German call sheet in English changes what the crew reads, so it has to
+   * count as a change and force a new revision.
+   */
+  documentLanguage?: DocumentLanguage;
   productionTitle: string;
   productionCompany?: string;
   productionCompanyInfo?: CallSheetCompanyInfo;
@@ -192,6 +202,8 @@ export interface GeneratedSheet {
 }
 
 export interface DeriveCallSheetInput {
+  /** Paperwork language for the production; absent means English. */
+  documentLanguage?: DocumentLanguage;
   day: ProductionDay;
   blocks: ScheduleBlock[];
   productionTitle: string;
@@ -432,6 +444,7 @@ export const deriveCallSheet = (input: DeriveCallSheetInput): CallSheetData => {
   }
 
   return {
+    ...(input.documentLanguage ? { documentLanguage: input.documentLanguage } : {}),
     productionTitle,
     productionCompany,
     productionCompanyInfo,

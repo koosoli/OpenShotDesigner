@@ -1,3 +1,4 @@
+import type { DocumentLanguage } from '../domain/documentText';
 import type { LightModifier, LightPhotometricReference } from '../domain/lighting/types';
 
 export type ElementType =
@@ -1047,6 +1048,15 @@ export interface Project {
    * so changing a channel here changes every sheet that has not overridden it.
    */
   standingCallSheet?: import('../domain/reports').StandingCallSheet;
+  /**
+   * Language the production's PAPERWORK is printed in.
+   *
+   * A project setting, not a browser one: a call sheet is a shared document,
+   * and if it followed the exporting browser the crew would be holding two
+   * different pages. Absent means English, so older projects keep printing
+   * exactly what they printed before.
+   */
+  documentLanguage?: DocumentLanguage;
   productionCompanyInfo?: {
     address?: string;
     phone?: string;
