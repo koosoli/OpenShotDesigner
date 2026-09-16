@@ -9,7 +9,7 @@ import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 interface TargetOption { kind: ReviewTargetKind; id: string; label: string }
 
 export const ReviewNotes: React.FC = () => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, updateProjectMeta, displaySettings } = useFloorPlan();
   const { theme } = useWorkspaceUI();
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
@@ -57,6 +57,9 @@ export const ReviewNotes: React.FC = () => {
     mutate((current) => current.map((comment) => comment.id === id ? change(comment) : comment));
 
   const unresolved = comments.filter((comment) => !comment.resolvedAt).length;
+  // Opt-in chrome: the floating button stays out of the way until switched on
+  // in Viewing Options, like the readiness summary.
+  if (displaySettings.showReviewNotes !== true) return null;
   return (
     <>
       <button onClick={() => setOpen(true)} className={`absolute top-14 right-3 z-30 h-9 px-3 rounded-xl border shadow-lg backdrop-blur flex items-center gap-2 text-[11px] font-bold ${isLight ? 'bg-white/90 border-slate-300' : 'bg-slate-900/90 border-slate-700'}`}>

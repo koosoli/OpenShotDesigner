@@ -10,6 +10,7 @@ import {
 import { boundsContain, elementBounds, padBounds } from '../../domain/plan/elementBounds';
 import {
   ActorElement,
+  AnnotationElement,
   ArrowElement,
   CableElement,
   CameraElement,
@@ -36,6 +37,7 @@ import { boundsCenterOfPoints, findNearestWall, getAngleBetweenPoints, snapToGri
 import { ASPECT_RATIOS, CABLE_TYPES } from '../../constants/presets';
 import { boardedFrames, keyFrame, keyFrameImage, setFramePatch, START_SLOT } from '../../utils/storyboardFrames';
 import { ActorElementView } from './ActorElementView';
+import { AnnotationLayer } from './AnnotationLayer';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CameraElementView } from './CameraElementView';
 import { ElementContextMenu, ElementContextMenuState } from './ElementContextMenu';
@@ -601,6 +603,7 @@ export const FloorPlanCanvas: React.FC = () => {
   const texts = ofType<TextElement>('text');
   const cables = ofType<CableElement>('cable');
   const strokes = ofType<StrokeElement>('stroke');
+  const annotations = ofType<AnnotationElement>('annotation');
 
   // Storyboard thumbnails: shots that have a storyboard attached, shown near
   // their camera on the floor plan.
@@ -3203,6 +3206,19 @@ export const FloorPlanCanvas: React.FC = () => {
             liveToolStyle={freehandSettings.toolStyle}
             onStrokePointerDown={handleStrokePointerDown}
             selectedStrokeIds={selectedElementIds}
+          />
+
+          {/* 9d. Callout annotations (plan §6.2): faint leader line from the
+              target element to freely-movable text, above content so the
+              callout always reads, below selection handles. */}
+          <AnnotationLayer
+            annotations={annotations}
+            allElements={renderedElements}
+            selectedIds={selectedElementIds}
+            onSelect={handleElementSelect}
+            onDoubleClick={handleElementDoubleClick}
+            onUpdateText={handleUpdateElementText}
+            isLight={isLightMode}
           />
 
           {calibratingBackgroundId && calibrationPoints.length > 0 && (

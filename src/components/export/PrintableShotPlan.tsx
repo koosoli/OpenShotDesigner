@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
+  AnnotationElement,
   ArrowElement,
   BackgroundImage,
   CableElement,
@@ -23,6 +24,7 @@ import { exportProjectToCsv, exportShotListToCsv } from '../../utils/exportShotL
 import { exportSvgAsPng } from '../../utils/exportFloorPlanPng';
 import { waitForImages } from '../../utils/image';
 import { ShapesLayer } from '../canvas/ShapesLayer';
+import { AnnotationLayer } from '../canvas/AnnotationLayer';
 import { FreehandStrokeLayer } from '../canvas/FreehandStrokeLayer';
 import { ActorElementView } from '../canvas/ActorElementView';
 import { CameraElementView } from '../canvas/CameraElementView';
@@ -358,7 +360,6 @@ export const PrintableShotPlan: React.FC = () => {
         showShotLensOnCamera: true,
         showShotAngleOnCamera: true,
         showShotNumberOnCamera: true,
-        showLensFovLabel: true,
         showWaypoints: true,
         showWaypointCues: true,
         showStoryboardThumbs: showStoryboards,
@@ -407,7 +408,6 @@ export const PrintableShotPlan: React.FC = () => {
         showShotLensOnCamera: displaySettings.showShotLensOnCamera === true,
         showShotAngleOnCamera: displaySettings.showShotAngleOnCamera === true,
         showShotNumberOnCamera: displaySettings.showShotNumberOnCamera !== false,
-        showLensFovLabel: displaySettings.showLensFovLabel === true,
         showWaypoints: displaySettings.showWaypoints !== false,
         showWaypointCues: displaySettings.showWaypointCues === true,
         showStoryboardThumbs: showStoryboards && (displaySettings.showStoryboardThumbs !== false),
@@ -460,7 +460,6 @@ export const PrintableShotPlan: React.FC = () => {
       showShotLensOnCamera: eff.showShotLensOnCamera,
       showShotAngleOnCamera: eff.showShotAngleOnCamera,
       showShotNumberOnCamera: eff.showShotNumberOnCamera,
-      showLensFovLabel: eff.showLensFovLabel,
       showWaypoints: eff.showWaypoints,
       showWaypointCues: eff.showWaypointCues,
       showStoryboardThumbs: eff.showStoryboardThumbs,
@@ -514,6 +513,7 @@ export const PrintableShotPlan: React.FC = () => {
   const cables = printableElements.filter((e) => e.type === 'cable') as CableElement[];
   const shapes = printableElements.filter((e) => e.type === 'shape') as ShapeElement[];
   const strokes = printableElements.filter((e) => e.type === 'stroke') as StrokeElement[];
+  const annotations = printableElements.filter((e) => e.type === 'annotation') as AnnotationElement[];
   const backgroundImages = (activeSetup.backgroundImages || []).filter((i) => i.visible) as BackgroundImage[];
   const sceneAspectRatio =
     ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
@@ -1813,6 +1813,15 @@ export const PrintableShotPlan: React.FC = () => {
 
                   {/* 8. Freehand annotations — identical geometry and styling to the live canvas. */}
                   <FreehandStrokeLayer strokes={strokes} />
+
+                  {/* 8b. Callout annotations — same shared renderer as the live canvas. */}
+                  <AnnotationLayer
+                    annotations={annotations}
+                    allElements={printableElements}
+                    selectedIds={[]}
+                    onSelect={() => {}}
+                    isLight
+                  />
                 </svg>
               </div>
 

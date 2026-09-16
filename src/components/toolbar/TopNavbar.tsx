@@ -583,6 +583,32 @@ export const TopNavbar: React.FC = () => {
                       Floating blocker and warning summary across production departments.
                     </p>
 
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-semibold">Show Review Notes</span>
+                      <input
+                        type="checkbox"
+                        checked={displaySettings.showReviewNotes === true}
+                        onChange={(e) => updateDisplaySettings({ showReviewNotes: e.target.checked })}
+                        className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
+                      />
+                    </label>
+                    <p className={`text-[10px] -mt-1 mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Floating review-threads button over the floor plan.
+                    </p>
+
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="font-semibold">Show Panel Explanations</span>
+                      <input
+                        type="checkbox"
+                        checked={displaySettings.showPanelIntros === true}
+                        onChange={(e) => updateDisplaySettings({ showPanelIntros: e.target.checked })}
+                        className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
+                      />
+                    </label>
+                    <p className={`text-[10px] -mt-1 mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Per-tab intro strips explaining what each panel is for.
+                    </p>
+
                     {/* Waypoint dialogue/action cues */}
                     <label className="flex items-center justify-between cursor-pointer">
                       <span className="font-semibold">Show Waypoint Cues / Dialogue</span>

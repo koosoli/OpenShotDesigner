@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migrateProject } from '../migrations';
+import { CURRENT_PROJECT_SCHEMA_VERSION, migrateProject } from '../migrations';
 
 const fixture = () => ({
   schemaVersion: 31,
@@ -19,7 +19,7 @@ describe('migrateV31ToV32', () => {
   it('preserves legacy modifier meaning deterministically', () => {
     const first = migrateProject(fixture()).project;
     const second = migrateProject(fixture()).project;
-    expect(first.schemaVersion).toBe(32);
+    expect(first.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(first.setups[0].elements[0]).toMatchObject({
       modifiers: [
         { id: 'light-1-modifier-barn-doors', kind: 'barn_doors', enabled: true },

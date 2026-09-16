@@ -16,7 +16,8 @@ export type ElementType =
   | 'arrow'
   | 'shape'
   | 'cable'
-  | 'stroke';
+  | 'stroke'
+  | 'annotation';
 
 export interface Vector2D {
   x: number;
@@ -530,7 +531,8 @@ export type FloorPlanElement =
   | ArrowElement
   | ShapeElement
   | CableElement
-  | StrokeElement;
+  | StrokeElement
+  | AnnotationElement;
 
 type KeysOfUnion<T> = T extends unknown ? keyof T : never;
 type ValueOfUnion<T, K extends PropertyKey> = T extends unknown
@@ -575,6 +577,46 @@ export interface StrokeElement extends BaseElement {
   color: string;
   strokeWidth: number;
   toolStyle?: 'pen' | 'highlighter';
+}
+
+/**
+ * A callout annotation pinned to another plan element (plan §6.2).
+ *
+ * `x`/`y` is the freely-movable text anchor; the leader line is derived at
+ * render time from the target element's position to this anchor, so dragging
+ * either end keeps the line connected. `targetElementId` references any other
+ * element's id; when the target is gone the annotation renders detached
+ * rather than guessing a position (rule 13).
+ */
+export interface AnnotationElement extends BaseElement {
+  type: 'annotation';
+  /** Id of the element this callout points at. */
+  targetElementId: string;
+  text: string;
+  fontSize: number;
+  color: string;
+  /** 'normal' | 'bold' | numeric weights like '600' */
+  fontWeight?: string;
+  /** 'normal' | 'italic' */
+  fontStyle?: string;
+  underline?: boolean;
+  strikethrough?: boolean;
+  /** CSS font family stack */
+  fontFamily?: string;
+  /** SVG text-anchor: where the text aligns relative to the element point */
+  textAlign?: 'left' | 'center' | 'right';
+  /** Fill behind the text pill; absent = theme default. */
+  backgroundColor?: string;
+  /** False hides the text pill background (text only). Absent = shown. */
+  showBackground?: boolean;
+  /** Leader-line stroke color; absent = theme default. */
+  lineColor?: string;
+  /** Leader-line width in px; absent = default. */
+  lineWidth?: number;
+  /** Leader-line opacity 0–1; absent = faint default. */
+  lineOpacity?: number;
+  /** Leader-line dash pattern; absent = solid. */
+  lineDash?: 'solid' | 'dashed' | 'dotted';
 }
 
 /** A real plan group (plan §6.4): table + chairs, drum kit, FOH tower… */

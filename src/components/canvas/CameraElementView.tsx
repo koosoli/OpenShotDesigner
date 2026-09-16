@@ -48,7 +48,6 @@ const CameraElementViewImpl: React.FC<CameraElementViewProps> = ({
 
   const { position, rotation } = dynamicState;
   const color = camera.color || '#0284c7';
-  const focal = camera.focalLength || 35;
   const fovAngle = camera.fovAngle || 45;
   const throwDist = camera.throwDistance || 280;
 
@@ -233,37 +232,6 @@ const CameraElementViewImpl: React.FC<CameraElementViewProps> = ({
               strokeDasharray="2 2"
               strokeOpacity={0.4}
             />
-          </g>
-        )}
-
-        {showCameraLabel && displaySettings.showLensFovLabel && (
-          <g
-            transform={`translate(${throwDist * 0.65}, 0) rotate(${-rotation}) scale(${labelScale})`}
-            opacity={labelOpacity}
-            className="pointer-events-none"
-          >
-            <rect
-              x={-38}
-              y={-10}
-              width={76}
-              height={20}
-              fill="rgba(15, 23, 42, 0.94)"
-              stroke={color}
-              strokeWidth={1}
-              rx={4}
-              className="drop-shadow-md"
-            />
-            <text
-              x={0}
-              y={4}
-              fill={labelColor ?? '#ffffff'}
-              fontSize="10"
-              fontWeight="bold"
-              textAnchor="middle"
-              className="select-none font-mono"
-            >
-              {focal}mm ({Math.round(fovAngle)}°)
-            </text>
           </g>
         )}
 

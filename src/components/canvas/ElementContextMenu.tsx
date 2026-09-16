@@ -7,6 +7,7 @@ import {
   Copy,
   Link2,
   Lock,
+  MessageSquarePlus,
   Package,
   Scissors,
   Sliders,
@@ -41,7 +42,7 @@ interface ElementContextMenuProps {
  * scroll/wheel, and Escape. Styling mirrors the TopNavbar dropdown menus.
  */
 export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, onClose }) => {
-  const { activeSetup, selectedElementIds, selectElement, updateMultipleElements, deleteSelectedElements, duplicateSelected, copySelectedElements, pasteElements, updateSetupMeta, groupSelection, ungroupSelection } = useFloorPlan();
+  const { activeSetup, selectedElementIds, selectElement, updateMultipleElements, deleteSelectedElements, duplicateSelected, copySelectedElements, pasteElements, updateSetupMeta, groupSelection, ungroupSelection, addElement } = useFloorPlan();
   const { theme, setActiveRightTab } = useWorkspaceUI();
   const { prompt } = useDialogs();
 
@@ -188,6 +189,20 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
               <Copy className="w-3.5 h-3.5" /> Duplicate
             </span>
           </button>
+          {state.elementId && (
+            <button
+              onClick={run(() => {
+                addElement({ type: 'annotation', targetElementId: state.elementId! } as Parameters<typeof addElement>[0]);
+                setActiveRightTab('inspector');
+              })}
+              title="Add a callout note with a leader line to this element"
+              className={itemClass}
+            >
+              <span className="flex items-center gap-2">
+                <MessageSquarePlus className="w-3.5 h-3.5 text-amber-500" /> Add Annotation
+              </span>
+            </button>
+          )}
           {canGroup && (
             <button onClick={run(groupSelection)} className={itemClass}>
               <span className="flex items-center gap-2">

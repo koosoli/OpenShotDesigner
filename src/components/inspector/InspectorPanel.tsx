@@ -3,6 +3,7 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import {
   ActorElement,
+  AnnotationElement,
   ArrowElement,
   CableElement,
   CameraElement,
@@ -114,6 +115,7 @@ import { WindowInspector } from './elements/WindowInspector';
 import { TextInspector } from './elements/TextInspector';
 import { ShapeInspector } from './elements/ShapeInspector';
 import { ArrowInspector } from './elements/ArrowInspector';
+import { AnnotationInspector, ElementAnnotationsSection } from './elements/AnnotationInspector';
 import { CableInspector } from './elements/CableInspector';
 import { LightInspector } from './elements/LightInspector';
 import { compassPoint, formatSunTime, sceneSunPlan } from '../../domain/sun';
@@ -1303,7 +1305,6 @@ export const InspectorPanel: React.FC = () => {
                 <PillToggle on={displaySettings.showShotSizeOnCamera} onClick={() => updateDisplaySettings({ showShotSizeOnCamera: !displaySettings.showShotSizeOnCamera })} label="Shot size" isLight={isLight} />
                 <PillToggle on={displaySettings.showShotLensOnCamera} onClick={() => updateDisplaySettings({ showShotLensOnCamera: !displaySettings.showShotLensOnCamera })} label="Lens" isLight={isLight} />
                 <PillToggle on={displaySettings.showShotAngleOnCamera} onClick={() => updateDisplaySettings({ showShotAngleOnCamera: !displaySettings.showShotAngleOnCamera })} label="Angle" isLight={isLight} />
-                <PillToggle on={displaySettings.showLensFovLabel} onClick={() => updateDisplaySettings({ showLensFovLabel: !displaySettings.showLensFovLabel })} label="Lens/FOV" isLight={isLight} />
               </div>
             </div>
 
@@ -2356,6 +2357,16 @@ export const InspectorPanel: React.FC = () => {
         {/* 13. CABLE / PATCH RUN SPECIFIC INSPECTOR */}
         {el.type === 'cable' && (
           <CableInspector cable={el as CableElement} isLight={isLight} />
+        )}
+
+        {/* 14. CALLOUT ANNOTATION INSPECTOR */}
+        {el.type === 'annotation' && (
+          <AnnotationInspector ann={el as AnnotationElement} isLight={isLight} />
+        )}
+
+        {/* 15. ANNOTATIONS ON THIS ELEMENT (every type can carry callouts) */}
+        {el.type !== 'annotation' && (
+          <ElementAnnotationsSection elementId={el.id} isLight={isLight} />
         )}
     </div>
   );

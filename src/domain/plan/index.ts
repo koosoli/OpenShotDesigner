@@ -1,3 +1,4 @@
+export * from './annotations';
 export * from './backgroundCalibration';
 export * from './freehand';
 export { hasWaypointPath, patchWaypoint, translatePath, translateStrokePoints } from './translate';

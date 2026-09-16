@@ -47,6 +47,10 @@ const cloneElement = (element: FloorPlanElement, idMap: Map<string, string>): Fl
     if (cable.fromElementId) cable.fromElementId = remap(idMap, cable.fromElementId);
     if (cable.toElementId) cable.toElementId = remap(idMap, cable.toElementId);
   }
+  if (base.type === 'annotation') {
+    const annotation = base as Extract<FloorPlanElement, { type: 'annotation' }>;
+    annotation.targetElementId = remapRequired(idMap, annotation.targetElementId);
+  }
   if (base.type === 'actor') {
     const actor = base as Extract<FloorPlanElement, { type: 'actor' }>;
     if (actor.speechCues) {

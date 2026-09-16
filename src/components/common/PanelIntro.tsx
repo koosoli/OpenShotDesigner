@@ -24,6 +24,7 @@ import React from 'react';
 import { HelpCircle, X } from 'lucide-react';
 import { moduleGuideFor } from '../../domain/workspace';
 import { usePersistentUiState } from '../../utils/usePersistentUiState';
+import { useFloorPlan } from '../../context/FloorPlanContext';
 
 export interface PanelIntroProps {
   /** Workspace module id, e.g. `shots`. Also the persistence key. */
@@ -32,11 +33,16 @@ export interface PanelIntroProps {
 }
 
 export const PanelIntro: React.FC<PanelIntroProps> = ({ moduleId, isLight }) => {
+  const { displaySettings } = useFloorPlan();
   const [isDismissed, setDismissed] = usePersistentUiState(
     `panelIntro.${moduleId}.dismissed`,
     false,
   );
   const guide = moduleGuideFor(moduleId);
+
+  // Master switch in Viewing Options: off means fully off, including the "?"
+  // re-opener — there is nothing to re-open until the strips are enabled.
+  if (displaySettings.showPanelIntros !== true) return null;
 
   // A module with nothing worth saying says nothing, rather than carrying a
   // sentence written to fill the slot.

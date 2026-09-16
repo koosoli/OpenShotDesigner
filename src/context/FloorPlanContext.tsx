@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActiveTool,
+  AnnotationElement,
   BackgroundImage,
   IdentifiedBackgroundImage,
   CableElement,
@@ -36,6 +37,7 @@ import { applyProjectCommand } from '../domain/project';
 import type { ProjectChange, ProjectCommandDomain, ProjectCommandMetadata } from '../domain/project';
 import type { CommandResult } from '../domain/commands';
 import { deleteShotCommand } from '../domain/commands';
+import { remapAnnotationTargets, stripAnnotationsTargeting } from '../domain/plan/annotations';
 import { nextActorLetter, nextCameraLabel } from '../domain/plan/cameraLabels';
 import { endpointsOf, hasEndpoints, hasSize } from '../domain/plan/elementGuards';
 import { buildShotForSetup } from '../domain/shots/createShot';
@@ -455,6 +457,17 @@ export interface DisplaySettings {
   showPlanningWarnings?: boolean;
   /** Floating cross-department readiness summary. Off by default. */
   showProductionReadiness?: boolean;
+  /**
+   * Floating review-notes button over the canvas. Off by default: it sits
+   * above the plan people came to work on, so it waits until asked for in
+   * Viewing Options like the other floating chrome.
+   */
+  showReviewNotes?: boolean;
+  /**
+   * Per-tab explanation strips ("what is this panel for"). Off by default;
+   * switch on in Viewing Options. Per-panel dismissal still applies while on.
+   */
+  showPanelIntros?: boolean;
   // Decluttering toggles
   showWaypoints: boolean;
   showWaypointCues: boolean; // toggle dialogue / action cues on floorplan waypoints (default true)
@@ -472,7 +485,6 @@ export interface DisplaySettings {
   showShotLensOnCamera: boolean;
   showShotAngleOnCamera: boolean;
   showShotNumberOnCamera: boolean;
-  showLensFovLabel: boolean;
   fovConeOpacity?: number; // Master camera FOV cone opacity (0.05 to 1.0)
   // Category Opacity Controls
   categoryOpacity: CategoryOpacitySettings;
@@ -524,6 +536,8 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   },
   showPlanningWarnings: false,
   showProductionReadiness: false,
+  showReviewNotes: false,
+  showPanelIntros: false,
   showWaypoints: true,
   showWaypointCues: false,
   showSpeechBubbles: false,
@@ -542,7 +556,6 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showShotLensOnCamera: false,
   showShotAngleOnCamera: false,
   showShotNumberOnCamera: true,
-  showLensFovLabel: false,
   categoryOpacity: {
     actors: 1.0,
     cameras: 1.0,
@@ -1443,6 +1456,35 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...partial,
         type: 'stroke',
       } as StrokeElement;
+    } else if (partial.type === 'annotation') {
+      // A callout needs a target to point at; without one it would render
+      // detached, so fall back to the first selected element when the caller
+      // did not name one (the inspector and context menu always pass it).
+      const targetId =
+        (partial as Partial<AnnotationElement>).targetElementId ||
+        selectedElementIds.find((id) => id !== undefined) ||
+        '';
+      const target =
+        activeSetup.elements.find((e) => e.id === targetId) ||
+        activeSetup.elements.find((e) => selectedElementIds.includes(e.id));
+      newElement = {
+        ...baseDefaults,
+        name: partial.name || (target ? `Note on ${target.name || target.type}` : 'Note'),
+        x: partial.x ?? (target ? target.x + 90 : baseDefaults.x),
+        y: partial.y ?? (target ? target.y - 70 : baseDefaults.y),
+        targetElementId: targetId,
+        text: 'Note',
+        fontSize: 14,
+        color: '#e2e8f0',
+        // Box-less by default: plain text at the end of the faint leader line.
+        showBackground: false,
+        lineColor: '#94a3b8',
+        lineWidth: 1,
+        lineOpacity: 0.25,
+        lineDash: 'solid',
+        ...partial,
+        type: 'annotation',
+      } as AnnotationElement;
     } else {
       newElement = {
         ...baseDefaults,
@@ -1687,7 +1729,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       );
       return {
         ...prevSetup,
-        elements: prevSetup.elements.filter((e) => !idsSet.has(e.id)),
+        // Annotations pointing at a deleted element go with it — otherwise
+        // they would render as leader lines into nothing.
+        elements: stripAnnotationsTargeting(
+          prevSetup.elements.filter((e) => !idsSet.has(e.id)),
+          idsSet,
+        ),
         shots: prevSetup.shots.filter((s) => !idsSet.has(s.cameraId)),
         storyboardOrder: prevSetup.storyboardOrder?.filter((shotId) => !shotsGone.has(shotId)),
         scriptMarks: (prevSetup.scriptMarks || []).filter((mark) => !shotsGone.has(mark.shotId)),
@@ -1736,9 +1783,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         childIds: g.childIds.map((cid) => duplicateIdMap.get(cid)!),
       }));
 
+    // An annotation duplicated together with its target points at the copy;
+    // one duplicated on its own keeps pointing at the original element.
+    const remappedNewElements = remapAnnotationTargets(newElements, duplicateIdMap);
+
     commitSetupUpdate((prevSetup) => ({
       ...prevSetup,
-      elements: [...prevSetup.elements, ...newElements],
+      elements: [...prevSetup.elements, ...remappedNewElements],
       groups:
         duplicatedGroups.length > 0
           ? [...(prevSetup.groups || []), ...duplicatedGroups]
@@ -1769,12 +1820,14 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // against the committed setup — so they are numbered inside the updater
     // below rather than here.
     const pastedShots: Shot[] = [];
+    const pasteIdMap = new Map<string, string>();
 
     clipboardRef.current.forEach((el) => {
       // `Date.now()` plus four random characters collides when two elements are
       // pasted inside the same millisecond, which breaks React keys and drag
       // targeting alike (rule 16).
       const newId = createId(`el-${el.type}`);
+      pasteIdMap.set(el.id, newId);
       const pasted: FloorPlanElement = {
         ...el,
         id: newId,
@@ -1808,6 +1861,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       newSelectedIds.push(newId);
     });
 
+    // A pasted annotation follows its pasted target; one pasted on its own
+    // keeps pointing at the original element.
+    const remappedPasted = remapAnnotationTargets(newElements, pasteIdMap);
+
     pasteOffsetRef.current += 30;
 
     // Built against the committed setup, not the render-time one: the shot
@@ -1816,7 +1873,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // copies were numbered from a shot count that was already out of date.
     commitSetupUpdate((prevSetup) => ({
       ...prevSetup,
-      elements: [...prevSetup.elements, ...newElements],
+      elements: [...prevSetup.elements, ...remappedPasted],
       shots: [
         ...prevSetup.shots,
         ...pastedShots.map((shot, index) => {
