@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import type { Project } from '../src/types';
+import { CURRENT_PROJECT_SCHEMA_VERSION } from '../src/domain/migrations';
 
 const createExampleProject = async (page: Page, title: string) => {
   await page.goto('/');
@@ -37,6 +38,14 @@ const showProductionReadiness = async (page: Page) => {
   await page.getByLabel('Show Production Readiness').check();
   await page.getByRole('button', { name: 'Close viewing & opacity controls' }).click();
   await expect(page.getByTitle('Open production readiness')).toBeVisible();
+};
+
+// Review notes are opt-in chrome: hidden until switched on in Viewing Options.
+const showReviewNotes = async (page: Page) => {
+  await page.getByRole('button', { name: 'Viewing Options' }).click();
+  await page.getByLabel('Show Review Notes').check();
+  await page.getByRole('button', { name: 'Close viewing & opacity controls' }).click();
+  await expect(page.getByRole('button', { name: /Review · \d/ })).toBeVisible();
 };
 
 /**
@@ -144,7 +153,7 @@ test('imports an older project, migrates it and restores it after reload', async
   const migratedLight = migrated.setups
     .flatMap((setup) => setup.elements)
     .find((element) => element.id === legacyLight.id);
-  expect(migrated.schemaVersion).toBe(32);
+  expect(migrated.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   expect(migratedLight?.type === 'light' ? migratedLight.modifiers : undefined)
     .toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'barn_doors' })]));
 });
@@ -245,6 +254,8 @@ test('review notes survive reload and project storage exports a native .osd pack
   const note = `@DP — verify the 50mm option ${Date.now()}`;
   await createExampleProject(page, title);
 
+  await expect(page.getByRole('button', { name: /Review · \d/ })).toBeHidden();
+  await showReviewNotes(page);
   await page.getByRole('button', { name: /Review · 0/ }).click();
   let review = page.getByRole('dialog', { name: 'Review notes' });
   await review.getByPlaceholder('@DP — 50mm instead?').fill(note);
