@@ -812,7 +812,8 @@ export const FloorPlanCanvas: React.FC = () => {
       ? findNearestWall(hoverCanvasPos, walls, 60)
       : null;
 
-  // Snapped current cursor position for drawing (Alt temporarily disables magnets)
+  // Snapped current cursor position for drawing (Alt disables grid/vertex
+  // magnets, but NOT the angle assist — free placement still needs right angles)
   const getDrawingCursorPos = useCallback((rawPos: Vector2D): Vector2D => {
     const snapEnabled = !altDownRef.current;
     const snapVertex = snapEnabled ? findNearestVertex(rawPos, 20) : null;
@@ -821,8 +822,11 @@ export const FloorPlanCanvas: React.FC = () => {
     let x = snapEnabled ? snapToGrid(rawPos.x, gridSettings.size, gridSettings.snap) : rawPos.x;
     let y = snapEnabled ? snapToGrid(rawPos.y, gridSettings.size, gridSettings.snap) : rawPos.y;
 
-    // If connected wall is active, snap to 0°, 45°, 90°, 180° relative to start point
-    if (snapEnabled && connectedWallStart) {
+    // If connected wall is active, snap to 0°, 45°, 90°, 180° relative to start point.
+    // Deliberately NOT gated on snapEnabled: holding Alt means "place off-grid",
+    // not "draw crooked walls". Without this, a wall started with Alt could
+    // never continue at a right angle afterwards.
+    if (connectedWallStart) {
       const dx = x - connectedWallStart.x;
       const dy = y - connectedWallStart.y;
       const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
@@ -1290,10 +1294,14 @@ export const FloorPlanCanvas: React.FC = () => {
 
   // Double-click to open contextual inspector. `force` selects even locked
   // elements so they can be reached and unlocked from the inspector.
+  // Always opens the right panel too: switching the tab behind a collapsed
+  // panel would be a silent no-op, and every element type (incl. actors)
+  // must behave the same on double-click.
   const handleElementDoubleClick = (id: string, e?: React.SyntheticEvent) => {
     if (e) e.stopPropagation();
     selectElement(id, false, true);
     setActiveRightTab('inspector');
+    setRightPanelOpen(true);
   };
 
   // Element Select & Drag
@@ -1312,6 +1320,7 @@ export const FloorPlanCanvas: React.FC = () => {
     if (e.detail >= 2) {
       selectElement(id, false, true);
       setActiveRightTab('inspector');
+      setRightPanelOpen(true);
       return;
     }
 
@@ -1469,6 +1478,7 @@ export const FloorPlanCanvas: React.FC = () => {
     selectElements,
     selectedElementIds,
     setActiveRightTab,
+    setRightPanelOpen,
     setTool,
     walls,
   ]);

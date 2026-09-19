@@ -43,7 +43,7 @@ interface ElementContextMenuProps {
  */
 export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, onClose }) => {
   const { activeSetup, selectedElementIds, selectElement, updateMultipleElements, deleteSelectedElements, duplicateSelected, copySelectedElements, pasteElements, updateSetupMeta, groupSelection, ungroupSelection, addElement } = useFloorPlan();
-  const { theme, setActiveRightTab } = useWorkspaceUI();
+  const { theme, setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
   const { prompt } = useDialogs();
 
   const isLight = theme === 'light';
@@ -122,6 +122,7 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
     if (!state.elementId) return;
     selectElement(state.elementId, false, true);
     setActiveRightTab('inspector');
+    setRightPanelOpen(true);
   });
 
   const toggleLock = run(() => {
@@ -194,6 +195,7 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
               onClick={run(() => {
                 addElement({ type: 'annotation', targetElementId: state.elementId! } as Parameters<typeof addElement>[0]);
                 setActiveRightTab('inspector');
+                setRightPanelOpen(true);
               })}
               title="Add a callout note with a leader line to this element"
               className={itemClass}
