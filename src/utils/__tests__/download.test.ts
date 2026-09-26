@@ -13,7 +13,7 @@
  * populated nothing", days later, on someone else's machine.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { downloadBlob, downloadCsv, downloadText, safeFileName } from '../download';
+import { bytesToBlob, downloadBlob, downloadCsv, downloadText, safeFileName } from '../download';
 
 /** Everything the browser was handed, in order. */
 interface Captured {
@@ -234,5 +234,23 @@ describe('downloadCsv', () => {
       downloadCsv('a,b\r\n1,2\r\n', 'x.csv', { excelBom: false }),
     );
     expect(file.text).toBe('a,b\r\n1,2\r\n');
+  });
+});
+
+describe('bytesToBlob', () => {
+  const blobBytes = async (blob: Blob): Promise<number[]> =>
+    Array.from(new Uint8Array(await blob.arrayBuffer()));
+
+  it('keeps the bytes and the MIME type', async () => {
+    const blob = bytesToBlob(new Uint8Array([37, 80, 68, 70]), 'application/pdf');
+    expect(blob.type).toBe('application/pdf');
+    expect(await blobBytes(blob)).toEqual([37, 80, 68, 70]);
+  });
+
+  it('copies a view over a larger buffer so no neighbouring bytes leak', async () => {
+    // A Blob built over the whole backing store would ship the padding too.
+    const backing = new Uint8Array([0, 0, 37, 80, 68, 70, 0, 0]);
+    const blob = bytesToBlob(backing.subarray(2, 6), 'application/pdf');
+    expect(await blobBytes(blob)).toEqual([37, 80, 68, 70]);
   });
 });

@@ -12,7 +12,7 @@ import { keyFrameImage } from '../../utils/storyboardFrames';
 import { effectiveMovement, hasCameraMove } from '../../utils/cameraMovement';
 import { exportShotListToCsv } from '../../utils/exportShotList';
 import { buildPdfFilename, createShotListPdf, shotListRowsFromSetups } from '../../utils/pdf';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 import { ProjectImage } from '../common/ProjectImage';
 import { CoverageWarnings } from './CoverageWarnings';
 import {
@@ -566,7 +566,7 @@ export const ShotListPanel: React.FC = () => {
                     rows: shotListRowsFromSetups([activeSetup]),
                   });
                   downloadBlob(
-                    new Blob([bytes], { type: 'application/pdf' }),
+                    bytesToBlob(bytes, 'application/pdf'),
                     buildPdfFilename({ production: project.title, document: 'shot-list' }),
                   );
                 })();

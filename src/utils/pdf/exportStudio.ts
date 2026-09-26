@@ -20,7 +20,7 @@
  */
 import type { ExportSection } from '../../context/WorkspaceUIContext';
 import type { AVScriptRow, LightElement, Project, SceneSetup, ScriptLine, Shot } from '../../types';
-import { downloadBlob } from '../download';
+import { bytesToBlob, downloadBlob } from '../download';
 import { createIdbAssetStore } from '../../domain/storage/idbAssetStore';
 import { isAssetRef } from '../../domain/media/imageRef';
 import {
@@ -625,7 +625,7 @@ export const downloadSectionPdf = async (
   ctx: SectionPdfContext,
 ): Promise<string> => {
   const { bytes, filename } = await renderSectionPdf(section, ctx);
-  downloadBlob(new Blob([bytes], { type: 'application/pdf' }), filename);
+  downloadBlob(bytesToBlob(bytes, 'application/pdf'), filename);
   return filename;
 };
 
@@ -712,6 +712,6 @@ export const downloadProductionPackPdfZip = async (
   if (documents.length === 0) throw new Error('No production-pack PDFs could be created.');
   const filename = buildProductionPackZipFilename(productionTitleOf(ctx.project));
   const archive = zipPdfs(Object.fromEntries(documents.map((document) => [document.filename, document.bytes])));
-  downloadBlob(new Blob([archive], { type: 'application/zip' }), filename);
+  downloadBlob(bytesToBlob(archive, 'application/zip'), filename);
   return { filename, failures };
 };

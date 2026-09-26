@@ -9,6 +9,7 @@
 import type { AssetMetadata, AssetStore } from '../domain/storage/types';
 import type { Project } from '../types';
 import { createIdbAssetStore, sha256Hex } from '../domain/storage/idbAssetStore';
+import { bytesToBlob } from './download';
 import { ASSET_SHA_PREFIX, isSha256AssetRef } from '../domain/media/imageRef';
 import { collectProjectAssetIds } from '../domain/media/projectAssetReferences';
 
@@ -124,9 +125,10 @@ export const parseProjectPackage = async (
     if (seen.has(candidate.id)) throw new Error(`Package contains duplicate media ${candidate.id}.`);
     seen.add(candidate.id);
     const bytes = base64ToBytes(candidate.dataBase64);
-    const blob = new Blob([bytes], {
-      type: candidate.metadata?.mimeType || 'application/octet-stream',
-    });
+    const blob = bytesToBlob(
+      bytes,
+      candidate.metadata?.mimeType || 'application/octet-stream',
+    );
     const hash = await sha256Hex(blob);
     if (!hash) throw new Error('This browser cannot verify package checksums.');
     if (isSha256AssetRef(candidate.id)) {
@@ -180,9 +182,10 @@ export const importProjectPackageAssets = async (
   let written = 0;
   const remapped: Record<string, string> = {};
   for (const asset of assets) {
-    const blob = new Blob([base64ToBytes(asset.dataBase64)], {
-      type: asset.metadata?.mimeType || 'application/octet-stream',
-    });
+    const blob = bytesToBlob(
+      base64ToBytes(asset.dataBase64),
+      asset.metadata?.mimeType || 'application/octet-stream',
+    );
     const ref = await assetStore.put(blob, { ...(asset.metadata || {}), mimeType: blob.type });
     if (ref.id !== asset.id) {
       if (isSha256AssetRef(asset.id)) {

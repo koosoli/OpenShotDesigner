@@ -15,7 +15,7 @@ import { CallSheetPrintView } from '../reports/CallSheetPrintView';
 import { LocationMapCapture } from './LocationMapCapture';
 import { SetLocationLink } from '../locations/SetLocationLink';
 import { ProjectImage } from '../common/ProjectImage';
-import { downloadBlob, safeFileName } from '../../utils/download';
+import { bytesToBlob, downloadBlob, safeFileName } from '../../utils/download';
 
 interface CallSheetWorkspaceProps {
   days: ProductionDay[];
@@ -190,7 +190,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
     void (async () => {
       const bytes = await createCallSheetPdf(callSheetPdfInputFromData(data));
       downloadBlob(
-        new Blob([bytes], { type: 'application/pdf' }),
+        bytesToBlob(bytes, 'application/pdf'),
         buildCallSheetPdfFilename({
           productionTitle: project.title,
           dayName: selectedDay.name,

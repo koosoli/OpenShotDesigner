@@ -52,7 +52,7 @@ import {
 } from '../../utils/equipmentList';
 import { exportEquipmentToCsv } from '../../utils/exportEquipmentCsv';
 import { buildPdfFilename, createEquipmentManifestPdf, equipmentManifestItemsFromEquipmentItems } from '../../utils/pdf';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 import { computePowerSummary } from '../../utils/powerPlanning';
 import { autoPatchFixtures, collectFixturePatches, findConflicts, sortedPatchRows } from '../../utils/dmxPatch';
 import { DmxPatchPrintView } from '../reports/DmxPatchPrintView';
@@ -733,7 +733,7 @@ export const EquipmentPanel: React.FC = () => {
       items: equipmentManifestItemsFromEquipmentItems(activeItems),
     });
     downloadBlob(
-      new Blob([bytes], { type: 'application/pdf' }),
+      bytesToBlob(bytes, 'application/pdf'),
       buildPdfFilename({ production: project.title, document: 'equipment-manifest' }),
     );
   };

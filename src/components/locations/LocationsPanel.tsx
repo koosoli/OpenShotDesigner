@@ -26,7 +26,7 @@ import { OsmMiniMap } from './OsmMiniMap';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
 import { buildPdfFilename, createLocationReportPdf } from '../../utils/pdf';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 import { removeLocationCommand, setLocationsCommand } from '../../domain/commands';
 
 const LOCATION_TYPES: LocationType[] = ['location', 'studio', 'stage', 'venue', 'arena', 'outdoor', 'other'];
@@ -214,7 +214,7 @@ export const LocationsPanel: React.FC = () => {
         notes: location.notes ?? '',
       })),
     });
-    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: project.title, document: 'locations' }));
+    downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({ production: project.title, document: 'locations' }));
   };
 
   // --- Shared styles (LogisticsPanel/PowerPanel conventions) ---

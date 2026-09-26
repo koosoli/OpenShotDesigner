@@ -122,6 +122,25 @@ export const downloadText = (
 };
 
 /**
+ * Raw bytes as a file.
+ *
+ * Every PDF/ZIP download funnels through here instead of `new Blob([bytes])`
+ * at the call site. Since @types/node 26.6 a bare `Uint8Array` resolves to
+ * `Uint8Array<ArrayBufferLike>`, which the DOM `BlobPart` type rejects — it
+ * only accepts views over a plain `ArrayBuffer`. Generated files (pdf-lib,
+ * fflate) always own a real `ArrayBuffer`, so the fast path is a cast; a view
+ * over a larger or shared buffer is copied once into fresh bytes, because a
+ * Blob over the whole backing store would leak neighbouring data.
+ */
+export const bytesToBlob = (bytes: Uint8Array, type: string): Blob => {
+  const owned =
+    bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+      ? (bytes as Uint8Array<ArrayBuffer>)
+      : new Uint8Array(bytes);
+  return new Blob([owned], { type });
+};
+
+/**
  * A CSV, with the BOM decision made explicitly at the call site.
  *
  * Separate from `downloadText` so the choice cannot be forgotten: both ways of
