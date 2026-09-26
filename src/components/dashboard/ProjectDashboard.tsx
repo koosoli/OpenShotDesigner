@@ -2,11 +2,13 @@ import React, { useRef, useState } from 'react';
 import {
   Camera,
   Clapperboard,
+  Coffee,
   Copy,
   Download,
   FileText,
   FolderOpen,
   HardDrive,
+  Heart,
   History,
   Layers,
   Package,
@@ -16,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { APP_VERSION, SPONSOR_LINKS } from '../../config/version';
 import { listUnreadableProjects, readProject } from '../../utils/projectLibrary';
 import {
   MODULE_PICKER_GROUPS,
@@ -644,6 +647,35 @@ export const ProjectDashboard: React.FC = () => {
             })}
           </div>
         )}
+
+        {/* Release footer: version, licence, discrete support links. */}
+        <footer
+          className={`mt-8 pt-4 border-t flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] ${
+            isLight ? 'border-slate-200 text-slate-400' : 'border-slate-800 text-slate-500'
+          }`}
+        >
+          <span className="font-mono">Open Shot Designer v{APP_VERSION}</span>
+          <span aria-hidden="true">·</span>
+          <span>Free &amp; open source (GPL-3.0)</span>
+          <span aria-hidden="true">·</span>
+          <a
+            href={SPONSOR_LINKS.github}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 hover:underline"
+          >
+            <Heart className="w-3 h-3" /> Sponsor
+          </a>
+          <span aria-hidden="true">·</span>
+          <a
+            href={SPONSOR_LINKS.coffee}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 hover:underline"
+          >
+            <Coffee className="w-3 h-3" /> Buy me a coffee
+          </a>
+        </footer>
 
         {storageOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">

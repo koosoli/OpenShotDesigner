@@ -17,6 +17,7 @@ const OPACITY_CATEGORIES: Array<{ key: keyof CategoryOpacitySettings; label: str
 import { useBreakpoint } from '../../utils/useMediaQuery';
 import brandIcon from '../../assets/brand-icon.png';
 import { BRANDING } from '../../config/branding';
+import { APP_VERSION, SPONSOR_LINKS } from '../../config/version';
 import { subscribeSaveState, type LibrarySaveState } from '../../utils/projectLibrary';
 import { useDialogs } from '../dialog/DialogProvider';
 import {
@@ -30,9 +31,11 @@ import { MODULE_PICKER_GROUPS, PICKABLE_MODULES } from '../../domain/workspace';
 import {
   ChevronDown,
   Clapperboard,
+  Coffee,
   Download,
   Eye,
   FolderOpen,
+  Heart,
   History,
   Magnet,
   LayoutGrid,
@@ -149,6 +152,15 @@ export const TopNavbar: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <span className={`text-xs font-black tracking-widest uppercase ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   {BRANDING.productName}
+                </span>
+              </div>
+              {/* Discrete version stamp: always visible, never in the way. */}
+              <div className="flex items-center gap-1.5 -mt-0.5">
+                <span
+                  title={`Open Shot Designer v${APP_VERSION}`}
+                  className={`text-[9px] font-mono leading-none ${isLight ? 'text-slate-400' : 'text-slate-500'}`}
+                >
+                  v{APP_VERSION}
                 </span>
               </div>
             </div>
@@ -842,6 +854,36 @@ export const TopNavbar: React.FC = () => {
           </button>
         )}
 
+        {/* Support the project — far right, past the live shot tracker */}
+        {!isCompact && (
+          <>
+            <a
+              href={SPONSOR_LINKS.github}
+              target="_blank"
+              rel="noreferrer noopener"
+              title="Sponsor on GitHub"
+              aria-label="Sponsor on GitHub"
+              className={`p-2 rounded-lg border transition-colors ${
+                isLight ? 'bg-slate-100 text-pink-500 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-pink-400 border-slate-700 hover:bg-slate-700'
+              }`}
+            >
+              <Heart className="w-3.5 h-3.5" />
+            </a>
+            <a
+              href={SPONSOR_LINKS.coffee}
+              target="_blank"
+              rel="noreferrer noopener"
+              title="Buy me a coffee"
+              aria-label="Buy me a coffee"
+              className={`p-2 rounded-lg border transition-colors ${
+                isLight ? 'bg-slate-100 text-amber-500 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-amber-400 border-slate-700 hover:bg-slate-700'
+              }`}
+            >
+              <Coffee className="w-3.5 h-3.5" />
+            </a>
+          </>
+        )}
+
         {/* Overflow menu for narrow screens */}
         {isCompact && (
           <div className="relative">
@@ -969,6 +1011,24 @@ export const TopNavbar: React.FC = () => {
                   >
                     <span className="flex items-center gap-2"><FolderOpen className="w-3.5 h-3.5" /> Open project file</span>
                   </button>
+                  <a
+                    href={SPONSOR_LINKS.github}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    onClick={() => setIsOverflowOpen(false)}
+                    className={overflowItemClass}
+                  >
+                    <span className="flex items-center gap-2"><Heart className="w-3.5 h-3.5 text-pink-500" /> Sponsor on GitHub</span>
+                  </a>
+                  <a
+                    href={SPONSOR_LINKS.coffee}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    onClick={() => setIsOverflowOpen(false)}
+                    className={overflowItemClass}
+                  >
+                    <span className="flex items-center gap-2"><Coffee className="w-3.5 h-3.5 text-amber-500" /> Buy me a coffee</span>
+                  </a>
                 </div>
               </>
             )}
