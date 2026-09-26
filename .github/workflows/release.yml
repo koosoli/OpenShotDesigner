@@ -1,0 +1,49 @@
+name: Release
+
+# Pushing a version tag (e.g. `git push origin v1.0.0`) publishes a GitHub
+# Release whose body is the matching CHANGELOG.md section, with the built
+# static app attached. The repo sidebar's "Releases" panel appears once the
+# first release exists.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build application
+        run: npm run build
+
+      - name: Pack the built app
+        run: |
+          cd dist
+          zip -r "../open-shot-designer-${GITHUB_REF_NAME}.zip" .
+          cd ..
+
+      - name: Create GitHub Release
+        run: |
+          node scripts/extract-release-notes.mjs "${GITHUB_REF_NAME}" > release-notes.md
+          gh release create "${GITHUB_REF_NAME}" \
+            "open-shot-designer-${GITHUB_REF_NAME}.zip" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
