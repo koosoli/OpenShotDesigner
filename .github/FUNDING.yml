@@ -1,0 +1,5 @@
+# GitHub renders the pink "Sponsor" button (repo header + right sidebar)
+# from this file. Keys must match
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+github: koosoli
+buy_me_a_coffee: koosoli
