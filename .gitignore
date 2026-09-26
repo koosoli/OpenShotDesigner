@@ -11,9 +11,13 @@ blob-report/
 *.local
 *.tsbuildinfo
 .claude/
+.agent/
+.agents/
 .aistudio/
 .opencode/
 .cursor/
+.cursorrules
+.gemini/
 AGENTS.md
 CLAUDE.md
 GEMINI.md

@@ -4,9 +4,11 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 </div>
 
@@ -17,6 +19,8 @@ It follows the production through the shoot, not just up to it: the continuity p
 A screenplay is optional: nothing outside the script tools requires one, so concert, broadcast, event and pure technical floor plans work the same way. Nothing is entered twice either: the budget prices the crew list and the gear on the plan against the days on the schedule, every sheet that names a location gets its address from the same link, and the continuity log starts pre-filled from the plan.
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
+
+**Current release:** v1.0.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
@@ -457,7 +461,7 @@ Projects are stored in your browser's IndexedDB (with a `localStorage` fallback)
 - [Vite 6](https://vitejs.dev)
 - [Tailwind CSS v4](https://tailwindcss.com)
 - [lucide-react](https://lucide.dev) icons
-- Zero backend — all data lives in your browser's `localStorage`.
+- Zero backend — IndexedDB-first local storage in your browser (with a `localStorage` fallback); images live in a content-addressed asset store.
 
 ## Getting Started
 
