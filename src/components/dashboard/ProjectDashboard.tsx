@@ -320,7 +320,7 @@ export const ProjectDashboard: React.FC = () => {
   /** One-way backup of a project package to the user's Drive. */
   const uploadProjectToDriveHandler = async (id: string) => {
     if (!driveToken) {
-      await notice({ title: 'Google Drive', message: 'Open the Google button above first to connect.' });
+      await notice({ title: 'Google Drive', message: 'Open the Cloud button above first to connect.' });
       return;
     }
     const stored = readProject(id);
@@ -406,7 +406,7 @@ export const ProjectDashboard: React.FC = () => {
   /** One-way backup of a project package to the connected WebDAV server. */
   const uploadProjectToNextcloud = async (id: string) => {
     if (!nextcloud) {
-      await notice({ title: 'Nextcloud', message: 'Open the cloud dialog (Google button above) and connect Nextcloud first.' });
+      await notice({ title: 'Nextcloud', message: 'Open the Cloud button above and connect Nextcloud first.' });
       return;
     }
     const stored = readProject(id);
@@ -519,12 +519,12 @@ export const ProjectDashboard: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setDriveOpen(true)}
-              title={driveToken ? 'Google Drive: connected — manage backup' : 'Google Drive backup: sign in and save .osd packages'}
-              aria-label="Google Drive backup"
+              title={(driveToken || nextcloud) ? 'Cloud backup: connected — manage backups' : 'Cloud backup: sign in and save .osd packages'}
+              aria-label="Cloud backup"
               className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
             >
-              <Cloud className={`w-4 h-4 ${driveToken ? 'text-emerald-500' : 'text-sky-500'}`} /> Google
-              {driveToken && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />}
+              <Cloud className={`w-4 h-4 ${driveToken || nextcloud ? 'text-emerald-500' : 'text-sky-500'}`} /> Cloud
+              {(driveToken || nextcloud) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />}
             </button>
             <button
               onClick={openStorage}
@@ -744,7 +744,7 @@ export const ProjectDashboard: React.FC = () => {
             <History className="w-4 h-4 flex-shrink-0" />
             <p className="text-xs">
               <strong>Last backup {backupAgeText(backupAt)}.</strong> Your productions live in this browser
-              only — use a project's package, file or cloud button below to back them up.
+              only — back them up with a project's package, file or cloud buttons below, or the Cloud button on top.
             </p>
           </div>
         )}
