@@ -13,7 +13,7 @@
  * only when they need it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 vi.mock('../../context/FloorPlanContext', async () => {
   const harness = await import('./renderWithProject');
@@ -79,7 +79,13 @@ const render = (title: string) =>
     { toggleTheme: () => {}, openDashboard: () => {} },
   );
 
-const saveJson = () => fireEvent.click(screen.getByLabelText('Save & Download Project JSON'));
+const saveJson = () => {
+  // JSON takes an explicit switch; .osd is pre-selected.
+  fireEvent.click(screen.getByLabelText('Save project file'));
+  const dialog = screen.getByRole('dialog', { name: 'Save project file format' });
+  fireEvent.click(within(dialog).getByLabelText(/JSON/));
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save', exact: true }));
+};
 
 describe('the project JSON backup', () => {
   it('attaches the anchor before clicking it', async () => {
