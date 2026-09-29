@@ -454,6 +454,32 @@ describe('lined screenplay PDF', () => {
     expect(combined).toContain(pdfHexToken('Jane Doe'));
   });
 
+  it('lets the cover replace the paperwork title block', async () => {
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      titlePage: { enabled: true, title: 'Cover Title', authors: 'Jane Doe' },
+      lines: makeLinedLines(1),
+      generatedAt: FIXED_DATE,
+    });
+    const combined = inflateContentStreams(pdf).join('\n');
+    // The cover carries the production; the "My Film / Screenplay" block
+    // underneath would demote it to a preface.
+    expect(combined).not.toContain(pdfHexToken('My Film'));
+    expect(combined).not.toContain(pdfHexToken('Screenplay'));
+    expect(combined).toContain(pdfHexToken('COVER TITLE'));
+  });
+
+  it('keeps the title block when no cover prints', async () => {
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      lines: makeLinedLines(1),
+      generatedAt: FIXED_DATE,
+    });
+    const combined = inflateContentStreams(pdf).join('\n');
+    expect(combined).toContain(pdfHexToken('My Film'));
+    expect(combined).toContain(pdfHexToken('Screenplay'));
+  });
+
   it('prints no cover without opt-in or without content', async () => {
     const lines = makeLinedLines(1);
     const withoutOptIn = await createLinedScriptPdf({

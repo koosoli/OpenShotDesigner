@@ -301,17 +301,25 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
   };
   const logo = await embedProductionLogoPng(ctx.doc, input.logoPngBytes);
 
-  if (input.titlePage?.enabled === true && hasTitlePageContent(input.titlePage, input.scriptTitle)) {
+  const coverPrinted =
+    input.titlePage?.enabled === true && hasTitlePageContent(input.titlePage, input.scriptTitle);
+  if (coverPrinted) {
     drawTitlePageCover(ctx, fonts, addPdfPage(ctx), input);
   }
 
   const page = addPdfPage(ctx);
-  const headerY = drawDocumentHeader(ctx, page, ctx.contentTop, {
-    productionTitle: input.productionTitle,
-    documentTitle: 'Screenplay',
-    subtitle: input.subtitle ?? `${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`,
-    logo,
-  });
+  // A printed cover already says what this is and who wrote it: repeating the
+  // paperwork title block underneath would demote the cover to a preface, so
+  // the script starts straight in. Without a cover the title block stays —
+  // it is the only thing naming the production on the page.
+  const headerY = coverPrinted
+    ? ctx.contentTop
+    : drawDocumentHeader(ctx, page, ctx.contentTop, {
+        productionTitle: input.productionTitle,
+        documentTitle: 'Screenplay',
+        subtitle: input.subtitle ?? `${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`,
+        logo,
+      });
   let cursor: PageCursor = { page, cursorY: headerY };
 
   if (input.lines.length === 0) {
