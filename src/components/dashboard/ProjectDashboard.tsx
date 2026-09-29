@@ -12,9 +12,9 @@ import {
   Heart,
   History,
   Layers,
-  Package,
   Pencil,
   Plus,
+  Save,
   Server,
   Trash2,
   Upload,
@@ -189,6 +189,9 @@ export const ProjectDashboard: React.FC = () => {
   const [ncFiles, setNcFiles] = useState<WebdavFile[]>([]);
   const [ncBusy, setNcBusy] = useState(false);
   const [ncBusyFile, setNcBusyFile] = useState<string | null>(null);
+  /** Project card whose save menu is open; the format resets to .osd every time it opens. */
+  const [saveMenuId, setSaveMenuId] = useState<string | null>(null);
+  const [saveFormat, setSaveFormat] = useState<'osd' | 'json'>('osd');
   /** The owner's built-in ID wins unless a self-hoster typed their own. */
   const hasBuiltInClientId = GOOGLE_DRIVE_CLIENT_ID_DEFAULT.trim() !== '';
   const effectiveDriveClientId = driveClientId.trim() || GOOGLE_DRIVE_CLIENT_ID_DEFAULT.trim();
@@ -447,6 +450,13 @@ export const ProjectDashboard: React.FC = () => {
     } finally {
       setNcBusyFile(null);
     }
+  };
+
+  /** Save menu choice: .osd is the default, JSON takes an explicit switch. */
+  const runSaveMenu = (id: string) => {
+    if (saveFormat === 'json') downloadProject(id);
+    else downloadProjectPackage(id);
+    setSaveMenuId(null);
   };
 
   const revisionsProject = revisionsProjectId ? readProject(revisionsProjectId) : null;  const revisionsList = revisionsProject?.revisions || [];
@@ -769,7 +779,7 @@ export const ProjectDashboard: React.FC = () => {
               return (
                 <div
                   key={entry.id}
-                  className={`border rounded-2xl p-3.5 flex flex-col gap-2.5 shadow-sm transition-colors ${panel} ${
+                  className={`relative border rounded-2xl p-3.5 flex flex-col gap-2.5 shadow-sm transition-colors ${panel} ${
                     isActive ? 'ring-2 ring-sky-500/60' : ''
                   }`}
                 >
@@ -845,17 +855,74 @@ export const ProjectDashboard: React.FC = () => {
                     <button onClick={() => duplicateProject(entry.id)} title="Duplicate" aria-label="Duplicate" className={ghostButton}>
                       <Copy className="w-3 h-3" />
                     </button>
-                    <button onClick={() => downloadProject(entry.id)} title="Download project file" aria-label="Download project file" className={ghostButton}>
-                      <Download className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => downloadProjectPackage(entry.id)}
-                      title="Save .osd project (including attached media)"
-                      aria-label="Save .osd project (including attached media)"
-                      className={ghostButton}
-                    >
-                      <Package className="w-3 h-3" />
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={() => {
+                          setSaveFormat('osd');
+                          setSaveMenuId(saveMenuId === entry.id ? null : entry.id);
+                        }}
+                        title="Save project file (.osd recommended)"
+                        aria-label="Save project file"
+                        aria-expanded={saveMenuId === entry.id}
+                        className={ghostButton}
+                      >
+                        <Save className="w-3 h-3" />
+                      </button>
+                      {saveMenuId === entry.id && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setSaveMenuId(null)} />
+                          <div
+                            role="dialog"
+                            aria-label="Save project file format"
+                            className={`absolute left-0 top-full mt-1.5 w-60 border rounded-xl shadow-2xl p-2.5 z-50 space-y-1 ${
+                              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+                            }`}
+                          >
+                            <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                              <input
+                                type="radio"
+                                name={`save-format-${entry.id}`}
+                                checked={saveFormat === 'osd'}
+                                onChange={() => setSaveFormat('osd')}
+                                className="accent-sky-600 mt-0.5"
+                              />
+                              <span>
+                                <strong>.osd package</strong>
+                                <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                  Project + all images. The backup to take.
+                                </span>
+                              </span>
+                            </label>
+                            <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                              <input
+                                type="radio"
+                                name={`save-format-${entry.id}`}
+                                checked={saveFormat === 'json'}
+                                onChange={() => setSaveFormat('json')}
+                                className="accent-sky-600 mt-0.5"
+                              />
+                              <span>
+                                <strong>JSON</strong>
+                                <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                  Project only, no media. For experts and version control.
+                                </span>
+                              </span>
+                            </label>
+                            <div className="flex gap-1.5 pt-1">
+                              <button
+                                onClick={() => runSaveMenu(entry.id)}
+                                className="flex-1 px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold"
+                              >
+                                Save
+                              </button>
+                              <button onClick={() => setSaveMenuId(null)} className={ghostButton}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
                     <button
                       onClick={() => void uploadProjectToDriveHandler(entry.id)}
                       disabled={!driveToken || driveBusyId !== null}
