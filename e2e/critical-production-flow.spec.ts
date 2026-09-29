@@ -285,7 +285,9 @@ test('review notes survive reload and project storage exports a native .osd pack
     Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true });
   });
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save .osd project (including attached media)' }).first().click();
+  await page.getByRole('button', { name: 'Save project file' }).first().click();
+  // .osd is pre-selected; JSON takes an explicit switch.
+  await page.getByRole('dialog', { name: 'Save project file format' }).getByRole('button', { name: 'Save', exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/\.osd$/);
   const path = await download.path();
