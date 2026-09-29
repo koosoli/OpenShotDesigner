@@ -125,6 +125,7 @@ export const ProjectDashboard: React.FC = () => {
   /** Revision id awaiting restore confirmation. */
   const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
   const [storageOpen, setStorageOpen] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
   const [storageInspection, setStorageInspection] = useState<AssetStorageInspection | null>(null);
   const [storageBusy, setStorageBusy] = useState(false);
   const [confirmStorageCleanup, setConfirmStorageCleanup] = useState(false);
@@ -143,6 +144,7 @@ export const ProjectDashboard: React.FC = () => {
   // dashboard behind it — so keyboard focus has to stay inside it while open.
   const revisionsDialogRef = useDialogFocusTrap(revisionsProjectId !== null);
   const storageDialogRef = useDialogFocusTrap(storageOpen);
+  const driveDialogRef = useDialogFocusTrap(driveOpen);
 
   if (!isDashboardOpen) return null;
 
@@ -363,6 +365,15 @@ export const ProjectDashboard: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setDriveOpen(true)}
+              title={driveToken ? 'Google Drive: connected — manage backup' : 'Google Drive backup: sign in and save .osd packages'}
+              aria-label="Google Drive backup"
+              className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
+            >
+              <Cloud className={`w-4 h-4 ${driveToken ? 'text-emerald-500' : 'text-sky-500'}`} /> Google
+              {driveToken && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />}
+            </button>
+            <button
               onClick={openStorage}
               title="Inspect browser media storage"
               className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
@@ -532,76 +543,7 @@ export const ProjectDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Cloud export: manual one-way .osd backup to the viewer's own
-            Google Drive. Backup button, not sync: nothing uploads itself. */}
-        <div className={`border rounded-2xl p-4 mb-6 shadow-sm ${panel}`}>
-          <h2 className="text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-2">
-            <Cloud className="w-4 h-4 text-sky-500" /> Cloud export — Google Drive
-          </h2>
-          <p className={`text-[11px] mb-3 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            Save any production below as an .osd package into an OpenShotDesigner folder on your Drive.
-            One-way backup: re-saving the same production refreshes its file. Needs internet; everything
-            else in this app keeps working offline.
-          </p>
-          {driveToken ? (
-            <button onClick={disconnectDrive} className={`${ghostButton} justify-center py-2 w-fit`} title="Sign out of Google Drive on this browser">
-              <Cloud className="w-3.5 h-3.5" /> Connected — disconnect
-            </button>
-          ) : hasBuiltInClientId ? (
-            <button
-              onClick={() => void connectDrive()}
-              disabled={driveConnecting}
-              className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5 w-fit"
-              title="Sign in with Google"
-            >
-              <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect with Google'}
-            </button>
-          ) : (
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <input
-                value={driveClientId}
-                onChange={(event) => setDriveClientId(event.target.value.trim())}
-                placeholder="Google OAuth Client ID (see setup steps)"
-                aria-label="Google OAuth Client ID"
-                className={`${field} sm:flex-1 font-mono text-xs`}
-              />
-              <button
-                onClick={() => void connectDrive()}
-                disabled={driveConnecting || effectiveDriveClientId === ''}
-                className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
-                title={effectiveDriveClientId === '' ? 'Enter your OAuth Client ID first' : 'Sign in with Google'}
-              >
-                <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect'}
-              </button>
-            </div>
-          )}
-          <details className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            <summary className="cursor-pointer font-semibold hover:underline w-fit">
-              {hasBuiltInClientId ? 'Self-hosting? Use your own Client ID' : 'One-time setup: get your own Client ID'}
-            </summary>
-            {hasBuiltInClientId ? (
-              <div className="mt-1.5 space-y-2">
-                <p>This copy comes with sign-in ready. Only if you host the app yourself (own domain),
-                  register your own OAuth Client ID — origins are bound to it — and paste it here:</p>
-                <input
-                  value={driveClientId}
-                  onChange={(event) => setDriveClientId(event.target.value.trim())}
-                  placeholder="Your own Google OAuth Client ID (overrides the built-in one)"
-                  aria-label="Own Google OAuth Client ID"
-                  className={`${field} font-mono text-xs`}
-                />
-              </div>
-            ) : (
-              <ol className="mt-1.5 ml-4 list-decimal space-y-1">
-                <li>Open the Google Cloud Console → APIs &amp; Services → Credentials.</li>
-                <li>Create Credentials → OAuth client ID → application type “Web application”.</li>
-                <li>Under Authorized JavaScript origins add this site's address (and http://localhost:3000 for local use).</li>
-                <li>Enable the Google Drive API under APIs &amp; Services → Library.</li>
-                <li>Paste the Client ID above and press Connect. The app only ever asks for access to files it created itself.</li>
-              </ol>
-            )}
-          </details>
-        </div>
+        {/* Cloud export lives behind the Google button in the header now. */}
 
         {/* Projects that exist but could not be migrated. Previously these were
             indistinguishable from "not found", so a production simply appeared
@@ -832,6 +774,106 @@ export const ProjectDashboard: React.FC = () => {
             <Coffee className="w-3 h-3" /> Buy me a coffee
           </a>
         </footer>
+
+        {/* Google Drive backup: manual one-way .osd export. Backup dialog,
+            not sync: nothing uploads itself. */}
+        {driveOpen && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div
+              className={`absolute inset-0 ${isLight ? 'bg-slate-950/40' : 'bg-black/60'}`}
+              onClick={() => setDriveOpen(false)}
+            />
+            <div
+              ref={driveDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="dashboard-drive-title"
+              tabIndex={-1}
+              className={`relative w-full max-w-lg border rounded-2xl shadow-2xl p-4 ${panel}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 id="dashboard-drive-title" className="text-sm font-bold flex items-center gap-1.5">
+                    <Cloud className="w-4 h-4 text-sky-500" /> Google Drive backup
+                  </h3>
+                  <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Save any production as an .osd package into an OpenShotDesigner folder on your Drive.
+                    Re-saving refreshes its file. Needs internet; everything else keeps working offline.
+                  </p>
+                </div>
+                <button onClick={() => setDriveOpen(false)} aria-label="Close Google Drive backup" className={ghostButton}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                {driveToken ? (
+                  <button onClick={disconnectDrive} className={`${ghostButton} justify-center py-2 w-fit`} title="Sign out of Google Drive on this browser">
+                    <Cloud className="w-3.5 h-3.5" /> Connected — disconnect
+                  </button>
+                ) : hasBuiltInClientId ? (
+                  <button
+                    onClick={() => void connectDrive()}
+                    disabled={driveConnecting}
+                    className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5 w-fit"
+                    title="Sign in with Google"
+                  >
+                    <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect with Google'}
+                  </button>
+                ) : (
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                    <input
+                      value={driveClientId}
+                      onChange={(event) => setDriveClientId(event.target.value.trim())}
+                      placeholder="Google OAuth Client ID (see setup steps)"
+                      aria-label="Google OAuth Client ID"
+                      className={`${field} sm:flex-1 font-mono text-xs`}
+                    />
+                    <button
+                      onClick={() => void connectDrive()}
+                      disabled={driveConnecting || effectiveDriveClientId === ''}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                      title={effectiveDriveClientId === '' ? 'Enter your OAuth Client ID first' : 'Sign in with Google'}
+                    >
+                      <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <details className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                <summary className="cursor-pointer font-semibold hover:underline w-fit">
+                  {hasBuiltInClientId ? 'Self-hosting? Use your own Client ID' : 'One-time setup: get your own Client ID'}
+                </summary>
+                {hasBuiltInClientId ? (
+                  <div className="mt-1.5 space-y-2">
+                    <p>This copy comes with sign-in ready. Only if you host the app yourself (own domain),
+                      register your own OAuth Client ID — origins are bound to it — and paste it here:</p>
+                    <input
+                      value={driveClientId}
+                      onChange={(event) => setDriveClientId(event.target.value.trim())}
+                      placeholder="Your own Google OAuth Client ID (overrides the built-in one)"
+                      aria-label="Own Google OAuth Client ID"
+                      className={`${field} font-mono text-xs`}
+                    />
+                  </div>
+                ) : (
+                  <ol className="mt-1.5 ml-4 list-decimal space-y-1">
+                    <li>Open the Google Cloud Console → APIs &amp; Services → Credentials.</li>
+                    <li>Create Credentials → OAuth client ID → application type “Web application”.</li>
+                    <li>Under Authorized JavaScript origins add this site's address (and http://localhost:3000 for local use).</li>
+                    <li>Enable the Google Drive API under APIs &amp; Services → Library.</li>
+                    <li>Paste the Client ID above and press Connect. The app only ever asks for access to files it created itself.</li>
+                  </ol>
+                )}
+              </details>
+
+              <p className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Connected? Close this window and press the upload button on any production below.
+              </p>
+            </div>
+          </div>
+        )}
 
         {storageOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
