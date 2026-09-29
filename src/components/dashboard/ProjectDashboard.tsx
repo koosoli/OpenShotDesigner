@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Camera,
   Clapperboard,
@@ -24,6 +24,12 @@ import { APP_VERSION, SPONSOR_LINKS } from '../../config/version';
 import { GOOGLE_DRIVE_CLIENT_ID_DEFAULT } from '../../config/cloud';
 import { usePersistentUiState } from '../../utils/usePersistentUiState';
 import { exportProjectPackageV2 } from '../../utils/projectPackageV2';
+import {
+  backupAgeText,
+  backupIsStale,
+  getLastBackupAt,
+  recordBackup,
+} from '../../utils/cloud/backupHistory';
 import {
   isDriveUnauthorized,
   requestDriveAccessToken,
@@ -137,6 +143,12 @@ export const ProjectDashboard: React.FC = () => {
   const [driveConnecting, setDriveConnecting] = useState(false);
   /** Project id currently uploading, or 'connect' while signing in. */
   const [driveBusyId, setDriveBusyId] = useState<string | null>(null);
+  /** Last backup clock for the stale-backup reminder; refreshed on open and after every local backup. */
+  const [backupAt, setBackupAt] = useState<string | null>(() => getLastBackupAt());
+  const refreshBackupAge = () => setBackupAt(getLastBackupAt());
+  useEffect(() => {
+    if (isDashboardOpen) refreshBackupAge();
+  }, [isDashboardOpen]);
   /** The owner's built-in ID wins unless a self-hoster typed their own. */
   const hasBuiltInClientId = GOOGLE_DRIVE_CLIENT_ID_DEFAULT.trim() !== '';
   const effectiveDriveClientId = driveClientId.trim() || GOOGLE_DRIVE_CLIENT_ID_DEFAULT.trim();
@@ -224,6 +236,8 @@ export const ProjectDashboard: React.FC = () => {
     if (!project) return;
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
     triggerDownload(blob, `${safeFileName(project.title, 'project').toLowerCase()}_openshotdesigner.json`);
+    recordBackup();
+    refreshBackupAge();
   };
 
   /** Full portable package: project + referenced assets (plan §5.2.2). */
@@ -231,7 +245,10 @@ export const ProjectDashboard: React.FC = () => {
     const project = readProject(id);
     if (!project) return;
     // Library exports must not steal Ctrl+S's binding from the open workspace.
-    void saveNativeProjectFile(project, { saveAs: true, bindHandle: false }).catch((error) => {
+    // saveNativeProjectFile stamps the backup clock itself on success.
+    void saveNativeProjectFile(project, { saveAs: true, bindHandle: false })
+      .then(() => refreshBackupAge())
+      .catch((error) => {
       if ((error as Error)?.name !== 'AbortError') {
         void notice({
           title: 'Project save failed',
@@ -263,7 +280,7 @@ export const ProjectDashboard: React.FC = () => {
   /** One-way backup of a project package to the user's Drive. */
   const uploadProjectToDriveHandler = async (id: string) => {
     if (!driveToken) {
-      await notice({ title: 'Google Drive', message: 'Connect Google Drive below first.' });
+      await notice({ title: 'Google Drive', message: 'Open the Google button above first to connect.' });
       return;
     }
     const stored = readProject(id);
@@ -275,6 +292,8 @@ export const ProjectDashboard: React.FC = () => {
       const attempt = (token: string) => uploadProjectToDrive({ accessToken: token, fileName, packageBlob });
       try {
         const ref = await attempt(driveToken);
+        recordBackup();
+        refreshBackupAge();
         await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
       } catch (error) {
         // One silent retry: the hour-long token may have expired between visits.
@@ -282,6 +301,8 @@ export const ProjectDashboard: React.FC = () => {
         const fresh = await requestDriveAccessToken(effectiveDriveClientId, { silent: true });
         setDriveToken(fresh);
         const ref = await attempt(fresh);
+        recordBackup();
+        refreshBackupAge();
         await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
       }
     } catch (error) {
@@ -582,6 +603,19 @@ export const ProjectDashboard: React.FC = () => {
         )}
 
         {/* Saved projects */}
+        {projects.length > 0 && backupIsStale(backupAt) && (
+          <div
+            className={`mb-4 rounded-2xl border p-3.5 flex items-center gap-2.5 ${
+              isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/40 text-amber-100'
+            }`}
+          >
+            <History className="w-4 h-4 flex-shrink-0" />
+            <p className="text-xs">
+              <strong>Last backup {backupAgeText(backupAt)}.</strong> Your productions live in this browser
+              only — use a project's package, file or cloud button below to back them up.
+            </p>
+          </div>
+        )}
         <h2 className="text-xs font-bold uppercase tracking-wide mb-2 opacity-70">
           Saved projects {projects.length > 0 && `(${projects.length})`}
         </h2>

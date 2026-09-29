@@ -864,7 +864,7 @@ export interface GridSettings {
   snap: boolean;
   showGrid: boolean;
   unit: 'ft' | 'm';
-  pixelsPerUnit: number; // 40px = 1m, or 25px = 1ft
+  pixelsPerUnit: number; // 30px = 1m, or 25px = 1ft
 }
 
 export interface BackgroundImage {

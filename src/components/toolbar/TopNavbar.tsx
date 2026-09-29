@@ -50,6 +50,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { downloadText, safeFileName } from '../../utils/download';
+import { recordBackup } from '../../utils/cloud/backupHistory';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { SUPPORTED_LANGUAGES } from '../../i18n/dictionary';
@@ -86,6 +87,7 @@ export const TopNavbar: React.FC = () => {
       `${safeFileName(project.title, 'project').toLowerCase()}_openshotdesigner.json`,
       { type: 'application/json' },
     );
+    recordBackup();
   };
 
   // Handle Import JSON Project file
