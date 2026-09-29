@@ -4,6 +4,20 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Nextcloud/WebDAV backup & restore** — manual `.osd` up- and download to
+  your own server from the project dashboard's cloud dialog (Basic auth with
+  an app password, remembered only on request). Listed server backups import
+  back through the file-import path.
+- **Stale-backup reminder** — the dashboard names the last backup
+  ("last backup 12 days ago") once it is over 7 days old. Every
+  project-level artifact (file, package, cloud upload) stamps the clock.
+- **Persistent browser storage** — the app asks for the persistent storage
+  bucket at startup so browsers do not quietly evict productions.
+
 ## [1.0.1] — 2026-09-29
 
 ### Added

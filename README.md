@@ -453,6 +453,7 @@ New to it? **Templates → Fill empty modules with examples** loads a worked exa
 | **Complete package** | Everything above that has data, in one print job |
 | **JSON** | Full project backup — import to restore or share |
 | **Cloud export** | Manual one-way `.osd` backup to Google Drive from the project dashboard (sign in with Google; needs internet, everything else stays offline) |
+| **Nextcloud backup & restore** | Manual `.osd` up- and download to your own Nextcloud/WebDAV server from the project dashboard (server address + app password; needs internet) |
 
 Projects are stored in your browser's IndexedDB (with a `localStorage` fallback) and images live in a content-addressed asset store, so **download a JSON backup** before clearing site data or moving to another machine.
 
