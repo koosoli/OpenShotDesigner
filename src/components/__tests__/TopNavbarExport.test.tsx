@@ -84,7 +84,7 @@ const saveJson = () => {
   fireEvent.click(screen.getByLabelText('Save project file'));
   const dialog = screen.getByRole('dialog', { name: 'Save project file format' });
   fireEvent.click(within(dialog).getByLabelText(/JSON/));
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Save', exact: true }));
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 };
 
 describe('the project JSON backup', () => {
