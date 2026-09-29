@@ -70,6 +70,8 @@ export interface LinedScriptPdfInput {
   scriptTitle?: string;
   /** Set character cues in bold (off by default, per Hollywood standard). */
   boldCharacters?: boolean;
+  /** Print scene numbers in both margins (on by default, like a numbered production draft). */
+  showSceneNumbers?: boolean;
 }
 
 export interface LinedScriptPdfFilenameInput {
@@ -338,6 +340,7 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
   let sceneOrdinal = 0;
   let skippingOmittedBody = false;
   let previousType: string | undefined;
+  const showNumbers = input.showSceneNumbers !== false;
 
   for (const line of input.lines) {
     if (line.type === 'page-break') {
@@ -354,8 +357,10 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
         // Numbered-draft rule: the slug stays, the body is parked elsewhere.
         cursor = ensureSpace(ctx, cursor, 30);
         const placed = drawScriptLine(ctx, fonts, cursor, `SCENE ${sceneNumber} — OMITTED`, { left: 0, width: 60, bold: true });
-        drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'left');
-        drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'right');
+        if (showNumbers) {
+          drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'left');
+          drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'right');
+        }
         cursor = { page: placed.page, cursorY: placed.cursorY - 6 };
         skippingOmittedBody = true;
         previousType = 'scene';
@@ -374,8 +379,10 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
       const gapY = cursor.cursorY - 8;
       cursor = { page: cursor.page, cursorY: gapY };
       const placed = drawScriptLine(ctx, fonts, cursor, line.text.toUpperCase(), LINED_LAYOUT.scene);
-      drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'left');
-      drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'right');
+      if (showNumbers) {
+        drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'left');
+        drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'right');
+      }
       cursor = placed;
       previousType = 'scene';
       continue;

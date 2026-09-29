@@ -137,6 +137,8 @@ interface LinedScriptPageProps {
   showShotSize?: boolean;
   /** Set character cues in bold (export option, off by default). */
   boldCharacters?: boolean;
+  /** Print scene numbers in both margins (on by default, like a numbered draft). */
+  showSceneNumbers?: boolean;
   selection?: ScriptSelectionRange | null;
   selectedShotId?: string | null;
   /**
@@ -166,6 +168,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
   print = false,
   showShotSize = true,
   boldCharacters = false,
+  showSceneNumbers = true,
   selection = null,
   selectedShotId = null,
   breakdownItems = EMPTY_BREAKDOWN_ITEMS,
@@ -408,7 +411,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                   margins — that is how a shooting script is read, from either
                   side of the page. The right-hand one sits between the 60-column
                   text block and the lining lanes. */}
-              {line.isSceneHeading && line.sceneNumber && (
+              {line.isSceneHeading && line.sceneNumber && showSceneNumbers && (
                 <>
                   <span className="absolute font-bold opacity-70" style={{ left: '-2.6ch', fontSize: '0.85em' }}>
                     {line.sceneNumber}

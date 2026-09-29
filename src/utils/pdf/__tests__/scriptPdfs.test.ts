@@ -498,6 +498,24 @@ describe('lined screenplay PDF', () => {
     expect((await PDFDocument.load(emptyCover)).getPageCount()).toBe(1);
   });
 
+  it('hides marginal scene numbers only when asked', async () => {
+    const lines: LinedScriptPdfLine[] = [
+      { type: 'scene', text: 'INT. NUMBERED PLACE - NIGHT', sceneNumber: '12' },
+      { type: 'action', text: 'The city sleeps under neon.' },
+    ];
+    const base = { productionTitle: 'My Film', lines, generatedAt: FIXED_DATE };
+    const numbered = inflateContentStreams(await createLinedScriptPdf(base)).join('\n');
+    const bare = inflateContentStreams(
+      await createLinedScriptPdf({ ...base, showSceneNumbers: false }),
+    ).join('\n');
+    // '12' as its own draw call: the slug, action and footer never emit it alone.
+    const token = `<${pdfHexToken('12')}>`;
+    expect(numbered).toContain(token);
+    expect(bare).not.toContain(token);
+    // The slug itself still prints either way.
+    expect(bare).toContain(pdfHexToken('INT. NUMBERED PLACE - NIGHT'));
+  });
+
   it('sets character cues in bold only when asked', async () => {
     const base = { productionTitle: 'My Film', lines: makeLinedLines(1), generatedAt: FIXED_DATE };
     const plain = inflateContentStreams(await createLinedScriptPdf(base)).join('\n');

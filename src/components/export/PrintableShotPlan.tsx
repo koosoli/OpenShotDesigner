@@ -139,6 +139,8 @@ export const PrintableShotPlan: React.FC = () => {
   const [scriptScope, setScriptScope] = useState<'lined' | 'full'>('lined');
   /** Screenplay character cues in bold, for print and PDF alike (off by default). */
   const [boldScriptCharacters, setBoldScriptCharacters] = useState(false);
+  /** Scene numbers in both screenplay margins, for print and PDF alike (on by default). */
+  const [showSceneNumbers, setShowSceneNumbers] = useState(true);
   // Zoom/pan viewport over the floor plan: z scales the printed region around the
   // scene center, panX/panY shift it in scene units so the user can choose exactly
   // which portion of the canvas gets printed (and exported as PNG).
@@ -574,6 +576,7 @@ export const PrintableShotPlan: React.FC = () => {
         avScriptRows,
         allShots,
         boldScriptCharacters,
+        showSceneNumbers,
         sidesSceneIds,
         sidesCharacter: sidesCharacter || undefined,
         equipmentScope,
@@ -2283,6 +2286,15 @@ export const PrintableShotPlan: React.FC = () => {
                       />
                       Bold characters
                     </label>
+                    <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer print:hidden" title="Print scene numbers in both margins">
+                      <input
+                        type="checkbox"
+                        checked={showSceneNumbers}
+                        onChange={(event) => setShowSceneNumbers(event.target.checked)}
+                        className="accent-violet-600 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      Scene numbers
+                    </label>
                     <span className="font-mono text-xs font-bold text-slate-700">
                       {allScriptMarks.length} LINED SHOT{allScriptMarks.length === 1 ? '' : 'S'}
                     </span>
@@ -2311,6 +2323,7 @@ export const PrintableShotPlan: React.FC = () => {
                         fontSize={11}
                         showShotSize={eff.showShotSizeInScript !== false}
                         boldCharacters={boldScriptCharacters}
+                        showSceneNumbers={showSceneNumbers}
                         isLight
                         print
                       />

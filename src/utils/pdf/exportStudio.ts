@@ -123,6 +123,8 @@ export interface SectionPdfContext {
   allShots: Shot[];
   /** Set screenplay character cues in bold (export-studio option, off by default). */
   boldScriptCharacters?: boolean;
+  /** Print scene numbers in screenplay margins (export-studio option, on by default). */
+  showSceneNumbers?: boolean;
   /** Sides selection from the studio; absent means the whole screenplay. */
   sidesSceneIds?: string[] | null;
   sidesCharacter?: string;
@@ -298,6 +300,7 @@ export const renderSectionPdf = async (
         titlePage: project.titlePage,
         scriptTitle: project.scriptTitle,
         boldCharacters: ctx.boldScriptCharacters ?? false,
+        showSceneNumbers: ctx.showSceneNumbers ?? true,
         ...logo,
       });
       return renderedPdf(bytes, buildLinedScriptPdfFilename({ productionTitle: title }));
