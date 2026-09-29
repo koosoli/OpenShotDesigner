@@ -6,7 +6,7 @@
  * Display only: never enters persisted project schemas or domain logic.
  */
 
-export const APP_VERSION = '1.0.1';
+export const APP_VERSION = '1.0.2';
 
 export const SPONSOR_LINKS = {
   github: 'https://github.com/sponsors/koosoli',
