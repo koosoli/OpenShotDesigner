@@ -135,6 +135,8 @@ interface LinedScriptPageProps {
   print?: boolean;
   /** Display shot size badge (WS, CU, MCU...) inside shot bubbles (default true). */
   showShotSize?: boolean;
+  /** Set character cues in bold (export option, off by default). */
+  boldCharacters?: boolean;
   selection?: ScriptSelectionRange | null;
   selectedShotId?: string | null;
   /**
@@ -163,6 +165,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
   isLight,
   print = false,
   showShotSize = true,
+  boldCharacters = false,
   selection = null,
   selectedShotId = null,
   breakdownItems = EMPTY_BREAKDOWN_ITEMS,
@@ -417,7 +420,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
               )}
               <span
                 data-line-text
-                className={`whitespace-pre-wrap break-words ${layout.className} ${line.omitted ? 'opacity-60 tracking-widest' : ''}`}
+                className={`whitespace-pre-wrap break-words ${layout.className} ${type === 'character' && boldCharacters ? 'font-bold' : ''} ${line.omitted ? 'opacity-60 tracking-widest' : ''}`}
               >
                 {line.omitted ? omittedSceneLabel(line.sceneNumber) : line.text}
               </span>

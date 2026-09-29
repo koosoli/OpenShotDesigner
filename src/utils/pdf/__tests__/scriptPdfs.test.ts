@@ -469,8 +469,7 @@ describe('lined screenplay PDF', () => {
     expect(combined).toContain(pdfHexToken('COVER TITLE'));
   });
 
-  it('keeps the title block when no cover prints', async () => {
-    const pdf = await createLinedScriptPdf({
+  it('keeps the title block when no cover prints', async () => {    const pdf = await createLinedScriptPdf({
       productionTitle: 'My Film',
       lines: makeLinedLines(1),
       generatedAt: FIXED_DATE,
@@ -497,5 +496,30 @@ describe('lined screenplay PDF', () => {
       generatedAt: FIXED_DATE,
     });
     expect((await PDFDocument.load(emptyCover)).getPageCount()).toBe(1);
+  });
+
+  it('sets character cues in bold only when asked', async () => {
+    const base = { productionTitle: 'My Film', lines: makeLinedLines(1), generatedAt: FIXED_DATE };
+    const plain = inflateContentStreams(await createLinedScriptPdf(base)).join('\n');
+    const bold = inflateContentStreams(
+      await createLinedScriptPdf({ ...base, boldCharacters: true }),
+    ).join('\n');
+    // Which face each string is set in: the resource named by the last
+    // `/F… 12 Tf` before the token.
+    const faceFor = (stream: string, token: string): string | null => {
+      const at = stream.indexOf(token);
+      if (at === -1) return null;
+      const selectors = [...stream.slice(0, at).matchAll(/\/(\S+) 12 Tf/g)];
+      return selectors.length > 0 ? selectors[selectors.length - 1][1] : null;
+    };
+    const cue = pdfHexToken('JANE');
+    const action = pdfHexToken('The city sleeps under neon.');
+    const plainCue = faceFor(plain, cue);
+    const boldCue = faceFor(bold, cue);
+    expect(plainCue).not.toBeNull();
+    expect(boldCue).not.toBeNull();
+    // Only the cue changes face; the action beside it does not.
+    expect(boldCue).not.toBe(plainCue);
+    expect(faceFor(bold, action)).toBe(faceFor(plain, action));
   });
 });

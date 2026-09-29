@@ -121,6 +121,8 @@ export interface SectionPdfContext {
   scriptLines: ScriptLine[];
   avScriptRows: AVScriptRow[];
   allShots: Shot[];
+  /** Set screenplay character cues in bold (export-studio option, off by default). */
+  boldScriptCharacters?: boolean;
   /** Sides selection from the studio; absent means the whole screenplay. */
   sidesSceneIds?: string[] | null;
   sidesCharacter?: string;
@@ -295,6 +297,7 @@ export const renderSectionPdf = async (
         // one; the PDF carries the same cover on its own first page.
         titlePage: project.titlePage,
         scriptTitle: project.scriptTitle,
+        boldCharacters: ctx.boldScriptCharacters ?? false,
         ...logo,
       });
       return renderedPdf(bytes, buildLinedScriptPdfFilename({ productionTitle: title }));

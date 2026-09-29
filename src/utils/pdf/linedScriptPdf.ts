@@ -68,6 +68,8 @@ export interface LinedScriptPdfInput {
   titlePage?: ScreenplayTitlePage;
   /** Stands in for a blank cover title, like the editor does. */
   scriptTitle?: string;
+  /** Set character cues in bold (off by default, per Hollywood standard). */
+  boldCharacters?: boolean;
 }
 
 export interface LinedScriptPdfFilenameInput {
@@ -380,7 +382,8 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
     }
     if (skippingOmittedBody) continue;
     if (line.text.trim() === '') continue;
-    const layout = layoutFor(line.type);
+    const base = layoutFor(line.type);
+    const layout = line.type === 'character' && input.boldCharacters === true ? { ...base, bold: true } : base;
     const text = layout.upper ? line.text.toUpperCase() : line.text;
     cursor = { page: cursor.page, cursorY: cursor.cursorY - gapBefore(line.type, previousType) };
     cursor = drawScriptLine(ctx, fonts, cursor, text, layout);
