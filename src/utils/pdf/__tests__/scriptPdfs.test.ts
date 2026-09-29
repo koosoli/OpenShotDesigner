@@ -417,4 +417,59 @@ describe('lined screenplay PDF', () => {
       'my-film_screenplay.pdf',
     );
   });
+
+  it('sets the body in Courier on US Letter', async () => {
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      lines: makeLinedLines(1),
+      generatedAt: FIXED_DATE,
+    });
+    // Standard-14 fonts are referenced, not embedded: the font name sits in
+    // the page resources. The shell chrome (title block, footer) keeps the
+    // app's Helvetica paperwork identity; the screenplay body is Courier.
+    const raw = bytesToBinary(pdf);
+    expect(raw).toContain('/Courier');
+    const reloaded = await PDFDocument.load(pdf);
+    const page = reloaded.getPage(0);
+    expect(page.getWidth()).toBeCloseTo(612, 0);
+    expect(page.getHeight()).toBeCloseTo(792, 0);
+  });
+
+  it('prints the enabled title page first, on its own page', async () => {
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      scriptTitle: 'Fallback Title',
+      titlePage: { enabled: true, title: 'My Epic', authors: 'Jane Doe', contact: 'jane@example.com' },
+      lines: makeLinedLines(1),
+      generatedAt: FIXED_DATE,
+    });
+    const reloaded = await PDFDocument.load(pdf);
+    expect(reloaded.getPageCount()).toBe(2);
+    const combined = inflateContentStreams(pdf).join('\n');
+    const titleAt = combined.indexOf(pdfHexToken('MY EPIC'));
+    const slugAt = combined.indexOf(pdfHexToken('INT. LINED PLACE 0 - NIGHT'));
+    expect(titleAt).toBeGreaterThanOrEqual(0);
+    expect(slugAt).toBeGreaterThanOrEqual(0);
+    expect(titleAt).toBeLessThan(slugAt);
+    expect(combined).toContain(pdfHexToken('Jane Doe'));
+  });
+
+  it('prints no cover without opt-in or without content', async () => {
+    const lines = makeLinedLines(1);
+    const withoutOptIn = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      scriptTitle: 'Fallback Title',
+      lines,
+      generatedAt: FIXED_DATE,
+    });
+    expect((await PDFDocument.load(withoutOptIn)).getPageCount()).toBe(1);
+    // Enabled but empty: rule 13 — never invent a cover, never a blank page.
+    const emptyCover = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      titlePage: { enabled: true },
+      lines,
+      generatedAt: FIXED_DATE,
+    });
+    expect((await PDFDocument.load(emptyCover)).getPageCount()).toBe(1);
+  });
 });

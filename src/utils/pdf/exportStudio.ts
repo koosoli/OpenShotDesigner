@@ -291,6 +291,10 @@ export const renderSectionPdf = async (
           ...(line.sceneNumber ? { sceneNumber: line.sceneNumber } : {}),
           ...(line.omitted ? { omitted: true } : {}),
         })),
+        // The print studio shows the cover when the production asked for
+        // one; the PDF carries the same cover on its own first page.
+        titlePage: project.titlePage,
+        scriptTitle: project.scriptTitle,
         ...logo,
       });
       return renderedPdf(bytes, buildLinedScriptPdfFilename({ productionTitle: title }));

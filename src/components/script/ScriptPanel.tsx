@@ -1062,6 +1062,14 @@ export const ScriptPanel: React.FC = () => {
               </button>
             )}
 
+            {/* Screenplay PDF sits directly beside Fountain: the two ways out of the script. */}
+            {activeTab === 'screenplay' && lines.length > 0 && (
+              <PdfExportButton
+                onClick={() => openExportModal('linedscript')}
+                title="Skript als PDF exportieren"
+              />
+            )}
+
             {activeTab === 'av_script' && (
               <button onClick={exportAVScriptCSV} className={headerButton} title="Export AV script to CSV">
                 <Download className="w-3.5 h-3.5" /> Export CSV
@@ -1096,7 +1104,7 @@ export const ScriptPanel: React.FC = () => {
               <PdfExportButton onClick={() => openExportModal('scriptreports')} title="Script-Reports als PDF exportieren" />
             )}
 
-            {activeTab !== 'reports' && activeTab !== 'title_page' && lines.length > 0 && (
+            {activeTab !== 'reports' && activeTab !== 'title_page' && activeTab !== 'screenplay' && lines.length > 0 && (
               <PdfExportButton
                 onClick={() => openExportModal(activeTab === 'av_script' ? 'avscript' : 'linedscript')}
                 title={activeTab === 'av_script' ? 'AV-Skript als PDF exportieren' : 'Skript als PDF exportieren'}
