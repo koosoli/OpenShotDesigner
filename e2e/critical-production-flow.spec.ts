@@ -14,7 +14,11 @@ const createExampleProject = async (page: Page, title: string) => {
 
 const exportProject = async (page: Page): Promise<Project> => {
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save & Download Project JSON' }).click();
+  await page.getByRole('button', { name: 'Save project file' }).click();
+  // JSON takes an explicit switch; .osd is pre-selected.
+  const dialog = page.getByRole('dialog', { name: 'Save project file format' });
+  await dialog.getByLabel(/JSON/).check();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   const download = await downloadPromise;
   const path = await download.path();
   if (!path) throw new Error('The browser did not expose the downloaded project file.');
@@ -285,9 +289,11 @@ test('review notes survive reload and project storage exports a native .osd pack
     Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true });
   });
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save project file' }).first().click();
+  // Scoped to the dashboard: the top bar carries a same-named save button behind the overlay.
+  const dashboard = page.locator('#project-dashboard');
+  await dashboard.getByRole('button', { name: 'Save project file' }).first().click();
   // .osd is pre-selected; JSON takes an explicit switch.
-  await page.getByRole('dialog', { name: 'Save project file format' }).getByRole('button', { name: 'Save', exact: true }).click();
+  await dashboard.getByRole('dialog', { name: 'Save project file format' }).getByRole('button', { name: 'Save', exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/\.osd$/);
   const path = await download.path();

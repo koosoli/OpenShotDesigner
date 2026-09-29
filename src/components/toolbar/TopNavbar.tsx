@@ -44,12 +44,14 @@ import {
   Plus,
   FileDown,
   Redo2,
+  Save,
   Sparkles,
   Sun,
   Trash2,
   Undo2,
 } from 'lucide-react';
-import { downloadText, safeFileName } from '../../utils/download';
+import { downloadBlob, downloadText, safeFileName } from '../../utils/download';
+import { exportProjectPackageV2 } from '../../utils/projectPackageV2';
 import { recordBackup } from '../../utils/cloud/backupHistory';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -68,6 +70,9 @@ export const TopNavbar: React.FC = () => {
   const [isSetupsOpen, setIsSetupsOpen] = useState(false);
   const [isViewingOptionsOpen, setIsViewingOptionsOpen] = useState(false);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
+  /** Save menu (.osd pre-selected, JSON one switch away) and its format. */
+  const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
+  const [saveFormat, setSaveFormat] = useState<'osd' | 'json'>('osd');
   /** On-set / show-day mode overlay (plan §35) — local UI state, not persisted. */
   const [isOnSetMode, setIsOnSetMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +93,28 @@ export const TopNavbar: React.FC = () => {
       { type: 'application/json' },
     );
     recordBackup();
+  };
+
+  /** Instant .osd download: project + all images, the backup to take. */
+  const handleExportOsd = () => {
+    void (async () => {
+      try {
+        const blob = await exportProjectPackageV2(project);
+        downloadBlob(blob, `${safeFileName(project.title, 'project').toLowerCase()}.osd`);
+        recordBackup();
+      } catch (err) {
+        await notice({
+          title: 'Project save failed',
+          message: err instanceof Error ? err.message : 'unknown error',
+        });
+      }
+    })();
+  };
+
+  const runSaveMenu = () => {
+    setIsSaveMenuOpen(false);
+    if (saveFormat === 'json') handleExportJson();
+    else handleExportOsd();
   };
 
   // Handle Import JSON Project file
@@ -804,17 +831,81 @@ export const TopNavbar: React.FC = () => {
 
         {!isCompact && (
           <>
-            {/* Save JSON Backup Button */}
-            <button
-              onClick={handleExportJson}
-              title="Save & Download Project JSON"
-              aria-label="Save & Download Project JSON"
-              className={`p-2 rounded-lg border transition-colors ${
-                isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
-              }`}
-            >
-              <Download className="w-3.5 h-3.5" />
-            </button>
+            {/* Save Project File Button with format menu (.osd first). */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setSaveFormat('osd');
+                  setIsSaveMenuOpen((open) => !open);
+                }}
+                aria-expanded={isSaveMenuOpen}
+                title="Save project file (.osd recommended)"
+                aria-label="Save project file"
+                className={`p-2 rounded-lg border transition-colors ${
+                  isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
+                }`}
+              >
+                <Save className="w-3.5 h-3.5" />
+              </button>
+
+              {isSaveMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsSaveMenuOpen(false)} />
+                  <div
+                    role="dialog"
+                    aria-label="Save project file format"
+                    className={`absolute right-0 top-full mt-1.5 w-60 border rounded-xl shadow-2xl p-2.5 z-50 space-y-1 text-left ${
+                      isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+                    }`}
+                  >
+                    <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                      <input
+                        type="radio"
+                        name="topbar-save-format"
+                        checked={saveFormat === 'osd'}
+                        onChange={() => setSaveFormat('osd')}
+                        className="accent-sky-600 mt-0.5"
+                      />
+                      <span>
+                        <strong>.osd package</strong>
+                        <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Project + all images. The backup to take.
+                        </span>
+                      </span>
+                    </label>
+                    <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                      <input
+                        type="radio"
+                        name="topbar-save-format"
+                        checked={saveFormat === 'json'}
+                        onChange={() => setSaveFormat('json')}
+                        className="accent-sky-600 mt-0.5"
+                      />
+                      <span>
+                        <strong>JSON</strong>
+                        <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          Project only, no media. For experts.
+                        </span>
+                      </span>
+                    </label>
+                    <div className="flex gap-1.5 pt-1">
+                      <button
+                        onClick={runSaveMenu}
+                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setIsSaveMenuOpen(false)}
+                        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -997,12 +1088,21 @@ export const TopNavbar: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
+                      handleExportOsd();
+                      setIsOverflowOpen(false);
+                    }}
+                    className={overflowItemClass}
+                  >
+                    <span className="flex items-center gap-2"><Save className="w-3.5 h-3.5" /> Save .osd package</span>
+                  </button>
+                  <button
+                    onClick={() => {
                       handleExportJson();
                       setIsOverflowOpen(false);
                     }}
                     className={overflowItemClass}
                   >
-                    <span className="flex items-center gap-2"><Download className="w-3.5 h-3.5" /> Save project file</span>
+                    <span className="flex items-center gap-2"><Download className="w-3.5 h-3.5" /> Save JSON (experts)</span>
                   </button>
                   <button
                     onClick={() => {
