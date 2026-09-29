@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import {
   Camera,
   Clapperboard,
+  Cloud,
   Coffee,
   Copy,
   Download,
@@ -15,10 +16,19 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { APP_VERSION, SPONSOR_LINKS } from '../../config/version';
+import { usePersistentUiState } from '../../utils/usePersistentUiState';
+import { exportProjectPackageV2 } from '../../utils/projectPackageV2';
+import {
+  isDriveUnauthorized,
+  requestDriveAccessToken,
+  revokeDriveAccessToken,
+  uploadProjectToDrive,
+} from '../../utils/cloud/googleDrive';
 import { listUnreadableProjects, readProject } from '../../utils/projectLibrary';
 import {
   MODULE_PICKER_GROUPS,
@@ -117,6 +127,14 @@ export const ProjectDashboard: React.FC = () => {
   const [storageInspection, setStorageInspection] = useState<AssetStorageInspection | null>(null);
   const [storageBusy, setStorageBusy] = useState(false);
   const [confirmStorageCleanup, setConfirmStorageCleanup] = useState(false);
+  // Google Drive backup: the Client ID is a per-viewer preference (local,
+  // never project data); the access token lives in memory only and dies
+  // with the tab. No project state, no context growth.
+  const [driveClientId, setDriveClientId] = usePersistentUiState('cloud.drive.clientId', '');
+  const [driveToken, setDriveToken] = useState<string | null>(null);
+  const [driveConnecting, setDriveConnecting] = useState(false);
+  /** Project id currently uploading, or 'connect' while signing in. */
+  const [driveBusyId, setDriveBusyId] = useState<string | null>(null);
   // The revisions list is the one true modal on this screen — it dims the
   // dashboard behind it — so keyboard focus has to stay inside it while open.
   const revisionsDialogRef = useDialogFocusTrap(revisionsProjectId !== null);
@@ -215,6 +233,60 @@ export const ProjectDashboard: React.FC = () => {
         });
       }
     });
+  };
+
+  const connectDrive = async () => {
+    setDriveConnecting(true);
+    try {
+      setDriveToken(await requestDriveAccessToken(driveClientId));
+    } catch (error) {
+      await notice({
+        title: 'Google Drive',
+        message: error instanceof Error ? error.message : 'Sign-in failed.',
+      });
+    } finally {
+      setDriveConnecting(false);
+    }
+  };
+
+  const disconnectDrive = () => {
+    if (driveToken) void revokeDriveAccessToken(driveToken);
+    setDriveToken(null);
+  };
+
+  /** One-way backup of a project package to the user's Drive. */
+  const uploadProjectToDriveHandler = async (id: string) => {
+    if (!driveToken) {
+      await notice({ title: 'Google Drive', message: 'Connect Google Drive below first.' });
+      return;
+    }
+    const stored = readProject(id);
+    if (!stored) return;
+    setDriveBusyId(id);
+    try {
+      const packageBlob = await exportProjectPackageV2(stored);
+      const fileName = `${safeFileName(stored.title, 'project').toLowerCase()}.osd`;
+      const attempt = (token: string) => uploadProjectToDrive({ accessToken: token, fileName, packageBlob });
+      try {
+        const ref = await attempt(driveToken);
+        await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
+      } catch (error) {
+        // One silent retry: the hour-long token may have expired between visits.
+        if (!isDriveUnauthorized(error)) throw error;
+        const fresh = await requestDriveAccessToken(driveClientId, { silent: true });
+        setDriveToken(fresh);
+        const ref = await attempt(fresh);
+        await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
+      }
+    } catch (error) {
+      if (isDriveUnauthorized(error)) setDriveToken(null);
+      await notice({
+        title: 'Google Drive upload failed',
+        message: error instanceof Error ? error.message : 'The upload could not be completed.',
+      });
+    } finally {
+      setDriveBusyId(null);
+    }
   };
 
   const revisionsProject = revisionsProjectId ? readProject(revisionsProjectId) : null;
@@ -456,6 +528,54 @@ export const ProjectDashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Cloud export: manual one-way .osd backup to the viewer's own
+            Google Drive. Backup button, not sync: nothing uploads itself. */}
+        <div className={`border rounded-2xl p-4 mb-6 shadow-sm ${panel}`}>
+          <h2 className="text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-2">
+            <Cloud className="w-4 h-4 text-sky-500" /> Cloud export — Google Drive
+          </h2>
+          <p className={`text-[11px] mb-3 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            Save any production below as an .osd package into an OpenShotDesigner folder on your Drive.
+            One-way backup: re-saving the same production refreshes its file. Needs internet; everything
+            else in this app keeps working offline.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <input
+              value={driveClientId}
+              onChange={(event) => setDriveClientId(event.target.value.trim())}
+              placeholder="Google OAuth Client ID (see setup steps)"
+              aria-label="Google OAuth Client ID"
+              className={`${field} sm:flex-1 font-mono text-xs`}
+            />
+            {driveToken ? (
+              <button onClick={disconnectDrive} className={`${ghostButton} justify-center py-2`} title="Sign out of Google Drive on this browser">
+                <Cloud className="w-3.5 h-3.5" /> Connected — disconnect
+              </button>
+            ) : (
+              <button
+                onClick={() => void connectDrive()}
+                disabled={driveConnecting || driveClientId.trim() === ''}
+                className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                title={driveClientId.trim() === '' ? 'Enter your OAuth Client ID first' : 'Sign in with Google'}
+              >
+                <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect'}
+              </button>
+            )}
+          </div>
+          <details className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            <summary className="cursor-pointer font-semibold hover:underline w-fit">
+              One-time setup: get your own Client ID
+            </summary>
+            <ol className="mt-1.5 ml-4 list-decimal space-y-1">
+              <li>Open the Google Cloud Console → APIs &amp; Services → Credentials.</li>
+              <li>Create Credentials → OAuth client ID → application type “Web application”.</li>
+              <li>Under Authorized JavaScript origins add this site's address (and http://localhost:3000 for local use).</li>
+              <li>Enable the Google Drive API under APIs &amp; Services → Library.</li>
+              <li>Paste the Client ID above and press Connect. The app only ever asks for access to files it created itself.</li>
+            </ol>
+          </details>
+        </div>
+
         {/* Projects that exist but could not be migrated. Previously these were
             indistinguishable from "not found", so a production simply appeared
             to have vanished. The stored data is untouched; say so plainly. */}
@@ -600,6 +720,15 @@ export const ProjectDashboard: React.FC = () => {
                       className={ghostButton}
                     >
                       <Package className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => void uploadProjectToDriveHandler(entry.id)}
+                      disabled={!driveToken || driveBusyId !== null}
+                      title={driveToken ? 'Save .osd project to Google Drive' : 'Connect Google Drive above first'}
+                      aria-label="Save .osd project to Google Drive"
+                      className={`${ghostButton} disabled:opacity-40`}
+                    >
+                      <Upload className="w-3 h-3" />{driveBusyId === entry.id ? '…' : ''}
                     </button>
                     <button
                       onClick={() => {
