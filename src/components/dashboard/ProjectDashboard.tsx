@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { APP_VERSION, SPONSOR_LINKS } from '../../config/version';
+import { GOOGLE_DRIVE_CLIENT_ID_DEFAULT } from '../../config/cloud';
 import { usePersistentUiState } from '../../utils/usePersistentUiState';
 import { exportProjectPackageV2 } from '../../utils/projectPackageV2';
 import {
@@ -135,6 +136,9 @@ export const ProjectDashboard: React.FC = () => {
   const [driveConnecting, setDriveConnecting] = useState(false);
   /** Project id currently uploading, or 'connect' while signing in. */
   const [driveBusyId, setDriveBusyId] = useState<string | null>(null);
+  /** The owner's built-in ID wins unless a self-hoster typed their own. */
+  const hasBuiltInClientId = GOOGLE_DRIVE_CLIENT_ID_DEFAULT.trim() !== '';
+  const effectiveDriveClientId = driveClientId.trim() || GOOGLE_DRIVE_CLIENT_ID_DEFAULT.trim();
   // The revisions list is the one true modal on this screen — it dims the
   // dashboard behind it — so keyboard focus has to stay inside it while open.
   const revisionsDialogRef = useDialogFocusTrap(revisionsProjectId !== null);
@@ -238,7 +242,7 @@ export const ProjectDashboard: React.FC = () => {
   const connectDrive = async () => {
     setDriveConnecting(true);
     try {
-      setDriveToken(await requestDriveAccessToken(driveClientId));
+      setDriveToken(await requestDriveAccessToken(effectiveDriveClientId));
     } catch (error) {
       await notice({
         title: 'Google Drive',
@@ -273,7 +277,7 @@ export const ProjectDashboard: React.FC = () => {
       } catch (error) {
         // One silent retry: the hour-long token may have expired between visits.
         if (!isDriveUnauthorized(error)) throw error;
-        const fresh = await requestDriveAccessToken(driveClientId, { silent: true });
+        const fresh = await requestDriveAccessToken(effectiveDriveClientId, { silent: true });
         setDriveToken(fresh);
         const ref = await attempt(fresh);
         await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
@@ -539,40 +543,63 @@ export const ProjectDashboard: React.FC = () => {
             One-way backup: re-saving the same production refreshes its file. Needs internet; everything
             else in this app keeps working offline.
           </p>
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <input
-              value={driveClientId}
-              onChange={(event) => setDriveClientId(event.target.value.trim())}
-              placeholder="Google OAuth Client ID (see setup steps)"
-              aria-label="Google OAuth Client ID"
-              className={`${field} sm:flex-1 font-mono text-xs`}
-            />
-            {driveToken ? (
-              <button onClick={disconnectDrive} className={`${ghostButton} justify-center py-2`} title="Sign out of Google Drive on this browser">
-                <Cloud className="w-3.5 h-3.5" /> Connected — disconnect
-              </button>
-            ) : (
+          {driveToken ? (
+            <button onClick={disconnectDrive} className={`${ghostButton} justify-center py-2 w-fit`} title="Sign out of Google Drive on this browser">
+              <Cloud className="w-3.5 h-3.5" /> Connected — disconnect
+            </button>
+          ) : hasBuiltInClientId ? (
+            <button
+              onClick={() => void connectDrive()}
+              disabled={driveConnecting}
+              className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5 w-fit"
+              title="Sign in with Google"
+            >
+              <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect with Google'}
+            </button>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <input
+                value={driveClientId}
+                onChange={(event) => setDriveClientId(event.target.value.trim())}
+                placeholder="Google OAuth Client ID (see setup steps)"
+                aria-label="Google OAuth Client ID"
+                className={`${field} sm:flex-1 font-mono text-xs`}
+              />
               <button
                 onClick={() => void connectDrive()}
-                disabled={driveConnecting || driveClientId.trim() === ''}
+                disabled={driveConnecting || effectiveDriveClientId === ''}
                 className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
-                title={driveClientId.trim() === '' ? 'Enter your OAuth Client ID first' : 'Sign in with Google'}
+                title={effectiveDriveClientId === '' ? 'Enter your OAuth Client ID first' : 'Sign in with Google'}
               >
                 <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect'}
               </button>
-            )}
-          </div>
+            </div>
+          )}
           <details className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
             <summary className="cursor-pointer font-semibold hover:underline w-fit">
-              One-time setup: get your own Client ID
+              {hasBuiltInClientId ? 'Self-hosting? Use your own Client ID' : 'One-time setup: get your own Client ID'}
             </summary>
-            <ol className="mt-1.5 ml-4 list-decimal space-y-1">
-              <li>Open the Google Cloud Console → APIs &amp; Services → Credentials.</li>
-              <li>Create Credentials → OAuth client ID → application type “Web application”.</li>
-              <li>Under Authorized JavaScript origins add this site's address (and http://localhost:3000 for local use).</li>
-              <li>Enable the Google Drive API under APIs &amp; Services → Library.</li>
-              <li>Paste the Client ID above and press Connect. The app only ever asks for access to files it created itself.</li>
-            </ol>
+            {hasBuiltInClientId ? (
+              <div className="mt-1.5 space-y-2">
+                <p>This copy comes with sign-in ready. Only if you host the app yourself (own domain),
+                  register your own OAuth Client ID — origins are bound to it — and paste it here:</p>
+                <input
+                  value={driveClientId}
+                  onChange={(event) => setDriveClientId(event.target.value.trim())}
+                  placeholder="Your own Google OAuth Client ID (overrides the built-in one)"
+                  aria-label="Own Google OAuth Client ID"
+                  className={`${field} font-mono text-xs`}
+                />
+              </div>
+            ) : (
+              <ol className="mt-1.5 ml-4 list-decimal space-y-1">
+                <li>Open the Google Cloud Console → APIs &amp; Services → Credentials.</li>
+                <li>Create Credentials → OAuth client ID → application type “Web application”.</li>
+                <li>Under Authorized JavaScript origins add this site's address (and http://localhost:3000 for local use).</li>
+                <li>Enable the Google Drive API under APIs &amp; Services → Library.</li>
+                <li>Paste the Client ID above and press Connect. The app only ever asks for access to files it created itself.</li>
+              </ol>
+            )}
           </details>
         </div>
 
