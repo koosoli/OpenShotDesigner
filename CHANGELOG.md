@@ -74,6 +74,53 @@ out every day, built from the data the app already has.
   reports (with `contract` and per-sheet `limits`), location scouts. Older
   projects open unchanged.
 
+## [1.0.2] — 2026-09-29
+
+### Added
+
+- **Nextcloud/WebDAV backup & restore** — manual `.osd` up- and download to
+  your own server from the project dashboard's cloud dialog (Basic auth with
+  an app password, remembered only on request). Listed server backups import
+  back through the file-import path.
+- **Stale-backup reminder** — the dashboard names the last backup
+  ("last backup 12 days ago") once it is over 7 days old. Every
+  project-level artifact (file, package, cloud upload) stamps the clock.
+- **Persistent browser storage** — the app asks for the persistent storage
+  bucket at startup so browsers do not quietly evict productions.
+
+## [1.0.1] — 2026-09-29
+
+### Added
+
+- **True Hollywood screenplay PDF** — US Letter, 12pt Courier on the classic
+  60-column grid (action full-width, character cues 2.2", parentheticals
+  1.6", dialogue 1.0" × 3.5", transitions flush right), single-spaced with
+  blank lines between blocks.
+- **Title-page cover in the PDF** — prints first on its own page when enabled
+  (mirroring the print view) and replaces the paperwork title block; without
+  it the block stays as the production's name on the page. The cover Date
+  field suggests today's date.
+- **Screenplay export options** — Bold characters and Scene numbers
+  checkboxes in the export studio, driving print preview and PDF alike
+  (both off/on by Hollywood default respectively).
+- **Cloud export (manual backup)** — save any production as an `.osd`
+  package to your own Google Drive from the project dashboard (Google button
+  next to Storage, one-click sign-in, same-name refresh in place). One-way
+  backup, not sync; Drive file scope only.
+- **Visible version + support** — tiny `v1.0.1` stamp under the product name,
+  full-size sponsor buttons in the toolbar, version/support footer on the
+  dashboard, GitHub Sponsor button via `FUNDING.yml`.
+- **Release automation** — pushing a `v*` tag publishes a GitHub Release with
+  the changelog section and the built app attached.
+
+### Changed
+
+- Fountain and PDF export buttons sit side by side in the Script tab.
+- Dependency updates via Dependabot (#8: GitHub Actions v7/v5; #11: React
+  19.3, Vite 8.3, Vitest 5, TypeScript 5.9 and more; #12: patch round).
+- Byte-array downloads funnel through a `bytesToBlob` helper, keeping the
+  build forward-compatible with newer `@types/node` (no behaviour change).
+
 ## [1.0.0] — 2026-09-26
 
 First public open-source release. A free, local-first production planning

@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Camera,
   Clapperboard,
+  Cloud,
   Coffee,
   Copy,
   Download,
@@ -11,14 +12,39 @@ import {
   Heart,
   History,
   Layers,
-  Package,
   Pencil,
   Plus,
+  Save,
+  Server,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { APP_VERSION, SPONSOR_LINKS } from '../../config/version';
+import { GOOGLE_DRIVE_CLIENT_ID_DEFAULT } from '../../config/cloud';
+import { usePersistentUiState } from '../../utils/usePersistentUiState';
+import { exportProjectPackageV2 } from '../../utils/projectPackageV2';
+import {
+  backupAgeText,
+  backupIsStale,
+  getLastBackupAt,
+  recordBackup,
+} from '../../utils/cloud/backupHistory';
+import {
+  isDriveUnauthorized,
+  requestDriveAccessToken,
+  revokeDriveAccessToken,
+  uploadProjectToDrive,
+} from '../../utils/cloud/googleDrive';
+import {
+  downloadWebdavPackage,
+  isWebdavUnauthorized,
+  listWebdavPackages,
+  uploadWebdavPackage,
+  type WebdavConfig,
+  type WebdavFile,
+} from '../../utils/cloud/webdav';
 import { listUnreadableProjects, readProject } from '../../utils/projectLibrary';
 import {
   MODULE_PICKER_GROUPS,
@@ -49,6 +75,18 @@ import {
 } from '../../utils/assetStorageInspection';
 
 const triggerDownload = (blob: Blob, filename: string) => downloadBlob(blob, filename);
+
+/** localStorage key for the optionally remembered WebDAV password. */
+const NC_PASSWORD_KEY = 'openshotdesigner_ui_cloud.webdav.password';
+
+/** Human host for "Connected to …" (never the full credential path). */
+const hostOf = (baseUrl: string): string => {
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return baseUrl;
+  }
+};
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -114,13 +152,54 @@ export const ProjectDashboard: React.FC = () => {
   /** Revision id awaiting restore confirmation. */
   const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
   const [storageOpen, setStorageOpen] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
   const [storageInspection, setStorageInspection] = useState<AssetStorageInspection | null>(null);
   const [storageBusy, setStorageBusy] = useState(false);
   const [confirmStorageCleanup, setConfirmStorageCleanup] = useState(false);
+  // Google Drive backup: the Client ID is a per-viewer preference (local,
+  // never project data); the access token lives in memory only and dies
+  // with the tab. No project state, no context growth.
+  const [driveClientId, setDriveClientId] = usePersistentUiState('cloud.drive.clientId', '');
+  const [driveToken, setDriveToken] = useState<string | null>(null);
+  const [driveConnecting, setDriveConnecting] = useState(false);
+  /** Project id currently uploading, or 'connect' while signing in. */
+  const [driveBusyId, setDriveBusyId] = useState<string | null>(null);
+  /** Last backup clock for the stale-backup reminder; refreshed on open and after every local backup. */
+  const [backupAt, setBackupAt] = useState<string | null>(() => getLastBackupAt());
+  const refreshBackupAge = () => setBackupAt(getLastBackupAt());
+  useEffect(() => {
+    if (isDashboardOpen) refreshBackupAge();
+  }, [isDashboardOpen]);
+  const [cloudTab, setCloudTab] = useState<'drive' | 'nextcloud'>('drive');
+  // Nextcloud/WebDAV session: server and user are viewer preferences, the
+  // password persists only on request, the live session is memory-only.
+  const [ncUrl, setNcUrl] = usePersistentUiState('cloud.webdav.url', '');
+  const [ncUser, setNcUser] = usePersistentUiState('cloud.webdav.username', '');
+  const [ncRemember, setNcRemember] = usePersistentUiState('cloud.webdav.remember', false);
+  const [ncPassword, setNcPassword] = useState<string>(() => {
+    try {
+      return localStorage.getItem('openshotdesigner_ui_cloud.webdav.remember') === 'true'
+        ? (localStorage.getItem(NC_PASSWORD_KEY) ?? '')
+        : '';
+    } catch {
+      return '';
+    }
+  });
+  const [nextcloud, setNextcloud] = useState<WebdavConfig | null>(null);
+  const [ncFiles, setNcFiles] = useState<WebdavFile[]>([]);
+  const [ncBusy, setNcBusy] = useState(false);
+  const [ncBusyFile, setNcBusyFile] = useState<string | null>(null);
+  /** Project card whose save menu is open; the format resets to .osd every time it opens. */
+  const [saveMenuId, setSaveMenuId] = useState<string | null>(null);
+  const [saveFormat, setSaveFormat] = useState<'osd' | 'json'>('osd');
+  /** The owner's built-in ID wins unless a self-hoster typed their own. */
+  const hasBuiltInClientId = GOOGLE_DRIVE_CLIENT_ID_DEFAULT.trim() !== '';
+  const effectiveDriveClientId = driveClientId.trim() || GOOGLE_DRIVE_CLIENT_ID_DEFAULT.trim();
   // The revisions list is the one true modal on this screen — it dims the
   // dashboard behind it — so keyboard focus has to stay inside it while open.
   const revisionsDialogRef = useDialogFocusTrap(revisionsProjectId !== null);
   const storageDialogRef = useDialogFocusTrap(storageOpen);
+  const driveDialogRef = useDialogFocusTrap(driveOpen);
 
   if (!isDashboardOpen) return null;
 
@@ -200,6 +279,8 @@ export const ProjectDashboard: React.FC = () => {
     if (!project) return;
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
     triggerDownload(blob, `${safeFileName(project.title, 'project').toLowerCase()}_openshotdesigner.json`);
+    recordBackup();
+    refreshBackupAge();
   };
 
   /** Full portable package: project + referenced assets (plan §5.2.2). */
@@ -207,7 +288,10 @@ export const ProjectDashboard: React.FC = () => {
     const project = readProject(id);
     if (!project) return;
     // Library exports must not steal Ctrl+S's binding from the open workspace.
-    void saveNativeProjectFile(project, { saveAs: true, bindHandle: false }).catch((error) => {
+    // saveNativeProjectFile stamps the backup clock itself on success.
+    void saveNativeProjectFile(project, { saveAs: true, bindHandle: false })
+      .then(() => refreshBackupAge())
+      .catch((error) => {
       if ((error as Error)?.name !== 'AbortError') {
         void notice({
           title: 'Project save failed',
@@ -217,8 +301,165 @@ export const ProjectDashboard: React.FC = () => {
     });
   };
 
-  const revisionsProject = revisionsProjectId ? readProject(revisionsProjectId) : null;
-  const revisionsList = revisionsProject?.revisions || [];
+  const connectDrive = async () => {
+    setDriveConnecting(true);
+    try {
+      setDriveToken(await requestDriveAccessToken(effectiveDriveClientId));
+    } catch (error) {
+      await notice({
+        title: 'Google Drive',
+        message: error instanceof Error ? error.message : 'Sign-in failed.',
+      });
+    } finally {
+      setDriveConnecting(false);
+    }
+  };
+
+  const disconnectDrive = () => {
+    if (driveToken) void revokeDriveAccessToken(driveToken);
+    setDriveToken(null);
+  };
+
+  /** One-way backup of a project package to the user's Drive. */
+  const uploadProjectToDriveHandler = async (id: string) => {
+    if (!driveToken) {
+      await notice({ title: 'Google Drive', message: 'Open the Cloud button above first to connect.' });
+      return;
+    }
+    const stored = readProject(id);
+    if (!stored) return;
+    setDriveBusyId(id);
+    try {
+      const packageBlob = await exportProjectPackageV2(stored);
+      const fileName = `${safeFileName(stored.title, 'project').toLowerCase()}.osd`;
+      const attempt = (token: string) => uploadProjectToDrive({ accessToken: token, fileName, packageBlob });
+      try {
+        const ref = await attempt(driveToken);
+        recordBackup();
+        refreshBackupAge();
+        await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
+      } catch (error) {
+        // One silent retry: the hour-long token may have expired between visits.
+        if (!isDriveUnauthorized(error)) throw error;
+        const fresh = await requestDriveAccessToken(effectiveDriveClientId, { silent: true });
+        setDriveToken(fresh);
+        const ref = await attempt(fresh);
+        recordBackup();
+        refreshBackupAge();
+        await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
+      }
+    } catch (error) {
+      if (isDriveUnauthorized(error)) setDriveToken(null);
+      await notice({
+        title: 'Google Drive upload failed',
+        message: error instanceof Error ? error.message : 'The upload could not be completed.',
+      });
+    } finally {
+      setDriveBusyId(null);
+    }
+  };
+
+  const refreshNcFileList = async (config: WebdavConfig = {
+    baseUrl: ncUrl,
+    username: ncUser,
+    password: ncPassword,
+  }): Promise<void> => {
+    setNcBusy(true);
+    try {
+      setNcFiles(await listWebdavPackages(config));
+    } catch (error) {
+      await notice({
+        title: 'Nextcloud',
+        message: error instanceof Error ? error.message : 'The file list could not be loaded.',
+      });
+    } finally {
+      setNcBusy(false);
+    }
+  };
+
+  const connectNextcloud = async () => {
+    setNcBusy(true);
+    try {
+      const config: WebdavConfig = { baseUrl: ncUrl, username: ncUser, password: ncPassword };
+      const files = await listWebdavPackages(config);
+      setNextcloud(config);
+      setNcFiles(files);
+      try {
+        if (ncRemember) localStorage.setItem(NC_PASSWORD_KEY, ncPassword);
+        else localStorage.removeItem(NC_PASSWORD_KEY);
+      } catch {
+        // Convenience only — the session works without it.
+      }
+    } catch (error) {
+      await notice({
+        title: 'Nextcloud',
+        message: error instanceof Error ? error.message : 'Sign-in failed.',
+      });
+    } finally {
+      setNcBusy(false);
+    }
+  };
+
+  const disconnectNextcloud = () => {
+    setNextcloud(null);
+    setNcFiles([]);
+    if (!ncRemember) setNcPassword('');
+  };
+
+  /** One-way backup of a project package to the connected WebDAV server. */
+  const uploadProjectToNextcloud = async (id: string) => {
+    if (!nextcloud) {
+      await notice({ title: 'Nextcloud', message: 'Open the Cloud button above and connect Nextcloud first.' });
+      return;
+    }
+    const stored = readProject(id);
+    if (!stored) return;
+    setDriveBusyId(id);
+    try {
+      const packageBlob = await exportProjectPackageV2(stored);
+      const fileName = `${safeFileName(stored.title, 'project').toLowerCase()}.osd`;
+      await uploadWebdavPackage(nextcloud, fileName, packageBlob);
+      recordBackup();
+      refreshBackupAge();
+      await refreshNcFileList(nextcloud);
+      await notice({ title: 'Saved to Nextcloud', message: `${fileName} is now in the OpenShotDesigner folder.` });
+    } catch (error) {
+      if (isWebdavUnauthorized(error)) setNextcloud(null);
+      await notice({
+        title: 'Nextcloud upload failed',
+        message: error instanceof Error ? error.message : 'The upload could not be completed.',
+      });
+    } finally {
+      setDriveBusyId(null);
+    }
+  };
+
+  /** Restore a server backup into this browser, through the file-import path. */
+  const importWebdavFile = async (file: WebdavFile) => {
+    if (!nextcloud) return;
+    setNcBusyFile(file.name);
+    try {
+      const blob = await downloadWebdavPackage(nextcloud, file.name);
+      await commitParsedFile(await parseProjectFileBytes(await blob.arrayBuffer()));
+      await notice({ title: 'Imported from Nextcloud', message: `${file.name} is now a project in this browser.` });
+    } catch (error) {
+      await notice({
+        title: 'Import failed',
+        message: error instanceof Error ? error.message : 'unknown error',
+      });
+    } finally {
+      setNcBusyFile(null);
+    }
+  };
+
+  /** Save menu choice: .osd is the default, JSON takes an explicit switch. */
+  const runSaveMenu = (id: string) => {
+    if (saveFormat === 'json') downloadProject(id);
+    else downloadProjectPackage(id);
+    setSaveMenuId(null);
+  };
+
+  const revisionsProject = revisionsProjectId ? readProject(revisionsProjectId) : null;  const revisionsList = revisionsProject?.revisions || [];
 
   const handleRestore = (revisionId: string) => {
     if (!revisionsProjectId) return;
@@ -286,6 +527,15 @@ export const ProjectDashboard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDriveOpen(true)}
+              title={(driveToken || nextcloud) ? 'Cloud backup: connected — manage backups' : 'Cloud backup: sign in and save .osd packages'}
+              aria-label="Cloud backup"
+              className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
+            >
+              <Cloud className={`w-4 h-4 ${driveToken || nextcloud ? 'text-emerald-500' : 'text-sky-500'}`} /> Cloud
+              {(driveToken || nextcloud) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />}
+            </button>
             <button
               onClick={openStorage}
               title="Inspect browser media storage"
@@ -456,6 +706,8 @@ export const ProjectDashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Cloud export lives behind the Google button in the header now. */}
+
         {/* Projects that exist but could not be migrated. Previously these were
             indistinguishable from "not found", so a production simply appeared
             to have vanished. The stored data is untouched; say so plainly. */}
@@ -493,6 +745,19 @@ export const ProjectDashboard: React.FC = () => {
         )}
 
         {/* Saved projects */}
+        {projects.length > 0 && backupIsStale(backupAt) && (
+          <div
+            className={`mb-4 rounded-2xl border p-3.5 flex items-center gap-2.5 ${
+              isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/40 text-amber-100'
+            }`}
+          >
+            <History className="w-4 h-4 flex-shrink-0" />
+            <p className="text-xs">
+              <strong>Last backup {backupAgeText(backupAt)}.</strong> Your productions live in this browser
+              only — back them up with a project's package, file or cloud buttons below, or the Cloud button on top.
+            </p>
+          </div>
+        )}
         <h2 className="text-xs font-bold uppercase tracking-wide mb-2 opacity-70">
           Saved projects {projects.length > 0 && `(${projects.length})`}
         </h2>
@@ -514,7 +779,7 @@ export const ProjectDashboard: React.FC = () => {
               return (
                 <div
                   key={entry.id}
-                  className={`border rounded-2xl p-3.5 flex flex-col gap-2.5 shadow-sm transition-colors ${panel} ${
+                  className={`relative border rounded-2xl p-3.5 flex flex-col gap-2.5 shadow-sm transition-colors ${panel} ${
                     isActive ? 'ring-2 ring-sky-500/60' : ''
                   }`}
                 >
@@ -590,16 +855,91 @@ export const ProjectDashboard: React.FC = () => {
                     <button onClick={() => duplicateProject(entry.id)} title="Duplicate" aria-label="Duplicate" className={ghostButton}>
                       <Copy className="w-3 h-3" />
                     </button>
-                    <button onClick={() => downloadProject(entry.id)} title="Download project file" aria-label="Download project file" className={ghostButton}>
-                      <Download className="w-3 h-3" />
+                    <div className="relative">
+                      <button
+                        onClick={() => {
+                          setSaveFormat('osd');
+                          setSaveMenuId(saveMenuId === entry.id ? null : entry.id);
+                        }}
+                        title="Save project file (.osd recommended)"
+                        aria-label="Save project file"
+                        aria-expanded={saveMenuId === entry.id}
+                        className={ghostButton}
+                      >
+                        <Save className="w-3 h-3" />
+                      </button>
+                      {saveMenuId === entry.id && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setSaveMenuId(null)} />
+                          <div
+                            role="dialog"
+                            aria-label="Save project file format"
+                            className={`absolute left-0 top-full mt-1.5 w-60 border rounded-xl shadow-2xl p-2.5 z-50 space-y-1 ${
+                              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+                            }`}
+                          >
+                            <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                              <input
+                                type="radio"
+                                name={`save-format-${entry.id}`}
+                                checked={saveFormat === 'osd'}
+                                onChange={() => setSaveFormat('osd')}
+                                className="accent-sky-600 mt-0.5"
+                              />
+                              <span>
+                                <strong>.osd package</strong>
+                                <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                  Project + all images. The backup to take.
+                                </span>
+                              </span>
+                            </label>
+                            <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                              <input
+                                type="radio"
+                                name={`save-format-${entry.id}`}
+                                checked={saveFormat === 'json'}
+                                onChange={() => setSaveFormat('json')}
+                                className="accent-sky-600 mt-0.5"
+                              />
+                              <span>
+                                <strong>JSON</strong>
+                                <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                  Project only, no media. For experts and version control.
+                                </span>
+                              </span>
+                            </label>
+                            <div className="flex gap-1.5 pt-1">
+                              <button
+                                onClick={() => runSaveMenu(entry.id)}
+                                className="flex-1 px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold"
+                              >
+                                Save
+                              </button>
+                              <button onClick={() => setSaveMenuId(null)} className={ghostButton}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => void uploadProjectToDriveHandler(entry.id)}
+                      disabled={!driveToken || driveBusyId !== null}
+                      title={driveToken ? 'Save .osd project to Google Drive' : 'Connect Google Drive in the cloud dialog first'}
+                      aria-label="Save .osd project to Google Drive"
+                      className={`${ghostButton} disabled:opacity-40`}
+                    >
+                      <Upload className="w-3 h-3" />{driveBusyId === entry.id ? '…' : ''}
                     </button>
                     <button
-                      onClick={() => downloadProjectPackage(entry.id)}
-                      title="Save .osd project (including attached media)"
-                      aria-label="Save .osd project (including attached media)"
-                      className={ghostButton}
+                      onClick={() => void uploadProjectToNextcloud(entry.id)}
+                      disabled={!nextcloud || driveBusyId !== null}
+                      title={nextcloud ? 'Save .osd project to Nextcloud' : 'Connect Nextcloud in the cloud dialog first'}
+                      aria-label="Save .osd project to Nextcloud"
+                      className={`${ghostButton} disabled:opacity-40`}
                     >
-                      <Package className="w-3 h-3" />
+                      <Server className="w-3 h-3" />{driveBusyId === entry.id ? '…' : ''}
                     </button>
                     <button
                       onClick={() => {
@@ -676,6 +1016,255 @@ export const ProjectDashboard: React.FC = () => {
             <Coffee className="w-3 h-3" /> Buy me a coffee
           </a>
         </footer>
+
+        {/* Google Drive backup: manual one-way .osd export. Backup dialog,
+            not sync: nothing uploads itself. */}
+        {driveOpen && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div
+              className={`absolute inset-0 ${isLight ? 'bg-slate-950/40' : 'bg-black/60'}`}
+              onClick={() => setDriveOpen(false)}
+            />
+            <div
+              ref={driveDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="dashboard-drive-title"
+              tabIndex={-1}
+              className={`relative w-full max-w-lg border rounded-2xl shadow-2xl p-4 ${panel}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 id="dashboard-drive-title" className="text-sm font-bold flex items-center gap-1.5">
+                    <Cloud className="w-4 h-4 text-sky-500" /> Cloud backup
+                  </h3>
+                  <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Manual one-way .osd backups — Google Drive or your own Nextcloud/WebDAV server.
+                    Re-saving refreshes its file. Needs internet; everything else keeps working offline.
+                  </p>
+                  <div className="flex gap-1.5 mt-2.5" role="tablist" aria-label="Cloud provider">
+                    <button
+                      role="tab"
+                      aria-selected={cloudTab === 'drive'}
+                      onClick={() => setCloudTab('drive')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
+                        cloudTab === 'drive'
+                          ? 'bg-sky-600 text-white'
+                          : isLight ? 'border border-slate-300 text-slate-600 hover:bg-slate-100' : 'border border-slate-700 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <Cloud className="w-3.5 h-3.5" /> Google Drive
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={cloudTab === 'nextcloud'}
+                      onClick={() => setCloudTab('nextcloud')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
+                        cloudTab === 'nextcloud'
+                          ? 'bg-sky-600 text-white'
+                          : isLight ? 'border border-slate-300 text-slate-600 hover:bg-slate-100' : 'border border-slate-700 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <Server className="w-3.5 h-3.5" /> Nextcloud
+                    </button>
+                  </div>
+                </div>
+                <button onClick={() => setDriveOpen(false)} aria-label="Close cloud backup" className={ghostButton}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {cloudTab === 'drive' && (
+              <div className="mt-4">
+                {driveToken ? (
+                  <button onClick={disconnectDrive} className={`${ghostButton} justify-center py-2 w-fit`} title="Sign out of Google Drive on this browser">
+                    <Cloud className="w-3.5 h-3.5" /> Connected — disconnect
+                  </button>
+                ) : hasBuiltInClientId ? (
+                  <button
+                    onClick={() => void connectDrive()}
+                    disabled={driveConnecting}
+                    className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5 w-fit"
+                    title="Sign in with Google"
+                  >
+                    <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect with Google'}
+                  </button>
+                ) : (
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                    <input
+                      value={driveClientId}
+                      onChange={(event) => setDriveClientId(event.target.value.trim())}
+                      placeholder="Google OAuth Client ID (see setup steps)"
+                      aria-label="Google OAuth Client ID"
+                      className={`${field} sm:flex-1 font-mono text-xs`}
+                    />
+                    <button
+                      onClick={() => void connectDrive()}
+                      disabled={driveConnecting || effectiveDriveClientId === ''}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                      title={effectiveDriveClientId === '' ? 'Enter your OAuth Client ID first' : 'Sign in with Google'}
+                    >
+                      <Cloud className="w-4 h-4" /> {driveConnecting ? 'Connecting…' : 'Connect'}
+                    </button>
+                  </div>
+                )}
+
+              <details className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                <summary className="cursor-pointer font-semibold hover:underline w-fit">
+                  {hasBuiltInClientId ? 'Self-hosting? Use your own Client ID' : 'One-time setup: get your own Client ID'}
+                </summary>
+                {hasBuiltInClientId ? (
+                  <div className="mt-1.5 space-y-2">
+                    <p>This copy comes with sign-in ready. Only if you host the app yourself (own domain),
+                      register your own OAuth Client ID — origins are bound to it — and paste it here:</p>
+                    <input
+                      value={driveClientId}
+                      onChange={(event) => setDriveClientId(event.target.value.trim())}
+                      placeholder="Your own Google OAuth Client ID (overrides the built-in one)"
+                      aria-label="Own Google OAuth Client ID"
+                      className={`${field} font-mono text-xs`}
+                    />
+                  </div>
+                ) : (
+                  <ol className="mt-1.5 ml-4 list-decimal space-y-1">
+                    <li>Open the Google Cloud Console → APIs &amp; Services → Credentials.</li>
+                    <li>Create Credentials → OAuth client ID → application type “Web application”.</li>
+                    <li>Under Authorized JavaScript origins add this site's address (and http://localhost:3000 for local use).</li>
+                    <li>Enable the Google Drive API under APIs &amp; Services → Library.</li>
+                    <li>Paste the Client ID above and press Connect. The app only ever asks for access to files it created itself.</li>
+                  </ol>
+                )}
+              </details>
+
+              <p className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Connected? Close this window and press the upload button on any production below.
+              </p>
+              </div>
+              )}
+
+              {cloudTab === 'nextcloud' && (
+              <div className="mt-4">
+                {nextcloud ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-[11px] font-semibold flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
+                      <Server className="w-3.5 h-3.5 text-emerald-500" /> Connected to {hostOf(nextcloud.baseUrl)}
+                    </span>
+                    <button onClick={() => void refreshNcFileList()} disabled={ncBusy} className={ghostButton}>
+                      {ncBusy ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                    <button onClick={disconnectNextcloud} className={ghostButton} title="Forget this server on this browser">
+                      Disconnect
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      value={ncUrl}
+                      onChange={(event) => setNcUrl(event.target.value.trim())}
+                      placeholder="Server address, e.g. https://cloud.example.com/remote.php/dav/files/alex"
+                      aria-label="Nextcloud server address"
+                      className={`${field} font-mono text-xs`}
+                    />
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        value={ncUser}
+                        onChange={(event) => setNcUser(event.target.value)}
+                        placeholder="User name"
+                        aria-label="Nextcloud user name"
+                        autoComplete="username"
+                        className={`${field} sm:flex-1 text-xs`}
+                      />
+                      <input
+                        type="password"
+                        value={ncPassword}
+                        onChange={(event) => setNcPassword(event.target.value)}
+                        placeholder="Password or app password"
+                        aria-label="Nextcloud password or app password"
+                        autoComplete="current-password"
+                        className={`${field} sm:flex-1 font-mono text-xs`}
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => void connectNextcloud()}
+                        disabled={ncBusy || ncUrl.trim() === '' || ncUser === '' || ncPassword === ''}
+                        className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                        title="Connect to Nextcloud"
+                      >
+                        <Server className="w-4 h-4" /> {ncBusy ? 'Connecting…' : 'Connect'}
+                      </button>
+                      <label className={`flex items-center gap-1.5 text-[11px] cursor-pointer ${isLight ? 'text-slate-500' : 'text-slate-400'}`} title="Keep the password in this browser for next time">
+                        <input
+                          type="checkbox"
+                          checked={ncRemember}
+                          onChange={(event) => setNcRemember(event.target.checked)}
+                          className="accent-sky-600"
+                        />
+                        Remember password
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {nextcloud && (
+                  <div className="mt-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wide opacity-60 mb-1.5">
+                      Backups on this server {ncFiles.length > 0 && `(${ncFiles.length})`}
+                    </div>
+                    {ncFiles.length === 0 ? (
+                      <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        Nothing here yet — press the server button on a production below to save its first backup.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                        {ncFiles.map((file) => (
+                          <li
+                            key={file.href}
+                            className={`border rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${
+                              isLight ? 'border-slate-200' : 'border-slate-800'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold truncate">{file.name}</div>
+                              {file.size !== undefined && (
+                                <div className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                                  {formatBytes(file.size)}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => void importWebdavFile(file)}
+                              disabled={ncBusyFile !== null}
+                              title={`Import ${file.name} as a project in this browser`}
+                              className={`${ghostButton} flex-shrink-0 disabled:opacity-40`}
+                            >
+                              <Download className="w-3 h-3" /> {ncBusyFile === file.name ? 'Importing…' : 'Import'}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                <details className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <summary className="cursor-pointer font-semibold hover:underline w-fit">
+                    Where is the address? Use an app password
+                  </summary>
+                  <div className="mt-1.5 space-y-1">
+                    <p>Nextcloud: Files app → Settings → “Copy WebDAV address” (ends in <span className="font-mono">/dav/files/&lt;you&gt;</span>). Then Personal settings → Security → Devices &amp; sessions → Create an app password — your main password stays out of this browser.</p>
+                    <p>Plain WebDAV shares work too: anything answering PROPFIND/PUT/GET with Basic auth.</p>
+                  </div>
+                </details>
+
+                <p className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  To save: close this window and press the server button on any production below. To restore: press Import beside a backup.
+                </p>
+              </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {storageOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">

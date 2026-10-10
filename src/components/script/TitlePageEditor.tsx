@@ -16,6 +16,10 @@ interface TitlePageEditorProps {
  * off until someone asks for it, because stamping a script that is going to a
  * financier is the expensive mistake here.
  */
+
+/** Today's date in the same words the static placeholder used to show — a suggestion only, never written. */
+const todayPlaceholder = (): string =>
+  new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 export const TitlePageEditor: React.FC<TitlePageEditorProps> = ({ isLight }) => {
   const { project, setTitlePage } = useFloorPlan();
   const page = project.titlePage ?? {};
@@ -90,7 +94,7 @@ export const TitlePageEditor: React.FC<TitlePageEditorProps> = ({ isLight }) => 
         {field('source', 'Source', 'Based on the novel by…')}
         <div className="grid grid-cols-2 gap-2">
           {field('draftLabel', 'Draft', 'First Draft')}
-          {field('date', 'Date', '23 August 2026')}
+          {field('date', 'Date', todayPlaceholder())}
         </div>
         {field('contact', 'Contact', 'Agency, address, phone', 3)}
         {field('copyright', 'Copyright', '© 2026 Lantern Pictures')}

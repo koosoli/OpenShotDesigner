@@ -7,7 +7,7 @@ import { BREAKDOWN_CATEGORIES, breakdownCategoryTint, scenesForBreakdownItem } f
 import type { BreakdownCategory, Character, ScriptScene } from '../../domain/script';
 import { deriveElementReport, formatPageEighths } from '../../domain/reports';
 import type { ScriptLine } from '../../types';
-import { downloadBlob, downloadCsv, safeFileName } from '../../utils/download';
+import { bytesToBlob, downloadBlob, downloadCsv, safeFileName } from '../../utils/download';
 import { PdfExportButton } from '../common/PdfExportButton';
 
 interface PropsReportProps {
@@ -82,7 +82,7 @@ export const PropsReport: React.FC<PropsReportProps> = ({ lines, scenes, charact
       printPdfBytes(bytes);
       return;
     }
-    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: project.title, document: `${category}-report` }));
+    downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({ production: project.title, document: `${category}-report` }));
   };
 
 

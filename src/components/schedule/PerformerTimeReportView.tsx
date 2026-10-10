@@ -17,7 +17,7 @@ import type { ExhibitGLimits, ExhibitGStatus, PerformerTimeEntry, PerformerTimeR
 import type { ProductionDay } from '../../domain/scheduling';
 import { createId } from '../../domain/ids';
 import { updatePerformerTimeReportCommand } from '../../domain/commands';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 import { PdfExportButton } from '../common/PdfExportButton';
 
 interface PerformerTimeReportViewProps {
@@ -179,7 +179,7 @@ export const PerformerTimeReportView: React.FC<PerformerTimeReportViewProps> = (
       printPdfBytes(bytes);
       return;
     }
-    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: project.title, document: 'exhibit-g', qualifier: day.name, ...(day.date ? { date: day.date } : {}) }));
+    downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({ production: project.title, document: 'exhibit-g', qualifier: day.name, ...(day.date ? { date: day.date } : {}) }));
   };
 
 

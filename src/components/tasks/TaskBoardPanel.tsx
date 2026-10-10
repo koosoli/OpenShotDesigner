@@ -42,7 +42,7 @@ import {
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
 import { buildTaskReportPdfFilename, createTaskReportPdf, taskReportRowsFromTasks } from '../../utils/pdf';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 
 const PRIORITY_DOT: Record<TaskPriority, string> = {
   low: 'bg-slate-400',
@@ -240,7 +240,7 @@ export const TaskBoardPanel: React.FC = () => {
       tasks: taskReportRowsFromTasks(visibleTasks, [board], assigneeNames, today),
     });
     downloadBlob(
-      new Blob([bytes], { type: 'application/pdf' }),
+      bytesToBlob(bytes, 'application/pdf'),
       buildTaskReportPdfFilename({ productionTitle: project.title, qualifier: board.title }),
     );
   };

@@ -4,7 +4,7 @@ import type { BudgetSummary } from '../../domain/budget';
 import { formatMoney } from '../../domain/budget';
 import { deriveTopSheet } from '../../domain/budget/topSheet';
 import type { TopSheetRow } from '../../domain/budget/topSheet';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 import { PdfExportButton } from '../common/PdfExportButton';
 
 interface TopSheetViewProps {
@@ -64,7 +64,7 @@ export const TopSheetView: React.FC<TopSheetViewProps> = ({ productionTitle, sum
       ],
       footnote: 'Estimates are net of VAT. Variance = estimate − actual; positive is under budget.',
     });
-    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: productionTitle, document: 'budget-top-sheet' }));
+    downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({ production: productionTitle, document: 'budget-top-sheet' }));
   };
 
   const head = 'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-muted';

@@ -442,4 +442,127 @@ describe('lined screenplay PDF', () => {
       'my-film_screenplay.pdf',
     );
   });
+
+  it('sets the body in Courier on US Letter', async () => {
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      lines: makeLinedLines(1),
+      generatedAt: FIXED_DATE,
+    });
+    // Standard-14 fonts are referenced, not embedded: the font name sits in
+    // the page resources. The shell chrome (title block, footer) keeps the
+    // app's Helvetica paperwork identity; the screenplay body is Courier.
+    const raw = bytesToBinary(pdf);
+    expect(raw).toContain('/Courier');
+    const reloaded = await PDFDocument.load(pdf);
+    const page = reloaded.getPage(0);
+    expect(page.getWidth()).toBeCloseTo(612, 0);
+    expect(page.getHeight()).toBeCloseTo(792, 0);
+  });
+
+  it('prints the enabled title page first, on its own page', async () => {
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      scriptTitle: 'Fallback Title',
+      titlePage: { enabled: true, title: 'My Epic', authors: 'Jane Doe', contact: 'jane@example.com' },
+      lines: makeLinedLines(1),
+      generatedAt: FIXED_DATE,
+    });
+    const reloaded = await PDFDocument.load(pdf);
+    expect(reloaded.getPageCount()).toBe(2);
+    const combined = inflateContentStreams(pdf).join('\n');
+    const titleAt = combined.indexOf(pdfHexToken('MY EPIC'));
+    const slugAt = combined.indexOf(pdfHexToken('INT. LINED PLACE 0 - NIGHT'));
+    expect(titleAt).toBeGreaterThanOrEqual(0);
+    expect(slugAt).toBeGreaterThanOrEqual(0);
+    expect(titleAt).toBeLessThan(slugAt);
+    expect(combined).toContain(pdfHexToken('Jane Doe'));
+  });
+
+  it('lets the cover replace the paperwork title block', async () => {
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      titlePage: { enabled: true, title: 'Cover Title', authors: 'Jane Doe' },
+      lines: makeLinedLines(1),
+      generatedAt: FIXED_DATE,
+    });
+    const combined = inflateContentStreams(pdf).join('\n');
+    // The cover carries the production; the "My Film / Screenplay" block
+    // underneath would demote it to a preface.
+    expect(combined).not.toContain(pdfHexToken('My Film'));
+    expect(combined).not.toContain(pdfHexToken('Screenplay'));
+    expect(combined).toContain(pdfHexToken('COVER TITLE'));
+  });
+
+  it('keeps the title block when no cover prints', async () => {    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      lines: makeLinedLines(1),
+      generatedAt: FIXED_DATE,
+    });
+    const combined = inflateContentStreams(pdf).join('\n');
+    expect(combined).toContain(pdfHexToken('My Film'));
+    expect(combined).toContain(pdfHexToken('Screenplay'));
+  });
+
+  it('prints no cover without opt-in or without content', async () => {
+    const lines = makeLinedLines(1);
+    const withoutOptIn = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      scriptTitle: 'Fallback Title',
+      lines,
+      generatedAt: FIXED_DATE,
+    });
+    expect((await PDFDocument.load(withoutOptIn)).getPageCount()).toBe(1);
+    // Enabled but empty: rule 13 — never invent a cover, never a blank page.
+    const emptyCover = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      titlePage: { enabled: true },
+      lines,
+      generatedAt: FIXED_DATE,
+    });
+    expect((await PDFDocument.load(emptyCover)).getPageCount()).toBe(1);
+  });
+
+  it('hides marginal scene numbers only when asked', async () => {
+    const lines: LinedScriptPdfLine[] = [
+      { type: 'scene', text: 'INT. NUMBERED PLACE - NIGHT', sceneNumber: '12' },
+      { type: 'action', text: 'The city sleeps under neon.' },
+    ];
+    const base = { productionTitle: 'My Film', lines, generatedAt: FIXED_DATE };
+    const numbered = inflateContentStreams(await createLinedScriptPdf(base)).join('\n');
+    const bare = inflateContentStreams(
+      await createLinedScriptPdf({ ...base, showSceneNumbers: false }),
+    ).join('\n');
+    // '12' as its own draw call: the slug, action and footer never emit it alone.
+    const token = `<${pdfHexToken('12')}>`;
+    expect(numbered).toContain(token);
+    expect(bare).not.toContain(token);
+    // The slug itself still prints either way.
+    expect(bare).toContain(pdfHexToken('INT. NUMBERED PLACE - NIGHT'));
+  });
+
+  it('sets character cues in bold only when asked', async () => {
+    const base = { productionTitle: 'My Film', lines: makeLinedLines(1), generatedAt: FIXED_DATE };
+    const plain = inflateContentStreams(await createLinedScriptPdf(base)).join('\n');
+    const bold = inflateContentStreams(
+      await createLinedScriptPdf({ ...base, boldCharacters: true }),
+    ).join('\n');
+    // Which face each string is set in: the resource named by the last
+    // `/F… 12 Tf` before the token.
+    const faceFor = (stream: string, token: string): string | null => {
+      const at = stream.indexOf(token);
+      if (at === -1) return null;
+      const selectors = [...stream.slice(0, at).matchAll(/\/(\S+) 12 Tf/g)];
+      return selectors.length > 0 ? selectors[selectors.length - 1][1] : null;
+    };
+    const cue = pdfHexToken('JANE');
+    const action = pdfHexToken('The city sleeps under neon.');
+    const plainCue = faceFor(plain, cue);
+    const boldCue = faceFor(bold, cue);
+    expect(plainCue).not.toBeNull();
+    expect(boldCue).not.toBeNull();
+    // Only the cue changes face; the action beside it does not.
+    expect(boldCue).not.toBe(plainCue);
+    expect(faceFor(bold, action)).toBe(faceFor(plain, action));
+  });
 });

@@ -136,6 +136,10 @@ interface LinedScriptPageProps {
   print?: boolean;
   /** Display shot size badge (WS, CU, MCU...) inside shot bubbles (default true). */
   showShotSize?: boolean;
+  /** Set character cues in bold (export option, off by default). */
+  boldCharacters?: boolean;
+  /** Print scene numbers in both margins (on by default, like a numbered draft). */
+  showSceneNumbers?: boolean;
   selection?: ScriptSelectionRange | null;
   selectedShotId?: string | null;
   /**
@@ -177,6 +181,8 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
   isLight,
   print = false,
   showShotSize = true,
+  boldCharacters = false,
+  showSceneNumbers = true,
   selection = null,
   selectedShotId = null,
   breakdownItems = EMPTY_BREAKDOWN_ITEMS,
@@ -473,7 +479,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                   margins — that is how a shooting script is read, from either
                   side of the page. The right-hand one sits between the 60-column
                   text block and the lining lanes. */}
-              {line.isSceneHeading && line.sceneNumber && (
+              {line.isSceneHeading && line.sceneNumber && showSceneNumbers && (
                 <>
                   <span className="absolute font-bold opacity-70" style={{ left: '-2.6ch', fontSize: '0.85em' }}>
                     {line.sceneNumber}
@@ -485,7 +491,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
               )}
               <span
                 data-line-text
-                className={`whitespace-pre-wrap break-words ${layout.className} ${line.omitted ? 'opacity-60 tracking-widest' : ''}`}
+                className={`whitespace-pre-wrap break-words ${layout.className} ${type === 'character' && boldCharacters ? 'font-bold' : ''} ${line.omitted ? 'opacity-60 tracking-widest' : ''}`}
               >
                 {line.omitted ? omittedSceneLabel(line.sceneNumber) : line.text}
               </span>

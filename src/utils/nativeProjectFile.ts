@@ -7,6 +7,7 @@ import {
 } from './projectPackageV2';
 import { remapProjectAssetIds } from '../domain/media/projectAssetReferences';
 import { downloadBlob, safeFileName } from './download';
+import { recordBackup } from './cloud/backupHistory';
 
 interface WritableFileHandle {
   name?: string;
@@ -116,11 +117,13 @@ export const saveNativeProjectFile = async (
       lastNativeSaveAtByProjectId.set(project.id, new Date().toISOString());
       fileNamesByProjectId.set(project.id, handle.name ?? fileName);
     }
+    recordBackup();
     return 'native';
   }
   if (options.downloadFallback !== false) {
     downloadBlob(blob, fileName);
   }
+  recordBackup();
   return 'download';
 };
 

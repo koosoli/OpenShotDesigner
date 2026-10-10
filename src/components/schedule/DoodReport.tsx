@@ -22,7 +22,7 @@ import {
 import type { BreakdownCategory, Character, ScriptScene } from '../../domain/script';
 import type { ScriptLocationBreakdown } from '../../domain/script/logic';
 import type { ScriptLine } from '../../types';
-import { downloadBlob, downloadCsv, safeFileName } from '../../utils/download';
+import { bytesToBlob, downloadBlob, downloadCsv, safeFileName } from '../../utils/download';
 import { PdfExportButton } from '../common/PdfExportButton';
 
 /** Cell colours, shared by screen and legend. */
@@ -192,7 +192,7 @@ export const DoodReport: React.FC<DoodReportProps> = ({ lines, scenes, character
       })),
       footnote: 'SW start work - W work - WF work finish - SWF start/work/finish - H hold - WD work, drop - PW pick-up work - T travel - R rehearsal - F fitting - HO holiday. Derived from the schedule; T, R, F and HO can be entered by hand.',
     });
-    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: project.title, document: 'day-out-of-days', qualifier: mode }));
+    downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({ production: project.title, document: 'day-out-of-days', qualifier: mode }));
   };
 
   const usedCategories = new Set((project.breakdownItems ?? []).map((item) => item.category));

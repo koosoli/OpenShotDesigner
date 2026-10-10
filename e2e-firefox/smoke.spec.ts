@@ -37,7 +37,11 @@ test('project JSON download works without native file handles', async ({ page })
     Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true });
   });
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save & Download Project JSON' }).click();
+  await page.getByRole('button', { name: 'Save project file' }).click();
+  // JSON takes an explicit switch; .osd is pre-selected.
+  const dialog = page.getByRole('dialog', { name: 'Save project file format' });
+  await dialog.getByLabel(/JSON/).check();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/\.json$/);
   expect(await download.path()).toBeTruthy();

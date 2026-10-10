@@ -30,7 +30,7 @@ import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
 import { buildPdfFilename, createLocationReportPdf } from '../../utils/pdf';
 import { resolvePdfRasterBytes } from '../../utils/pdf/imageBytes';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 import { removeLocationCommand, setLocationsCommand } from '../../domain/commands';
 import type { Location } from '../../domain/locations';
 import { parseSceneHeading } from '../../domain/script/logic';
@@ -278,7 +278,7 @@ export const LocationsPanel: React.FC = () => {
       })),
       scoutPages: await scoutPdfPages(),
     });
-    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: project.title, document: 'locations' }));
+    downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({ production: project.title, document: 'locations' }));
   };
 
   // --- Shared styles (LogisticsPanel/PowerPanel conventions) ---

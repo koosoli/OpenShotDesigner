@@ -20,7 +20,7 @@
  */
 import type { ExportSection } from '../../context/WorkspaceUIContext';
 import type { AVScriptRow, LightElement, Project, SceneSetup, ScriptLine, Shot } from '../../types';
-import { downloadBlob } from '../download';
+import { bytesToBlob, downloadBlob } from '../download';
 import { resolvePdfImageBytes, resolvePdfRasterBytes } from './imageBytes';
 import { currentRevisionColor } from '../../domain/script/revisionColors';
 import { pageLabels } from '../../domain/script/pageLock';
@@ -126,6 +126,10 @@ export interface SectionPdfContext {
   scriptLines: ScriptLine[];
   avScriptRows: AVScriptRow[];
   allShots: Shot[];
+  /** Set screenplay character cues in bold (export-studio option, off by default). */
+  boldScriptCharacters?: boolean;
+  /** Print scene numbers in screenplay margins (export-studio option, on by default). */
+  showSceneNumbers?: boolean;
   /** Sides selection from the studio; absent means the whole screenplay. */
   sidesSceneIds?: string[] | null;
   sidesCharacter?: string;
@@ -297,6 +301,12 @@ export const renderSectionPdf = async (
             return labels.starts.flatMap((start) => (indexOf.has(start.lineId) ? [{ lineIndex: indexOf.get(start.lineId)!, label: start.label }] : []));
           })(),
         } : {}),
+        // The print studio shows the cover when the production asked for
+        // one; the PDF carries the same cover on its own first page.
+        titlePage: project.titlePage,
+        scriptTitle: project.scriptTitle,
+        boldCharacters: ctx.boldScriptCharacters ?? false,
+        showSceneNumbers: ctx.showSceneNumbers ?? true,
         ...logo,
       });
       return renderedPdf(bytes, buildLinedScriptPdfFilename({ productionTitle: title }));
@@ -635,7 +645,7 @@ export const downloadSectionPdf = async (
   ctx: SectionPdfContext,
 ): Promise<string> => {
   const { bytes, filename } = await renderSectionPdf(section, ctx);
-  downloadBlob(new Blob([bytes], { type: 'application/pdf' }), filename);
+  downloadBlob(bytesToBlob(bytes, 'application/pdf'), filename);
   return filename;
 };
 
@@ -722,6 +732,6 @@ export const downloadProductionPackPdfZip = async (
   if (documents.length === 0) throw new Error('No production-pack PDFs could be created.');
   const filename = buildProductionPackZipFilename(productionTitleOf(ctx.project));
   const archive = zipPdfs(Object.fromEntries(documents.map((document) => [document.filename, document.bytes])));
-  downloadBlob(new Blob([archive], { type: 'application/zip' }), filename);
+  downloadBlob(bytesToBlob(archive, 'application/zip'), filename);
   return { filename, failures };
 };

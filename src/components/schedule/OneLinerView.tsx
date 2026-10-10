@@ -7,7 +7,7 @@ import type { BreakdownCategory } from '../../domain/script';
 import { deriveOneLiner, formatPageEighths } from '../../domain/reports';
 import type { OneLinerDay, OneLinerScene } from '../../domain/reports';
 import { STRIP_COLORS } from '../../domain/scheduling/stripboardPrint';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 import { PdfExportButton } from '../common/PdfExportButton';
 import { EmptyState } from '../common/EmptyState';
 import { StripboardIcon } from '../icons/ProductionIcons';
@@ -86,7 +86,7 @@ export const OneLinerView: React.FC<{ isLight: boolean }> = ({ isLight: _isLight
       printPdfBytes(bytes);
       return;
     }
-    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: project.title, document: withElements ? 'shooting-schedule' : 'one-liner' }));
+    downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({ production: project.title, document: withElements ? 'shooting-schedule' : 'one-liner' }));
   };
 
 

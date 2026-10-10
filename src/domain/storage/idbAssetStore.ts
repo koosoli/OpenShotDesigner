@@ -21,10 +21,10 @@ const toHex = (buffer: ArrayBuffer): string =>
 interface StoredAssetRecord {
   __assetBlob: true;
   type: string;
-  data: Uint8Array;
+  data: Uint8Array<ArrayBuffer>;
 }
 
-export const blobToBytes = async (blob: Blob): Promise<Uint8Array> => {
+export const blobToBytes = async (blob: Blob): Promise<Uint8Array<ArrayBuffer>> => {
   if (typeof blob.arrayBuffer === 'function') {
     return new Uint8Array(await blob.arrayBuffer());
   }
@@ -53,9 +53,15 @@ const coerceToBlob = (value: unknown): Blob | null => {
   if (record.__assetBlob && record.data) {
     return new Blob([record.data], { type: record.type || '' });
   }
-  // Legacy/foreign shapes: raw typed arrays or ArrayBuffers.
-  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) {
-    return new Blob([value as Uint8Array | ArrayBuffer]);
+  // Legacy/foreign shapes: raw typed arrays or ArrayBuffers. Views are copied
+  // into fresh bytes: since @types/node 26.6 a bare view types as
+  // `Uint8Array<ArrayBufferLike>`, which the DOM BlobPart type rejects, and a
+  // Blob over a shared backing store would leak neighbouring data.
+  if (value instanceof ArrayBuffer) {
+    return new Blob([value]);
+  }
+  if (ArrayBuffer.isView(value)) {
+    return new Blob([new Uint8Array(value.buffer as ArrayBuffer, value.byteOffset, value.byteLength)]);
   }
   return null;
 };

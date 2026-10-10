@@ -21,12 +21,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # A workflow_run deploys exactly the commit CI verified, even if a
           # newer push reaches main while this job is waiting for a runner.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Kept in sync with ci.yml: jsdom 30 -> undici 8 needs Node >= 22, and
           # a deploy that builds on a different major than CI verified is a
@@ -35,7 +35,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: GH_PAGES=true npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -47,4 +47,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

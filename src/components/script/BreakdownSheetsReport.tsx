@@ -8,7 +8,7 @@ import { deriveBreakdownSheets, formatPageEighths } from '../../domain/reports';
 import type { BreakdownSheet } from '../../domain/reports';
 import { STRIP_COLORS } from '../../domain/scheduling/stripboardPrint';
 import type { ScriptLine } from '../../types';
-import { downloadBlob } from '../../utils/download';
+import { bytesToBlob, downloadBlob } from '../../utils/download';
 import { PdfExportButton } from '../common/PdfExportButton';
 
 interface BreakdownSheetsReportProps {
@@ -73,7 +73,7 @@ export const BreakdownSheetsReport: React.FC<BreakdownSheetsReportProps> = ({ li
       printPdfBytes(bytes);
       return;
     }
-    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({
+    downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({
       production: project.title,
       document: 'breakdown-sheets',
       ...(only !== 'all' && shown[0] ? { qualifier: `scene-${shown[0].sceneNumber}` } : {}),

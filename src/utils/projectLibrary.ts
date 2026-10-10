@@ -35,6 +35,7 @@ import {
 } from '../domain/storage/idb';
 import type { ProjectSummary } from '../domain/storage/types';
 import { todayIso } from '../domain/scheduling';
+import { requestPersistentStorage } from './persistentStorage';
 
 /**
  * Project library: several productions live side by side in this browser.
@@ -384,6 +385,9 @@ let initPromise: Promise<void> | null = null;
 
 export const initProjectLibrary = async (): Promise<void> => {
   if (initPromise) return initPromise;
+  // Ask the browser not to evict this origin under storage pressure.
+  // Fire-and-forget: persistence is a request, and hydration must never wait on it.
+  void requestPersistentStorage();
   backendChosen = new Promise<void>((resolve) => {
     announceBackendChosen = resolve;
   });

@@ -21,6 +21,7 @@ import type { Project } from '../types';
 import { blobToBytes, createIdbAssetStore, sha256Hex } from '../domain/storage/idbAssetStore';
 import { ASSET_SHA_PREFIX, isSha256AssetRef } from '../domain/media/imageRef';
 import { collectProjectAssetIds } from '../domain/media/projectAssetReferences';
+import { bytesToBlob } from './download';
 
 export interface ProjectPackageV2Manifest {
   formatVersion: 2;
@@ -176,7 +177,7 @@ export const parseProjectPackageV2 = async (
       }
     }
     if (isSha256AssetRef(id)) {
-      const hash = await sha256Hex(new Blob([bytes]));
+      const hash = await sha256Hex(bytesToBlob(bytes, ''));
       if (!hash) throw new Error('This browser cannot verify package checksums.');
       if (id !== `${ASSET_SHA_PREFIX}${hash}`) {
         throw new Error(`Package media ${id} failed its content checksum.`);
@@ -196,7 +197,7 @@ export const parseProjectPackageV2 = async (
       // applies and is verified.
       const manifestHash = manifest.checksums[id];
       if (manifestHash) {
-        const hash = await sha256Hex(new Blob([bytes]));
+        const hash = await sha256Hex(bytesToBlob(bytes, ''));
         if (hash && hash !== manifestHash) {
           throw new Error(`Package manifest checksum failed for ${id}.`);
         }
@@ -226,9 +227,10 @@ export const importProjectPackageV2Assets = async (
   let written = 0;
   const remapped: Record<string, string> = {};
   for (const asset of assets) {
-    const blob = new Blob([asset.data], {
-      type: asset.metadata?.mimeType || 'application/octet-stream',
-    });
+    const blob = bytesToBlob(
+      asset.data,
+      asset.metadata?.mimeType || 'application/octet-stream',
+    );
     const ref = await assetStore.put(blob, { ...(asset.metadata || {}), mimeType: blob.type });
     if (ref.id !== asset.id) {
       if (isSha256AssetRef(asset.id)) {
