@@ -49,7 +49,7 @@ export const SetLocationLink: React.FC<SetLocationLinkProps> = ({ setName, isLig
 
   return (
     <label
-      className={`inline-flex items-center gap-1 rounded-md border ${tone} ${compact ? 'px-1 py-0 text-[9px]' : 'px-1.5 py-0.5 text-[10px]'} font-semibold max-w-full`}
+      className={`inline-flex items-center gap-1 rounded-md border ${tone} ${compact ? 'px-1 py-0 text-[10px]' : 'px-1.5 py-0.5 text-[10px]'} font-semibold max-w-full`}
       title={linked ? `Linked to ${linked.name}${linked.address ? ` — ${linked.address}` : ' (no address yet)'}` : 'Not linked to a project location: the call sheet has no address or map pin for it'}
     >
       <MapPin className="w-3 h-3 shrink-0" />

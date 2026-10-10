@@ -47,7 +47,9 @@ export {
 export {
   BLOCK_KIND_LABELS,
   MANUAL_TYPE_LABELS,
+  STRIP_COLORS,
   STRIP_PRINT_TONES,
+  stripColorKey,
   blockLabel,
   blockPrintTone,
   buildPrintableCoverageRows,
@@ -61,6 +63,7 @@ export type {
   PrintableStripboardItem,
   StripboardLabelContext,
   StripboardProjectLike,
+  StripColorKey,
 } from './stripboardPrint';
 export {
   formatClockMinutes,

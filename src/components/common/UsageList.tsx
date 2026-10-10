@@ -23,7 +23,7 @@ export const UsageList: React.FC<UsageListProps> = ({
   entries,
   onSelect,
   emptyText = 'Not used anywhere yet.',
-  isLight = false,
+  isLight: _isLight = false,
 }) => {
   const groups = useMemo(() => {
     const map = new Map<string, UsageEntry[]>();
@@ -35,7 +35,7 @@ export const UsageList: React.FC<UsageListProps> = ({
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [entries]);
 
-  const muted = isLight ? 'text-slate-500' : 'text-slate-400';
+  const muted = 'text-ink-muted';
 
   if (entries.length === 0) {
     return <p className={`text-[11px] italic ${muted}`}>{emptyText}</p>;
@@ -49,7 +49,7 @@ export const UsageList: React.FC<UsageListProps> = ({
       </p>
       {groups.map(([section, items]) => (
         <div key={section} className="space-y-0.5">
-          <p className={`text-[9px] font-black uppercase tracking-wider ${muted}`}>
+          <p className={`text-[10px] font-black uppercase tracking-wider ${muted}`}>
             {section} · {items.length}
           </p>
           <ul className="space-y-0.5">
@@ -60,7 +60,7 @@ export const UsageList: React.FC<UsageListProps> = ({
                 <li
                   key={key}
                   className={`text-[11px] rounded-md px-2 py-1 ${
-                    isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-800/60 text-slate-300'
+                    'bg-surface-muted text-ink-soft'
                   }`}
                 >
                   {onSelect ? (

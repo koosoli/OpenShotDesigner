@@ -800,6 +800,18 @@ export interface ScriptLine {
   /** Body lines parked when the scene was omitted; restored verbatim by "Restore". */
   omittedBody?: ScriptLine[];
   linkedShotId?: string;
+  /**
+   * Manual page length (eighths) on a scene heading. Absent = the estimate
+   * from `domain/script/pageCount.ts`. Lives on the heading line so it
+   * survives every re-derive of the scene list.
+   */
+  pageEighthsOverride?: number;
+  /**
+   * v34: revision colour index (see domain/script/revisionColors) of the draft
+   * that last changed this line; prints the margin asterisk while that colour
+   * is current. Absent = unchanged since the original draft.
+   */
+  revisedIn?: number;
 }
 
 /**
@@ -1119,6 +1131,25 @@ export interface Project {
   characters?: import('../domain/script').Character[];
   scriptScenes?: import('../domain/script').ScriptScene[];
   breakdownItems?: import('../domain/script').BreakdownItem[];
+  /**
+   * v34: hand-entered day-out-of-days cells (travel, fittings, holidays) — the
+   * parts of a DOOD a schedule cannot know. Everything else is derived.
+   */
+  doodOverrides?: import('../domain/reports').DoodOverride[];
+  /** v34: free calendar days before a performer is dropped instead of held. Default 10; 0 = never. */
+  doodDropAfterDays?: number;
+  /**
+   * v34: hand-set revision colour index of the working draft (0 = White,
+   * 1 = Blue …). Absent = one step per imported revision.
+   */
+  scriptRevisionColor?: number;
+  /**
+   * v34: locked page per script line id (domain/script/pageLock). Present =
+   * pages are locked: numbers stay put and new text goes onto A-pages.
+   */
+  scriptPageLock?: Record<string, number>;
+  /** v34: SAG-AFTRA Exhibit G performer time sheets, one per production day. */
+  performerTimeReports?: import('../domain/reports').PerformerTimeReport[];
   productionSegments?: import('../domain/shots').ProductionSegment[];
   productionDays?: import('../domain/scheduling').ProductionDay[];
   scheduleBlocks?: import('../domain/scheduling').ScheduleBlock[];

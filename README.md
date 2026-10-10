@@ -4,7 +4,7 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.0.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.1.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
@@ -89,6 +89,19 @@ A real strip board: shooting days, drag-or-tap placement from the unscheduled
 pool, time estimates, meal and company-move banners, day totals and conflict
 warnings. Scenes, setups *and* individual shots are all schedulable — so a
 project with no screenplay schedules just as well.
+
+### The AD's paperwork: one-liner, DOOD and the time report
+
+![Day out of days](docs/screenshots/dood.png)
+
+The schedule also reads as a **one-liner** (one line per scene, page totals at
+every day break), a **day out of days** worked out from the strips (SW / W / WF /
+SWF / H, travel, fittings, holidays, drop-and-pickup), and a **performers
+production time report** in the SAG-AFTRA Exhibit G layout that flags meal
+penalties, short meals, forced calls, overtime and minors' hours as you type.
+Every report prints and exports on its own.
+
+![Performers time report](docs/screenshots/time-report.png)
 
 ### Issue the call sheet
 
@@ -317,7 +330,12 @@ board — in one print job, with your production logo on the paperwork.
 - **A map per location** — a day that moves between two places gets one captured OpenStreetMap picture per pinned location, each captioned with the place and address and carrying the name and attribution burned into the image itself, so it survives being photographed. Fetched once on an explicit press and stored with the project, so it prints and travels offline.
 - **Draft until you say otherwise** — an unfinished sheet carries a DRAFT watermark on **every** printed page until the day is marked final, and cast contact numbers can be withheld from the copies left on a table.
 - **Coverage matrix** — plan what every camera is responsible for at each moment. Rows follow the run-of-show cue list or are added freely; columns are discovered from the cameras on the plan.
-- **Printable** — stripboard, calendar, coverage and each day's call sheet all print, with the production logo and strip colours.
+- **Printable** — stripboard, calendar, coverage and each day's call sheet all print, with the production logo and strip colours. Printed and PDF strips are filled edge to edge in the same INT/EXT × DAY/NIGHT colours as the board.
+- **One-liner & shooting schedule** — every day's scenes one line each (scene, I/E, set, D/N, pages, cast numbers), banners for meals and moves, page totals per day; switch on elements to get the full shooting schedule.
+- **Day out of days** — cast, stunts, background and any breakdown category, derived from the strips. Click a cell to mark travel, fitting, rehearsal or holiday; a drop-and-pickup rule (default 10 days) turns long gaps into WD / PW instead of holds. Lives in the schedule, prints and exports to CSV/PDF.
+- **What-if while you drag** — dragging a strip shows what the move does to page counts, day length and paid performer days before you drop it.
+- **Performers production time report (Exhibit G)** — fill it from the schedule, type 24-hour times, and see meal penalties, short meals, forced calls (rest), overtime (day or weekly contract) and minors' hours. Every limit is a per-sheet setting. On set, a big-button **cast clock** stamps the next time for each performer.
+- **Call sheet email** — opens an email draft to everyone called that day with their call times, and downloads the call sheet PDF alongside for you to attach (a mail link cannot carry attachments; no server involved).
 
 ### Continuity log & shooting-day checklist
 
@@ -369,19 +387,23 @@ board — in one print job, with your production logo on the paperwork.
 
 ### Reports & exports
 
-- **Script breakdown** — scenes, characters, locations and a day-out-of-days report.
+- **Script breakdown** — scene list with page counts in eighths (55-line Courier page, overridable per scene), characters, locations, elements, **breakdown sheets** per scene and a **prop report** built from the tagged screenplay.
+- **Script colours & revisions** — highlight by character, location or breakdown category; lock pages (A-pages, omitted pages) and mark revised lines with the standard revision colour sequence, carried into the lined-script PDF. Final Draft (`.fdx`) import and export.
+- **Location scouting** — scout notes, ratings, status and photos (with EXIF date and GPS) per location, including candidates for a set.
+- **Budget top sheet** — account-numbered summary of the budget, printable.
 - **Sides** — per-day or per-selection sides with a character filter, in Courier.
 - **Complete package** — one print job with the floor plan, shot list, equipment manifest, DMX patch, storyboards, lined script, breakdown reports, sides, stripboard, coverage matrix, contact list and mood board. Sections with no data are skipped.
 
 ### Small screens & touch
 
 - **Adaptive toolbars** — controls shrink on tablets; on phones the tool palette keeps the primary tools and moves the rest into a "More tools" flyout, and the navbar's secondary controls collapse into an overflow menu. The palette fits its height instead of scrolling.
-- **Bottom-sheet panels** — on phones the shot list / board / script / inspector become a bottom sheet with peek, half, and full heights.
+- **Bottom-sheet panels** — on phones the shot list / board / script / inspector become a bottom sheet with peek, half, and full heights; panel tabs and view switchers turn icon-only so nothing runs off the screen (checked for every module by an end-to-end test).
 - **Touch gestures** — two-finger pinch to zoom and pan the floor plan, with the point under your fingers staying put. Tap the first and last line to select script text without a keyboard.
 
 ### Everything else
 
-- **Undo / redo** — full history with keyboard shortcuts.
+- **Undo / redo** — full history with keyboard shortcuts; typing in one field merges into a single undo step.
+- **Accessible** — WCAG AA contrast on the theme colours and labelled controls, checked with axe in every module in both themes.
 - **Dark & light themes** — everything persists locally in your browser.
 - **Exports** — lined script, storyboard, blueprint PNG, print/PDF, CSV, JSON and a complete production package; see the table below.
 - **Works offline** — a service worker caches the app shell, and nothing needs a server.

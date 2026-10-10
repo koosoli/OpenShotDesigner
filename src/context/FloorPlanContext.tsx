@@ -1,4 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useProjectHistory } from './useProjectHistory';
+import { usePlayback } from './usePlayback';
+import { useScreenplay } from './useScreenplay';
+import { useAvScript } from './useAvScript';
+import { useDisplaySettings } from './useDisplaySettings';
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS, migrateStorageKey } from './displaySettings';
+import type { DisplaySettings } from './displaySettings';
+export { DEFAULT_DISPLAY_SETTINGS } from './displaySettings';
+export type { CategoryOpacitySettings, DisplaySettings, LabelCategoryOpacitySettings } from './displaySettings';
 import {
   ActiveTool,
   AnnotationElement,
@@ -44,9 +53,8 @@ import { buildShotForSetup } from '../domain/shots/createShot';
 import { insertedShotNumber, takenShotNumbers } from '../domain/shots/numbering';
 import { useStableContextValue } from './stableContextValue';
 import { useWorkspaceUI } from './WorkspaceUIContext';
-import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
-import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
-import { pruneBreakdownScriptLines, rowsAfterShotRemoval } from '../domain/script';
+import { deriveScriptBreakdown } from '../domain/script/logic';
+import { rowsAfterShotRemoval } from '../domain/script';
 
 /**
  * Every shot in a project, flattened across setups — what an AV row's number
@@ -92,15 +100,11 @@ import { validateProject } from '../domain/validation';
 import {
   createWorkspaceProfile,
   setWorkspaceProfile as persistWorkspaceProfile,
-  withModuleToggled,
-} from '../domain/workspace';
-import {
-  ALL_MODULES_PROFILE,
   isModuleEnabled as isModuleEnabledIn,
-  getWorkspaceProfile,
   type ModuleId,
   type WorkspaceProfile,
 } from '../domain/workspace';
+import { useWorkspaceProfile } from './useWorkspaceProfile';
 
 /** Sections available in the export / print studio. */
 // `ExportSection` moved to WorkspaceUIContext, with the export-modal state
@@ -379,231 +383,7 @@ interface FloorPlanContextType {
   setCanvasViewport: (width: number, height: number) => void;
 }
 
-export interface CategoryOpacitySettings {
-  actors: number;
-  cameras: number;
-  lights: number;
-  props: number;
-  architecture?: number;
-  walls?: number;
-  shapes?: number;
-  tracks: number;
-  measurements?: number;
-  storyboards?: number;
-  cables?: number;
-}
-
-export interface LabelCategoryOpacitySettings {
-  actors: number;
-  cameras: number;
-  props: number;
-  tracks: number;
-  lights: number;
-  doorWindows: number;
-  measurements: number;
-  cables?: number;
-}
-
-export interface DisplaySettings {
-  // Master label switch
-  showLabels: boolean;
-  labelScale: number; // 0.5 - 2.0 multiplier
-  labelOpacity: number; // 0 - 1
-  // Per-category label visibility
-  showActorLabels: boolean;
-  /** Assigned character names render on actor markers by default (independent of the label switches). */
-  showCharacterNames: boolean;
-  showCameraLabels: boolean;
-  showPropLabels: boolean;
-  showTrackLabels: boolean;
-  showLightLabels: boolean;
-  showLightNameLabels: boolean;
-  showLightRoleLabels: boolean;
-  showLightKelvinLabels: boolean;
-  showLightIntensityLabels: boolean;
-  showMeasurementLabels: boolean;
-  showDoorWindowLabels: boolean;
-  showCableLabels: boolean;
-  // Per-category label color overrides (null = use element's own color)
-  actorLabelColor: string | null;
-  cameraLabelColor: string | null;
-  propLabelColor: string | null;
-  trackLabelColor: string | null;
-  lightLabelColor: string | null;
-  doorWindowLabelColor: string | null;
-  measurementLabelColor: string | null;
-  cableLabelColor: string | null;
-  // Per-category label opacity overrides (0 - 1)
-  labelCategoryOpacity: LabelCategoryOpacitySettings;
-  /** Per-category label size multipliers on top of the global labelScale (0.5–2). */
-  labelCategoryScale?: {
-    actors?: number;
-    cameras?: number;
-    lights?: number;
-    props?: number;
-    tracks?: number;
-    cables?: number;
-    measurements?: number;
-  };
-  /**
-   * The derived planning warnings — coverage on the shot list, health on the
-   * schedule.
-   *
-   * OFF by default. They sit above the content people came to the panel for,
-   * and a checker nobody asked for that is wrong even occasionally is worse
-   * than one they turned on deliberately. Anyone who wants them switches them
-   * on in Viewing Options and keeps them.
-   */
-  showPlanningWarnings?: boolean;
-  /** Floating cross-department readiness summary. Off by default. */
-  showProductionReadiness?: boolean;
-  /**
-   * Floating review-notes button over the canvas. Off by default: it sits
-   * above the plan people came to work on, so it waits until asked for in
-   * Viewing Options like the other floating chrome.
-   */
-  showReviewNotes?: boolean;
-  /**
-   * Per-tab explanation strips ("what is this panel for"). Off by default;
-   * switch on in Viewing Options. Per-panel dismissal still applies while on.
-   */
-  showPanelIntros?: boolean;
-  // Decluttering toggles
-  showWaypoints: boolean;
-  showWaypointCues: boolean; // toggle dialogue / action cues on floorplan waypoints (default true)
-  showSpeechBubbles: boolean;
-  showFovCones: boolean;
-  showLightBeams: boolean;
-  /** Storyboard thumbnails pinned next to their camera on the floor plan. */
-  showStoryboardThumbs: boolean;
-  /** When true, waypoint keyframes without artwork are omitted from the storyboard and exports. */
-  hideBlankStoryboardWaypoints?: boolean;
-  showGrid: boolean;
-  showShotSizeInScript: boolean; // show WS / CU in script (default true)
-  // Shot info shown on the camera label
-  showShotSizeOnCamera: boolean;
-  showShotLensOnCamera: boolean;
-  showShotAngleOnCamera: boolean;
-  showShotNumberOnCamera: boolean;
-  fovConeOpacity?: number; // Master camera FOV cone opacity (0.05 to 1.0)
-  // Category Opacity Controls
-  categoryOpacity: CategoryOpacitySettings;
-}
-
-export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
-  showLabels: true,
-  labelScale: 1,
-  labelOpacity: 1,
-  showActorLabels: true,
-  showCharacterNames: true,
-  showCameraLabels: true,
-  showPropLabels: true,
-  showTrackLabels: true,
-  showLightLabels: true,
-  showLightNameLabels: true,
-  showLightRoleLabels: true,
-  showLightKelvinLabels: false,
-  showLightIntensityLabels: false,
-  showMeasurementLabels: true,
-  showDoorWindowLabels: true,
-  showCableLabels: true,
-  actorLabelColor: null,
-  cameraLabelColor: null,
-  propLabelColor: null,
-  trackLabelColor: null,
-  lightLabelColor: null,
-  doorWindowLabelColor: null,
-  measurementLabelColor: null,
-  cableLabelColor: null,
-  labelCategoryOpacity: {
-    actors: 1.0,
-    cameras: 1.0,
-    props: 1.0,
-    tracks: 1.0,
-    lights: 1.0,
-    doorWindows: 1.0,
-    measurements: 1.0,
-    cables: 1.0,
-  },
-  labelCategoryScale: {
-    actors: 1.0,
-    cameras: 1.0,
-    lights: 1.0,
-    props: 1.0,
-    tracks: 1.0,
-    cables: 1.0,
-    measurements: 1.0,
-  },
-  showPlanningWarnings: false,
-  showProductionReadiness: false,
-  showReviewNotes: false,
-  showPanelIntros: false,
-  showWaypoints: true,
-  showWaypointCues: false,
-  showSpeechBubbles: false,
-  // Camera FOV cones and light beams start OFF: a plan with every cone and
-  // beam drawn is unreadable for a first-time user. Both are one toggle away
-  // in Inspector - Display, and anyone who has already saved a preference
-  // keeps it (this default only applies to a fresh install).
-  showFovCones: false,
-  fovConeOpacity: 1.0,
-  showStoryboardThumbs: true,
-  hideBlankStoryboardWaypoints: false,
-  showLightBeams: false,
-  showGrid: false, // Default grid to hidden as requested
-  showShotSizeInScript: true,
-  showShotSizeOnCamera: false,
-  showShotLensOnCamera: false,
-  showShotAngleOnCamera: false,
-  showShotNumberOnCamera: true,
-  categoryOpacity: {
-    actors: 1.0,
-    cameras: 1.0,
-    lights: 1.0,
-    props: 1.0,
-    architecture: 1.0,
-    shapes: 1.0,
-    tracks: 1.0,
-    cables: 1.0,
-  },
-};
-
 const FloorPlanContext = createContext<FloorPlanContextType | null>(null);
-
-const STORAGE_KEY = 'openshotdesigner_project_v1';
-
-const LEGACY_STORAGE_KEYS = {
-  project: 'cineplan_project_v1',
-  theme: 'cineplan_theme',
-  display: 'cineplan_display',
-};
-
-const STORAGE_KEYS = {
-  project: STORAGE_KEY,
-  theme: 'openshotdesigner_theme',
-  display: 'openshotdesigner_display',
-};
-
-/**
- * Reads from the new storage key. If it doesn't exist yet, the value is migrated
- * from the legacy (cineplan_*) key exactly once, so no saved projects are lost
- * when the app is renamed.
- */
-function migrateStorageKey(oldKey: string, newKey: string): string | null {
-  try {
-    const newValue = localStorage.getItem(newKey);
-    if (newValue !== null) return newValue;
-    const oldValue = localStorage.getItem(oldKey);
-    if (oldValue !== null) {
-      localStorage.setItem(newKey, oldValue);
-      localStorage.removeItem(oldKey);
-      return oldValue;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 // Finds a position on the floor plan that doesn't overlap any existing element
 // or background image, so a newly imported reference image is visible & clickable.
@@ -787,20 +567,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Workspace module visibility (plan §1.2): a local preference keyed by the
   // project id. Projects without a stored preset show every module so legacy
   // behavior is preserved.
-  const [workspaceProfile, setWorkspaceProfileState] = useState<WorkspaceProfile>(
-    () => getWorkspaceProfile(project.id) ?? ALL_MODULES_PROFILE,
-  );
-  useEffect(() => {
-    setWorkspaceProfileState(getWorkspaceProfile(project.id) ?? ALL_MODULES_PROFILE);
-  }, [project.id]);
-  const isModuleVisible = (moduleId: ModuleId) => isModuleEnabledIn(workspaceProfile, moduleId);
-  const setModuleVisible = (moduleId: ModuleId, visible: boolean) => {
-    setWorkspaceProfileState((current) => {
-      const next = withModuleToggled(current, moduleId, visible);
-      persistWorkspaceProfile(project.id, next);
-      return next;
-    });
-  };
+  const { workspaceProfile, isModuleVisible, setModuleVisible } = useWorkspaceProfile(project.id);
 
   // Selection & UI state
   const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
@@ -812,45 +579,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [activeCameraRig, setActiveCameraRig] = useState<CameraRigType>('Tripod');
   const [activeShapeType, setActiveShapeType] = useState<ShapeType>('rectangle');
   const [activeCableType, setActiveCableType] = useState<CableType>('sdi_12g');
-  // Display / label preferences (UI-only, persisted separately from scene data)
-  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(() => {
-    try {
-      const saved = migrateStorageKey(LEGACY_STORAGE_KEYS.display, STORAGE_KEYS.display);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Light names became default-on; migrate any previously-saved "off".
-        if (parsed.showLightNameLabels === false) parsed.showLightNameLabels = true;
-        // Kelvin and Dim level labels default to OFF; migrate any legacy saved true settings
-        if (parsed._v !== 2) {
-          parsed.showLightKelvinLabels = false;
-          parsed.showLightIntensityLabels = false;
-          parsed._v = 2;
-          try {
-            localStorage.setItem(STORAGE_KEYS.display, JSON.stringify(parsed));
-          } catch {}
-        }
-        return {
-          ...DEFAULT_DISPLAY_SETTINGS,
-          ...parsed,
-          labelCategoryOpacity: {
-            ...DEFAULT_DISPLAY_SETTINGS.labelCategoryOpacity,
-            ...(parsed.labelCategoryOpacity || {}),
-          },
-        };
-      }
-    } catch {}
-    return DEFAULT_DISPLAY_SETTINGS;
-  });
-
-  const updateDisplaySettings = (updates: Partial<DisplaySettings>) => {
-    setDisplaySettings((prev) => {
-      const next = { ...prev, ...updates, _v: 2 };
-      try {
-        localStorage.setItem(STORAGE_KEYS.display, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  };
+  // Display / label preferences (context/useDisplaySettings).
+  const { displaySettings, updateDisplaySettings } = useDisplaySettings();
 
   // Viewfinder & Modals
   const [isViewfinderOpen, setIsViewfinderOpen] = useState(false);
@@ -885,81 +615,23 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [workspaceProfile, activeRightTab, setActiveRightTab]);
 
-  // Playback engine
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentBeat, setCurrentBeat] = useState(1);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [isLooping, setIsLooping] = useState(true);
+  // Playback engine (context/usePlayback).
+  const { isPlaying, setIsPlaying, currentBeat, setCurrentBeat, playbackSpeed, setPlaybackSpeed, isLooping, setIsLooping } = usePlayback(activeSetup.totalBeats);
 
-  // Undo / Redo history
-  // Whole-project undo history. Every entry is an immutable project snapshot
-  // (structural sharing keeps memory flat), so Ctrl+Z spans the screenplay,
-  // schedule, mood boards, company info AND every scene's canvas — not just
-  // the currently open setup. Session-only UI prefs (displaySettings) stay
-  // outside by design (plan rule 38).
-  const [history, setHistory] = useState<Project[]>([project]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  // Updaters run during React's render phase, so snapshots they want recorded
-  // are parked here and flushed once per committed render.
-  const pendingSnapshotsRef = useRef<Project[]>([]);
-  // Latest known project for code paths that commit WITHOUT a setProject
-  // (canvas gesture end), including live drag refs.
-  const liveProjectRef = useRef(project);
-
-  /**
-   * Every project write goes through here, so `liveProjectRef` can never fall
-   * behind the committed project.
-   *
-   * It matters because `commitCurrentState` — the drag-release path — records
-   * whatever this ref holds. The ref used to be written only by
-   * `commitSetupUpdate` and by an effect that runs after the render, which
-   * left a window after an undo, a scene switch or any non-setup edit where
-   * releasing a drag would record a project from before it and silently
-   * revert the edit. Wrapping the setter closes that by construction rather
-   * than by remembering to update the ref at each of the dozen call sites,
-   * which is the mistake the old `liveSetupRef` made.
-   */
-  const setProject = useCallback((value: Project | ((prev: Project) => Project)) => {
-    setProjectState((prev) => {
-      const next = typeof value === 'function' ? (value as (p: Project) => Project)(prev) : value;
-      liveProjectRef.current = next;
-      return next;
-    });
-  }, []);
-
-  // Stable, like `setProject`: both only ever touch the state setter and refs,
-  // so an effect that writes the project does not have to re-subscribe on
-  // every render just to list them as dependencies.
-  const setRecordedProject = useCallback(
-    (updater: (prev: Project) => Project) => {
-      setProject((prev) => {
-        const next = updater(prev);
-        if (next !== prev) pendingSnapshotsRef.current.push(next);
-        return next;
-      });
-    },
-    [setProject],
-  );
-
-  /** Push one immutable snapshot (dedupe by reference; cap length). */
-  const recordProjectSnapshot = (snapshot: Project, baseHistory: Project[], baseIndex: number) => {
-    const nextHistory = baseHistory.slice(0, baseIndex + 1);
-    if (nextHistory[nextHistory.length - 1] === snapshot) return;
-    nextHistory.push(snapshot);
-    if (nextHistory.length > 50) nextHistory.shift();
-    setHistory(nextHistory);
-    setHistoryIndex(nextHistory.length - 1);
-  };
-
-  // Flush snapshots produced by batched updaters exactly once per render.
-  useEffect(() => {
-    liveProjectRef.current = project;
-    if (pendingSnapshotsRef.current.length === 0) return;
-    const snapshot = pendingSnapshotsRef.current[pendingSnapshotsRef.current.length - 1];
-    pendingSnapshotsRef.current = [];
-    recordProjectSnapshot(snapshot, history, historyIndex);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project]);
+  // Undo / redo history and the recorded-write helpers (context/useProjectHistory).
+  const {
+    history,
+    historyIndex,
+    setHistory,
+    setHistoryIndex,
+    pendingSnapshotsRef,
+    liveProjectRef,
+    setProject,
+    setRecordedProject,
+    recordProjectSnapshot,
+    undo,
+    redo,
+  } = useProjectHistory(project, setProjectState);
 
   // Persistence lives in `useAutosave`: debounced IndexedDB writes, flush on
   // hide/unload, quota + multi-tab warnings. Extracted so the 4400-line
@@ -1007,27 +679,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setCurrentBeat(1);
       setIsPlaying(false);
     }
-  }, [project.activeSetupId]);
-
-  // Animation Playback loop
-  useEffect(() => {
-    if (!isPlaying) return;
-
-    const intervalMs = 2000 / playbackSpeed;
-    const interval = setInterval(() => {
-      setCurrentBeat((prev) => {
-        const next = prev + 0.05;
-        if (next > activeSetup.totalBeats) {
-          if (isLooping) return 1;
-          setIsPlaying(false);
-          return activeSetup.totalBeats;
-        }
-        return Math.round(next * 100) / 100;
-      });
-    }, intervalMs * 0.05);
-
-    return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed, activeSetup.totalBeats, isLooping]);
+  }, [project.activeSetupId, setCurrentBeat, setIsPlaying]);
 
   /**
    * Commit a change to the ACTIVE setup computed from the latest committed
@@ -1058,22 +710,6 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (recordHistory) pendingSnapshotsRef.current.push(next);
       return next;
     });
-  };
-
-  const undo = () => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      setProject(history[newIndex]);
-    }
-  };
-
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      setProject(history[newIndex]);
-    }
   };
 
   // Selection handlers
@@ -2413,438 +2049,8 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  /**
-   * Replace the production's screenplay. It is stored once for the whole
-   * project (every scene sees it) and linings that no longer resolve to a line
-   * are dropped from each setup.
-   *
-   * The derived scene list is persisted here (scene ids are their source
-   * heading-line ids) so the scheduler can link strips to scenes. Scenes that
-   * disappear from the screenplay do NOT silently orphan their schedule
-   * strips: affected scene blocks are stamped with an `omittedLabel` and stay
-   * visible as OMITTED until the user deletes them.
-   */
-  const setScriptLines = (lines: ScriptLine[], meta?: { scriptTitle?: string; scriptText?: string; titlePage?: ScreenplayTitlePage }) => {
-    const ids = new Set(lines.map((line) => line.id));
-    /**
-     * Every line id that still exists, including the ones inside an omitted
-     * scene's stored body — those lines are hidden, not gone, and a tag on one
-     * has to survive restoring the scene.
-     *
-     * `ids` above is the flat top-level set and is what `scriptMarks` are
-     * filtered against; a lining that reached into an omitted body would be
-     * drawn nowhere, so dropping it is right. A breakdown tag is a different
-     * thing: it is a fact about the words, and the words are still there.
-     */
-    const liveLineIds = new Set<string>();
-    const walkLines = (candidates: readonly ScriptLine[]): void => {
-      for (const line of candidates) {
-        liveLineIds.add(line.id);
-        if (line.omittedBody) walkLines(line.omittedBody);
-      }
-    };
-    walkLines(lines);
-    setProject((prev) => {
-      // Scene numbers follow the project's regime (domain/script/numbering.ts).
-      // A project that has never chosen one is decided by its script: numbers
-      // that are not simply positional — an imported production draft with a
-      // 12A in it — are kept, anything else is numbered by position.
-      const locked = prev.sceneNumbersLocked ?? hasProductionSceneNumbers(lines);
-      const numbered = normaliseSceneNumbers(
-        lines.map((line, index) => ({ ...line, lineNumber: index + 1 })),
-        locked,
-      );
-      // Derive old/new scene lists so removed headings can be detected.
-      //
-      // The persisted characters MUST be passed in. `buildCharacterCatalog`
-      // mints a fresh id for every cue it finds, and `mergeCharacterCatalogs`
-      // only preserves a stable id when it has the existing catalog to match
-      // against. Deriving with `[]` therefore stamped every scene with
-      // character ids that existed nowhere else — so `castAssignments`, which
-      // key on the persisted character ids, matched nothing and a scheduled
-      // scene produced a call sheet with an empty cast table.
-      const oldScenes = deriveScriptBreakdown(
-        prev.scriptLines || [],
-        prev.characters || [],
-        prev.locations || [],
-      ).scenes;
-      const derived = deriveScriptBreakdown(numbered, prev.characters || [], prev.locations || []);
-      const newScenes = derived.scenes;
-      // A scene counts as "live" only when its heading exists AND is not
-      // flagged OMITTED — omitted scenes keep their number but are not shootable.
-      const newSceneIds = new Set(newScenes.filter((scene) => !scene.omitted).map((scene) => scene.id));
-      const omittedLabelById = new Map(
-        [...oldScenes, ...newScenes.filter((scene) => scene.omitted)]
-          .filter((scene) => !newSceneIds.has(scene.id))
-          .map((scene) => [scene.id, `${scene.sceneNumber} · ${scene.heading}`] as const)
-      );
-
-      const next: Project = {
-        ...prev,
-        scriptTitle: meta?.scriptTitle ?? prev.scriptTitle,
-        scriptText: meta?.scriptText ?? prev.scriptText,
-        // An imported cover belongs to the draft that just arrived; when the
-        // file carries none the existing one is kept rather than blanked.
-        titlePage: meta?.titlePage ?? prev.titlePage,
-        scriptLines: numbered,
-        sceneNumbersLocked: locked,
-        scriptScenes: newScenes,
-        // Persist the merged catalog too: a character discovered by this edit
-        // has a fresh id, and it has to be the SAME id next time or the scenes
-        // and the cast list drift apart again.
-        characters: derived.characters,
-        setups: prev.setups.map((setup) => ({
-          ...setup,
-          // The legacy per-setup copy is cleared so there is one source of truth.
-          scriptLines: undefined,
-          scriptMarks: (setup.scriptMarks || []).filter(
-            (mark) => ids.has(mark.startLineId) && ids.has(mark.endLineId)
-          ),
-        })),
-        /**
-         * Breakdown tags pointing at deleted lines are pruned HERE rather than
-         * by the script panel, which is where this used to live.
-         *
-         * It mattered: `setSceneNumbersLocked` and every import path call
-         * this function directly, so an edit made anywhere but the panel left
-         * tags referencing lines that no longer existed — and the reports read
-         * scenes through those tags. Doing it inside the same updater also
-         * removes the panel's second `updateProjectMeta` in the same tick,
-         * which is the shape of write this codebase has lost data to before.
-         */
-        breakdownItems: prev.breakdownItems?.length
-          ? pruneBreakdownScriptLines(prev.breakdownItems, liveLineIds)
-          : prev.breakdownItems,
-        scheduleBlocks: (prev.scheduleBlocks || []).map((block) => {
-          if (block.kind !== 'scene') return block;
-          if (newSceneIds.has(block.scriptSceneId)) {
-            // Scene exists again (or never vanished): clear a stale omission stamp.
-            if (block.omittedLabel === undefined) return block;
-            const next: typeof block = { id: block.id, kind: 'scene', scriptSceneId: block.scriptSceneId };
-            if (block.estimatedMinutes !== undefined) next.estimatedMinutes = block.estimatedMinutes;
-            return next;
-          }
-          const label = omittedLabelById.get(block.scriptSceneId);
-          if (!label && !block.omittedLabel) return block;
-          return label ? { ...block, omittedLabel: label } : block;
-        }),
-      };
-      // Screenplay edits (text, title, omissions) are undoable like any other
-      // project change.
-      pendingSnapshotsRef.current.push(next);
-      return next;
-    });
-  };
-
-  /** The screenplay's cover. Merged, so the editor can write one field at a time. */
-  const setTitlePage = (updates: Partial<ScreenplayTitlePage>) => {
-    updateProjectMeta((prev) => ({ titlePage: { ...(prev.titlePage ?? {}), ...updates } }));
-  };
-
-  /**
-   * Locking stamps every heading with its current number so nothing shifts
-   * again; unlocking renumbers by position. Both go through `setScriptLines`
-   * so the derived scene list, strips and omission labels follow.
-   */
-  const setSceneNumbersLocked = (locked: boolean) => {
-    setProject((prev) => {
-      const next = { ...prev, sceneNumbersLocked: locked };
-      pendingSnapshotsRef.current.push(next);
-      return next;
-    });
-    // Runs after the flag write above (state updates apply in order), so the
-    // regime `setScriptLines` reads from `prev` is already the new one.
-    setScriptLines(normaliseSceneNumbers(project.scriptLines || [], locked));
-  };
-
-  /**
-   * Keep the persisted character catalog and the derived scene list in step.
-   *
-   * `buildCharacterCatalog` mints a fresh id for every cue it finds. Only
-   * `mergeCharacterCatalogs`, given the persisted catalog, keeps a stable one.
-   * So a project whose `characters` were never persisted regenerates every id
-   * each time anything re-derives — and a cast assignment made against one of
-   * those ids stops resolving the moment it does. That is silent data loss: the
-   * assignment is still in the file, pointing at a character that no longer
-   * exists under that id, and the call sheet simply shows no cast.
-   *
-   * This runs when the catalog is missing, when the scene list is missing, or
-   * when the scenes reference characters the project does not have. Projects
-   * already saved in that state cannot fix themselves — the old backfill only
-   * ran when the scene list was absent, and theirs is present and wrong.
-   */
-  useEffect(() => {
-    if (!project.scriptLines?.length) return;
-    const catalogMissing = !project.characters?.length;
-    const needsRepair =
-      catalogMissing ||
-      !project.scriptScenes ||
-      scriptScenesHaveDriftedIds(project.scriptScenes, project.characters);
-    if (!needsRepair) return;
-
-    setProject((prev) => {
-      const stillNeeded =
-        !prev.characters?.length ||
-        !prev.scriptScenes ||
-        scriptScenesHaveDriftedIds(prev.scriptScenes, prev.characters);
-      if (!stillNeeded) return prev;
-      const derived = deriveScriptBreakdown(
-        prev.scriptLines || [],
-        prev.characters || [],
-        prev.locations || [],
-      );
-      // Nothing to persist for a screenplay with no cues in it; returning `prev`
-      // keeps this effect from looping on projects that will never have any.
-      if (derived.characters.length === 0) return prev;
-      return { ...prev, scriptScenes: derived.scenes, characters: derived.characters };
-    });
-  }, [project.scriptScenes, project.scriptLines, project.characters, setProject]);
-
-  const avScriptRows: AVScriptRow[] = useMemo(
-    () =>
-      project.avScriptRows || [    {
-      id: 'av-1',
-      shotNumber: '1',
-      shotName: 'WS - Master Establishing',
-      shotSize: 'WS',
-      video: 'EXT. GLASS PAVILION - SUNRISE. Crane down slowly as the golden morning sun reflects off the glass facade.',
-      audio: 'MUSIC: Ethereal synth strings swell gently. Ambient birds chirping in the garden distance.',
-      durationSec: 6,
-    },
-    {
-      id: 'av-2',
-      shotNumber: '2',
-      shotName: 'MS - Protagonist Arrival',
-      shotSize: 'MS',
-      video: 'TRACKING SHOT with Marcus as he walks briskly toward the security entrance, briefcase in hand.',
-      audio: 'MARCUS (V.O.)\n(calm, measured)\nThey told me the vault was impenetrable. They lied.',
-      durationSec: 5,
-    },
-    {
-      id: 'av-3',
-      shotNumber: '3',
-      shotName: 'CU - Biometric Scan',
-      shotSize: 'CU',
-      video: 'INSERT - Scanner panel flashing emerald green as Marcus places his palm on the glass plate.',
-      audio: 'SFX: High-tech confirmation chime (DOUBLE BEEP). Pneumatic door lock releases with a hiss.',
-      durationSec: 3,
-    },
-  ],
-    // Same reason as `scriptLines`: the fallback builds three fresh objects,
-    // which would change the context value's identity on every render.
-    [project.avScriptRows],
-  );
-
-  const scriptFormatMode: ScriptFormatMode = project.scriptFormatMode || 'lined_coverage';
-
-  const setScriptFormatMode = (mode: ScriptFormatMode) => {
-    setRecordedProject((prev) => ({ ...prev, scriptFormatMode: mode }));
-  };
-
-  const setAVScriptRows = (rows: AVScriptRow[]) => {
-    setRecordedProject((prev) => ({
-      ...prev,
-      avScriptRows: rows,
-    }));
-  };
-
-  const updateAVScriptRow = (id: string, updates: Partial<AVScriptRow>) => {
-    // Resolve the linked shot OUTSIDE the updater: updaters must stay pure
-    // (StrictMode runs them twice) and must never dispatch other updates.
-    const target = avScriptRows.find((r) => r.id === id);
-    if (target?.linkedShotId) {
-      const shotUpdates: Partial<Shot> = {};
-      if (updates.shotNumber !== undefined) shotUpdates.shotNumber = updates.shotNumber;
-      if (updates.shotName !== undefined) shotUpdates.name = updates.shotName;
-      if (updates.shotSize !== undefined) shotUpdates.shotSize = updates.shotSize;
-      if (updates.video !== undefined) shotUpdates.framingDescription = updates.video;
-      if (updates.audio !== undefined) shotUpdates.actionScriptNotes = updates.audio;
-      if (updates.durationSec !== undefined) shotUpdates.estDurationSeconds = updates.durationSec;
-      updateShot(target.linkedShotId, shotUpdates);
-    }
-    setRecordedProject((prev) => {
-      const current = prev.avScriptRows || avScriptRows;
-      return {
-        ...prev,
-        avScriptRows: current.map((row) => (row.id === id ? { ...row, ...updates } : row)),
-      };
-    });
-  };
-
-  const addAVScriptRow = (row?: Partial<AVScriptRow>): string => {
-    const shotId = newShotId();
-    const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
-    const isMultiCam = activeSetup.shootMode === 'multi_cam';
-    const camLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
-    const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
-    const spawnPos = getNewCameraPosition();
-    const camId = createId('cam');
-
-    const currentRows = project.avScriptRows || avScriptRows;
-    const nextNum = row?.shotNumber || String(currentRows.length + 1);
-    const shotName = row?.shotName || `Shot ${nextNum}`;
-    const shotSize = row?.shotSize || 'MS';
-    const video = row?.video || `Framed on subject (${shotSize})`;
-    const audio = row?.audio || '';
-    const duration = row?.durationSec || 5;
-
-    const newCamera: CameraElement = {
-      id: camId,
-      type: 'camera',
-      name: `Camera ${camLetter} (${shotName})`,
-      cameraLabel: camLetter,
-      color: camColor,
-      x: spawnPos.x,
-      y: spawnPos.y,
-      rotation: 0,
-      locked: false,
-      visible: true,
-      focalLength: 35,
-      sensorFormat: 'Super35',
-      fovAngle: calculateFovAngle(35, 'Super35'),
-      aspectRatio: '16:9',
-      cameraHeight: 'Eye Level',
-      rigType: 'Tripod',
-      throwDistance: 160,
-      path: [],
-      associatedShotId: shotId,
-    };
-
-    const newShotItem: Shot = {
-      id: shotId,
-      sceneNumber: activeSetup.sceneNumber || '1',
-      shotNumber: nextNum,
-      name: shotName,
-      cameraId: camId,
-      cameraLabel: camLetter,
-      shotSize,
-      lensMm: 35,
-      cameraAngle: 'Eye Level',
-      movement: 'Static',
-      aspectRatio: '16:9',
-      frameRate: 24,
-      subjectActorIds: [],
-      framingDescription: video,
-      actionScriptNotes: audio,
-      status: 'planned',
-      takesCount: 0,
-      estDurationSeconds: duration,
-      order: activeSetup.shots.length + 1,
-    };
-
-    const avRowId = `av-${shotId}`;
-    const newRow: AVScriptRow = {
-      id: avRowId,
-      shotNumber: nextNum,
-      shotName,
-      shotSize,
-      video,
-      audio,
-      durationSec: duration,
-      linkedShotId: shotId,
-    };
-
-    commitSetupUpdate((prevSetup) => ({
-      ...prevSetup,
-      elements: [...prevSetup.elements, newCamera],
-      shots: [...prevSetup.shots, newShotItem],
-    }));
-
-    setRecordedProject((prev) => ({
-      ...prev,
-      avScriptRows: [...(prev.avScriptRows || currentRows), newRow],
-    }));
-
-    setSelectedShotId(shotId);
-    setSelectedElementIds([camId]);
-    return avRowId;
-  };
-
-  const deleteAVScriptRow = (id: string) => {
-    const current = project.avScriptRows || avScriptRows;
-    const row = current.find((r) => r.id === id);
-    if (row?.linkedShotId) {
-      deleteShot(row.linkedShotId);
-    }
-    setRecordedProject((prev) => {
-      const rows = prev.avScriptRows || current;
-      return {
-        ...prev,
-        avScriptRows: rows.filter((r) => r.id !== id && r.linkedShotId !== row?.linkedShotId),
-      };
-    });
-  };
-
-  const syncAVRowToShot = (rowId: string): string => {
-    const current = project.avScriptRows || avScriptRows;
-    const row = current.find((r) => r.id === rowId);
-    if (!row) return '';
-
-    const existingCameras = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
-    const isMultiCam = activeSetup.shootMode === 'multi_cam';
-    const camLetter = isMultiCam ? nextCameraLabel(existingCameras) : 'A';
-    const camColor = CAMERA_COLOR_PALETTE[existingCameras.length % CAMERA_COLOR_PALETTE.length];
-    const spawnPos = getNewCameraPosition();
-
-    const shotId = newShotId();
-    const camId = createId('cam');
-
-    const newCamera: CameraElement = {
-      id: camId,
-      type: 'camera',
-      name: `Camera ${camLetter} (${row.shotName || `Shot ${row.shotNumber}`})`,
-      cameraLabel: camLetter,
-      color: camColor,
-      x: spawnPos.x,
-      y: spawnPos.y,
-      rotation: 0,
-      locked: false,
-      visible: true,
-      focalLength: 35,
-      sensorFormat: 'Super35',
-      fovAngle: calculateFovAngle(35, 'Super35'),
-      aspectRatio: '16:9',
-      cameraHeight: 'Eye Level',
-      rigType: 'Tripod',
-      throwDistance: 160,
-      path: [],
-      associatedShotId: shotId,
-    };
-
-    const newShotItem: Shot = {
-      id: shotId,
-      sceneNumber: activeSetup.sceneNumber || '1',
-      shotNumber: row.shotNumber,
-      name: row.shotName || `Shot ${row.shotNumber}`,
-      cameraId: camId,
-      cameraLabel: camLetter,
-      shotSize: row.shotSize || 'MS',
-      lensMm: 35,
-      cameraAngle: 'Eye Level',
-      movement: 'Static',
-      aspectRatio: '16:9',
-      frameRate: 24,
-      subjectActorIds: [],
-      framingDescription: row.video,
-      actionScriptNotes: row.audio,
-      status: 'planned',
-      takesCount: 0,
-      estDurationSeconds: row.durationSec || 5,
-      order: activeSetup.shots.length,
-    };
-
-    // Update active scene setup with new camera and shot
-    commitSetupUpdate((prevSetup) => ({
-      ...prevSetup,
-      elements: [...prevSetup.elements, newCamera],
-      shots: [...prevSetup.shots, newShotItem],
-    }));
-
-    // Link row back to created shot
-    updateAVScriptRow(rowId, { linkedShotId: shotId });
-    setSelectedShotId(shotId);
-    return shotId;
-  };
+  // Screenplay writes: lines, title page, numbering (context/useScreenplay).
+  const { setScriptLines, setTitlePage, setSceneNumbersLocked } = useScreenplay({ project, setProject, pendingSnapshotsRef });
 
   const createCameraOnly = (name: string, pos?: Vector2D): string => {
     const existingCams = activeSetup.elements.filter((e) => e.type === 'camera') as CameraElement[];
@@ -3253,6 +2459,28 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (selectedShotId === id) setSelectedShotId(null);
     runCommand(deleteShotCommand, { shotId: id }, { domain: 'shots' });
   };
+
+  // A/V script rows and their linked shots (context/useAvScript).
+  const {
+    avScriptRows,
+    scriptFormatMode,
+    setScriptFormatMode,
+    setAVScriptRows,
+    updateAVScriptRow,
+    addAVScriptRow,
+    deleteAVScriptRow,
+    syncAVRowToShot,
+  } = useAvScript({
+    project,
+    activeSetup,
+    setRecordedProject,
+    commitSetupUpdate,
+    updateShot,
+    deleteShot,
+    getNewCameraPosition,
+    setSelectedShotId,
+    setSelectedElementIds,
+  });
 
   /**
    * Re-apply an ordering the UI worked out from a render-time shot list to the
@@ -3790,7 +3018,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (metadata.record !== false) pendingSnapshotsRef.current.push(next);
       return next;
     });
-  }, [setProject]);
+  }, [setProject, pendingSnapshotsRef]);
 
   const updateProjectMeta = (
     updates: Partial<Project> | ((prev: Project) => Partial<Project>),

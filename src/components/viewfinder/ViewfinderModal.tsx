@@ -204,7 +204,7 @@ export const ViewfinderModal: React.FC = () => {
           </p>
           <button
             onClick={closeViewfinder}
-            className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold"
+            className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold"
           >
             Close Viewfinder
           </button>
@@ -663,7 +663,7 @@ export const ViewfinderModal: React.FC = () => {
                 <h3 id="viewfinder-title" className="text-sm font-bold text-white tracking-wide uppercase">
                   Director's Optical Viewfinder
                 </h3>
-                <span className="px-2 py-0.5 text-xs font-mono font-bold bg-sky-600 text-white rounded">
+                <span className="px-2 py-0.5 text-xs font-mono font-bold bg-accent text-white rounded">
                   CAM {selectedCamera.cameraLabel}
                 </span>
                 <span className="text-xs text-slate-400 font-mono">
@@ -805,10 +805,10 @@ export const ViewfinderModal: React.FC = () => {
             {showSafeAreas && (
               <>
                 <div className="absolute inset-[5%] border border-yellow-400/30 rounded pointer-events-none z-20">
-                  <span className="absolute top-1 left-1.5 text-[8px] font-mono text-yellow-400/50">90% ACTION SAFE</span>
+                  <span className="absolute top-1 left-1.5 text-[10px] font-mono text-yellow-400/50">90% ACTION SAFE</span>
                 </div>
                 <div className="absolute inset-[10%] border border-cyan-400/30 rounded pointer-events-none z-20">
-                  <span className="absolute top-1 left-1.5 text-[8px] font-mono text-cyan-400/50">80% TITLE SAFE</span>
+                  <span className="absolute top-1 left-1.5 text-[10px] font-mono text-cyan-400/50">80% TITLE SAFE</span>
                 </div>
               </>
             )}
@@ -827,7 +827,7 @@ export const ViewfinderModal: React.FC = () => {
                     transformOrigin: 'bottom center',
                   }}
                 >
-                  <div className="px-2 py-0.5 rounded text-[9px] font-mono bg-slate-800 text-slate-300 border border-slate-700 shadow mb-1">
+                  <div className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700 shadow mb-1">
                     {prop.name || prop.propType} ({(distance / 50).toFixed(1)}m)
                   </div>
                   <div className="w-24 h-16 rounded-lg bg-slate-700/80 border-2 border-slate-600 shadow-xl flex items-center justify-center text-xs font-semibold text-slate-300">
@@ -898,7 +898,7 @@ export const ViewfinderModal: React.FC = () => {
             )}
 
             {opticalComparison && opticalComparison.direction !== 'same' && (
-              <div className="absolute top-12 right-4 z-40 w-48 rounded-lg border border-slate-500/60 bg-black/80 p-2.5 text-[9px] font-mono text-slate-200 shadow-2xl backdrop-blur pointer-events-none" data-testid="optical-framing-comparison">
+              <div className="absolute top-12 right-4 z-40 w-48 rounded-lg border border-slate-500/60 bg-black/80 p-2.5 text-[10px] font-mono text-slate-200 shadow-2xl backdrop-blur pointer-events-none" data-testid="optical-framing-comparison">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="font-black uppercase tracking-wide text-sky-300">Framing change</span>
                   <span className={opticalComparison.direction === 'tighter' ? 'text-amber-300' : 'text-emerald-300'}>
@@ -910,13 +910,13 @@ export const ViewfinderModal: React.FC = () => {
                     className="absolute left-1/2 top-1/2 h-[72%] -translate-x-1/2 -translate-y-1/2 border border-dashed border-slate-300/80"
                     style={{ width: `${opticalComparison.previousWidthPercent * 0.9}%` }}
                   >
-                    <span className="absolute -top-3 left-0 text-[7px] text-slate-300">PREV</span>
+                    <span className="absolute -top-3 left-0 text-[10px] text-slate-300">PREV</span>
                   </div>
                   <div
                     className="absolute left-1/2 top-1/2 h-[72%] -translate-x-1/2 -translate-y-1/2 border-2 border-sky-400 bg-sky-400/5"
                     style={{ width: `${opticalComparison.currentWidthPercent * 0.9}%` }}
                   >
-                    <span className="absolute -bottom-3 right-0 text-[7px] font-black text-sky-300">NOW</span>
+                    <span className="absolute -bottom-3 right-0 text-[10px] font-black text-sky-300">NOW</span>
                   </div>
                 </div>
                 <div className="mt-2 flex justify-between gap-2">
@@ -957,7 +957,7 @@ export const ViewfinderModal: React.FC = () => {
               <div className="absolute top-12 left-4 z-30 pointer-events-none">
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                    frozenFrame ? 'bg-amber-500 text-black' : liveStream ? 'bg-red-600 text-white' : 'bg-violet-600 text-white'
+                    frozenFrame ? 'bg-amber-500 text-black' : liveStream ? 'bg-red-600 text-white' : 'bg-accent text-white'
                   }`}
                 >
                   {frozenFrame
@@ -1166,7 +1166,7 @@ export const ViewfinderModal: React.FC = () => {
                   onClick={() => changeOptics({ focalLength: mm })}
                   className={`px-2.5 py-1 text-xs font-mono rounded-lg border transition-colors ${
                     focal === mm
-                      ? 'bg-sky-600 text-white border-sky-500 font-bold shadow-sm'
+                      ? 'bg-accent text-white border-sky-500 font-bold shadow-sm'
                       : 'bg-slate-950 text-slate-300 border-slate-800 hover:text-white hover:border-slate-700'
                   }`}
                 >
@@ -1216,7 +1216,7 @@ export const ViewfinderModal: React.FC = () => {
                         currentSlotKey === slot.key
                           ? slot.short === 'END'
                             ? 'bg-amber-500 text-black'
-                            : 'bg-violet-600 text-white'
+                            : 'bg-accent text-white'
                           : 'bg-slate-950 text-slate-300'
                       }`}
                     >
@@ -1254,7 +1254,7 @@ export const ViewfinderModal: React.FC = () => {
                       : 'Capture — a shot is created for this camera automatically'
                   }
                   className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
-                    photoFeedback ? 'bg-emerald-600 text-white' : 'bg-violet-600 hover:bg-violet-500 text-white'
+                    photoFeedback ? 'bg-emerald-700 text-white' : 'bg-accent hover:bg-accent-hover text-white'
                   }`}
                 >
                   <Camera className="w-3.5 h-3.5" />
@@ -1293,7 +1293,7 @@ export const ViewfinderModal: React.FC = () => {
                   { cameraId: selectedCamera.id, ...currentOptics },
                 )}
                 title="Open this device's camera inside the viewfinder (webcam, phone or iPad) and shoot the storyboard through these guides"
-                className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm bg-violet-600 hover:bg-violet-500 text-white"
+                className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm bg-accent hover:bg-accent-hover text-white"
               >
                 <Video className="w-3.5 h-3.5" />
                 <span>Live camera</span>
@@ -1305,7 +1305,7 @@ export const ViewfinderModal: React.FC = () => {
                 onClick={captureSimulatedFrame}
                 title="Board this blocking: save the simulated frame (silhouettes, props and guides) as this shot's storyboard"
                 className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
-                  photoFeedback ? 'bg-emerald-600 text-white' : 'bg-sky-600 hover:bg-sky-500 text-white'
+                  photoFeedback ? 'bg-emerald-700 text-white' : 'bg-accent hover:bg-accent-hover text-white'
                 }`}
               >
                 <PenTool className="w-3.5 h-3.5" />
@@ -1317,7 +1317,7 @@ export const ViewfinderModal: React.FC = () => {
               onClick={() => cameraInputRef.current?.click()}
               className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 photoFeedback
-                  ? 'bg-emerald-600 text-white border-emerald-500'
+                  ? 'bg-emerald-700 text-white border-emerald-500'
                   : 'bg-slate-950 text-slate-300 border-slate-800 hover:text-white'
               }`}
               title="Attach a photo from a file (on iPad and mobile this opens the camera app)"
@@ -1390,8 +1390,8 @@ export const ViewfinderModal: React.FC = () => {
               }
               className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
                 savedFeedback
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-sky-600 hover:bg-sky-500 text-white'
+                  ? 'bg-emerald-700 text-white'
+                  : 'bg-accent hover:bg-accent-hover text-white'
               }`}
             >
               <Save className="w-3.5 h-3.5" />

@@ -112,6 +112,17 @@ export const remapProjectAssetIds = (
     (location.referenceAssetIds ?? []).forEach((id, index) => {
       rewrite(id, (next) => { location.referenceAssetIds![index] = next; });
     });
+    // Scout photo captions are keyed by asset id and must follow the photo.
+    const photos = location.scout?.photos;
+    if (photos) {
+      for (const id of Object.keys(photos)) {
+        const next = mapping[id];
+        if (next && next !== id) {
+          photos[next] = photos[id];
+          delete photos[id];
+        }
+      }
+    }
   }
   for (const board of working.moodBoards ?? []) {
     for (const card of board.cards) {

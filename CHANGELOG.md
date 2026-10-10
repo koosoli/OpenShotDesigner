@@ -4,6 +4,76 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] — 2026-10-10
+
+Production paperwork release: the reports an AD and a script supervisor hand
+out every day, built from the data the app already has.
+
+### Added
+
+- **Page counts in eighths** — every scene measured on a standard 55-line
+  Courier page, shown in the scene list, strips, one-liner and call sheets;
+  overridable per scene.
+- **Breakdown sheets & prop report** — one sheet per scene (cast, stunts,
+  extras, props, wardrobe, vehicles, effects…) and a prop report built from the
+  tagged screenplay.
+- **Script colour highlighter** — highlight by character (with name mentions),
+  location or breakdown category; colours per character are editable.
+- **Locked pages & revisions** — lock page breaks (A-pages, omitted pages) and
+  mark revised lines with the standard revision colour sequence; both carry
+  into the lined-script PDF.
+- **Final Draft export** (`.fdx`), alongside the existing import.
+- **One-liner & shooting schedule** in the schedule, with page totals at each
+  day break and optional breakdown elements.
+- **Day out of days** — cast, stunts, background and any breakdown category,
+  derived from the strips; manual travel / fitting / rehearsal / holiday cells;
+  drop-and-pickup rule (WD/PW). Lives in Schedule.
+- **What-if while dragging strips** — page, day-length and paid-day impact
+  before you drop.
+- **Performers production time report (SAG-AFTRA Exhibit G)** — filled from
+  the schedule; warns about meal penalties, short meals, forced calls,
+  overtime (day or weekly contract) and minors' hours, with per-sheet rule
+  limits. On-set **cast clock** stamps times with one tap.
+- **Location scouting** — notes, ratings, status and photos (EXIF date/GPS)
+  per location, including set candidates.
+- **Budget top sheet** with account numbers.
+- **Call sheet email draft** with the PDF downloaded alongside.
+- **Bigger storyboards in the shot list** (S/M/L/XL), also reflected in the
+  shot-list print and PDF.
+- **Print or export any single report** — every report has its own Print and
+  PDF button, and print uses the same document as the PDF.
+- **Getting started checklist**, keyboard shortcut sheet (`?`), empty states
+  and panel headers across modules; new production icons in the toolbar.
+- Example data for every new module when "fill empty modules with examples"
+  is chosen, including a sample Exhibit G sheet.
+
+### Changed
+
+- Stripboard print/PDF fills each strip edge to edge in the board's
+  INT/EXT × DAY/NIGHT colours.
+- Phone layout: top bar, panel tabs and view switchers compact to icons; the
+  production module menu opens as a bottom sheet.
+- Contrast raised to WCAG AA across the theme (accent, muted text, status
+  colours); unlabelled form controls named. Checked by axe in every module, in
+  light and dark.
+- Schedule derivations (DOOD, one-liner, what-if) index their lookups — about
+  10× faster on a 40-day schedule.
+- Typing in a field merges into one undo step.
+- More writes go through named commands (production details, takes,
+  logistics, day filters), so undo entries say what changed.
+- The language switch is hidden for now; the app is English-only.
+
+### Removed
+
+- The backup-reminder pop-up.
+
+### Migration
+
+- Project schema v34 (stamp only). New optional fields: page-length overrides,
+  revision marks and page locks, DOOD overrides and drop rule, performer time
+  reports (with `contract` and per-sheet `limits`), location scouts. Older
+  projects open unchanged.
+
 ## [1.0.0] — 2026-09-26
 
 First public open-source release. A free, local-first production planning

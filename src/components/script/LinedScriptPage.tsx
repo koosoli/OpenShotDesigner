@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ScriptElementType, ScriptLine, ScriptMark, Shot } from '../../types';
 import { breakdownCategoryLabel, breakdownCategoryTint, breakdownTagsForLine, omittedSceneLabel } from '../../domain/script';
-import type { BreakdownItem, ScriptSelectionRange } from '../../domain/script';
+import type { BreakdownItem, LineHighlight, NameMention, ScriptSelectionRange } from '../../domain/script';
+import { formatPageEighths } from '../../domain/reports';
 
 /** Stable identity so the default prop does not re-run the tag lookup each render. */
 const EMPTY_BREAKDOWN_ITEMS: BreakdownItem[] = [];
@@ -147,6 +148,19 @@ interface LinedScriptPageProps {
   /** Highlight the tags for this element only — used when one is selected. */
   highlightedBreakdownItemId?: string | null;
   onSelectBreakdownItem?: (itemId: string) => void;
+  /**
+   * Highlighter colours per line id (character or location colour coding).
+   * Drawn as a margin bar and a soft wash behind the words.
+   */
+  lineHighlights?: ReadonlyMap<string, LineHighlight>;
+  /** Character names inside action lines, underlined in the character's colour. */
+  nameMentions?: ReadonlyMap<string, NameMention[]>;
+  /** Page label per line that starts a page ("12", "12A"), drawn as a page marker. */
+  pageStarts?: ReadonlyMap<string, string>;
+  /** Current revision colour index; lines revised in it get the margin asterisk. */
+  revisionIndex?: number;
+  /** Page length per scene heading line id, shown beside the slugline. */
+  scenePageEighths?: ReadonlyMap<string, number>;
   onLinePointerDown?: (event: React.PointerEvent, lineId: string) => void;
   onSelectMark?: (mark: ScriptMark) => void;
   /** Commit a dragged lining edge (called once, on release). */
@@ -168,6 +182,11 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
   breakdownItems = EMPTY_BREAKDOWN_ITEMS,
   highlightedBreakdownItemId = null,
   onSelectBreakdownItem,
+  lineHighlights,
+  nameMentions,
+  pageStarts,
+  revisionIndex,
+  scenePageEighths,
   onLinePointerDown,
   onSelectMark,
   onExtendMark,
@@ -316,11 +335,14 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
   }, [dragEdge, onExtendMark, lines, positions]);
 
   const shotFor = (mark: ScriptMark) => shots.find((shot) => shot.id === mark.shotId);
-  const paperText = print ? 'text-slate-900' : isLight ? 'text-slate-900' : 'text-slate-100';
-  const paperBg = print ? 'bg-white' : isLight ? 'bg-white' : 'bg-slate-900';
+  const paperText = print ? 'text-slate-900' : 'text-ink';
+  const paperBg = print ? 'bg-white' : 'bg-surface';
 
   return (
     <div
+      // Lining labels are drawn in the camera colours the user picked, so
+      // automated contrast checks skip this page (e2e/layout-and-a11y).
+      data-user-colors=""
       className={`relative mx-auto rounded select-text ${paperBg} ${paperText} ${print ? '' : 'shadow-sm'}`}
       style={{
         // The app shell is `select-none`; the screenplay itself must be
@@ -374,6 +396,9 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
           // draw it until the scene is restored.
           const breakdownTags =
             breakdownItems.length > 0 && !line.omitted ? breakdownTagsForLine(breakdownItems, line.id) : [];
+          const highlight = lineHighlights?.get(line.id);
+          const mentions = line.omitted ? undefined : nameMentions?.get(line.id);
+          const pageEighths = type === 'scene' && !line.omitted ? scenePageEighths?.get(line.id) : undefined;
 
           return (
             <div
@@ -399,8 +424,51 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                 marginTop: type === 'scene' ? '1.6em' : type === 'character' ? '1em' : '0.55em',
                 marginLeft: `${layout.left}ch`,
                 maxWidth: `${layout.width}ch`,
+                ...(highlight && !isLineFullSelected
+                  ? {
+                      backgroundColor: `${highlight.color}${isLight || print ? '1f' : '2e'}`,
+                      boxShadow: `-0.5ch 0 0 0 ${highlight.color}${isLight || print ? '1f' : '2e'}, 0.5ch 0 0 0 ${highlight.color}${isLight || print ? '1f' : '2e'}`,
+                    }
+                  : {}),
               }}
+              title={highlight?.label}
             >
+              {highlight && (
+                <span
+                  aria-hidden
+                  className="absolute top-0 bottom-0 rounded-full pointer-events-none"
+                  style={{ left: `${-layout.left - 1.6}ch`, width: '0.35ch', backgroundColor: highlight.color }}
+                />
+              )}
+              {pageStarts?.has(line.id) && index > 0 && (
+                <span
+                  aria-label={`Page ${pageStarts.get(line.id)}`}
+                  className={`absolute right-0 select-none font-sans font-bold pointer-events-none ${isLight || print ? 'text-slate-400' : 'text-slate-500'}`}
+                  style={{ top: '-1.2em', fontSize: '0.7em', borderTop: '1px dashed currentColor', left: `${-layout.left}ch`, textAlign: 'right' }}
+                >
+                  {pageStarts.get(line.id)}.
+                </span>
+              )}
+              {revisionIndex !== undefined && revisionIndex > 0 && line.revisedIn === revisionIndex && (
+                <span
+                  aria-label="Changed in this revision"
+                  title="Changed in this revision"
+                  className="absolute font-bold select-none"
+                  style={{ right: line.isSceneHeading && line.sceneNumber ? '-5ch' : '-2.6ch', top: 0 }}
+                >
+                  *
+                </span>
+              )}
+              {pageEighths !== undefined && !print && (
+                <span
+                  aria-hidden
+                  title="Scene length in eighths of a page"
+                  className={`absolute right-0 select-none font-sans font-semibold tracking-wide pointer-events-none text-ink-subtle`}
+                  style={{ top: '-1.35em', fontSize: '0.7em' }}
+                >
+                  {formatPageEighths(pageEighths)} pg
+                </span>
+              )}
               {/* A numbered production draft carries the scene number in BOTH
                   margins — that is how a shooting script is read, from either
                   side of the page. The right-hand one sits between the 60-column
@@ -471,6 +539,27 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                   </span>
                 );
               })}
+
+              {/* Character names in action lines, in the character's colour. */}
+              {mentions?.map((mention, mentionIndex) => (
+                <span
+                  key={`mention-${mentionIndex}`}
+                  aria-hidden
+                  className="absolute inset-0 whitespace-pre-wrap break-words pointer-events-none"
+                >
+                  <span className="invisible">{line.text.slice(0, mention.start)}</span>
+                  <span
+                    title={mention.label}
+                    className="rounded-[2px]"
+                    style={{
+                      boxShadow: `inset 0 -0.14em 0 ${mention.color}`,
+                      backgroundColor: `${mention.color}${isLight || print ? '26' : '3d'}`,
+                    }}
+                  >
+                    {line.text.slice(mention.start, mention.end)}
+                  </span>
+                </span>
+              ))}
 
               {/* Tint only the covered words when the selected lining is partial */}
               {covered && (covered.start > 0 || covered.end < line.text.length) && (
@@ -565,7 +654,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                   onClick={() => onSelectMark?.(mark)}
                   disabled={!onSelectMark}
                   title={`${label}${shotSize ? ` (${shotSize})` : ''}${description ? ` — ${description}` : ''}`}
-                  className="absolute -top-3 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full border text-[9px] font-bold whitespace-nowrap flex items-center gap-1"
+                  className="absolute -top-3 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap flex items-center gap-1"
                   style={{
                     borderColor: mark.color,
                     color: mark.color,
@@ -575,7 +664,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                 >
                   <span>{label}</span>
                   {showShotSize && shotSize ? (
-                    <span className="opacity-90 font-mono text-[8px] font-black bg-slate-500/20 px-1 py-0.2 rounded border border-current/20">
+                    <span className="opacity-90 font-mono text-[10px] font-black bg-slate-500/20 px-1 py-0.2 rounded border border-current/20">
                       {shotSize}
                     </span>
                   ) : null}

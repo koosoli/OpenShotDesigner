@@ -34,9 +34,9 @@ export interface ContinuityBinderProps {
 
 const DEPARTMENT_TINT: Record<ContinuityDepartment, string> = {
   wardrobe: 'text-violet-500',
-  hair: 'text-amber-500',
+  hair: 'text-warn',
   makeup: 'text-rose-500',
-  props: 'text-sky-500',
+  props: 'text-accent-ink',
 };
 
 export const ContinuityBinder: React.FC<ContinuityBinderProps> = ({ isLight }) => {
@@ -134,15 +134,15 @@ export const ContinuityBinder: React.FC<ContinuityBinderProps> = ({ isLight }) =
       }),
     );
 
-  const surfaceClass = isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700';
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
+  const surfaceClass = 'bg-surface border-line';
+  const mutedText = 'text-ink-muted';
   const inputClass = `min-h-[32px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${
     isLight
       ? 'bg-slate-50 border-slate-300 text-slate-800'
       : 'bg-slate-950 border-slate-700 text-slate-200'
   }`;
   const iconBtnClass = `flex items-center justify-center min-w-[32px] min-h-[32px] rounded-lg transition-colors flex-shrink-0 ${
-    isLight ? 'hover:bg-slate-200 text-slate-600' : 'hover:bg-slate-800 text-slate-300'
+    'hover:bg-surface-muted text-ink-soft'
   }`;
 
   return (
@@ -187,7 +187,7 @@ export const ContinuityBinder: React.FC<ContinuityBinderProps> = ({ isLight }) =
         <button
           onClick={addNote}
           className={`flex items-center gap-1.5 px-3 min-h-[32px] rounded-lg text-xs font-semibold ml-auto ${
-            isLight ? 'bg-sky-600 text-white' : 'bg-sky-600 text-white'
+            'bg-accent text-white'
           }`}
         >
           <Plus className="w-3.5 h-3.5" /> Note
@@ -331,7 +331,7 @@ export const ContinuityBinder: React.FC<ContinuityBinderProps> = ({ isLight }) =
                   ))}
                   <label
                     className={`${iconBtnClass} cursor-pointer border border-dashed ${
-                      isLight ? 'border-slate-300' : 'border-slate-700'
+                      'border-line-strong'
                     }`}
                     title="Attach continuity photos"
                   >

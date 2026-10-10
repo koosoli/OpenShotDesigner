@@ -217,6 +217,67 @@ const SHOTS = [
     })()`,
   },
   {
+    slug: 'one-liner',
+    title: 'One-liner schedule',
+    prepare: `(async () => {
+      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      menu && menu.click();
+      await new Promise(r => setTimeout(r, 250));
+      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      tab && tab.click();
+      await new Promise(r => setTimeout(r, 600));
+      const view = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'One-liner');
+      view && view.click();
+      await new Promise(r => setTimeout(r, 800));
+      return 'ok';
+    })()`,
+  },
+  {
+    slug: 'dood',
+    title: 'Day out of days',
+    prepare: `(async () => {
+      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      menu && menu.click();
+      await new Promise(r => setTimeout(r, 250));
+      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      tab && tab.click();
+      await new Promise(r => setTimeout(r, 600));
+      const view = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'DOOD');
+      view && view.click();
+      await new Promise(r => setTimeout(r, 800));
+      return 'ok';
+    })()`,
+  },
+  {
+    slug: 'time-report',
+    title: 'Performers time report (Exhibit G)',
+    prepare: `(async () => {
+      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      menu && menu.click();
+      await new Promise(r => setTimeout(r, 250));
+      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      tab && tab.click();
+      await new Promise(r => setTimeout(r, 600));
+      const view = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'Time report');
+      view && view.click();
+      await new Promise(r => setTimeout(r, 800));
+      return 'ok';
+    })()`,
+  },
+  {
+    slug: 'script-reports',
+    title: 'Script reports: page counts, breakdown sheets, props',
+    prepare: `(async () => {
+      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Script');
+      tab && tab.click();
+      await new Promise(r => setTimeout(r, 600));
+      const reports = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Reports');
+      reports && reports.click();
+      await new Promise(r => setTimeout(r, 800));
+      return 'ok';
+    })()`,
+  },
+  {
     slug: 'crew',
     title: 'Crew, cast & key roles',
     prepare: `(async () => {

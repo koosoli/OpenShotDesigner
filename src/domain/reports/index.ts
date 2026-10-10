@@ -63,16 +63,30 @@ export type {
 } from './standingCallSheet';
 export { buildStripContextResolver, synthesiseSlugline } from './stripContext';
 export type { StripContext, StripContextSources } from './stripContext';
-export { deriveDood } from './dood';
+export {
+  DOOD_MANUAL_STATUSES,
+  DOOD_STATUS_META,
+  deriveDood,
+  deriveElementDood,
+  doodCellsFromWorkDays,
+  doodStatusCode,
+  doodTotals,
+  setDoodOverride,
+} from './dood';
 export type {
   DoodCell,
   DoodColumn,
+  DoodElementSource,
+  DoodManualStatus,
+  DoodOverride,
   DoodRow,
+  DoodStatusMeta,
+  DoodTotals,
   DoodWorkStatus,
   DeriveDoodInput,
 } from './dood';
-export { castFilterForDay, castNumbersScheduledOn, castPersonIdsForDay, charactersScheduledOn } from './dayCast';
-export type { DayCastSources } from './dayCast';
+export { castFilterForDay, castNumbersScheduledOn, castPersonIdsForDay, charactersScheduledOn, sceneIdsScheduledOn } from './dayCast';
+export type { DayCastSources, DaySceneSources } from './dayCast';
 export { countNeedDays, deriveDayNeeds, equipmentKey, equipmentLabel, setupIdsScheduledOn } from './dayNeeds';
 export type { DayNeeds, DayNeedsEquipment, DeriveDayNeedsInput } from './dayNeeds';
 export { locationForText, resolveDayLocations, setNameFromLocationText } from './dayLocations';
@@ -91,3 +105,32 @@ export type {
 } from './dailyProgress';
 export { buildCallSheetProjectContext, callSheetForDay } from './callSheetForDay';
 export type { CallSheetProjectContext } from './callSheetForDay';
+export { deriveElementReport } from './elementReport';
+export type { DeriveElementReportInput, ElementReportDay, ElementReportRow } from './elementReport';
+export {
+  EXHIBIT_G_CLOCK_STEPS,
+  EXHIBIT_G_LIMITS,
+  exhibitGTotals,
+  nextClockStep,
+  resolveExhibitGLimits,
+  exhibitGWarnings,
+  formatMinutes,
+  parseClock,
+  seedExhibitGEntries,
+} from './exhibitG';
+export type {
+  ExhibitGLimits,
+  ExhibitGStatus,
+  ExhibitGTotals,
+  ExhibitGWarning,
+  PerformerTimeEntry,
+  PerformerTimeReport,
+} from './exhibitG';
+export { deriveBreakdownSheets } from './breakdownSheet';
+export type { BreakdownSheet, BreakdownSheetCast } from './breakdownSheet';
+export { deriveOneLiner } from './oneLiner';
+export type { OneLinerBanner, OneLinerDay, OneLinerScene } from './oneLiner';
+export { callSheetEmail } from './callSheetEmail';
+export type { CallSheetEmail, CallSheetEmailInput } from './callSheetEmail';
+export { scheduleWhatIf } from './scheduleWhatIf';
+export type { ScheduleWhatIf, WhatIfDay, WhatIfPerformer } from './scheduleWhatIf';

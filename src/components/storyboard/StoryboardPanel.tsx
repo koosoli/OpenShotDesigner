@@ -1,4 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { PanelTitle } from '../common/PanelHeader';
+import { useDismiss } from '../common/useDismiss';
 import {
   ArrowRight,
   Camera,
@@ -56,6 +58,8 @@ export const StoryboardPanel: React.FC = () => {
   const isLight = theme === 'light';
   const hideBlankWaypoints = displaySettings.hideBlankStoryboardWaypoints ?? false;
   const [openWaypointsShotId, setOpenWaypointsShotId] = useState<string | null>(null);
+  const waypointsCardRef = useRef<HTMLDivElement>(null);
+  useDismiss(openWaypointsShotId !== null, useCallback(() => setOpenWaypointsShotId(null), []), waypointsCardRef);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [uploadTarget, setUploadTarget] = useState<{ shotId: string; slotKey: string } | null>(null);
@@ -97,7 +101,7 @@ export const StoryboardPanel: React.FC = () => {
 
   const card = isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-800/60 border-slate-700 text-slate-100';
   const control = `rounded-lg border px-2 py-1 text-[11px] ${
-    isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-700 text-slate-200'
+    'bg-field border-line-strong text-ink'
   }`;
 
   /** One storyboard frame: the art (or a blank drop target) plus its controls. */
@@ -142,7 +146,7 @@ export const StoryboardPanel: React.FC = () => {
               fileInputRef.current?.click();
             }}
             className={`absolute inset-0 flex flex-col items-center justify-center gap-1 text-[10px] ${
-              isLight ? 'text-slate-400 hover:text-slate-600' : 'text-slate-600 hover:text-slate-400'
+              'text-ink-muted hover:text-ink'
             }`}
           >
             <Upload className="w-4 h-4" />
@@ -152,12 +156,12 @@ export const StoryboardPanel: React.FC = () => {
 
         {showLabel && (
           <span
-            className={`absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${
+            className={`absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
               slot.short === 'END'
                 ? 'bg-amber-500 text-black'
                 : slot.short === 'START'
-                  ? 'bg-violet-600 text-white'
-                  : 'bg-sky-600 text-white'
+                  ? 'bg-accent text-white'
+                  : 'bg-accent text-white'
             }`}
           >
             {slot.short || slot.label}
@@ -172,7 +176,7 @@ export const StoryboardPanel: React.FC = () => {
               updateShot(shot.id, setSlotOmittedPatch(shot, slot.key, true, camera, hideBlankWaypoints));
             }}
             title="Omit this waypoint picture from storyboard"
-            className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 hover:bg-black/80 text-white/90 hover:text-white text-[9px] font-semibold flex items-center gap-1 z-10"
+            className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 hover:bg-black/80 text-white/90 hover:text-white text-[10px] font-semibold flex items-center gap-1 z-10"
           >
             <EyeOff className="w-2.5 h-2.5" />
             <span>Omit</span>
@@ -234,18 +238,16 @@ export const StoryboardPanel: React.FC = () => {
   };
 
   return (
-    <div className={`h-full flex flex-col min-h-0 ${isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}`}>
+    <div className={`h-full flex flex-col min-h-0 bg-surface text-ink`}>
       {/* Header */}
       <div className={`p-2.5 border-b flex flex-wrap items-center gap-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800'}`}>
-        <div className="mr-auto">
-          <h2 className="text-xs font-bold uppercase tracking-wide flex items-center gap-2">
-            <ImageIcon className="w-4 h-4 text-violet-500" /> Storyboard
-          </h2>
-          <p className="text-[10px] opacity-60 mt-0.5">
-            {shots.length} shot{shots.length === 1 ? '' : 's'} · one frame per camera keyframe · drag to arrange the
-            board (the shot list keeps its own order)
-          </p>
-        </div>
+        <PanelTitle
+          className="mr-auto"
+          icon={<ImageIcon />}
+          title="Storyboard"
+          count={shots.length}
+          subtitle="One frame per camera keyframe · drag to arrange (the shot list keeps its own order)"
+        />
 
         {/* Aspect ratio of every frame (and of the storyboards on the plan) */}
         <label className="flex items-center gap-1" title="Storyboard aspect ratio">
@@ -276,7 +278,7 @@ export const StoryboardPanel: React.FC = () => {
           aria-pressed={hideBlankWaypoints}
           className={`px-2 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
             hideBlankWaypoints
-              ? 'bg-violet-600 text-white border-violet-500 shadow-xs'
+              ? 'bg-accent text-white border-violet-500 shadow-xs'
               : isLight
                 ? 'border-slate-300 hover:bg-slate-100 text-slate-700'
                 : 'border-slate-700 hover:bg-slate-800 text-slate-300'
@@ -286,12 +288,12 @@ export const StoryboardPanel: React.FC = () => {
           <span>{hideBlankWaypoints ? 'Blank waypoints omitted' : 'Omit blank waypoints'}</span>
         </button>
 
-        <PdfExportButton onClick={() => openExportModal('storyboard')} title="Storyboard als PDF exportieren" />
+        <PdfExportButton onClick={() => openExportModal('storyboard')} title="Download the storyboard as a PDF" />
 
         <button
           onClick={() => createCameraAndShot()}
           title="Add a frame — also adds the shot to the list and its camera to the floor plan"
-          className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold flex items-center gap-1"
+          className="px-2.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold flex items-center gap-1"
         >
           <Plus className="w-3.5 h-3.5" /> Add frame
         </button>
@@ -300,7 +302,7 @@ export const StoryboardPanel: React.FC = () => {
       {/* Frames */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2.5">
         {shots.length === 0 ? (
-          <div className={`m-2 p-6 text-center border border-dashed rounded-xl ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
+          <div className={`m-2 p-6 text-center border border-dashed rounded-xl border-line-strong`}>
             <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-40" />
             <p className="text-xs font-semibold">No frames yet</p>
             <p className="text-[11px] opacity-60 mt-1">
@@ -326,6 +328,7 @@ export const StoryboardPanel: React.FC = () => {
                 <div
                   key={shot.id}
                   id={`storyboard-frame-${shot.id}`}
+                  ref={isWaypointsOpen ? waypointsCardRef : undefined}
                   onDragOver={(event) => {
                     event.preventDefault();
                     setDragOverIndex(index);
@@ -373,21 +376,21 @@ export const StoryboardPanel: React.FC = () => {
                         <button
                           onClick={() => updateShot(shot.id, setSlotsPresetPatch(shot, camera, 'all'))}
                           title="Show all waypoint keyframes"
-                          className="flex-1 px-1.5 py-1 rounded-md text-[9px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
+                          className="flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
                         >
                           All ({allSlots.length})
                         </button>
                         <button
                           onClick={() => updateShot(shot.id, setSlotsPresetPatch(shot, camera, 'start-end'))}
                           title="Only show the start framing and end framing (omit intermediate beats)"
-                          className="flex-1 px-1.5 py-1 rounded-md text-[9px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
+                          className="flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
                         >
                           Start & End
                         </button>
                         <button
                           onClick={() => updateShot(shot.id, setSlotsPresetPatch(shot, camera, 'omit-blank'))}
                           title="Omit unboarded waypoint frames on this shot"
-                          className="flex-1 px-1.5 py-1 rounded-md text-[9px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
+                          className="flex-1 px-1.5 py-1 rounded-md text-[10px] font-semibold border border-slate-300 dark:border-slate-700 hover:bg-violet-500/10 hover:border-violet-500 transition-colors text-center"
                         >
                           With Art
                         </button>
@@ -414,15 +417,15 @@ export const StoryboardPanel: React.FC = () => {
                                 isStart
                                   ? 'opacity-80 cursor-default bg-slate-500/10'
                                   : isOmitted
-                                    ? 'bg-slate-500/5 text-slate-400 hover:bg-slate-500/10 cursor-pointer'
-                                    : 'bg-violet-500/10 font-semibold text-violet-400 hover:bg-violet-500/20 cursor-pointer'
+                                    ? 'bg-slate-500/5 text-ink-muted hover:bg-slate-500/10 cursor-pointer'
+                                    : 'bg-violet-500/10 font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-500/20 cursor-pointer'
                               }`}
                             >
                               <div className="flex items-center gap-1.5">
                                 <span
-                                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[8px] font-bold ${
+                                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] font-bold ${
                                     !isOmitted
-                                      ? 'bg-violet-600 text-white border-violet-500'
+                                      ? 'bg-accent text-white border-violet-500'
                                       : 'border-slate-500 text-transparent'
                                   }`}
                                 >
@@ -434,14 +437,14 @@ export const StoryboardPanel: React.FC = () => {
                                 <span>{s.label}</span>
                               </div>
 
-                              <div className="flex items-center gap-1 font-mono text-[9px]">
+                              <div className="flex items-center gap-1 font-mono text-[10px]">
                                 {hasArt ? (
-                                  <span className="text-emerald-500 font-semibold">Art</span>
+                                  <span className="text-ok font-semibold">Art</span>
                                 ) : (
                                   <span className="text-slate-500">Blank</span>
                                 )}
                                 {!isStart && (
-                                  <span className={isOmitted ? 'text-amber-500 font-semibold' : 'text-slate-400'}>
+                                  <span className={isOmitted ? 'text-warn font-semibold' : 'text-slate-400'}>
                                     {isOmitted ? 'Omitted' : 'Shown'}
                                   </span>
                                 )}
@@ -471,7 +474,7 @@ export const StoryboardPanel: React.FC = () => {
                         }`}
                       >
                         <span className="font-mono flex items-center gap-1">
-                          <Layers className="w-3 h-3 text-amber-500" />
+                          <Layers className="w-3 h-3 text-warn" />
                           {hiddenWaypointCount} waypoint{hiddenWaypointCount === 1 ? '' : 's'} omitted
                         </span>
                         <div className="flex items-center gap-1.5">
@@ -481,7 +484,7 @@ export const StoryboardPanel: React.FC = () => {
                               setOpenWaypointsShotId(shot.id);
                             }}
                             title="Manage exactly which waypoint frames are shown"
-                            className="text-sky-500 hover:text-sky-400 font-semibold underline underline-offset-2"
+                            className="text-accent-ink hover:text-sky-400 font-semibold underline underline-offset-2"
                           >
                             Manage
                           </button>
@@ -502,7 +505,7 @@ export const StoryboardPanel: React.FC = () => {
 
                     {/* What the move is, between the keyframes */}
                     {slots.length > 1 && shotHasMove(shot) && (
-                      <span className="absolute top-1 left-1/2 -translate-x-1/2 z-10 px-1.5 py-0.5 rounded-full bg-black/75 text-white text-[9px] font-bold flex items-center gap-1 pointer-events-none">
+                      <span className="absolute top-1 left-1/2 -translate-x-1/2 z-10 px-1.5 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-bold flex items-center gap-1 pointer-events-none">
                         <ArrowRight className="w-3 h-3" />
                         {shot.movement}
                       </span>
@@ -522,7 +525,7 @@ export const StoryboardPanel: React.FC = () => {
                         </span>
                       )}
                       {shot.movement && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-black text-[9px] font-bold shadow-xs">
+                        <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-black text-[10px] font-bold shadow-xs">
                           {shot.movement}
                         </span>
                       )}
@@ -587,7 +590,7 @@ export const StoryboardPanel: React.FC = () => {
                       onChange={(event) => updateShot(shot.id, { name: event.target.value })}
                       placeholder="Shot name"
                       className={`w-full text-[11px] font-semibold bg-transparent border-b border-transparent focus:border-sky-500 focus:outline-none ${
-                        isLight ? 'text-slate-800' : 'text-slate-100'
+                        'text-ink'
                       }`}
                     />
                     <textarea
@@ -597,7 +600,7 @@ export const StoryboardPanel: React.FC = () => {
                       rows={2}
                       placeholder="Description — framing, action, camera move…"
                       className={`w-full text-[11px] leading-snug rounded-lg border p-1.5 resize-y ${
-                        isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+                        'bg-surface-sunken border-line'
                       }`}
                     />
                     {shot.actionScriptNotes && (
@@ -613,7 +616,7 @@ export const StoryboardPanel: React.FC = () => {
                     )}
 
                     <div className="flex items-center justify-between mt-auto pt-0.5">
-                      <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      <span className={`text-[10px] font-mono text-ink-muted`}>
                         {shot.shotSize} · {shot.lensMm}mm{shot.movement ? ` · ${shot.movement}` : ''}
                       </span>
                       <button

@@ -72,7 +72,7 @@ import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { TrussLayer, type TrussRunOnPlan } from './TrussLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
-import { Move, ZoomIn, ZoomOut, Check, X, Keyboard, Scan, Grid } from 'lucide-react';
+import { Move, ZoomIn, ZoomOut, Check, X, Scan, Grid } from 'lucide-react';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
 interface DragState {
@@ -140,7 +140,6 @@ export const FloorPlanCanvas: React.FC = () => {
   const [boxSelection, setBoxSelection] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [hoverCanvasPos, setHoverCanvasPos] = useState<Vector2D | null>(null);
-  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Freehand annotation stroke (plan §6.2): points accumulate in the ref while
   // the pointer is down; `liveStroke` mirrors it for the rubberband preview.
@@ -2546,7 +2545,6 @@ export const FloorPlanCanvas: React.FC = () => {
         clearSelection();
         finishConnectedWalls();
         finishConnectedCable();
-        setShowShortcuts(false);
       }
 
       if (e.key === 'Enter') {
@@ -2554,10 +2552,6 @@ export const FloorPlanCanvas: React.FC = () => {
         finishConnectedCable();
       }
 
-      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        setShowShortcuts((v) => !v);
-      }
 
       if ((e.metaKey || e.ctrlKey) && key === 'd') {
         e.preventDefault();
@@ -3403,7 +3397,7 @@ export const FloorPlanCanvas: React.FC = () => {
           aria-label="Pan mode"
           aria-pressed={activeTool === 'pan'}
           className={`p-2 rounded-lg transition-colors ${
-            activeTool === 'pan' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800'
+            activeTool === 'pan' ? 'bg-accent text-white' : 'text-slate-300 hover:text-white hover:bg-slate-800'
           }`}
         >
           <Move className="w-4 h-4" />
@@ -3439,7 +3433,7 @@ export const FloorPlanCanvas: React.FC = () => {
               aria-pressed={isGridOn}
               className={`p-2 rounded-lg transition-colors ${
                 isGridOn
-                  ? 'bg-sky-600 text-white shadow-sm'
+                  ? 'bg-accent text-white shadow-sm'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800'
               }`}
             >
@@ -3456,7 +3450,7 @@ export const FloorPlanCanvas: React.FC = () => {
           <span>Click to add wall corner • Snaps to corners & 90°</span>
           <button
             onClick={finishConnectedWalls}
-            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm"
+            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm"
           >
             <Check className="w-3.5 h-3.5" />
             <span>Finish (Enter)</span>
@@ -3479,7 +3473,7 @@ export const FloorPlanCanvas: React.FC = () => {
           <span>Click to add cable corner • Double-click / Enter / Esc to finish</span>
           <button
             onClick={finishConnectedCable}
-            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm"
+            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm"
           >
             <Check className="w-3.5 h-3.5" />
             <span>Finish (Enter)</span>
@@ -3519,92 +3513,6 @@ export const FloorPlanCanvas: React.FC = () => {
         </div>
       )}
 
-      {/* Keyboard Shortcuts Cheat Sheet (? toggles) */}
-      {showShortcuts && (
-        <div
-          className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onPointerDown={() => setShowShortcuts(false)}
-        >
-          <div
-            onPointerDown={(e) => e.stopPropagation()}
-            className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-slate-900 border border-slate-700 text-slate-200 rounded-2xl shadow-2xl p-5 select-none custom-scrollbar"
-          >
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
-              <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                <Keyboard className="w-4 h-4 text-sky-500" />
-                Keyboard Shortcuts
-              </h3>
-              <button
-                onClick={() => setShowShortcuts(false)}
-                title="Close"
-                aria-label="Close the keyboard shortcuts list"
-                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-[11px]">
-              {[
-                {
-                  group: 'Selection & Editing',
-                  items: [
-                    ['Del / Backspace', 'Delete selected elements (or reference image)'],
-                    ['Shift + Click', 'Multi-select elements'],
-                    ['Ctrl/Cmd + D', 'Duplicate selection'],
-                    ['Ctrl/Cmd + C', 'Copy selected elements'],
-                    ['Ctrl/Cmd + V', 'Paste copied elements'],
-                    ['L / Ctrl+L', 'Lock / Unlock selected elements (prevent accidental moves)'],
-                    ['Arrow Keys', 'Nudge selection (Shift = 10px)'],
-                    ['Esc', 'Deselect / cancel current tool'],
-                  ],
-                },
-                {
-                  group: 'Drawing',
-                  items: [
-                    ['Enter', 'Finish connected wall chain'],
-                    ['Esc', 'Cancel wall / measure drawing'],
-                    ['Hold Shift', 'Snap rotation & angles to 45°'],
-                    ['Hold Alt', 'Temporarily disable snap / grid magnets (fine placement)'],
-                  ],
-                },
-                {
-                  group: 'Canvas Navigation',
-                  items: [
-                    ['Hold Space / Middle-click', 'Pan the floor plan'],
-                    ['Mouse Wheel', 'Zoom (cursor-centered)'],
-                    ['Center View button', 'Fit & center the floor plan to screen'],
-                    ['Ctrl/Cmd + Z', 'Undo'],
-                    ['Ctrl/Cmd + Shift + Z / Ctrl+Y', 'Redo'],
-                  ],
-                },
-                {
-                  group: 'Other',
-                  items: [
-                    ['?', 'Toggle this cheat sheet'],
-                    ['Delete key on selected image', 'Remove the active reference image'],
-                  ],
-                },
-              ].map(({ group, items }) => (
-                <div key={group}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-sky-500 mb-1">{group}</p>
-                  <div className="space-y-1">
-                    {items.map(([key, desc]) => (
-                      <div key={key} className="flex items-center justify-between gap-3">
-                        <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-[10px] text-sky-300 whitespace-nowrap">
-                          {key}
-                        </kbd>
-                        <span className="text-slate-400 text-right">{desc}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Element context menu (right-click / touch long-press, plan §6.3) */}
       {contextMenu && (
         <ElementContextMenu state={contextMenu} onClose={() => setContextMenu(null)} />
@@ -3620,7 +3528,7 @@ export const FloorPlanCanvas: React.FC = () => {
           />
           <div className="w-px h-[6px] bg-slate-400" />
         </div>
-        <span className="text-[9px] leading-none font-mono text-slate-400">
+        <span className="text-[10px] leading-none font-mono text-slate-400">
           5{gridSettings.unit === 'm' ? 'm' : 'ft'}
         </span>
       </div>

@@ -6,6 +6,7 @@
  * canonical units mm/kg (rule 14). Canvas drawing integration for truss
  * elements is out of scope here (placement fields stay at plan defaults).
  */
+import { EmptyState } from '../common/EmptyState';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -383,18 +384,18 @@ export const RiggingPanel: React.FC = () => {
   const subCardClass = isLight
     ? 'bg-slate-50 border-slate-200'
     : 'bg-slate-950/60 border-slate-800';
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
-  const headingText = isLight ? 'text-slate-700' : 'text-slate-300';
+  const mutedText = 'text-ink-muted';
+  const headingText = 'text-ink-soft';
   const inputClass = `min-h-[36px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${
     isLight
       ? 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
       : 'bg-slate-950 border-slate-700 text-slate-100 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
   }`;
   const iconBtnClass = `flex items-center justify-center min-w-[36px] min-h-[36px] rounded-lg transition-colors flex-shrink-0 ${
-    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+    'text-ink-muted hover:text-ink hover:bg-surface-hover'
   }`;
   const primaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors flex-shrink-0 disabled:opacity-40 ${
-    isLight ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-600 text-white hover:bg-sky-500'
+    'bg-accent text-white hover:bg-accent-hover'
   }`;
   const secondaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 disabled:opacity-40 ${
     isLight
@@ -402,10 +403,10 @@ export const RiggingPanel: React.FC = () => {
       : 'border-slate-700 text-slate-300 hover:bg-slate-800'
   }`;
   const chipClass = `px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
-    isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-300'
+    'bg-surface-muted text-ink-soft'
   }`;
   const disclaimerClass = `text-[10px] italic leading-relaxed ${
-    isLight ? 'text-slate-500' : 'text-slate-500'
+    'text-slate-500'
   }`;
 
   const sectionHeading = (icon: React.ReactNode, title: string, count?: number) => (
@@ -441,7 +442,7 @@ export const RiggingPanel: React.FC = () => {
           <span className="ml-auto transition-transform group-open:rotate-90">›</span>
         </summary>
         <div className="pt-2 flex justify-end">
-          <PdfExportButton onClick={() => openExportModal('rigging')} title="Rigging-Plot als PDF exportieren" />
+          <PdfExportButton onClick={() => openExportModal('rigging')} title="Download the rigging plot as a PDF" />
         </div>
         <div className="grid grid-cols-3 gap-1.5">
           <label className="flex flex-col gap-0.5">
@@ -511,7 +512,13 @@ export const RiggingPanel: React.FC = () => {
             </button>
           </div>
         {profiles.length === 0 && (
-          <p className={`text-[11px] ${mutedText}`}>No profiles yet.</p>
+          <EmptyState
+            icon={<Ruler className="w-5 h-5" />}
+            title="No truss profiles yet"
+            action={{ label: 'Add starter profiles', onClick: seedStarterProfiles, icon: <Plus className="w-3.5 h-3.5" /> }}
+          >
+            Truss profiles carry the load tables. Add one, then truss runs and hanging loads, to check every span stays within its rating.
+          </EmptyState>
         )}
         <ul className="flex flex-col gap-1.5">
           {profiles.map((profile) => (
@@ -589,7 +596,7 @@ export const RiggingPanel: React.FC = () => {
                 </label>
               </div>
               {profile.selfWeightKg === undefined && (
-                <p className={`text-[10px] text-amber-500`}>
+                <p className={`text-[10px] text-warn`}>
                   Self-weight unknown — totals for elements on this profile stay unknown.
                 </p>
               )}
@@ -856,7 +863,7 @@ export const RiggingPanel: React.FC = () => {
                             */
                             <span
                               className={`min-h-[36px] px-2 py-1 !w-36 flex items-center justify-end font-mono text-xs ${
-                                load.weightKg === undefined ? 'text-amber-500' : ''
+                                load.weightKg === undefined ? 'text-warn' : ''
                               }`}
                               aria-label={`Catalogue weight for load on ${displayName}`}
                             >
@@ -915,7 +922,7 @@ export const RiggingPanel: React.FC = () => {
                               <label
                                 key={source}
                                 className={`flex items-center gap-1 min-h-[36px] px-1.5 rounded text-[10px] capitalize cursor-pointer ${
-                                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/60'
+                                  'hover:bg-surface-hover'
                                 }`}
                               >
                                 <input
@@ -1032,7 +1039,7 @@ export const RiggingPanel: React.FC = () => {
                       <dd className="font-mono">
                         {breakdown.trussSelfWeightKg !== null
                           ? formatKg(breakdown.trussSelfWeightKg)
-                          : <span className="text-amber-500 italic">unknown</span>}
+                          : <span className="text-warn italic">unknown</span>}
                       </dd>
                     </div>
                     <div className="flex justify-between gap-2">
@@ -1041,16 +1048,16 @@ export const RiggingPanel: React.FC = () => {
                     </div>
                     {breakdown.unknownLoadCount > 0 && (
                       <div className="flex justify-between gap-2">
-                        <dt className="text-amber-500">Unknown loads</dt>
-                        <dd className="font-mono text-amber-500">
+                        <dt className="text-warn">Unknown loads</dt>
+                        <dd className="font-mono text-warn">
                           {breakdown.unknownLoadCount} — not counted
                         </dd>
                       </div>
                     )}
                     {breakdown.unknownHardwareWeightCount > 0 && (
                       <div className="flex justify-between gap-2">
-                        <dt className="text-amber-500">Unknown hardware weights</dt>
-                        <dd className="font-mono text-amber-500">{breakdown.unknownHardwareWeightCount} — not counted</dd>
+                        <dt className="text-warn">Unknown hardware weights</dt>
+                        <dd className="font-mono text-warn">{breakdown.unknownHardwareWeightCount} — not counted</dd>
                       </div>
                     )}
                     <div className="flex justify-between gap-2">
@@ -1069,14 +1076,14 @@ export const RiggingPanel: React.FC = () => {
                     </div>
                     <div
                       className={`flex justify-between gap-2 mt-1 pt-1 border-t border-dashed ${
-                        isLight ? 'border-slate-200' : 'border-slate-800'
+                        'border-line'
                       }`}
                     >
                       <dt className="font-bold">Total (incl. hardware + cable)</dt>
                       <dd className="font-mono font-bold">
                         {breakdown.totalKg !== null
                           ? formatKg(breakdown.totalKg)
-                          : <span className="text-amber-500">unknown (missing load data)</span>}
+                          : <span className="text-warn">unknown (missing load data)</span>}
                       </dd>
                     </div>
                   </dl>
@@ -1087,7 +1094,7 @@ export const RiggingPanel: React.FC = () => {
                         ? isLight ? 'bg-red-100 text-red-800' : 'bg-red-950/60 text-red-300'
                         : capacity.verdict === 'within'
                           ? isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-950/60 text-emerald-300'
-                          : isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-950/60 text-amber-300'
+                          : 'bg-warn-soft text-warn'
                     }`}
                   >
                     {capacityText(capacity)}

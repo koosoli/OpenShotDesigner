@@ -23,9 +23,11 @@ import { join, relative } from 'node:path';
  *
  * 93 at the 2026-09-08 audit; 84 after the people domain moved to commands;
  * 83 once SchedulePanel's block placement went through moveScheduleBlockCommand;
- * 78 after the rigging domain followed; 76 after continuity; 72 after locations.
+ * 78 after the rigging domain followed; 76 after continuity; 72 after locations;
+ * 48 after schedule and paperwork commands; 33 after production details,
+ * takes, logistics and the day filters.
  */
-const CEILING = 72;
+const CEILING = 33;
 
 const ROOT = join(process.cwd(), 'src', 'components');
 const CALL = /\bupdateProjectMeta\s*\(/g;

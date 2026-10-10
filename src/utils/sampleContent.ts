@@ -17,6 +17,9 @@ import { deriveScriptBreakdown } from '../domain/script/logic';
 import type { PowerCircuit, PowerConsumer, PowerPlan, PowerSource } from '../domain/power';
 import type { RiggingItem, SuspendedLoad, TrussElement, TrussProfile } from '../domain/rigging';
 import type { Location } from '../domain/locations';
+import { sampleScoutFor } from './sampleScout';
+import { withSampleStoryboards } from './sampleStoryboards';
+import type { DoodOverride, PerformerTimeEntry } from '../domain/reports';
 import type { LogisticsContainer, PackedItem } from '../domain/logistics';
 import type { MoodBoard, MoodBoardCard, MoodBoardSection } from '../domain/moodboard';
 import type { Task, TaskBoard, TaskColumn, TaskPriority } from '../domain/tasks';
@@ -172,7 +175,12 @@ const SAMPLE_BREAKDOWN_TAGS: Array<{ category: BreakdownCategory; name: string; 
   { category: 'prop', name: 'Handcuffs', notes: 'Quick-release for the performer', from: 'the edge of the pool of light' },
   { category: 'wardrobe', name: 'Sweat-soaked shirt', notes: 'Three identical copies for continuity', from: 'table ring, shirt dark with sweat' },
   { category: 'prop', name: 'Photograph', notes: 'Art department to supply the insert', from: 'He sits back down and slides' },
+  { category: 'stunt', name: 'Detective grabs suspect from behind', notes: 'Stunt coordinator to choreograph; padded chair back', from: 'The DETECTIVE stands, walks around behind him' },
+  { category: 'extras', name: 'Uniformed officer at the door', notes: '1 background, police uniform', from: 'One lamp over a metal table' },
 ];
+
+/** Categories added after the first sample breakdown, for projects that already hold the rest. */
+const LATER_SAMPLE_CATEGORIES: ReadonlySet<BreakdownCategory> = new Set(['stunt', 'extras']);
 
 /**
  * Tag the example elements against a parsed copy of the example screenplay.
@@ -411,6 +419,12 @@ const crewIdsByRole = (people: Person[], role: string): string[] => {
 const isoTimestampDaysAgo = (days: number): string =>
   new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
+/** Scout report and sketch photos for a sample location, or an empty photo list. */
+const withSampleScout = (name: string): Pick<Location, 'referenceAssetIds' | 'scout'> => {
+  const sample = sampleScoutFor(name);
+  return sample ? { referenceAssetIds: [...sample.photoRefs], scout: sample.scout } : { referenceAssetIds: [] };
+};
+
 export const samplePlanningMeta = (people: Person[]): SamplePlanningMeta => {
   const locations: Location[] = [
     {
@@ -422,7 +436,7 @@ export const samplePlanningMeta = (people: Person[]): SamplePlanningMeta => {
       lat: 52.4979,
       lng: 13.4372,
       notes: 'Shoot after closing. Window booth by the north window; the practical neon sign stays on. Unit base in the rear lot (see Day 1 call sheet).',
-      referenceAssetIds: [],
+      ...withSampleScout('Riverside Diner'),
     },
     {
       id: createId('loc'),
@@ -432,7 +446,7 @@ export const samplePlanningMeta = (people: Person[]): SamplePlanningMeta => {
       lat: 52.4966,
       lng: 13.4189,
       notes: 'Interrogation-room set for Day 2. Full blackout available, rigging grid at 6 m, dimmer room next to the loading dock.',
-      referenceAssetIds: [],
+      ...withSampleScout('Kreuzberg Studio, Stage 2'),
     },
     {
       id: createId('loc'),
@@ -793,6 +807,52 @@ export interface ExampleFillResult {
 /** A collection counts as present when it exists and holds at least one item. */
 const hasItems = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
 
+/**
+ * Example paperwork for the sample production: a costume fitting and a travel
+ * day marked by hand on the DOOD, and a Day 1 Exhibit G sheet whose second
+ * performer had lunch called late, so the meal-penalty warning shows.
+ */
+export const samplePaperwork = (input: {
+  characters: readonly Character[];
+  days: readonly { id: string }[];
+  castAssignments: readonly CastAssignment[];
+  people: readonly Person[];
+}): { doodOverrides: DoodOverride[]; performerTimeReports: import('../domain/reports').PerformerTimeReport[] } => {
+  const named = (name: string) => input.characters.find((character) => character.canonicalName === name);
+  const doodOverrides: DoodOverride[] = [];
+  if (input.days.length >= 2) {
+    const detective = named('DETECTIVE');
+    if (detective) doodOverrides.push({ rowId: detective.id, dayId: input.days[0].id, status: 'fitting' });
+    const alex = named('ALEX');
+    if (alex) doodOverrides.push({ rowId: alex.id, dayId: input.days[1].id, status: 'travel' });
+  }
+  const times: Record<string, Partial<PerformerTimeEntry>> = {
+    ALEX: { reportMakeup: '07:00', reportOnSet: '08:00', meal1Out: '13:00', meal1In: '13:30', dismissOnSet: '18:30', dismissMakeup: '18:45', outfits: 1, initials: 'ML' },
+    SARAH: { reportMakeup: '07:30', reportOnSet: '08:30', meal1Out: '13:50', meal1In: '14:20', dismissOnSet: '19:00', dismissMakeup: '19:15', outfits: 2, initials: 'AH' },
+  };
+  const entries: PerformerTimeEntry[] = [];
+  for (const [name, values] of Object.entries(times)) {
+    const character = named(name);
+    if (!character) continue;
+    const assignment = input.castAssignments.find((candidate) => candidate.characterId === character.id);
+    const person = assignment ? input.people.find((candidate) => candidate.id === assignment.personId) : undefined;
+    entries.push({
+      id: createId('exg'),
+      name: person?.displayName ?? name,
+      role: name,
+      characterId: character.id,
+      ...(person ? { personId: person.id } : {}),
+      ...(assignment ? { castNumber: assignment.castNumber } : {}),
+      status: 'SWF',
+      ...values,
+    });
+  }
+  const performerTimeReports = input.days.length > 0 && entries.length > 0
+    ? [{ id: createId('exhibitg'), dayId: input.days[0].id, entries, preparedBy: '2nd AD', notes: 'Example sheet — SARAH’s lunch was called late.' }]
+    : [];
+  return { doodOverrides, performerTimeReports };
+};
+
 export const buildExampleProductionFill = (project: Project): ExampleFillResult => {
   const rawSchedule = sampleScheduleMeta();
   /** Resolve bundled stable ids onto a template that was cloned with fresh ids. */
@@ -950,6 +1010,70 @@ export const buildExampleProductionFill = (project: Project): ExampleFillResult 
       patch.breakdownItems = elements;
       filled.push('script breakdown elements');
     }
+  }
+
+  // A project already holding the original sample breakdown still gets the
+  // stunt and background elements, so the DOOD shows its sections.
+  if (hasItems(project.breakdownItems) && !project.breakdownItems!.some((item) => LATER_SAMPLE_CATEGORIES.has(item.category))) {
+    let items = project.breakdownItems!;
+    for (const tag of SAMPLE_BREAKDOWN_TAGS.filter((entry) => LATER_SAMPLE_CATEGORIES.has(entry.category))) {
+      const line = (project.scriptLines ?? []).find((candidate) => candidate.text.startsWith(tag.from));
+      if (line) items = tagBreakdownItem(items, { category: tag.category, name: tag.name, notes: tag.notes, scriptLineIds: [line.id] });
+    }
+    if (items !== project.breakdownItems) {
+      patch.breakdownItems = items;
+      filled.push('stunt & background elements');
+    }
+  }
+
+  // Scouting reports on the sample locations a project already has.
+  if (hasItems(project.locations) && !project.locations!.some((location) => location.scout)) {
+    let changed = false;
+    const locations = project.locations!.map((location) => {
+      if ((location.referenceAssetIds ?? []).length > 0) return location;
+      const sample = sampleScoutFor(location.name);
+      if (!sample) return location;
+      changed = true;
+      return { ...location, referenceAssetIds: [...sample.photoRefs], scout: sample.scout };
+    });
+    if (changed) {
+      patch.locations = locations;
+      filled.push('location scouting');
+    }
+  }
+
+  // Sketch storyboards on the example shots when nothing has been boarded yet.
+  const sampleNumbers = new Set(SAMPLE_SCENES.map((template) => template.sceneNumber));
+  const anyBoards = project.setups.some((setup) => setup.shots.some((shot) =>
+    !!shot.storyboardImage || Object.values(shot.storyboardFrames ?? {}).some((frame) => frame?.image)));
+  if (!anyBoards) {
+    const base = patch.setups ?? project.setups;
+    let boarded = false;
+    const setups = base.map((setup) => {
+      if (!sampleNumbers.has(setup.sceneNumber) || setup.shots.length === 0) return setup;
+      boarded = true;
+      return { ...setup, shots: withSampleStoryboards(setup.shots) };
+    });
+    if (boarded) {
+      patch.setups = setups;
+      filled.push('storyboard sketches');
+    }
+  }
+
+  // Paperwork examples: hand-entered DOOD cells and a Day 1 time sheet.
+  const paperwork = samplePaperwork({
+    characters: patch.characters ?? project.characters ?? [],
+    days: patch.productionDays ?? project.productionDays ?? [],
+    castAssignments: patch.castAssignments ?? project.castAssignments ?? [],
+    people: patch.people ?? project.people ?? [],
+  });
+  if (!hasItems(project.doodOverrides) && paperwork.doodOverrides.length) {
+    patch.doodOverrides = paperwork.doodOverrides;
+    filled.push('day out of days');
+  }
+  if (!hasItems(project.performerTimeReports) && paperwork.performerTimeReports.length) {
+    patch.performerTimeReports = paperwork.performerTimeReports;
+    filled.push('performer time report');
   }
 
   // Standing content is production-level, so it fills only when the project

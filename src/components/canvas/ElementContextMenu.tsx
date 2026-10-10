@@ -43,10 +43,9 @@ interface ElementContextMenuProps {
  */
 export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, onClose }) => {
   const { activeSetup, selectedElementIds, selectElement, updateMultipleElements, deleteSelectedElements, duplicateSelected, copySelectedElements, pasteElements, updateSetupMeta, groupSelection, ungroupSelection, addElement } = useFloorPlan();
-  const { theme, setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
+  const { setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
   const { prompt } = useDialogs();
 
-  const isLight = theme === 'light';
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Opening the menu on an element makes it the selection (forced, so locked
@@ -110,7 +109,7 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
   })();
 
   const itemClass = `w-full min-h-[40px] px-2.5 py-2 rounded-lg text-xs flex items-center justify-between gap-3 transition-colors ${
-    isLight ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-200 hover:bg-slate-800'
+    'text-ink-soft hover:bg-surface-hover'
   }`;
 
   const run = (action: () => void) => () => {
@@ -163,7 +162,7 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
     <div
       ref={menuRef}
       className={`fixed z-[70] w-56 border rounded-xl shadow-2xl p-1.5 space-y-0.5 animate-in fade-in zoom-in-95 ${
-        isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+        'bg-surface border-line text-ink'
       }`}
       style={{ left, top }}
       onContextMenu={(e) => e.preventDefault()}
@@ -172,15 +171,15 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
         <>
           <button onClick={openInInspector} className={itemClass}>
             <span className="flex items-center gap-2">
-              <Sliders className="w-3.5 h-3.5 text-sky-500" /> Open in Inspector
+              <Sliders className="w-3.5 h-3.5 text-accent-ink" /> Open in Inspector
             </span>
           </button>
           <button onClick={toggleLock} className={itemClass}>
             <span className="flex items-center gap-2">
               {anyLocked ? (
-                <Unlock className="w-3.5 h-3.5 text-emerald-500" />
+                <Unlock className="w-3.5 h-3.5 text-ok" />
               ) : (
-                <Lock className="w-3.5 h-3.5 text-amber-500" />
+                <Lock className="w-3.5 h-3.5 text-warn" />
               )}
               {anyLocked ? 'Unlock' : 'Lock'}
             </span>
@@ -201,25 +200,25 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
               className={itemClass}
             >
               <span className="flex items-center gap-2">
-                <MessageSquarePlus className="w-3.5 h-3.5 text-amber-500" /> Add Annotation
+                <MessageSquarePlus className="w-3.5 h-3.5 text-warn" /> Add Annotation
               </span>
             </button>
           )}
           {canGroup && (
             <button onClick={run(groupSelection)} className={itemClass}>
               <span className="flex items-center gap-2">
-                <Link2 className="w-3.5 h-3.5 text-sky-500" /> Group
+                <Link2 className="w-3.5 h-3.5 text-accent-ink" /> Group
               </span>
             </button>
           )}
           {canUngroup && (
             <button onClick={run(ungroupSelection)} className={itemClass}>
               <span className="flex items-center gap-2">
-                <Unlink className="w-3.5 h-3.5 text-amber-500" /> Ungroup
+                <Unlink className="w-3.5 h-3.5 text-warn" /> Ungroup
               </span>
             </button>
           )}
-          <div className={`my-1 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`} />
+          <div className={`my-1 border-t border-line`} />
           <button onClick={reorder('forward')} className={itemClass}>
             <span className="flex items-center gap-2">
               <ChevronUp className="w-3.5 h-3.5" /> Bring Forward
@@ -230,7 +229,7 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
               <ChevronDown className="w-3.5 h-3.5" /> Send Backward
             </span>
           </button>
-          <div className={`my-1 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`} />
+          <div className={`my-1 border-t border-line`} />
         </>
       )}
 
@@ -265,14 +264,14 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
       {element && (
         <button onClick={saveAsAssembly} className={itemClass}>
           <span className="flex items-center gap-2">
-            <Package className="w-3.5 h-3.5 text-emerald-500" /> Save as Assembly
+            <Package className="w-3.5 h-3.5 text-ok" /> Save as Assembly
           </span>
         </button>
       )}
 
       {element && (
         <>
-          <div className={`my-1 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`} />
+          <div className={`my-1 border-t border-line`} />
           <button
             onClick={run(deleteSelectedElements)}
             disabled={anyLocked}

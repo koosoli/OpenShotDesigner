@@ -34,7 +34,7 @@ const FreehandStrokeLayerImpl: React.FC<FreehandStrokeLayerProps> = ({
 }) => {
   const selectedSet = new Set(selectedStrokeIds ?? []);
   return (
-    <g className={onStrokePointerDown ? undefined : 'pointer-events-none'} aria-label={ariaLabel}>
+    <g className={onStrokePointerDown ? undefined : 'pointer-events-none'} role="group" aria-label={ariaLabel}>
       {strokes
         .filter((stroke) => stroke.visible !== false)
         .map((stroke) => {

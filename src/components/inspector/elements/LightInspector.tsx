@@ -82,10 +82,10 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
       <RubricSection
             persistKey="lightinspector.role-fixture-model"
         title="Role, Fixture & Model"
-        icon={<FresnelLightIcon className="w-3.5 h-3.5 text-amber-500" />}
+        icon={<FresnelLightIcon className="w-3.5 h-3.5 text-warn" />}
         badge={
           light.lightRole && light.lightRole !== 'unassigned' ? (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold uppercase truncate max-w-[100px]">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-warn font-bold uppercase truncate max-w-[100px]">
               {LIGHT_ROLES.find((r) => r.value === light.lightRole)?.label || light.lightRole}
             </span>
           ) : undefined
@@ -108,7 +108,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               })
             }
             className={`w-full border rounded-lg p-2 font-medium ${
-              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              'bg-field text-ink border-line-strong'
             }`}
           >
             {LIGHT_ROLES.map((r) => (
@@ -127,7 +127,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
             const activeRoleColor = light.roleColor ? ensureHexColor(light.roleColor) : beamHex;
 
             return (
-              <div className={`mt-2 p-2 rounded-xl border space-y-1.5 ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+              <div className={`mt-2 p-2 rounded-xl border space-y-1.5 bg-surface-sunken border-line`}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider opacity-50">
                     Role Tag Color
@@ -137,7 +137,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     onClick={() => updateElement(light.id, { roleColor: undefined })}
                     className={`px-2 py-0.5 text-[10px] font-semibold rounded-md border transition-all ${
                       isAuto
-                        ? 'bg-sky-600 text-white border-sky-500 shadow-sm'
+                        ? 'bg-accent text-white border-sky-500 shadow-sm'
                         : isLight
                         ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
                         : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
@@ -166,7 +166,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                   <div className="flex items-center gap-1.5">
                     <label
                       className={`relative w-6 h-6 rounded-md border cursor-pointer overflow-hidden ${
-                        isLight ? 'border-slate-300' : 'border-slate-700'
+                        'border-line-strong'
                       }`}
                       title="Pick custom color for this role tag"
                     >
@@ -187,7 +187,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
                 {/* Quick Swatches */}
                 <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-800/60">
-                  <span className="text-[9px] opacity-50">Custom:</span>
+                  <span className="text-[10px] opacity-50">Custom:</span>
                   {[
                     { color: '#ffffff', label: 'White' },
                     { color: '#f59e0b', label: 'Amber' },
@@ -243,7 +243,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               });
             }}
             className={`w-full border rounded-lg p-2 ${
-              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              'bg-field text-ink border-line-strong'
             }`}
           >
             {LIGHT_FIXTURES.map((f) => (
@@ -276,7 +276,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                   updateElement(light.id, { brand, fixtureModel: undefined, name: newName });
                 }}
                 className={`w-full border rounded-lg p-2 ${
-                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               >
                 <option value="">(No Brand / Generic)</option>
@@ -342,7 +342,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                       }
                     }}
                     className={`w-full border rounded-lg p-2 ${
-                      isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                      'bg-field text-ink border-line-strong'
                     }`}
                   >
                     <option value="">(Select a Model...)</option>
@@ -401,7 +401,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                   }}
                   placeholder="e.g. LS 600d Pro / Custom Unit"
                   className={`w-full border rounded-lg p-2 text-xs ${
-                    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
@@ -433,7 +433,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                       }}
                       className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
                         light.fixtureModel === m
-                          ? 'bg-sky-600 text-white border-sky-500 font-semibold'
+                          ? 'bg-accent text-white border-sky-500 font-semibold'
                           : isLight
                           ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                           : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
@@ -485,7 +485,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     onClick={() => updateElement(light.id, { netValue: 'single' })}
                     className={`py-1.5 text-[10px] font-semibold rounded border transition-colors ${
                       (light.netValue || 'single') === 'single'
-                        ? 'bg-sky-600 text-white border-sky-500'
+                        ? 'bg-accent text-white border-sky-500'
                         : isLight
                         ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
                         : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
@@ -497,7 +497,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     onClick={() => updateElement(light.id, { netValue: 'double' })}
                     className={`py-1.5 text-[10px] font-semibold rounded border transition-colors ${
                       light.netValue === 'double'
-                        ? 'bg-sky-600 text-white border-sky-500'
+                        ? 'bg-accent text-white border-sky-500'
                         : isLight
                         ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
                         : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
@@ -525,16 +525,16 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                   }
                   className="w-full accent-sky-500"
                 />
-                <p className="opacity-50 text-[9px] mt-0.5">
+                <p className="opacity-50 text-[10px] mt-0.5">
                   0° = doors folded flat against the face, 85° = wide open.
                 </p>
               </div>
             )}
 
             <div className={`text-[10px] rounded-lg border p-2.5 leading-relaxed ${
-              isLight ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-slate-900 text-slate-400 border-slate-800'
+              'bg-surface-sunken text-ink-muted border-line'
             }`}>
-              <strong className={isLight ? 'text-slate-700' : 'text-slate-200'}>
+              <strong className="text-ink-soft">
                 {flagLabel(light)}
               </strong>
               {light.fixtureType === 'flag_solid' || light.fixtureType === 'c_stand_flag'
@@ -562,9 +562,9 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           <RubricSection
             persistKey="lightinspector.color-intensity"
             title="Color & Intensity"
-            icon={<Sun className="w-3.5 h-3.5 text-amber-500" />}
+            icon={<Sun className="w-3.5 h-3.5 text-warn" />}
             badge={
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-warn font-bold">
                 {isRgbMode ? colorHex : `${light.colorTemp || 5600}K`} · {light.intensity}%
               </span>
             }
@@ -633,7 +633,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                       className="w-2.5 h-2.5 rounded-full border border-black/20 inline-block shadow-sm"
                       style={{ backgroundColor: kelvinToRgb(light.colorTemp || 5600) }}
                     />
-                    <span className="font-mono text-amber-500 font-bold">
+                    <span className="font-mono text-warn font-bold">
                       {light.colorTemp || 5600}K
                     </span>
                   </div>
@@ -711,7 +711,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     ] as const
                   ).map(([label, val, max, accent, textClass]) => (
                     <label key={label} className="block">
-                      <span className={`block text-[9px] font-bold opacity-80 mb-0.5 ${textClass}`}>
+                      <span className={`block text-[10px] font-bold opacity-80 mb-0.5 ${textClass}`}>
                         {label} {val}
                       </span>
                       <input
@@ -745,7 +745,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     ] as const
                   ).map(([label, val, max, accent, textClass]) => (
                     <label key={label} className="block">
-                      <span className={`block text-[9px] font-bold opacity-80 mb-0.5 ${textClass}`}>
+                      <span className={`block text-[10px] font-bold opacity-80 mb-0.5 ${textClass}`}>
                         {label} {val}
                       </span>
                       <input
@@ -773,7 +773,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                   type="button"
                   onClick={() => updateElement(light.id, { rgbColor: undefined, colorTemp: 5600 })}
                   className={`w-full py-1 text-xs rounded border text-slate-400 hover:text-white transition-colors ${
-                    isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+                    'border-line-strong hover:bg-surface-hover'
                   }`}
                 >
                   ✕ Remove RGB Color (Reset to Kelvin White)
@@ -817,9 +817,9 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           <RubricSection
             persistKey="lightinspector.beam-throw-angle"
             title="Beam Throw & Angle"
-            icon={<Maximize className="w-3.5 h-3.5 text-sky-500" />}
+            icon={<Maximize className="w-3.5 h-3.5 text-accent-ink" />}
             badge={
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500 font-bold">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-accent-ink font-bold">
                 {light.beamAngle}° · {light.throwDistance}px
               </span>
             }
@@ -830,7 +830,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               <div>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="opacity-60">Beam Angle</span>
-                  <span className="font-mono text-amber-500 font-bold">{light.beamAngle}°</span>
+                  <span className="font-mono text-warn font-bold">{light.beamAngle}°</span>
                 </div>
                 <input
                   type="range"
@@ -844,7 +844,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               <div>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="opacity-60">Throw Distance</span>
-                  <span className="font-mono text-amber-500 font-bold">{light.throwDistance} px</span>
+                  <span className="font-mono text-warn font-bold">{light.throwDistance} px</span>
                 </div>
                 <input
                   type="range"
@@ -909,7 +909,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           const isAuto = !light.labelColor;
 
           return (
-            <div className={`mt-2 p-2 rounded-xl border space-y-2 ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+            <div className={`mt-2 p-2 rounded-xl border space-y-2 bg-surface-sunken border-line`}>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider opacity-50">
                   Fixture Label Color
@@ -919,7 +919,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                   onClick={() => updateElement(light.id, { labelColor: undefined })}
                   className={`px-2 py-0.5 text-[10px] font-semibold rounded-md border transition-all ${
                     isAuto
-                      ? 'bg-sky-600 text-white border-sky-500 shadow-sm'
+                      ? 'bg-accent text-white border-sky-500 shadow-sm'
                       : isLight
                       ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
                       : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
@@ -948,7 +948,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                 <div className="flex items-center gap-1.5">
                   <label
                     className={`relative w-6 h-6 rounded-md border cursor-pointer overflow-hidden ${
-                      isLight ? 'border-slate-300' : 'border-slate-700'
+                      'border-line-strong'
                     }`}
                     title="Pick custom label color"
                   >
@@ -969,7 +969,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
 
               {/* Quick Swatches */}
               <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-800/60">
-                <span className="text-[9px] opacity-50">Custom:</span>
+                <span className="text-[10px] opacity-50">Custom:</span>
                 {[
                   { color: '#ffffff', label: 'White' },
                   { color: '#f59e0b', label: 'Amber' },
@@ -1012,7 +1012,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           isLight={isLight}
           onChange={(updates) => updateElement(light.id, updates)}
         />
-        <div className={`mt-3 rounded-lg border p-2.5 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950/50'}`}>
+        <div className={`mt-3 rounded-lg border p-2.5 border-line bg-surface-sunken`}>
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="text-[10px] font-black uppercase tracking-wide">MVR / GDTF resource</div>
@@ -1053,7 +1053,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               }}
             />
           </label>
-          <p className="text-[9px] opacity-50 mt-1.5 leading-snug">
+          <p className="text-[10px] opacity-50 mt-1.5 leading-snug">
             MVR embeds this exact archive. Set the fixture mode above to the matching GDTF DMX mode name.
           </p>
         </div>
@@ -1082,7 +1082,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     else updateElement(light.id, { dmxUniverse: Math.max(1, Math.floor(Number(v))) });
                   }}
                   placeholder="1"
-                  className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                  className={`w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`}
                 />
               </div>
               <div>
@@ -1098,7 +1098,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     else updateElement(light.id, { dmxAddress: Math.max(1, Math.min(512, Number(v))) });
                   }}
                   placeholder="001"
-                  className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                  className={`w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`}
                 />
               </div>
             </div>
@@ -1111,7 +1111,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                   value={light.dmxModeName ?? ''}
                   onChange={(e) => updateElement(light.id, { dmxModeName: e.target.value || undefined })}
                   placeholder="e.g. RGBW 16-bit"
-                  className={`w-full border rounded p-1.5 text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                  className={`w-full border rounded p-1.5 text-xs bg-field text-ink border-line-strong`}
                 />
               </div>
               <div>
@@ -1126,7 +1126,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                     updateElement(light.id, { dmxChannelCount: value === '' ? undefined : Math.max(1, Math.min(512, Number(value))) });
                   }}
                   placeholder="Required"
-                  className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                  className={`w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`}
                 />
               </div>
             </div>
@@ -1203,7 +1203,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
           <RubricSection
             persistKey="lightinspector.waypoints-trajectory"
             title="Waypoints & Trajectory"
-            icon={<Compass className="w-3.5 h-3.5 text-amber-500" />}
+            icon={<Compass className="w-3.5 h-3.5 text-warn" />}
             defaultOpen={(light.path || []).length > 0}
             isLight={isLight}
             headerRight={
@@ -1231,7 +1231,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               elementId={light.id}
               path={light.path || []}
               baseRotation={light.rotation}
-              accentClass="text-amber-500"
+              accentClass="text-warn"
               isLight={isLight}
             />
           </RubricSection>

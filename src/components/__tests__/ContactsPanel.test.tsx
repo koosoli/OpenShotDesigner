@@ -117,14 +117,14 @@ describe('exporting the contact list', () => {
 describe('the printable list', () => {
   it('asks the print studio for the crew section', () => {
     render(withCrew());
-    fireEvent.click(screen.getByRole('button', { name: 'Kontaktliste als PDF exportieren' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download the contact list as a PDF' }));
     expect(exportsOpened()).toEqual(['crew']);
   });
 
   it('is unavailable with nobody to print', () => {
     render(projectFixture({ title: 'The Long Wait' }));
     expect(
-      (screen.getByRole('button', { name: 'Kontaktliste als PDF exportieren' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Download the contact list as a PDF' }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 });

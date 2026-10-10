@@ -34,7 +34,7 @@ export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) =
         title="Wall Dimensions & Inserts"
         icon={<Square className="w-3.5 h-3.5 text-slate-400" />}
         badge={
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 font-bold">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 font-bold">
             {(wallLen / 50).toFixed(2)}m
           </span>
         }
@@ -43,7 +43,7 @@ export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) =
       >
         <div className="flex items-center justify-between text-xs">
           <span className="opacity-60">Wall Length:</span>
-          <span className="font-mono text-sky-500 font-bold">{(wallLen / 50).toFixed(2)}m ({wallLen}px)</span>
+          <span className="font-mono text-accent-ink font-bold">{(wallLen / 50).toFixed(2)}m ({wallLen}px)</span>
         </div>
 
         <div>
@@ -55,7 +55,7 @@ export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) =
             value={wall.thickness || 12}
             onChange={(e) => updateElement(wall.id, { thickness: Number(e.target.value) })}
             className={`w-full border rounded p-1.5 font-mono text-xs ${
-              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              'bg-field text-ink border-line-strong'
             }`}
           />
         </div>
@@ -69,14 +69,14 @@ export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) =
             onClick={() => insertDoorInWall(wall.id)}
             className="w-full flex items-center justify-center gap-2 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 border border-amber-500/40 rounded-lg text-xs font-semibold transition-colors"
           >
-            <DoorClosed className="w-4 h-4 text-amber-500" />
+            <DoorClosed className="w-4 h-4 text-warn" />
             <span>+ Snap Door onto this Wall</span>
           </button>
           <button
             onClick={() => insertWindowInWall(wall.id)}
             className="w-full flex items-center justify-center gap-2 py-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-600 border border-sky-500/40 rounded-lg text-xs font-semibold transition-colors"
           >
-            <AppWindow className="w-4 h-4 text-sky-500" />
+            <AppWindow className="w-4 h-4 text-accent-ink" />
             <span>+ Snap Window onto this Wall</span>
           </button>
         </div>

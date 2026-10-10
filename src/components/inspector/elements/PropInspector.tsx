@@ -54,7 +54,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
               });
             }}
             className={`w-full border rounded-lg p-2 ${
-              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              'bg-field text-ink border-line-strong'
             }`}
           >
             {PROP_CATALOG.map((p) => (
@@ -69,7 +69,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
         <div>
           <div className="flex justify-between items-center text-[10px] font-bold uppercase opacity-60 mb-1">
             <span>Quick Scale Factor</span>
-            <span className="font-mono text-sky-500">
+            <span className="font-mono text-accent-ink">
               {Math.round((prop.width / (PROP_CATALOG.find((p) => p.type === prop.propType)?.defaultWidth || 100)) * 100)}%
             </span>
           </div>
@@ -116,7 +116,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
               value={prop.width}
               onChange={(e) => updateElement(prop.id, { width: Math.max(5, Number(e.target.value)) })}
               className={`w-full border rounded p-1 font-mono ${
-                isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                'bg-field text-ink border-line-strong'
               }`}
             />
           </div>
@@ -129,7 +129,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
               value={prop.height}
               onChange={(e) => updateElement(prop.id, { height: Math.max(5, Number(e.target.value)) })}
               className={`w-full border rounded p-1 font-mono ${
-                isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                'bg-field text-ink border-line-strong'
               }`}
             />
           </div>
@@ -169,7 +169,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
               value={prop.color || '#475569'}
               onChange={(e) => updateElement(prop.id, { color: e.target.value })}
               className={`flex-1 border rounded p-1 font-mono text-xs ${
-                isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                'bg-field text-ink border-line-strong'
               }`}
             />
           </div>

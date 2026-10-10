@@ -35,6 +35,8 @@ export interface LinedScriptPdfLine {
   text: string;
   sceneNumber?: string;
   omitted?: boolean;
+  /** Changed in the current revision: prints the margin asterisk. */
+  revised?: boolean;
 }
 
 export interface LinedScriptPdfInput {
@@ -52,6 +54,13 @@ export interface LinedScriptPdfInput {
   confidentialityLine?: string;
   /** Raw PNG bytes for the production logo; corrupt bytes print logo-less. */
   logoPngBytes?: Uint8Array;
+  /**
+   * The script's own pages ("12", "12A"), as the index of the line that starts
+   * each one. When given, every script page starts a new PDF page with its
+   * number top-right — so locked page numbers and A-pages print as they read
+   * on screen — instead of the PDF breaking pages on its own.
+   */
+  pageStarts?: Array<{ lineIndex: number; label: string }>;
 }
 
 export interface LinedScriptPdfFilenameInput {
@@ -110,6 +119,16 @@ const drawSceneNumber = (
       ? ctx.margins.left - ctx.regular.widthOfTextAtSize(label, SCENE_NUMBER_SIZE) - 8
       : ctx.margins.left + ctx.contentWidth + 8;
   page.drawText(label, { x, y, size: SCENE_NUMBER_SIZE, font: ctx.bold });
+};
+
+/** The revision asterisk, in the right margin beside the changed line. */
+const drawRevisionMark = (ctx: PdfDocumentContext, top: number, after: PageCursor): void => {
+  after.page.drawText('*', {
+    x: ctx.margins.left + ctx.contentWidth + 22,
+    y: top - 10,
+    size: 12,
+    font: ctx.bold,
+  });
 };
 
 /** One wrapped screenplay line at its grid column. */
@@ -175,8 +194,32 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
   let sceneOrdinal = 0;
   let skippingOmittedBody = false;
 
-  for (const line of input.lines) {
+  const startLabel = new Map((input.pageStarts ?? []).map((start) => [start.lineIndex, start.label] as const));
+  const followScriptPages = startLabel.size > 0;
+  let pageLabel: string | undefined;
+  const labelledPages = new Set<PDFPage>();
+  const labelPage = (target: PDFPage) => {
+    if (!pageLabel || labelledPages.has(target)) return;
+    labelledPages.add(target);
+    const text = sanitizePdfText(`${pageLabel}.`);
+    target.drawText(text, {
+      x: ctx.margins.left + ctx.contentWidth - ctx.bold.widthOfTextAtSize(text, 10),
+      y: ctx.pageHeight - ctx.margins.top + 12,
+      size: 10,
+      font: ctx.bold,
+    });
+  };
+
+  for (const [lineIndex, line] of input.lines.entries()) {
+    if (followScriptPages && startLabel.has(lineIndex)) {
+      pageLabel = startLabel.get(lineIndex);
+      if (lineIndex > 0 && cursor.cursorY < ctx.contentTop - 1) {
+        cursor = { page: addPdfPage(ctx), cursorY: ctx.contentTop };
+      }
+      labelPage(cursor.page);
+    }
     if (line.type === 'page-break') {
+      if (followScriptPages) continue;
       const fresh = addPdfPage(ctx);
       cursor = { page: fresh, cursorY: ctx.contentTop };
       skippingOmittedBody = false;
@@ -201,17 +244,20 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
       // page starts fresh rather than orphaning the heading from its action.
       const remainingFrac = (cursor.cursorY - ctx.margins.bottom) / contentHeight;
       const atTop = cursor.cursorY >= ctx.contentTop - 1;
-      if (!atTop && remainingFrac < 0.4) {
+      if (!followScriptPages && !atTop && remainingFrac < 0.4) {
         const fresh = addPdfPage(ctx);
         cursor = { page: fresh, cursorY: ctx.contentTop };
       }
       cursor = ensureSpace(ctx, cursor, 40);
       const gapY = cursor.cursorY - 8;
       cursor = { page: cursor.page, cursorY: gapY };
+      const sceneTop = cursor;
       const placed = drawScriptLine(ctx, cursor, line.text.toUpperCase(), LINED_LAYOUT.scene);
+      if (line.revised) drawRevisionMark(ctx, placed.page === sceneTop.page ? sceneTop.cursorY : ctx.contentTop, placed);
       drawSceneNumber(ctx, placed.page, placed.cursorY + 10, sceneNumber, 'left');
       drawSceneNumber(ctx, placed.page, placed.cursorY + 10, sceneNumber, 'right');
       cursor = placed;
+      labelPage(cursor.page);
       continue;
     }
     if (skippingOmittedBody) continue;
@@ -220,7 +266,10 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
     const text = layout.upper ? line.text.toUpperCase() : line.text;
     const gap = line.type === 'character' ? 5 : 2;
     cursor = { page: cursor.page, cursorY: cursor.cursorY - gap };
+    const top = cursor;
     cursor = drawScriptLine(ctx, cursor, text, layout);
+    labelPage(cursor.page);
+    if (line.revised) drawRevisionMark(ctx, cursor.page === top.page ? top.cursorY : ctx.contentTop, cursor);
   }
 
   return finalizePdfDocument(ctx);

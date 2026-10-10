@@ -291,7 +291,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     data-testid="dialog-confirm"
                     disabled={promptIsBlocked}
                     onClick={() => dismiss(true)}
-                    className="min-h-[36px] px-3.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:bg-slate-700 disabled:text-slate-400 text-white text-xs font-bold transition-colors"
+                    className="min-h-[36px] px-3.5 rounded-lg bg-sky-700 hover:bg-sky-500 disabled:bg-slate-700 disabled:text-slate-400 text-white text-xs font-bold transition-colors"
                   >
                     {active.confirmLabel}
                   </button>
@@ -311,7 +311,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     data-testid="dialog-confirm"
                     onClick={() => dismiss(true)}
                     className={`min-h-[36px] px-3.5 rounded-lg text-xs font-bold text-white transition-colors ${
-                      active.danger ? 'bg-rose-600 hover:bg-rose-500' : 'bg-sky-600 hover:bg-sky-500'
+                      active.danger ? 'bg-rose-600 hover:bg-rose-500' : 'bg-sky-700 hover:bg-sky-500'
                     }`}
                   >
                     {active.confirmLabel}
@@ -322,7 +322,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   type="button"
                   data-testid="dialog-ok"
                   onClick={() => dismiss(true)}
-                  className="min-h-[36px] px-3.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-colors"
+                  className="min-h-[36px] px-3.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-bold transition-colors"
                 >
                   {active.buttonLabel}
                 </button>

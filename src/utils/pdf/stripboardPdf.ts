@@ -34,6 +34,7 @@ import type { PdfTableColumn } from './tables';
 import { sanitizePdfText } from './text';
 import type { PDFPage } from 'pdf-lib';
 import type { PrintableStripboardDay } from '../../components/reports/StripboardPrintView';
+import { STRIP_COLORS } from '../../domain/scheduling/stripboardPrint';
 
 /** One strip on the board: a scene, setup, banner, shots block or cue. */
 export interface StripboardPdfItem {
@@ -43,6 +44,9 @@ export interface StripboardPdfItem {
   castNumbers?: number[];
   /** Script length in canonical eighths; undefined prints as "-". */
   pageEighths?: number;
+  /** Whole-row colours as the board shows them ("#rrggbb"). */
+  fill?: string;
+  ink?: string;
 }
 
 export interface StripboardPdfDay {
@@ -101,6 +105,7 @@ export const stripboardDaysFromPrintable = (days: PrintableStripboardDay[]): Str
       ...(item.minutes === undefined ? {} : { minutes: item.minutes }),
       ...(item.castNumbers === undefined ? {} : { castNumbers: [...item.castNumbers] }),
       ...(item.pageEighths === undefined ? {} : { pageEighths: item.pageEighths }),
+      ...(item.colorKey ? { fill: STRIP_COLORS[item.colorKey].fill, ink: STRIP_COLORS[item.colorKey].ink } : {}),
     })),
     totalMinutes: day.totalMinutes,
   }));
@@ -254,7 +259,9 @@ const drawDay = (
       number += 1;
       return row;
     });
-    const result = drawPdfTable(ctx, placed.page, placed.cursorY, STRIP_COLUMNS, rows);
+    const result = drawPdfTable(ctx, placed.page, placed.cursorY, STRIP_COLUMNS, rows, {
+      rowColors: group.items.map((item) => (item.fill ? { fill: item.fill, ink: item.ink } : undefined)),
+    });
     placed = { page: result.page, cursorY: result.cursorY };
   }
   placed = drawKeyValue(ctx, placed, 'Day total', formatMinutes(day.totalMinutes));

@@ -287,6 +287,64 @@ describe('location report PDF', () => {
     expect(reloaded.getTitle()).toBe('Location Report - My Film');
     expect(inflateContentStreams(pdf).join('\n')).toContain(pdfHexToken('Warehouse Stage'));
   });
+
+  it('adds a storyboard column to the shot list at the chosen size', async () => {
+    const { createShotListPdf } = await import('../shotListPdf');
+    const png = Uint8Array.from(
+      atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='),
+      (c) => c.charCodeAt(0),
+    );
+    const row = { scene: '1', shot: '1A', name: 'Wide', camera: 'A', size: 'WS', lens: '35mm', movement: '', status: '', notes: '' };
+    const plain = await createShotListPdf({ productionTitle: 'My Film', rows: [row] });
+    const boarded = await createShotListPdf({
+      productionTitle: 'My Film',
+      rows: [row],
+      storyboards: { size: 'L', aspectRatio: 16 / 9, frames: [{ imageBytes: png, mimeType: 'image/png' }] },
+    });
+    expect(bytesToBinary(boarded)).toContain('/Subtype /Image');
+    expect(bytesToBinary(plain)).not.toContain('/Subtype /Image');
+    expect(inflateContentStreams(boarded).join('\n')).toContain(pdfHexToken('Board'));
+  });
+
+  it('prints a one-table report with section headings', async () => {
+    const { createTableReportPdf } = await import('../tableReportPdf');
+    const pdf = await createTableReportPdf({
+      productionTitle: 'My Film',
+      documentTitle: 'Day Out of Days',
+      columns: [{ header: 'Name', widthFrac: 50 }, { header: 'Day 1', widthFrac: 50 }],
+      sections: [{ heading: 'Stunts', rows: [['Car hit', 'SWF']] }],
+      footnote: 'Legend here',
+    });
+    const text = inflateContentStreams(pdf).join('\n');
+    expect(text).toContain(pdfHexToken('Stunts'));
+    expect(text).toContain(pdfHexToken('Car hit'));
+    expect(text).toContain(pdfHexToken('Legend here'));
+    const { buildScriptReportsPdfFilename } = await import('../scriptReportsPdf');
+    expect(buildScriptReportsPdfFilename({ productionTitle: 'My Film', report: 'day-out-of-days' })).toContain('day-out-of-days');
+  });
+
+  it('adds a scout page with details and photos', async () => {
+    // 1x1 PNG.
+    const png = Uint8Array.from(
+      atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='),
+      (c) => c.charCodeAt(0),
+    );
+    const pdf = await createLocationReportPdf({
+      productionTitle: 'My Film',
+      locations: [],
+      scoutPages: [{
+        name: 'Riverside Diner',
+        summary: 'Shortlisted · 4/5',
+        fields: [['Power', '2x 63A CEE']],
+        photos: [{ imageBytes: png, mimeType: 'image/png', caption: 'Booth wall' }],
+      }],
+    });
+    const reloaded = await PDFDocument.load(pdf);
+    expect(reloaded.getPageCount()).toBe(2);
+    const text = inflateContentStreams(pdf).join('\n');
+    expect(text).toContain(pdfHexToken('2x 63A CEE'));
+    expect(text).toContain(pdfHexToken('Booth wall'));
+  });
 });
 
 const makeFinding = (index: number): ReadinessItem => ({

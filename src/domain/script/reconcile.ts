@@ -15,6 +15,10 @@ export interface ReconcilableLine {
   type?: string;
   text: string;
   sceneNumber?: string;
+  /** Hand-set page length on a heading; follows the heading's identity. */
+  pageEighthsOverride?: number;
+  /** Revision colour that last changed the line; follows its identity. */
+  revisedIn?: number;
 }
 
 const normalize = (text: string): string => text.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -77,8 +81,19 @@ export const reconcileScriptLineIds = <T extends ReconcilableLine>(
     }
   });
 
+  // Hand-entered data that lives on a line follows its identity: a manual
+  // page length typed on scene 12 is still scene 12's after a re-parse.
+  const previousById = new Map(previous.map((line) => [line.id, line] as const));
   return next.map((line, index) => {
     const id = resolved.get(index);
-    return id && id !== line.id ? { ...line, id } : line;
+    let out = id && id !== line.id ? { ...line, id } : line;
+    const before = id ? previousById.get(id) : undefined;
+    if (before?.pageEighthsOverride !== undefined && out.pageEighthsOverride === undefined) {
+      out = { ...out, pageEighthsOverride: before.pageEighthsOverride };
+    }
+    if (before?.revisedIn !== undefined && out.revisedIn === undefined) {
+      out = { ...out, revisedIn: before.revisedIn };
+    }
+    return out;
   });
 };

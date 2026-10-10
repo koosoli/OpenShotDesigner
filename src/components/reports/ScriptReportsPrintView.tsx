@@ -1,7 +1,8 @@
 import React from 'react';
 import type { BreakdownItem, Character, ScriptScene } from '../../domain/script';
 import { groupBreakdownItems } from '../../domain/script';
-import type { CharacterReport, DoodColumn, DoodRow, DoodWorkStatus } from '../../domain/reports';
+import type { CharacterReport, DoodColumn, DoodRow } from '../../domain/reports';
+import { doodStatusCode } from '../../domain/reports';
 import type { ScriptLocationBreakdown } from '../../domain/script/logic';
 import { ProjectImage } from '../common/ProjectImage';
 
@@ -23,7 +24,6 @@ interface ScriptReportsPrintViewProps {
   logo?: string;
 }
 
-const DOOD_LABEL: Record<DoodWorkStatus, string> = { start: 'SW', work: 'W', finish: 'WF', hold: 'H', off: '' };
 
 const INT_EXT_LABEL: Record<string, string> = { INT: 'INT', EXT: 'EXT', INT_EXT: 'I/E', OTHER: 'EST' };
 
@@ -216,6 +216,7 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
+                    <th className={head}>#</th>
                     <th className={head}>Character / performer</th>
                     {dood.columns.map((column) => (
                       <th key={column.dayId} className={`${head} text-center`}>
@@ -223,27 +224,34 @@ export const ScriptReportsPrintView: React.FC<ScriptReportsPrintViewProps> = ({
                         <div className="font-normal">{column.date?.slice(5) ?? '—'}</div>
                       </th>
                     ))}
-                    <th className={`${head} text-right`}>Days</th>
+                    <th className={`${head} text-right`}>Work</th>
+                    <th className={`${head} text-right`}>Hold</th>
+                    <th className={`${head} text-right`}>Trvl</th>
+                    <th className={`${head} text-right`}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dood.rows.map((row) => {
-                    const working = row.cells.filter((c) => c.status !== 'off' && c.status !== 'hold').length;
-                    return (
-                      <tr key={row.characterId} className="break-inside-avoid">
-                        <td className={`${cell} font-semibold`}>{row.displayName}</td>
-                        {row.cells.map((c) => (
-                          <td key={c.dayId} className={`${cell} text-center font-mono font-bold`}>{DOOD_LABEL[c.status]}</td>
-                        ))}
-                        <td className={`${cell} text-right font-mono`}>{working}</td>
-                      </tr>
-                    );
-                  })}
+                  {dood.rows.map((row) => (
+                    <tr key={row.characterId} className="break-inside-avoid">
+                      <td className={`${cell} text-center font-mono`}>{row.castNumber ?? ''}</td>
+                      <td className={`${cell} font-semibold`}>
+                        {row.displayName}
+                        {row.roleName && <span className="font-normal text-slate-500"> · {row.roleName}</span>}
+                      </td>
+                      {row.cells.map((c) => (
+                        <td key={c.dayId} className={`${cell} text-center font-mono font-bold`}>{doodStatusCode(c.status)}</td>
+                      ))}
+                      <td className={`${cell} text-right font-mono`}>{row.totals.work}</td>
+                      <td className={`${cell} text-right font-mono`}>{row.totals.hold}</td>
+                      <td className={`${cell} text-right font-mono`}>{row.totals.travel}</td>
+                      <td className={`${cell} text-right font-mono font-bold`}>{row.totals.total}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           )}
-          <p className="text-[9px] text-slate-500 mt-1">SW = start work · W = work · H = hold · WF = work finish. Derived from scene strips on each shooting day.</p>
+          <p className="text-[9px] text-slate-500 mt-1">SW = start work · W = work · WF = work finish · SWF = start/work/finish · H = hold · WD = work, drop · PW = pick-up work · T = travel · R = rehearsal · F = fitting · HO = holiday. Derived from scene strips on each shooting day; T, F and HO are entered by hand.</p>
         </section>
       )}
 

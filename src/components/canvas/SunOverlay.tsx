@@ -121,7 +121,7 @@ const SunOverlayImpl: React.FC<SunOverlayProps> = ({
           textAnchor="middle"
           fontSize={9}
           fontWeight="bold"
-          fill={isLight ? '#0f172a' : '#0f172a'}
+          fill="#0f172a"
           className="select-none font-mono"
         >
           {Math.round(sun.elevationDeg)}

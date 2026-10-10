@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { serializeToFdx } from '../../domain/script/fdxExport';
+import { cachedScriptBreakdown } from '../../domain/script/breakdownCache';
 import {
   ArrowDown,
   BarChart3,
@@ -55,9 +57,15 @@ import {
   breakdownCategoryLabel,
   breakdownCategoryTint,
   breakdownItemsForLines,
+  deriveLineHighlights,
   untagScriptLine,
 } from '../../domain/script';
-import type { BreakdownSourceRange, ScriptRevisionComparison } from '../../domain/script';
+import type { BreakdownSourceRange, HighlightMode, ScriptRevisionComparison } from '../../domain/script';
+import { ScriptHighlightBar } from './ScriptHighlightBar';
+import { setCharacterColorCommand, setScriptPageLockCommand, setScriptRevisionColorCommand } from '../../domain/commands';
+import { lockPages, pageLabels } from '../../domain/script/pageLock';
+import { REVISION_COLORS, currentRevisionColor, markRevisedLines, revisionColorAt } from '../../domain/script/revisionColors';
+import { readUiPref, writeUiPref } from '../../utils/uiPrefs';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
 import { TitlePageEditor } from './TitlePageEditor';
 import { SetLocationLink } from '../locations/SetLocationLink';
@@ -116,7 +124,7 @@ const AVStoryboardCell: React.FC<{
           <>
             <ProjectImage imageRef={image} alt={`Board for shot ${row.shotNumber}`} className="absolute inset-0 w-full h-full" style={{ objectFit: fit }} />
             {inherited && (
-              <span className="absolute bottom-0 inset-x-0 bg-black/65 text-[7px] font-bold uppercase tracking-wider text-sky-300 py-px">
+              <span className="absolute bottom-0 inset-x-0 bg-black/65 text-[10px] font-bold uppercase tracking-wider text-sky-300 py-px">
                 From shot
               </span>
             )}
@@ -129,14 +137,14 @@ const AVStoryboardCell: React.FC<{
         <div className="flex items-center gap-1">
           <button
             onClick={() => onChange({ storyboardFit: fit === 'cover' ? 'contain' : 'cover' })}
-            className="text-[8px] px-1 rounded border border-slate-600 text-slate-400 hover:text-slate-200"
+            className="text-[10px] px-1 rounded border border-slate-600 text-slate-400 hover:text-slate-200"
             title="Toggle crop / fit"
           >
             {fit}
           </button>
           <button
             onClick={() => onChange({ storyboardImage: undefined, storyboardFit: undefined })}
-            className="text-[8px] px-1 rounded border border-rose-500/40 text-rose-400"
+            className="text-[10px] px-1 rounded border border-rose-500/40 text-rose-400"
             title="Remove this row's board frame"
           >
             clear
@@ -173,7 +181,7 @@ type SuggestionList =
   | { kind: 'none'; items: [] };
 
 export const ScriptPanel: React.FC = () => {
-  const { activeSetup, scriptLines, scriptTitle, allScriptMarks, allShots, setupIdForMark, setActiveSetupId, selectedShotId, selectShot, createShotFromScriptRange, linkShotToScriptRange, scriptLinkShotId, cancelScriptLinking, updateScriptMark, setLiningDescription, deleteScriptMark, setScriptLines, setSceneNumbersLocked, avScriptRows, setAVScriptRows, updateAVScriptRow, addAVScriptRow, deleteAVScriptRow, scriptFormatMode, setScriptFormatMode, syncAVRowToShot, displaySettings, project, updateProjectMeta } = useFloorPlan();
+  const { activeSetup, scriptLines, scriptTitle, allScriptMarks, allShots, setupIdForMark, setActiveSetupId, selectedShotId, selectShot, createShotFromScriptRange, linkShotToScriptRange, scriptLinkShotId, cancelScriptLinking, updateScriptMark, setLiningDescription, deleteScriptMark, setScriptLines, setSceneNumbersLocked, avScriptRows, setAVScriptRows, updateAVScriptRow, addAVScriptRow, deleteAVScriptRow, scriptFormatMode, setScriptFormatMode, syncAVRowToShot, displaySettings, project, updateProjectMeta, runCommand } = useFloorPlan();
   const { openExportModal, theme } = useWorkspaceUI();
   const { confirm } = useDialogs();
 
@@ -319,10 +327,14 @@ export const ScriptPanel: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fountainViewMode]);
 
-  const importRaw = (raw: string, name: string) => {
+  const importRaw = (raw: string, name: string, markRevision?: number) => {
     // Re-importing a revised draft keeps linings and scheduled scenes attached
     // to the lines that survived (ids are reconciled, not minted afresh).
-    const parsed = reconcileScriptLineIds(parseScreenplay(raw, name), lines);
+    const reconciled = reconcileScriptLineIds(parseScreenplay(raw, name), lines);
+    // A revised draft stars the lines it changed, in its revision colour.
+    const parsed = markRevision === undefined
+      ? reconciled
+      : markRevisedLines(reconciled, new Set(lines.map((line) => line.id)), markRevision);
     // A script that arrives with a cover keeps it — title, credit, author and
     // draft used to be stripped at the door and thrown away.
     const cover = parseScreenplayTitlePage(raw);
@@ -374,8 +386,18 @@ export const ScriptPanel: React.FC = () => {
         },
       ],
     });
-    importRaw(raw, name);
+    // The new draft goes out on the next colour in the sequence.
+    const nextColor = currentRevisionColor(project).index + 1;
+    if (project.scriptRevisionColor !== undefined) {
+      runCommand(setScriptRevisionColorCommand, { index: nextColor }, { domain: 'script' });
+    }
+    importRaw(raw, name, nextColor);
     setPendingRevision(null);
+  };
+
+  const exportFdxFile = () => {
+    const xml = serializeToFdx(lines, { title: scriptTitle, titlePage: project.titlePage });
+    downloadText(xml, `${safeFileName(scriptTitle, 'screenplay').toLowerCase()}.fdx`, { type: 'application/xml;charset=utf-8' });
   };
 
   const exportFountainFile = () => {
@@ -527,6 +549,43 @@ export const ScriptPanel: React.FC = () => {
   );
 
   const [highlightedBreakdownItemId, setHighlightedBreakdownItemId] = useState<string | null>(null);
+
+  // Script highlighter (colour coding by department, character or location).
+  const [highlightMode, setHighlightModeState] = useState<HighlightMode>(() =>
+    readUiPref<HighlightMode>('script_highlight', ['off', 'breakdown', 'characters', 'locations'], 'breakdown'),
+  );
+  const [highlightFocus, setHighlightFocus] = useState<string | null>(null);
+  const setHighlightMode = (mode: HighlightMode) => {
+    setHighlightModeState(mode);
+    writeUiPref('script_highlight', mode);
+  };
+  const scriptBreakdown = useMemo(
+    () => cachedScriptBreakdown(lines, project.characters, project.locations),
+    [lines, project.characters, project.locations],
+  );
+  // Page numbers (locked or fresh) for the page markers and the page count.
+  const pageInfo = useMemo(() => pageLabels(lines, project.scriptPageLock), [lines, project.scriptPageLock]);
+  const pageStartMap = useMemo(() => new Map(pageInfo.starts.map((start) => [start.lineId, start.label] as const)), [pageInfo]);
+  const scenePageEighths = useMemo(
+    () => new Map(scriptBreakdown.scenes.flatMap((scene) =>
+      scene.pageLengthEighths === undefined ? [] : [[scene.id, scene.pageLengthEighths] as const])),
+    [scriptBreakdown],
+  );
+  const highlights = useMemo(() => {
+    const sceneLocation = new Map<string, { key: string; label: string }>();
+    for (const location of scriptBreakdown.locations) {
+      for (const scene of location.scenes) sceneLocation.set(scene.id, { key: location.key, label: location.name });
+    }
+    return deriveLineHighlights(lines, {
+      mode: highlightMode,
+      characters: scriptBreakdown.characters,
+      sceneLocation,
+      focusKey: highlightFocus,
+    });
+  }, [lines, highlightMode, highlightFocus, scriptBreakdown]);
+  const setCharacterHighlightColor = (characterId: string, color: string) => {
+    runCommand(setCharacterColorCommand, { characterId, color, fallbackCharacters: scriptBreakdown.characters }, { domain: 'script' });
+  };
 
   /**
    * Untag every line of the selection at once. Untagging one line of a phrase
@@ -933,15 +992,15 @@ export const ScriptPanel: React.FC = () => {
   };
 
   const headerButton = `px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
-    isLight ? 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700' : 'border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200'
+    'border-line-strong bg-surface hover:bg-surface-hover text-ink-soft'
   }`;
 
   const barButton = `px-2 py-1 rounded border text-[10px] font-semibold flex items-center gap-1 transition-colors ${
-    isLight ? 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700' : 'border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200'
+    'border-line-strong bg-surface hover:bg-surface-hover text-ink-soft'
   }`;
 
   return (
-    <div className={`h-full flex flex-col ${isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}`}>
+    <div className={`h-full flex flex-col bg-surface text-ink`}>
       <div className={`p-2 sm:p-2.5 border-b flex flex-col gap-2 ${isLight ? 'border-slate-200 bg-slate-50/80' : 'border-slate-800 bg-slate-950/60'}`}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className={`flex items-center p-0.5 rounded-lg border ${isLight ? 'bg-slate-200/70 border-slate-300' : 'bg-slate-900 border-slate-700'}`}>
@@ -950,8 +1009,8 @@ export const ScriptPanel: React.FC = () => {
               aria-pressed={activeTab === 'lined_coverage'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'lined_coverage'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -962,8 +1021,8 @@ export const ScriptPanel: React.FC = () => {
               aria-pressed={activeTab === 'screenplay'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'screenplay'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-ink-muted hover:text-ink'
               }`}
               title="Write, format, and edit scenes (Hollywood Standard Courier)"
             >
@@ -975,8 +1034,8 @@ export const ScriptPanel: React.FC = () => {
               aria-pressed={activeTab === 'av_script'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'av_script'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               <Tv className="w-3.5 h-3.5" />
@@ -987,8 +1046,8 @@ export const ScriptPanel: React.FC = () => {
               aria-pressed={activeTab === 'title_page'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'title_page'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-ink-muted hover:text-ink'
               }`}
               title="The screenplay's cover: title, credit, author, draft and contact"
             >
@@ -1000,8 +1059,8 @@ export const ScriptPanel: React.FC = () => {
               aria-pressed={activeTab === 'reports'}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
                 activeTab === 'reports'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-ink-muted hover:text-ink'
               }`}
               title="Live character and location breakdowns"
             >
@@ -1024,12 +1083,12 @@ export const ScriptPanel: React.FC = () => {
             />
 
             {activeTab === 'screenplay' && (
-              <div className={`flex items-center rounded-lg border mr-1 ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
+              <div className={`flex items-center rounded-lg border mr-1 border-line-strong`}>
                 <button
                   onClick={() => setFountainViewMode('page')}
                   aria-pressed={fountainViewMode === 'page'}
                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-l-md ${
-                    fountainViewMode === 'page' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                    fountainViewMode === 'page' ? 'bg-accent text-white' : 'text-ink-muted hover:text-ink'
                   }`}
                   title="Hollywood Standard 12pt Courier Page View"
                 >
@@ -1039,7 +1098,7 @@ export const ScriptPanel: React.FC = () => {
                   onClick={() => setFountainViewMode('raw')}
                   aria-pressed={fountainViewMode === 'raw'}
                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-r-md flex items-center gap-1 ${
-                    fountainViewMode === 'raw' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                    fountainViewMode === 'raw' ? 'bg-accent text-white' : 'text-ink-muted hover:text-ink'
                   }`}
                   title="Raw Fountain Syntax Markdown Code"
                 >
@@ -1050,7 +1109,7 @@ export const ScriptPanel: React.FC = () => {
 
             <button
               onClick={() => fileRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-semibold flex items-center gap-1 shadow-sm"
+              className="px-2.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold flex items-center gap-1 shadow-sm"
               title="Import .fountain, .fdx or .txt screenplay"
             >
               <Upload className="w-3.5 h-3.5" /> Import
@@ -1059,6 +1118,11 @@ export const ScriptPanel: React.FC = () => {
             {activeTab === 'screenplay' && (
               <button onClick={exportFountainFile} className={headerButton} title="Download .fountain file">
                 <Download className="w-3.5 h-3.5" /> Fountain
+              </button>
+            )}
+            {activeTab === 'screenplay' && lines.length > 0 && (
+              <button onClick={exportFdxFile} className={headerButton} title="Download a Final Draft (.fdx) file">
+                <Download className="w-3.5 h-3.5" /> Final Draft
               </button>
             )}
 
@@ -1093,13 +1157,13 @@ export const ScriptPanel: React.FC = () => {
             </button>
 
             {activeTab === 'reports' && lines.length > 0 && (
-              <PdfExportButton onClick={() => openExportModal('scriptreports')} title="Script-Reports als PDF exportieren" />
+              <PdfExportButton onClick={() => openExportModal('scriptreports')} title="Download the script reports as a PDF" />
             )}
 
             {activeTab !== 'reports' && activeTab !== 'title_page' && lines.length > 0 && (
               <PdfExportButton
                 onClick={() => openExportModal(activeTab === 'av_script' ? 'avscript' : 'linedscript')}
-                title={activeTab === 'av_script' ? 'AV-Skript als PDF exportieren' : 'Skript als PDF exportieren'}
+                title={activeTab === 'av_script' ? 'Download the AV script as a PDF' : 'Download the script as a PDF'}
               />
             )}
 
@@ -1116,7 +1180,7 @@ export const ScriptPanel: React.FC = () => {
             {activeTab !== 'reports' && activeTab !== 'title_page' && ((activeTab === 'av_script' ? (avScriptRows || []).length > 0 : lines.length > 0)) && (
               <button
                 onClick={activeTab === 'av_script' ? handleClearAVScript : handleClearScreenplay}
-                className="px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition-colors border-rose-800/40 bg-rose-950/20 hover:bg-rose-900/40 text-rose-400 hover:text-rose-300"
+                className="px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition-colors border-rose-500/40 bg-danger-soft hover:bg-rose-500/20 text-danger"
                 title={activeTab === 'av_script' ? 'Clear AV script' : 'Clear screenplay'}
               >
                 <Trash2 className="w-3.5 h-3.5" /> Clear
@@ -1148,7 +1212,7 @@ export const ScriptPanel: React.FC = () => {
                 className={`h-7 px-2 rounded-lg border text-[10px] font-semibold flex items-center gap-1 ${
                   sceneNumbersLocked
                     ? isLight ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-amber-600/60 bg-amber-950/40 text-amber-300'
-                    : isLight ? 'border-slate-300 bg-white text-slate-600' : 'border-slate-700 bg-slate-900 text-slate-300'
+                    : 'border-line-strong bg-surface text-ink-soft'
                 }`}
               >
                 {sceneNumbersLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
@@ -1156,7 +1220,7 @@ export const ScriptPanel: React.FC = () => {
               </button>
             )}
 
-            {activeTab !== 'reports' && activeTab !== 'title_page' && <div className={`flex items-center rounded-lg border ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
+            {activeTab !== 'reports' && activeTab !== 'title_page' && <div className={`flex items-center rounded-lg border border-line-strong`}>
               <button onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))} className="px-1.5 py-1.5" title="Smaller font" aria-label="Smaller font">
                 <Minus className="w-3 h-3" />
               </button>
@@ -1192,12 +1256,12 @@ export const ScriptPanel: React.FC = () => {
                   }}
                   className={`px-2 py-0.8 rounded border text-[10px] font-semibold whitespace-nowrap transition-all flex items-center gap-1 ${
                     isCurrent
-                      ? 'bg-violet-600 text-white border-violet-400 shadow-sm'
+                      ? 'bg-accent text-white border-violet-400 shadow-sm'
                       : info.color
                   }`}
                 >
                   <span>{info.label}</span>
-                  {type === 'parenthetical' && <span className="opacity-70 text-[9px]">[Tab]</span>}
+                  {type === 'parenthetical' && <span className="opacity-70 text-[10px]">[Tab]</span>}
                 </button>
               );
             })}
@@ -1222,7 +1286,7 @@ export const ScriptPanel: React.FC = () => {
                   : 'INT. LOFT - NIGHT\n\nJenna steps closer to the window.\n\nJENNA\n(whispering)\nStop it, Reggie!\n\nREGGIE\nI can\'t.'
               }
               className={`w-full rounded-lg border p-2 text-[11px] font-mono ${
-                isLight ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'
+                'bg-field border-line-strong'
               }`}
             />
             <div className="flex gap-1.5">
@@ -1238,7 +1302,7 @@ export const ScriptPanel: React.FC = () => {
                   setPasteText('');
                   setPasteOpen(false);
                 }}
-                className="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-semibold"
+                className="px-2.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold"
               >
                 Apply Script
               </button>
@@ -1252,13 +1316,13 @@ export const ScriptPanel: React.FC = () => {
 
       {activeTab === 'reports' && <ScriptReportsPanel lines={lines} isLight={isLight} />}
       {activeTab === 'title_page' && (
-        <div className={`flex-1 overflow-auto custom-scrollbar ${isLight ? 'bg-slate-100' : 'bg-slate-950'}`}>
+        <div className={`flex-1 overflow-auto custom-scrollbar bg-surface-sunken`}>
           <TitlePageEditor isLight={isLight} />
         </div>
       )}
 
       {activeTab === 'screenplay' && (
-        <div ref={scrollRef} className={`flex-1 overflow-auto custom-scrollbar p-3 sm:p-6 ${isLight ? 'bg-slate-100' : 'bg-slate-950'}`}>
+        <div ref={scrollRef} className={`flex-1 overflow-auto custom-scrollbar p-3 sm:p-6 bg-surface-sunken`}>
           {fountainViewMode === 'raw' ? (
             <div className="max-w-3xl mx-auto space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-400">
@@ -1275,7 +1339,7 @@ export const ScriptPanel: React.FC = () => {
                 }}
                 rows={24}
                 className={`w-full rounded-xl border p-4 text-xs font-mono leading-relaxed outline-none shadow-sm ${
-                  isLight ? 'bg-white border-slate-300 text-slate-900 focus:border-violet-500' : 'bg-slate-900 border-slate-700 text-slate-100 focus:border-violet-500'
+                  'bg-surface border-line-strong text-ink focus:border-violet-500'
                 }`}
                 placeholder="INT. COFFEE SHOP - DAY..."
               />
@@ -1299,7 +1363,7 @@ export const ScriptPanel: React.FC = () => {
                   <div className="flex items-center justify-center gap-2 flex-wrap pt-2">
                     <button
                       onClick={handleStartBlankScreenplay}
-                      className="px-3.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-sm"
+                      className="px-3.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold shadow-sm"
                     >
                       + Write First Scene Heading
                     </button>
@@ -1337,7 +1401,7 @@ export const ScriptPanel: React.FC = () => {
                               toggleParentheticalOnLine(line.id);
                             }}
                             title="Click or press Tab to toggle parenthetical delivery"
-                            className="text-[9px] px-1 py-0.5 rounded border border-slate-700 bg-slate-800 text-slate-300 hover:text-sky-300"
+                            className="text-[10px] px-1 py-0.5 rounded border border-slate-700 bg-slate-800 text-slate-300 hover:text-sky-300"
                           >
                             {line.type === 'parenthetical' ? '(Delivery)' : style.shortcut}
                           </button>
@@ -1384,7 +1448,7 @@ export const ScriptPanel: React.FC = () => {
                                   one mirrors the right, which is the one you
                                   edit when the numbers are locked. */}
                               {line.sceneNumber && (
-                                <span aria-hidden className="mr-2 shrink-0 font-mono text-[10px] text-amber-500 opacity-70">
+                                <span aria-hidden className="mr-2 shrink-0 font-mono text-[10px] text-warn opacity-70">
                                   {line.sceneNumber}
                                 </span>
                               )}
@@ -1444,7 +1508,7 @@ export const ScriptPanel: React.FC = () => {
                                   className={`w-12 ml-2 text-[10px] text-center font-mono rounded border outline-none ${isLight ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-amber-700/60 bg-amber-950/40 text-amber-300'}`}
                                 />
                               ) : line.sceneNumber ? (
-                                <span className="text-[10px] text-amber-500 font-mono ml-2 opacity-70" title="Numbered by position; lock the numbers before scheduling">
+                                <span className="text-[10px] text-warn font-mono ml-2 opacity-70" title="Numbered by position; lock the numbers before scheduling">
                                   #{line.sceneNumber}#
                                 </span>
                               ) : null}
@@ -1548,10 +1612,10 @@ export const ScriptPanel: React.FC = () => {
       )}
 
       {activeTab === 'av_script' && (
-        <div className={`flex-1 overflow-auto custom-scrollbar p-3 sm:p-4 ${isLight ? 'bg-slate-100' : 'bg-slate-950'}`}>
+        <div className={`flex-1 overflow-auto custom-scrollbar p-3 sm:p-4 bg-surface-sunken`}>
           <div className="max-w-6xl mx-auto space-y-3">
             <div className={`p-3 rounded-xl border flex items-center justify-between flex-wrap gap-2 ${
-              isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'
+              'bg-surface border-line-strong'
             }`}>
               <div className="flex items-center gap-2.5">
                 <Tv className="w-5 h-5 text-violet-400 flex-shrink-0" />
@@ -1564,14 +1628,14 @@ export const ScriptPanel: React.FC = () => {
               </div>
               <button
                 onClick={() => addAVScriptRow()}
-                className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center gap-1 shadow-sm"
+                className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold flex items-center gap-1 shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" /> Add AV Shot
               </button>
             </div>
 
             <div className={`rounded-xl border shadow-sm overflow-hidden ${
-              isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'
+              'bg-surface border-line-strong'
             }`}>
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -1720,7 +1784,7 @@ export const ScriptPanel: React.FC = () => {
                                 coverage line asking for ever. */}
                             <button
                               onClick={() => updateAVScriptRow(row.id, { noShot: true })}
-                              className="text-[9px] text-slate-500 hover:text-slate-300 underline"
+                              className="text-[10px] text-slate-500 hover:text-slate-300 underline"
                               title="Titles, graphics, stock footage — this row needs no camera"
                             >
                               needs no camera
@@ -1745,11 +1809,11 @@ export const ScriptPanel: React.FC = () => {
               </table>
 
               <div className={`p-2.5 border-t flex items-center justify-between ${
-                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800'
+                'bg-surface-sunken border-line'
               }`}>
                 <button
                   onClick={() => addAVScriptRow()}
-                  className="px-3 py-1 rounded-lg bg-violet-600/80 hover:bg-violet-600 text-white text-xs font-semibold flex items-center gap-1.5"
+                  className="px-3 py-1 rounded-lg bg-violet-600/80 hover:bg-accent text-white text-xs font-semibold flex items-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add Next Shot
                 </button>
@@ -1784,6 +1848,56 @@ export const ScriptPanel: React.FC = () => {
 
       {activeTab === 'lined_coverage' && (
         <>
+          {lines.length > 0 && (() => {
+            const revision = currentRevisionColor(project);
+            const changed = lines.filter((line) => line.revisedIn !== undefined && line.revisedIn === revision.index).length;
+            const locked = !!project.scriptPageLock;
+            return (
+              <div className="px-2.5 py-1 border-b border-line flex items-center gap-2 text-[11px]">
+                <span className="w-3.5 h-3.5 rounded-sm border border-line-strong" style={{ background: revision.hex }} aria-hidden />
+                <label className="flex items-center gap-1 font-semibold">
+                  Revision
+                  <select
+                    value={revision.index}
+                    onChange={(event) => runCommand(setScriptRevisionColorCommand, { index: Number(event.target.value) }, { domain: 'script' })}
+                    aria-label="Script revision colour"
+                    title="The colour this draft goes out on. Importing a revised draft moves to the next colour automatically."
+                    className="rounded border border-line-strong bg-field text-ink px-1 py-0.5 text-[11px]"
+                  >
+                    {Array.from({ length: Math.max(REVISION_COLORS.length, revision.index + 2) }, (_, index) => revisionColorAt(index)).map((color) => (
+                      <option key={color.index} value={color.index}>{color.label}</option>
+                    ))}
+                  </select>
+                </label>
+                {revision.index > 0 && <span className="text-ink-muted">{changed} line{changed === 1 ? '' : 's'} marked * in this revision</span>}
+                <span className="ml-auto text-ink-muted">
+                  {locked
+                    ? `Pages locked${pageInfo.addedPages ? ` · ${pageInfo.addedPages} A-page${pageInfo.addedPages === 1 ? '' : 's'}` : ''}${pageInfo.omitted.length ? ` · p. ${pageInfo.omitted.join(', ')} omitted` : ''}`
+                    : `${pageInfo.starts.length} page${pageInfo.starts.length === 1 ? '' : 's'}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => runCommand(setScriptPageLockCommand, { lock: locked ? undefined : lockPages(lines) }, { domain: 'script' })}
+                  title={locked ? 'Unlock pages: number pages freshly again' : 'Lock pages: keep every page number from now on; new text goes onto A-pages'}
+                  aria-pressed={locked}
+                  className={`px-2 py-0.5 rounded border text-[11px] font-semibold ${locked ? 'bg-accent text-white border-transparent' : 'border-line-strong hover:bg-surface-hover'}`}
+                >
+                  {locked ? 'Pages locked' : 'Lock pages'}
+                </button>
+              </div>
+            );
+          })()}
+          {lines.length > 0 && (
+            <ScriptHighlightBar
+              mode={highlightMode}
+              onModeChange={setHighlightMode}
+              legend={highlights.legend}
+              focusKey={highlightFocus}
+              onFocusChange={setHighlightFocus}
+              onColorChange={highlightMode === 'characters' ? setCharacterHighlightColor : undefined}
+              isLight={isLight}
+            />
+          )}
           {pendingLinkShot && (
             <div
               className={`px-2.5 py-2 border-b flex items-center justify-between gap-2 ${
@@ -1799,7 +1913,7 @@ export const ScriptPanel: React.FC = () => {
                   <button
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => linkExistingShot(pendingLinkShot.id)}
-                    className="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-semibold"
+                    className="px-2.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold"
                   >
                     Line here
                   </button>
@@ -1816,7 +1930,7 @@ export const ScriptPanel: React.FC = () => {
             </div>
           )}
 
-          <div ref={scrollRef} className={`flex-1 overflow-auto custom-scrollbar ${isLight ? 'bg-slate-100' : 'bg-slate-950'}`}>
+          <div ref={scrollRef} className={`flex-1 overflow-auto custom-scrollbar bg-surface-sunken`}>
             {lines.length === 0 ? (
               <div className={`m-4 p-8 text-center border border-dashed rounded-xl ${isLight ? 'border-slate-300 bg-white' : 'border-slate-800 bg-slate-900/60'}`}>
                 <FileText className="w-10 h-10 mx-auto mb-3 text-slate-500" />
@@ -1827,7 +1941,7 @@ export const ScriptPanel: React.FC = () => {
                 <div className="flex items-center justify-center gap-2 flex-wrap">
                   <button
                     onClick={handleStartBlankScreenplay}
-                    className="px-3.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                    className="px-3.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm"
                   >
                     <PenTool className="w-3.5 h-3.5" />
                     <span>Write Blank Screenplay</span>
@@ -1858,9 +1972,14 @@ export const ScriptPanel: React.FC = () => {
                   showShotSize={displaySettings.showShotSizeInScript !== false}
                   selection={effectiveRange}
                   selectedShotId={selectedShotId}
-                  breakdownItems={breakdownItems}
+                  breakdownItems={highlightMode === 'breakdown' ? breakdownItems : undefined}
                   highlightedBreakdownItemId={highlightedBreakdownItemId}
                   onSelectBreakdownItem={setHighlightedBreakdownItemId}
+                  lineHighlights={highlights.lines}
+                  nameMentions={highlights.mentions}
+                  revisionIndex={currentRevisionColor(project).index}
+                  pageStarts={pageStartMap}
+                  scenePageEighths={scenePageEighths}
                   onLinePointerDown={handleLinePointerDown}
                   onSelectMark={(mark) => {
                     const owner = setupIdForMark(mark.id);
@@ -1879,7 +1998,7 @@ export const ScriptPanel: React.FC = () => {
           </div>
 
           {selectedMark && (
-            <div className={`border-t p-2 space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/70'}`}>
+            <div className={`border-t p-2 space-y-2 border-line bg-surface-sunken`}>
               <div className="flex items-center gap-2 flex-wrap">
                 <span
                   className="px-1.5 py-0.5 rounded-full border text-[10px] font-bold"
@@ -1892,7 +2011,7 @@ export const ScriptPanel: React.FC = () => {
                   onChange={(event) => setLiningDescription(selectedMark.id, event.target.value)}
                   placeholder="Description shown on the lining (e.g. CU Jenna)"
                   className={`flex-1 min-w-[10rem] rounded-lg border px-2 py-1.5 text-[11px] ${
-                    isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                    'bg-surface border-line-strong'
                   }`}
                 />
                 <button
@@ -1907,7 +2026,7 @@ export const ScriptPanel: React.FC = () => {
                 <button
                   onClick={() => updateScriptMark(selectedMark.id, { continuesNext: !selectedMark.continuesNext })}
                   title="Arrowhead: the shot carries on past the bottom of the page"
-                  className={`${barButton} ${selectedMark.continuesNext ? 'bg-sky-600 text-white border-sky-500' : ''}`}
+                  className={`${barButton} ${selectedMark.continuesNext ? 'bg-accent text-white border-sky-500' : ''}`}
                 >
                   <ArrowDown className="w-3 h-3" /> Continues next page
                 </button>
@@ -1945,16 +2064,16 @@ export const ScriptPanel: React.FC = () => {
                 >
                   <Scissors className="w-3 h-3" /> Extend to selection
                 </button>
-                <span className="text-[9px] opacity-55">or drag the round handles on the line</span>
+                <span className="text-[10px] opacity-55">or drag the round handles on the line</span>
               </div>
             </div>
           )}
 
           {effectiveRange && (
-            <div className={`border-t p-2 space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/70'}`}>
+            <div className={`border-t p-2 space-y-2 border-line bg-surface-sunken`}>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold flex items-center gap-1.5 min-w-0">
-                  <Scissors className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                  <Scissors className="w-3.5 h-3.5 text-warn flex-shrink-0" />
                   <span className="truncate">
                     {effectiveRange.text
                       ? `“${effectiveRange.text.replace(/\s+/g, ' ').trim().slice(0, 42)}${
@@ -1980,14 +2099,14 @@ export const ScriptPanel: React.FC = () => {
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder="Description (e.g. CU Jenna)"
                   className={`flex-1 min-w-[9rem] rounded-lg border px-2 py-1.5 text-[11px] ${
-                    isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                    'bg-surface border-line-strong'
                   }`}
                 />
                 <select
                   value={shotSize}
                   onChange={(event) => setShotSize(event.target.value as ShotSize)}
                   className={`rounded-lg border px-2 py-1.5 text-[11px] ${
-                    isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                    'bg-surface border-line-strong'
                   }`}
                 >
                   {SHOT_SIZES.map((size) => (
@@ -2000,7 +2119,7 @@ export const ScriptPanel: React.FC = () => {
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={createShotFromSelection}
                   title="Create a new shot (with its own camera) covering the highlighted text"
-                  className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold flex items-center gap-1"
                 >
                   <Video className="w-3.5 h-3.5" /> Make Shot
                 </button>
@@ -2009,9 +2128,9 @@ export const ScriptPanel: React.FC = () => {
                     value=""
                     onMouseDown={(event) => event.stopPropagation()}
                     onChange={(event) => linkExistingShot(event.target.value)}
-                    title="Line a shot that already exists in the shot list over the highlighted text"
+                    aria-label="Line a shot that already exists in the shot list over the highlighted text" title="Line a shot that already exists in the shot list over the highlighted text"
                     className={`rounded-lg border px-2 py-1.5 text-[11px] font-semibold ${
-                      isLight ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-900 border-slate-700 text-slate-200'
+                      'bg-surface border-line-strong text-ink-soft'
                     }`}
                   >
                     <option value="">Line existing shot…</option>
@@ -2037,7 +2156,7 @@ export const ScriptPanel: React.FC = () => {
                   does not say which words carry it. */}
               {taggedInSelection.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1">
-                  <span className={`text-[10px] uppercase tracking-wider font-semibold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] uppercase tracking-wider font-semibold text-ink-muted`}>
                     Tagged here
                   </span>
                   {taggedInSelection.map((item) => (
@@ -2047,7 +2166,7 @@ export const ScriptPanel: React.FC = () => {
                       onMouseEnter={() => setHighlightedBreakdownItemId(item.id)}
                       onMouseLeave={() => setHighlightedBreakdownItemId(null)}
                       className={`inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border text-[10px] font-semibold ${
-                        isLight ? 'bg-white' : 'bg-slate-900'
+                        'bg-surface'
                       }`}
                       style={{ borderColor: breakdownCategoryTint(item.category), color: breakdownCategoryTint(item.category) }}
                     >
@@ -2070,7 +2189,7 @@ export const ScriptPanel: React.FC = () => {
 
           {lines.length > 0 && (
             <div className={`px-2.5 py-1.5 border-t flex items-center justify-between text-[10px] ${
-              isLight ? 'border-slate-200 text-slate-600' : 'border-slate-800 text-slate-400'
+              'border-line text-ink-muted'
             }`}>
               <span>
                 {lines.length} lines · {marks.length} lined shot{marks.length === 1 ? '' : 's'}
@@ -2095,7 +2214,7 @@ export const ScriptPanel: React.FC = () => {
       {pendingRevision && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/65" onClick={() => setPendingRevision(null)} />
-          <div className={`relative w-full max-w-2xl max-h-[80vh] overflow-hidden rounded-2xl border shadow-2xl ${isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-100'}`} role="dialog" aria-modal="true" aria-labelledby="script-revision-title">
+          <div className={`relative w-full max-w-2xl max-h-[80vh] overflow-hidden rounded-2xl border shadow-2xl bg-surface border-line-strong text-ink`} role="dialog" aria-modal="true" aria-labelledby="script-revision-title">
             <div className="p-4 border-b border-inherit flex items-start justify-between gap-3">
               <div>
                 <h2 id="script-revision-title" className="text-sm font-black flex items-center gap-2"><GitCompareArrows className="w-4 h-4 text-violet-500" /> Review revised screenplay</h2>
@@ -2106,13 +2225,13 @@ export const ScriptPanel: React.FC = () => {
             <div className="p-4 overflow-y-auto max-h-[58vh]">
               <div className="grid grid-cols-4 gap-2">
                 {[
-                  ['Added', pendingRevision.comparison.added, 'text-emerald-500'],
+                  ['Added', pendingRevision.comparison.added, 'text-ok'],
                   ['Removed', pendingRevision.comparison.removed, 'text-rose-500'],
-                  ['Changed', pendingRevision.comparison.changed, 'text-amber-500'],
+                  ['Changed', pendingRevision.comparison.changed, 'text-warn'],
                   ['Unchanged', pendingRevision.comparison.unchanged, 'text-slate-500'],
                 ].map(([label, count, tone]) => (
-                  <div key={String(label)} className={`rounded-xl border p-3 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/60'}`}>
-                    <div className="text-[9px] font-bold uppercase opacity-60">{label}</div>
+                  <div key={String(label)} className={`rounded-xl border p-3 border-line bg-surface-sunken`}>
+                    <div className="text-[10px] font-bold uppercase opacity-60">{label}</div>
                     <div className={`text-xl font-mono font-black ${tone}`}>{count}</div>
                   </div>
                 ))}
@@ -2121,8 +2240,8 @@ export const ScriptPanel: React.FC = () => {
                 {pendingRevision.comparison.scenes
                   .filter((scene) => scene.kind !== 'unchanged')
                   .map((scene) => (
-                    <li key={scene.key} className={`rounded-lg border px-3 py-2 text-[11px] flex items-center gap-2 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-                      <span className={`w-16 font-black uppercase text-[9px] ${scene.kind === 'added' ? 'text-emerald-500' : scene.kind === 'removed' ? 'text-rose-500' : 'text-amber-500'}`}>{scene.kind}</span>
+                    <li key={scene.key} className={`rounded-lg border px-3 py-2 text-[11px] flex items-center gap-2 border-line`}>
+                      <span className={`w-16 font-black uppercase text-[10px] ${scene.kind === 'added' ? 'text-ok' : scene.kind === 'removed' ? 'text-rose-500' : 'text-warn'}`}>{scene.kind}</span>
                       <span className="truncate">{scene.label}</span>
                     </li>
                   ))}
@@ -2130,7 +2249,7 @@ export const ScriptPanel: React.FC = () => {
             </div>
             <div className="p-4 border-t border-inherit flex justify-end gap-2">
               <button onClick={() => setPendingRevision(null)} className={headerButton}>Cancel</button>
-              <button onClick={applyPendingRevision} className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold">Import revised draft</button>
+              <button onClick={applyPendingRevision} className="px-3 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-bold">Import revised draft</button>
             </div>
           </div>
         </div>

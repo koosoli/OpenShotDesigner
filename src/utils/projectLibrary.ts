@@ -1,9 +1,11 @@
 import type { ActorElement, CameraElement, Project, SceneSetup, Shot } from '../types';
+import { withSampleStoryboards } from './sampleStoryboards';
 import { SAMPLE_SCENES, SAMPLE_SCREENPLAY } from '../constants/presets';
 import { calculateFovAngle } from './geometry';
 import {
   parseSampleScreenplay,
   sampleBreakdownItems,
+  samplePaperwork,
   sampleCastAssignments,
   sampleMarksFor,
   samplePlanningMeta,
@@ -600,6 +602,8 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
     scriptLines = parseSampleScreenplay();
     setups.forEach((setup) => {
       setup.scriptMarks = sampleMarksFor(setup.id, scriptLines!, setup.sceneNumber);
+      // Sketch boards, so the shot list's storyboard view has frames to show.
+      setup.shots = withSampleStoryboards(setup.shots);
     });
     const sampleBreakdown = deriveScriptBreakdown(scriptLines);
     sampleCharacters = sampleBreakdown.characters;
@@ -668,6 +672,12 @@ export const createProject = (options: NewProjectOptions = {}): Project => {
           ...scheduleMeta,
           ...planningMeta,
           ...technicalMeta,
+          ...samplePaperwork({
+            characters: sampleCharacters ?? [],
+            days: scheduleMeta?.productionDays ?? [],
+            castAssignments: castAssignments ?? [],
+            people: scheduleMeta?.people ?? [],
+          }),
         }
       : {}),
   };

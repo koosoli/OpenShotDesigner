@@ -241,3 +241,5 @@ export { drawPdfTable, paginateTableRows, wrapPdfCellText } from './tables';
 export type { PdfTableColumn, PdfTableResult, PdfTableStyle } from './tables';
 export { PDF_UNENCODABLE_REPLACEMENT, isWinAnsiPrintable, sanitizePdfText } from './text';
 export { zipPdfs } from './zip';
+export { createTableReportPdf } from './tableReportPdf';
+export type { TableReportPdfInput, TableReportPdfSection } from './tableReportPdf';

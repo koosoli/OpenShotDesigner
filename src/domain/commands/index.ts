@@ -43,12 +43,49 @@ export {
   deleteTakeCommand,
   setContinuityDayFilterCommand,
   updateTakeCommand,
+  updateTakesCommand,
 } from './continuity';
 export type {
   AddUnplannedShotInput,
   DeleteTakeInput,
   SetContinuityDayFilterInput,
   UpdateTakeInput,
+  UpdateTakesInput,
 } from './continuity';
 export { removeLocationCommand, setLocationsCommand } from './locations';
 export type { RemoveLocationInput, SetLocationsInput } from './locations';
+export {
+  setCharacterColorCommand,
+  setDoodCellCommand,
+  setDoodDropAfterDaysCommand,
+  setScriptPageLockCommand,
+  setScriptRevisionColorCommand,
+  updatePerformerTimeReportCommand,
+} from './paperwork';
+export type {
+  SetCharacterColorInput,
+  SetDoodCellInput,
+  SetDoodDropAfterDaysInput,
+  SetScriptRevisionColorInput,
+  UpdatePerformerTimeReportInput,
+} from './paperwork';
+export {
+  addCalendarEventCommand,
+  addProductionDayCommand,
+  addScheduleBlockCommand,
+  removeCalendarEventCommand,
+  removeProductionDayCommand,
+  removeScheduleBlockCommand,
+  updateCalendarEventCommand,
+  updateProductionDayCommand,
+  updateScheduleBlockCommand,
+} from './schedule';
+export {
+  clearMasterPlanCommand,
+  setMasterPlanCommand,
+  setSetupLocationCommand,
+  updateProductionDetailsCommand,
+} from './productionDetails';
+export type { ProductionDetailsUpdate } from './productionDetails';
+export { setLogisticsDayFilterCommand, updateLogisticsCommand } from './logistics';
+export type { SetLogisticsDayFilterInput, UpdateLogisticsInput } from './logistics';

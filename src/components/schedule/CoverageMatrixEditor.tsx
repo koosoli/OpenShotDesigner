@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { PanelTitle } from '../common/PanelHeader';
 import { Clapperboard, Plus, Trash2, Users } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
@@ -90,31 +91,26 @@ export const CoverageMatrixEditor: React.FC = () => {
     setNewRowLabel('');
   };
 
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
-  const headingText = isLight ? 'text-slate-700' : 'text-slate-300';
+  const mutedText = 'text-ink-muted';
   const inputClass = `min-h-[36px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${
     isLight
       ? 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
       : 'bg-slate-950 border-slate-700 text-slate-100 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
   }`;
   const cellInputClass = `w-full min-w-[96px] rounded border px-1.5 py-1 text-[11px] ${
-    isLight ? 'border-slate-200 bg-white text-slate-800 focus:border-sky-500' : 'border-slate-700 bg-slate-950 text-slate-100 focus:border-sky-500'
+    'border-line-strong bg-field text-ink focus:border-sky-500'
   }`;
   const primaryBtnClass =
-    'flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors flex-shrink-0 disabled:opacity-40 bg-sky-600 text-white hover:bg-sky-700';
+    'flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors flex-shrink-0 disabled:opacity-40 bg-accent hover:bg-accent-hover text-white';
 
   return (
-    <div className={`h-full overflow-y-auto p-3 space-y-3 select-none ${isLight ? 'bg-white' : 'bg-slate-900'}`}>
-      <div className={`flex items-center justify-between pb-2 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-        <div>
-          <h2 className={`text-sm font-bold flex items-center gap-1.5 ${headingText}`}>
-            <Users className="w-4 h-4 text-sky-500" />
-            Coverage Matrix
-          </h2>
-          <p className={`mt-0.5 text-[10px] ${mutedText}`}>
-            Plan each camera's responsibility per moment — complementary to shot-by-shot lists.
-          </p>
-        </div>
+    <div className={`h-full overflow-y-auto p-3 space-y-3 select-none bg-surface`}>
+      <div className={`flex items-center justify-between pb-2 border-b border-line`}>
+        <PanelTitle
+          icon={<Users />}
+          title="Coverage matrix"
+          subtitle="Each camera's job per moment — alongside the shot-by-shot list."
+        />
         <span className="text-[10px] font-mono opacity-60">
           {cameraLabels.length} cams · {shots.length} shots · {rows.length} rows
         </span>
@@ -144,8 +140,8 @@ export const CoverageMatrixEditor: React.FC = () => {
       </div>
 
       {cameraLabels.length === 0 ? (
-        <div className={`rounded-xl border-2 border-dashed p-6 text-center ${isLight ? 'border-slate-300 bg-slate-50' : 'border-slate-700 bg-slate-950/40'}`}>
-          <Clapperboard className="w-8 h-8 mx-auto mb-2 opacity-40 text-sky-500" />
+        <div className={`rounded-xl border-2 border-dashed p-6 text-center border-line-strong bg-surface-sunken`}>
+          <Clapperboard className="w-8 h-8 mx-auto mb-2 opacity-40 text-accent-ink" />
           <p className="text-xs font-bold">Add your first camera column above</p>
           <p className={`mt-1 text-[10px] ${mutedText}`}>Columns are cameras; rows are moments (cues or custom entries).</p>
         </div>
@@ -154,8 +150,8 @@ export const CoverageMatrixEditor: React.FC = () => {
           <div className="overflow-x-auto custom-scrollbar rounded-lg border">
             <table className="text-[11px] border-collapse min-w-full">
               <thead>
-                <tr className={isLight ? 'bg-slate-100' : 'bg-slate-950'}>
-                  <th className={`px-2 py-1.5 text-left sticky left-0 z-10 ${isLight ? 'bg-slate-100 text-slate-500' : 'bg-slate-950 text-slate-400'}`}>Moment</th>
+                <tr className={'bg-surface-sunken'}>
+                  <th className={`px-2 py-1.5 text-left sticky left-0 z-10 bg-surface-sunken text-ink-muted`}>Moment</th>
                   {cameraLabels.map((cam) => (
                     <th key={cam} className="px-1.5 py-1 min-w-[120px]">
                       <span className="inline-flex items-center gap-1 font-semibold">
@@ -184,8 +180,8 @@ export const CoverageMatrixEditor: React.FC = () => {
                   </tr>
                 )}
                 {rows.map((row) => (
-                  <tr key={row.key} className={`border-t ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>
-                    <td className={`px-2 py-1 whitespace-nowrap sticky left-0 z-10 ${isLight ? 'bg-white' : 'bg-slate-900'}`}>
+                  <tr key={row.key} className={`border-t border-line`}>
+                    <td className={`px-2 py-1 whitespace-nowrap sticky left-0 z-10 bg-surface`}>
                       {row.kind === 'manual' ? (
                         <span className="inline-flex items-center gap-1.5">
                           <input
@@ -205,14 +201,14 @@ export const CoverageMatrixEditor: React.FC = () => {
                           </button>
                         </span>
                       ) : row.kind === 'shot' ? (
-                        <span className={`inline-flex items-center gap-1.5 font-medium ${isLight ? 'text-slate-700' : 'text-slate-200'}`} title={`Shot ${row.shotNumber} — ${row.label}`}>
-                          <span className="px-1 py-0.5 rounded text-[8px] uppercase font-black bg-violet-500/15 text-violet-600 dark:text-violet-300">shot</span>
+                        <span className={`inline-flex items-center gap-1.5 font-medium text-ink-soft`} title={`Shot ${row.shotNumber} — ${row.label}`}>
+                          <span className="px-1 py-0.5 rounded text-[10px] uppercase font-black bg-violet-500/15 text-violet-600 dark:text-violet-300">shot</span>
                           <span className="font-mono font-black text-violet-600 dark:text-violet-300">{row.shotNumber || '—'}</span>
                           <span className="max-w-48 truncate">{row.label}</span>
                         </span>
                       ) : (
-                        <span className={`font-medium ${isLight ? 'text-slate-700' : 'text-slate-200'}`} title={row.label}>
-                          <span className="mr-1.5 px-1 py-0.5 rounded text-[8px] uppercase font-black align-middle bg-sky-500/15 text-sky-600 dark:text-sky-300">cue</span>
+                        <span className={`font-medium text-ink-soft`} title={row.label}>
+                          <span className="mr-1.5 px-1 py-0.5 rounded text-[10px] uppercase font-black align-middle bg-sky-500/15 text-sky-600 dark:text-sky-300">cue</span>
                           {row.label}
                         </span>
                       )}

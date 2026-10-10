@@ -10,9 +10,9 @@
  * context with extra steps.
  */
 
+import { cachedScriptBreakdown } from '../../../domain/script/breakdownCache';
 import React, { useId } from 'react';
 import { inspectorSelectClass } from '../shared/InspectorPrimitives';
-import { deriveScriptBreakdown } from '../../../domain/script/logic';
 import type { ActorElement } from '../../../types';
 import { ACTOR_COLOR_PALETTE } from '../../../constants/presets';
 import { Compass, MessageCircle, User } from 'lucide-react';
@@ -20,6 +20,9 @@ import { RubricSection, WaypointListEditor } from '../shared/InspectorPrimitives
 import { collectCharacterDialogue } from '../../../domain/script/logic';
 import { createId } from '../../../domain/ids';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
+
+/** Stable empty script, so the shared breakdown cache can hit. */
+const NO_LINES: never[] = [];
 
 interface ActorInspectorProps {
   actor: ActorElement;
@@ -33,11 +36,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
   // Script characters (persisted catalog merged with cues detected in the
   // attached screenplay) for linking actor markers; empty when no script.
   const scriptCharacters = React.useMemo(
-    () => deriveScriptBreakdown(
-      project.scriptLines || [],
-      project.characters || [],
-      project.locations || [],
-    ).characters,
+    () => cachedScriptBreakdown(project.scriptLines ?? NO_LINES, project.characters, project.locations).characters,
     [project.scriptLines, project.characters, project.locations],
   );
       const updateActorSpeech = (beat: number, text: string) => {
@@ -70,10 +69,10 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
           <RubricSection
             persistKey="actorinspector.character-stance"
             title="Character & Stance"
-            icon={<User className="w-3.5 h-3.5 text-emerald-500" />}
+            icon={<User className="w-3.5 h-3.5 text-ok" />}
             badge={
               actor.characterName ? (
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold truncate max-w-[100px]">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-ok font-bold truncate max-w-[100px]">
                   {actor.characterName}
                 </span>
               ) : undefined
@@ -118,7 +117,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                 placeholder="e.g. SARAH (Lead Detective)"
                 onChange={(e) => updateElement(actor.id, { characterName: e.target.value })}
                 className={`w-full border rounded-lg p-2 ${
-                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               />
             </div>
@@ -149,8 +148,8 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                 onClick={() => updateElement(actor.id, { isStanding: true })}
                 className={`py-2 text-xs font-semibold rounded-lg border transition-colors ${
                   actor.isStanding
-                    ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
-                    : isLight ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
+                    ? 'bg-emerald-700 text-white border-emerald-500 shadow-sm'
+                    : 'bg-surface-sunken text-ink-muted border-line-strong'
                 }`}
               >
                 Standing
@@ -159,8 +158,8 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                 onClick={() => updateElement(actor.id, { isStanding: false })}
                 className={`py-2 text-xs font-semibold rounded-lg border transition-colors ${
                   !actor.isStanding
-                    ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
-                    : isLight ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
+                    ? 'bg-emerald-700 text-white border-emerald-500 shadow-sm'
+                    : 'bg-surface-sunken text-ink-muted border-line-strong'
                 }`}
               >
                 Seated / Chair
@@ -176,7 +175,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                 placeholder="e.g. Enters through front door on Beat 1, confronts Sarah on Beat 2..."
                 rows={2}
                 className={`w-full border rounded-lg p-2 focus:border-emerald-500 ${
-                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               />
             </div>
@@ -185,15 +184,15 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
           <RubricSection
             persistKey="actorinspector.speech-by-beat"
             title="Speech by Beat"
-            icon={<MessageCircle className="w-3.5 h-3.5 text-emerald-500" />}
+            icon={<MessageCircle className="w-3.5 h-3.5 text-ok" />}
             badge={
               <button
                 type="button"
                 onClick={() => updateDisplaySettings({ showSpeechBubbles: !displaySettings.showSpeechBubbles })}
-                className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                   displaySettings.showSpeechBubbles
-                    ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
-                    : isLight ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-900 text-slate-500 border-slate-700'
+                    ? 'bg-emerald-500/15 text-ok border-emerald-500/30'
+                    : 'bg-surface-muted text-slate-500 border-line-strong'
                 }`}
               >
                 Bubbles {displaySettings.showSpeechBubbles ? 'on' : 'off'}
@@ -218,11 +217,11 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                     className={`rounded-lg border ${
                       active
                         ? 'border-emerald-500/60 bg-emerald-500/10'
-                        : isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'
+                        : 'border-line bg-surface-sunken'
                     }`}
                   >
                     <div className="flex items-center gap-2 p-1.5">
-                      <span className={`w-7 text-[10px] font-mono font-bold ${active ? 'text-emerald-500' : 'opacity-50'}`}>B{beat}</span>
+                      <span className={`w-7 text-[10px] font-mono font-bold ${active ? 'text-ok' : 'opacity-50'}`}>B{beat}</span>
                       <input
                         type="text"
                         value={cue?.text || ''}
@@ -230,7 +229,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                         placeholder={beat === 1 ? 'What does the actor say?' : 'Silent beat'}
                         aria-label={`${actor.name} speech at beat ${beat}`}
                         className={`flex-1 min-w-0 border rounded-md px-2 py-1 text-[11px] ${
-                          isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+                          'bg-surface text-ink border-line-strong'
                         }`}
                       />
                     </div>
@@ -243,7 +242,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                         }}
                         aria-label={`Pick a scripted line for ${actor.name} at beat ${beat}`}
                         className={`w-full px-2 py-1 mb-1.5 mx-1 text-[10px] rounded-md border cursor-pointer ${
-                          isLight ? 'bg-white text-slate-600 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-700'
+                          'bg-surface text-ink-muted border-line-strong'
                         }`}
                         style={{ width: 'calc(100% - 0.5rem)' }}
                       >
@@ -291,7 +290,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
               <RubricSection
             persistKey="actorinspector.waypoints-trajectory"
                 title="Waypoints & Trajectory"
-                icon={<Compass className="w-3.5 h-3.5 text-sky-500" />}
+                icon={<Compass className="w-3.5 h-3.5 text-accent-ink" />}
                 defaultOpen={true}
                 isLight={isLight}
                 headerRight={
@@ -305,7 +304,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                     onClick={(e) => {
                       e.stopPropagation();
                     }}
-                    className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition-all cursor-pointer select-none"
+                    className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-700 hover:bg-emerald-700 active:scale-95 text-white transition-all cursor-pointer select-none"
                   >
                     + Waypoint
                   </button>
@@ -333,7 +332,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
               elementId={actor.id}
               path={actor.path || []}
               baseRotation={actor.rotation}
-              accentClass="text-emerald-500"
+              accentClass="text-ok"
               isLight={isLight}
             />
           </RubricSection>

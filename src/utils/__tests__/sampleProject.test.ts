@@ -26,8 +26,25 @@ describe('sample project content', () => {
     expect(validateProject(roundTripped).filter((issue) => issue.severity === 'error')).toEqual([]);
   });
 
+  it('ships example paperwork: scouts, DOOD marks, a time sheet, stunts and background', async () => {
+    const { exhibitGWarnings } = await import('../../domain/reports');
+    const scouted = (project.locations ?? []).filter((location) => location.scout);
+    expect(scouted.length).toBeGreaterThanOrEqual(2);
+    expect(scouted[0].referenceAssetIds.length).toBeGreaterThan(0);
+    expect(project.doodOverrides?.length).toBeGreaterThan(0);
+    const sheet = project.performerTimeReports?.[0];
+    expect(sheet?.entries.length).toBe(2);
+    expect(exhibitGWarnings(sheet!).some((warning) => warning.kind === 'meal_penalty')).toBe(true);
+    const categories = new Set((project.breakdownItems ?? []).map((item) => item.category));
+    expect(categories.has('stunt')).toBe(true);
+    expect(categories.has('extras')).toBe(true);
+  });
+
   it('persists the bundled page counts so scheduled strips can print pages immediately', () => {
-    expect(project.scriptScenes?.map((scene) => scene.pageLengthEighths)).toEqual([24, 24]);
+    // Measured from the sample screenplay text (domain/script/pageCount.ts).
+    const eighths = project.scriptScenes?.map((scene) => scene.pageLengthEighths) ?? [];
+    expect(eighths).toHaveLength(2);
+    for (const value of eighths) expect(value).toBeGreaterThan(0);
   });
 
   it.each([

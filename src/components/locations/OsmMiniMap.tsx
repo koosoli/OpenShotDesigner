@@ -195,7 +195,7 @@ export const OsmMiniMap: React.FC<OsmMiniMapProps> = ({ point, onPick, height = 
         </button>
       </div>
 
-      <div className="absolute bottom-0 inset-x-0 bg-white/80 text-[8px] text-slate-600 px-1 py-px z-10 pointer-events-none">
+      <div className="absolute bottom-0 inset-x-0 bg-white/80 text-[10px] text-slate-600 px-1 py-px z-10 pointer-events-none">
         Click to drop the pin · Map data © OpenStreetMap contributors
       </div>
 

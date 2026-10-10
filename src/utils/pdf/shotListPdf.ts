@@ -15,6 +15,7 @@
 
 import { addPdfPage, createPdfDocument, drawDocumentHeader, embedProductionLogoPng, finalizePdfDocument } from './document';
 import type { PdfOrientation, PdfPageSize } from './document';
+import type { PDFImage } from 'pdf-lib';
 import { drawPdfTable } from './tables';
 import type { PdfTableColumn } from './tables';
 import type { SceneSetup } from '../../types';
@@ -43,7 +44,22 @@ export interface ShotListPdfInput {
   confidentialityLine?: string;
   /** Raw PNG bytes for the production logo; corrupt bytes print logo-less. */
   logoPngBytes?: Uint8Array;
+  /**
+   * Storyboard column, as the shot list shows it: one frame per row (same
+   * order as `rows`) at the chosen thumbnail size. Absent = no board column.
+   */
+  storyboards?: {
+    size: ShotListBoardSize;
+    /** Frame width / height. */
+    aspectRatio: number;
+    frames: ReadonlyArray<{ imageBytes?: Uint8Array; mimeType?: string } | undefined>;
+  };
 }
+
+export type ShotListBoardSize = 'S' | 'M' | 'L' | 'XL';
+
+/** Board column width in points per size — the shot list's S/M/L/XL. */
+export const SHOT_LIST_PDF_BOARD_WIDTH: Record<ShotListBoardSize, number> = { S: 46, M: 80, L: 140, XL: 220 };
 
 const SHOT_LIST_COLUMNS: PdfTableColumn[] = [
   { header: 'Scene', widthFrac: 7 },
@@ -110,7 +126,31 @@ export const createShotListPdf = async (input: ShotListPdfInput): Promise<Uint8A
       font: ctx.regular,
     });
   } else {
+    const boards = input.storyboards;
+    const images: Array<PDFImage | undefined> = [];
+    if (boards) {
+      for (const frame of boards.frames) {
+        let image: PDFImage | undefined;
+        if (frame?.imageBytes?.length) {
+          const jpeg = !!frame.mimeType && /jpe?g/i.test(frame.mimeType);
+          for (const attempt of jpeg ? [() => ctx.doc.embedJpg(frame.imageBytes!), () => ctx.doc.embedPng(frame.imageBytes!)] : [() => ctx.doc.embedPng(frame.imageBytes!), () => ctx.doc.embedJpg(frame.imageBytes!)]) {
+            try {
+              image = await attempt();
+              break;
+            } catch {
+              // Try the other codec; a frame that embeds as neither prints blank.
+            }
+          }
+        }
+        images.push(image);
+      }
+    }
+    const boardWidth = boards ? SHOT_LIST_PDF_BOARD_WIDTH[boards.size] : 0;
+    const columns: PdfTableColumn[] = boards
+      ? [{ header: 'Board', widthFrac: (boardWidth / ctx.contentWidth) * 100 }, ...SHOT_LIST_COLUMNS.map((column) => ({ ...column, widthFrac: column.widthFrac * (1 - boardWidth / ctx.contentWidth) }))]
+      : SHOT_LIST_COLUMNS;
     const tableRows = input.rows.map((row) => [
+      ...(boards ? [''] : []),
       row.scene,
       row.shot,
       row.name,
@@ -121,7 +161,9 @@ export const createShotListPdf = async (input: ShotListPdfInput): Promise<Uint8A
       row.status,
       row.notes,
     ]);
-    drawPdfTable(ctx, page, cursorY, SHOT_LIST_COLUMNS, tableRows);
+    drawPdfTable(ctx, page, cursorY, columns, tableRows, boards
+      ? { imageColumn: { index: 0, height: (boardWidth - 8) / (boards.aspectRatio || 16 / 9), images } }
+      : undefined);
   }
   return finalizePdfDocument(ctx);
 };

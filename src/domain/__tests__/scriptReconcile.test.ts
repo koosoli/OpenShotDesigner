@@ -53,3 +53,19 @@ describe('reconcileScriptLineIds', () => {
     expect(reconcileScriptLineIds(next, [])).toEqual(next);
   });
 });
+
+describe('reconcileScriptLineIds — hand-set page lengths', () => {
+  it('keeps a manual page length on a heading that survives a re-parse', () => {
+    const previous = [
+      { id: 'h1', type: 'scene', text: 'INT. A - DAY', sceneNumber: '1', pageEighthsOverride: 19 },
+      { id: 'a1', type: 'action', text: 'One.' },
+    ];
+    const next = [
+      { id: 'new-h', type: 'scene', text: 'INT. A - NIGHT', sceneNumber: '1' },
+      { id: 'new-a', type: 'action', text: 'One. Two.' },
+    ];
+    const result = reconcileScriptLineIds(next, previous);
+    expect(result[0]).toMatchObject({ id: 'h1', pageEighthsOverride: 19 });
+    expect((result[1] as { pageEighthsOverride?: number }).pageEighthsOverride).toBeUndefined();
+  });
+});

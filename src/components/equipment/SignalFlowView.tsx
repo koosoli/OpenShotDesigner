@@ -174,9 +174,9 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
   // The parent only mounts this view while it is open, so the trap is armed
   // unconditionally; it releases focus back to the caller when this unmounts.
   const dialogRef = useDialogFocusTrap(true);
-  const panelBg = isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-900 border-slate-700 text-slate-100';
-  const subtleText = isLight ? 'text-slate-600' : 'text-slate-400';
-  const cardBorder = isLight ? 'bg-slate-50 border-slate-300' : 'bg-slate-950 border-slate-700';
+  const panelBg = 'bg-surface border-line-strong text-ink';
+  const subtleText = 'text-ink-muted';
+  const cardBorder = 'bg-surface-sunken border-line-strong';
 
   const typeBadge = (node: SignalFlowNode): { text: string; className: string } => {
     if (node.kind === 'label') {
@@ -202,7 +202,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
         className={`w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden outline-hidden ${panelBg}`}
       >
         {/* Header */}
-        <div className={`flex items-center justify-between gap-2 px-4 py-3 border-b ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/60'}`}>
+        <div className={`flex items-center justify-between gap-2 px-4 py-3 border-b border-line bg-surface-sunken`}>
           <div className="flex items-center gap-2">
             <div className={`p-1.5 rounded-lg ${isLight ? 'bg-emerald-100 text-emerald-900' : 'bg-emerald-500/15 text-emerald-400'}`}>
               <Workflow className="w-4 h-4" />
@@ -219,7 +219,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
             title="Close signal flow view"
             aria-label="Close signal flow view"
             className={`min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors ${
-              isLight ? 'hover:bg-slate-200 text-slate-600' : 'hover:bg-slate-800 text-slate-400'
+              'hover:bg-surface-muted text-ink-muted'
             }`}
           >
             <X className="w-4 h-4" />
@@ -229,7 +229,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
         {cables.length === 0 ? (
           /* Empty state */
           <div className="flex-1 flex flex-col items-center justify-center gap-3 p-10 text-center">
-            <Cable className={`w-12 h-12 opacity-40 ${isLight ? 'text-slate-400' : 'text-slate-600'}`} />
+            <Cable className={`w-12 h-12 opacity-40 text-ink-subtle`} />
             <p className="text-sm font-black">No cables yet</p>
             <p className={`text-xs font-semibold max-w-sm ${subtleText}`}>
               Draw cable runs on the floor plan (with “from” / “to” endpoints) to see the
@@ -239,7 +239,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
         ) : (
           <>
             {/* Source override row */}
-            <div className={`flex items-center gap-1.5 flex-wrap px-4 py-2.5 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+            <div className={`flex items-center gap-1.5 flex-wrap px-4 py-2.5 border-b border-line`}>
               <span className="text-[10px] font-black uppercase tracking-wider mr-1">Sources</span>
               {nodes.filter((n) => outgoingNodeIds.has(n.id)).map((node) => {
                 const checked = manualSourceIds ? manualSourceIds.has(node.id) : autoSourceIds.includes(node.id);
@@ -259,7 +259,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
                     }`}
                   >
                     <span
-                      className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[9px] font-black shrink-0 ${
+                      className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[10px] font-black shrink-0 ${
                         checked ? 'bg-white/25 border-white/60' : isLight ? 'border-slate-400' : 'border-slate-500'
                       }`}
                     >
@@ -289,7 +289,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
               <div className={`mx-4 mt-3 rounded-lg border p-2.5 flex items-start gap-2 text-[11px] font-bold ${
                 isLight ? 'bg-amber-50 border-amber-300 text-amber-950' : 'bg-amber-950/30 border-amber-800/60 text-amber-100'
               }`}>
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-warn" />
                 <div className="flex flex-col gap-1">
                   <span>
                     {cycleLabels.length} signal loop{cycleLabels.length === 1 ? '' : 's'} detected —
@@ -331,7 +331,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
                             className={`text-left p-2.5 rounded-xl border flex flex-col gap-1 transition-shadow hover:shadow-md ${cardBorder}`}
                           >
                             <span className="text-xs font-black break-words">{node.label}</span>
-                            <span className={`self-start px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide ${badge.className}`}>
+                            <span className={`self-start px-1.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${badge.className}`}>
                               {badge.text}
                             </span>
                           </button>
@@ -379,7 +379,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
                       return (
                         <span key={entry.id} className={`px-2 py-1 rounded-lg border inline-flex items-center gap-1.5 ${cardBorder}`}>
                           <span className="text-[11px] font-bold">{node.label}</span>
-                          <span className={`px-1 py-0.5 rounded-full text-[9px] font-black uppercase ${badge.className}`}>
+                          <span className={`px-1 py-0.5 rounded-full text-[10px] font-black uppercase ${badge.className}`}>
                             {badge.text}
                           </span>
                         </span>

@@ -125,11 +125,11 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
   };
 
   const inputCls = `w-full border rounded-lg p-1.5 text-xs ${
-    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+    'bg-field text-ink border-line-strong'
   }`;
-  const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';
+  const mutedCls = 'text-ink-muted';
   const cardCls = `rounded-lg border p-2 space-y-2 ${
-    isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'
+    'bg-surface-sunken border-line'
   }`;
 
   const volumeLitres = profile ? fixtureBoundingVolumeLitres(profile) : undefined;
@@ -147,7 +147,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
           title={showCustomForm ? 'Close custom fixture editor' : 'Author a fixture that is not in OFL'}
           aria-label={showCustomForm ? 'Close custom fixture editor' : 'Author a fixture that is not in OFL'}
           aria-expanded={showCustomForm}
-          className={`p-1 rounded ${isLight ? 'hover:bg-slate-200' : 'hover:bg-slate-800'} ${mutedCls}`}
+          className={`p-1 rounded hover:bg-surface-muted ${mutedCls}`}
         >
           {showCustomForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
         </button>
@@ -171,7 +171,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
         />
         {results.length > 0 && (
           <ul className={`absolute z-20 mt-1 w-full max-h-52 overflow-y-auto custom-scrollbar rounded-lg border shadow-lg ${
-            isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+            'bg-surface border-line-strong'
           }`}>
             {results.map((candidate) => (
               <li key={candidate.id}>
@@ -287,7 +287,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
           <button
             onClick={detachProfile}
             className={`px-2 py-1 rounded-lg border text-[10px] font-bold ${
-              isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+              'border-line-strong hover:bg-surface-hover'
             }`}
           >
             Detach profile
@@ -325,28 +325,28 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
           <textarea
             value={draft.modesText}
             onChange={(e) => setDraft({ ...draft, modesText: e.target.value })}
-            placeholder={'DMX modes, one per line:\nBasic = 8\nExtended 16-bit = 22'}
+            placeholder="DMX modes, one per line:\nBasic = 8\nExtended 16-bit = 22"
             rows={3}
             className={`${inputCls} resize-y font-mono`}
           />
           <button
             onClick={saveDraft}
             disabled={!draft.manufacturer.trim() || !draft.model.trim()}
-            className="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-bold disabled:opacity-40"
+            className="px-2.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-bold disabled:opacity-40"
           >
             Save & apply to this light
           </button>
         </div>
       )}
 
-      <div className={`text-[9px] leading-snug space-y-1 ${mutedCls}`}>
+      <div className={`text-[10px] leading-snug space-y-1 ${mutedCls}`}>
         <p>
           Open Fixture Library {catalog.oflSource === 'online' ? 'live snapshot' : 'bundled snapshot'} {catalog.manifest.snapshotId} ·{' '}
           {catalog.counts.ofl} fixtures + {catalog.counts.curated} supplementary film profiles
           {catalog.counts.custom > 0 ? ` + ${catalog.counts.custom} custom` : ''} · works offline.
         </p>
         {isManualSource === false && profile?.source?.provider === 'curated' && (
-          <p className="text-amber-500">
+          <p className="text-warn">
             Supplementary profile — figures are unverified planning values. Check the unit's label before power or rigging calculations.
           </p>
         )}
@@ -354,7 +354,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
           <button
             onClick={refreshOnline}
             disabled={refreshing}
-            className={`px-2 py-0.5 rounded border text-[10px] font-bold disabled:opacity-50 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+            className={`px-2 py-0.5 rounded border text-[10px] font-bold disabled:opacity-50 border-line-strong hover:bg-surface-hover`}
             title="Sync the newest profiles from the Open Fixture Library repository (requires internet; only changed files are downloaded)"
           >
             {refreshing
@@ -364,7 +364,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
               : 'Refresh from OFL'}
           </button>
           {refreshResult && (
-            <span className={refreshResult.status === 'updated' || refreshResult.status === 'unchanged' ? 'text-emerald-500' : 'text-amber-500'}>
+            <span className={refreshResult.status === 'updated' || refreshResult.status === 'unchanged' ? 'text-ok' : 'text-warn'}>
               {refreshResult.message}
             </span>
           )}

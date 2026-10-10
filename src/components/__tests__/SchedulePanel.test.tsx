@@ -164,10 +164,10 @@ describe('SchedulePanel', () => {
     const user = userEvent.setup();
     await mount();
 
-    expect(screen.getByRole('button', { name: 'Aktuelle Schedule-Ansicht als PDF exportieren' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Download this schedule view as a PDF' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Timeline' }));
-    expect(screen.getByRole('button', { name: 'Aktuelle Schedule-Ansicht als PDF exportieren' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Download this schedule view as a PDF' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Month' }));
-    expect(screen.getByRole('button', { name: 'Aktuelle Schedule-Ansicht als PDF exportieren' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Download this schedule view as a PDF' })).toBeTruthy();
   });
 });

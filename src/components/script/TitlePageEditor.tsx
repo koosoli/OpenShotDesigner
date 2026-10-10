@@ -23,7 +23,7 @@ export const TitlePageEditor: React.FC<TitlePageEditorProps> = ({ isLight }) => 
   const inputCls = `w-full rounded-md border px-2 py-1.5 text-xs outline-none ${
     isLight ? 'border-slate-300 bg-white text-slate-800 focus:border-violet-400' : 'border-slate-700 bg-slate-950 text-slate-200 focus:border-violet-500'
   }`;
-  const labelCls = `text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`;
+  const labelCls = `text-[10px] font-bold uppercase tracking-wider text-ink-muted`;
 
   const field = (
     key: 'title' | 'credit' | 'authors' | 'source' | 'draftLabel' | 'date' | 'contact' | 'copyright' | 'notes',
@@ -57,12 +57,12 @@ export const TitlePageEditor: React.FC<TitlePageEditorProps> = ({ isLight }) => 
       <div className="space-y-2.5">
         <div>
           <h3 className="text-sm font-black">Title page</h3>
-          <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          <p className={`text-[10px] text-ink-muted`}>
             Fountain's standard fields, so an imported cover arrives filled in and an exported script carries it back out.
           </p>
         </div>
 
-        <label className={`flex items-center gap-2 rounded-lg border p-2 text-[11px] font-semibold ${isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-950'}`}>
+        <label className={`flex items-center gap-2 rounded-lg border p-2 text-[11px] font-semibold border-line-strong bg-field`}>
           <input
             type="checkbox"
             checked={page.enabled === true}
@@ -74,7 +74,7 @@ export const TitlePageEditor: React.FC<TitlePageEditorProps> = ({ isLight }) => 
 
         {/* Off by default: the opposite of a call sheet, where an unfinished
             sheet going out looking final is the costly mistake. */}
-        <label className={`flex items-center gap-2 rounded-lg border p-2 text-[11px] font-semibold ${isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-950'}`}>
+        <label className={`flex items-center gap-2 rounded-lg border p-2 text-[11px] font-semibold border-line-strong bg-field`}>
           <input
             type="checkbox"
             checked={page.draft === true}
@@ -97,8 +97,8 @@ export const TitlePageEditor: React.FC<TitlePageEditorProps> = ({ isLight }) => 
         {field('notes', 'Notes', 'Anything else the cover should carry', 2)}
       </div>
 
-      <div className={`rounded-xl border overflow-hidden ${isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-900'}`}>
-        <div className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-wider border-b ${isLight ? 'border-slate-200 text-slate-500' : 'border-slate-800 text-slate-400'}`}>
+      <div className={`rounded-xl border overflow-hidden border-line-strong bg-surface`}>
+        <div className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider border-b border-line text-ink-muted`}>
           Preview{page.enabled === true ? '' : ' — not printed until the box above is ticked'}
         </div>
         <div className={page.enabled === true ? '' : 'opacity-50'}>

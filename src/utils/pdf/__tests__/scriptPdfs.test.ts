@@ -308,7 +308,14 @@ describe('script breakdown PDF', () => {
         },
       ],
     });
-    expect(dood.rows[0]).toEqual({ displayName: 'JOHN', cells: ['SW', 'H', 'WF'], workDays: 2 });
+    expect(dood.rows[0]).toEqual({
+      displayName: 'JOHN',
+      cells: ['SW', 'H', 'WF'],
+      workDays: 2,
+      holdDays: 1,
+      travelDays: 0,
+      totalDays: 3,
+    });
   });
 
   it('keeps euro signs and umlauts, mapping the rest per policy', async () => {
@@ -373,6 +380,24 @@ describe('lined screenplay PDF', () => {
     const combined = inflateContentStreams(pdf).join('\n');
     expect(combined).toContain(pdfHexToken('LinedMarker-59'));
     expect(combined).toContain(pdfHexToken('Generated 2026-09-04'));
+  });
+
+  it('follows locked script pages and prints their numbers, A-pages included', async () => {
+    const lines = makeLinedLines(4);
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      lines,
+      pageStarts: [
+        { lineIndex: 0, label: '12' },
+        { lineIndex: 2, label: '12A' },
+      ],
+      generatedAt: FIXED_DATE,
+    });
+    const reloaded = await PDFDocument.load(pdf);
+    expect(reloaded.getPageCount()).toBe(2);
+    const combined = inflateContentStreams(pdf).join('\n');
+    expect(combined).toContain(pdfHexToken('12.'));
+    expect(combined).toContain(pdfHexToken('12A.'));
   });
 
   it('prints omitted slugs and scene numbers in the stream', async () => {

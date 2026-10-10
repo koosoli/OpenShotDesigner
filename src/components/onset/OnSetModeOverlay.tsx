@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { OnSetCastClock } from './OnSetCastClock';
 import {
   Check,
   ChevronLeft,
@@ -9,6 +10,7 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
+import { setContinuityDayFilterCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { Shot, ShotStatus } from '../../types';
 import {
@@ -80,6 +82,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
     project,
     activeSetup,
     updateProjectMeta,
+    runCommand,
     updateShot,
     selectShot,
     setActiveSetupId,
@@ -300,7 +303,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
   const panelClass = isLight
     ? 'bg-white border-slate-200 text-slate-900'
     : 'bg-slate-900 border-slate-800 text-slate-100';
-  const subtextClass = isLight ? 'text-slate-500' : 'text-slate-400';
+  const subtextClass = 'text-ink-muted';
   const ghostButtonClass = `min-h-[48px] px-4 rounded-xl border font-semibold flex items-center justify-center gap-2 transition-colors ${
     isLight
       ? 'border-slate-300 bg-white hover:bg-slate-100'
@@ -315,8 +318,8 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
       aria-modal="true"
       aria-labelledby="on-set-mode-title"
       tabIndex={-1}
-      className={`fixed inset-0 z-[70] overflow-y-auto ${isLight ? 'bg-slate-100' : 'bg-slate-950'} ${
-        isLight ? 'text-slate-900' : 'text-slate-100'
+      className={`fixed inset-0 z-[70] overflow-y-auto bg-surface-sunken ${
+        'text-ink'
       }`}
     >
       <div className="max-w-3xl mx-auto px-3 py-4 sm:px-6 sm:py-8 space-y-4">
@@ -338,7 +341,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
           <div className="flex items-center gap-2">
             <div
               className={`px-3 py-2 rounded-xl border font-mono text-sm font-bold tabular-nums ${
-                isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                'bg-surface border-line-strong'
               }`}
               title="Session time"
             >
@@ -349,7 +352,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               title="Exit on-set mode (Esc)"
               aria-label="Exit on-set mode (Esc)"
               className={`p-3 rounded-xl border transition-colors ${
-                isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'
+                'border-line-strong hover:bg-surface-muted'
               }`}
             >
               <X className="w-5 h-5" />
@@ -364,7 +367,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               value={selectedDay?.id ?? ''}
               onChange={(event) => {
                 setCurrentShotId(null);
-                updateProjectMeta({ continuityDayFilterId: event.target.value || undefined });
+                runCommand(setContinuityDayFilterCommand, { productionDayId: event.target.value || undefined }, { domain: 'shots' });
               }}
               className={`mt-1 w-full min-h-[44px] rounded-xl border px-3 text-sm font-semibold normal-case ${
                 isLight
@@ -389,7 +392,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               {coveredCount} covered · {attemptedCount} attempted · {remainingCount} remaining
             </span>
           </div>
-          <div className={`h-2.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
+          <div className={`h-2.5 rounded-full overflow-hidden bg-surface-muted`}>
             <div
               className="h-full bg-emerald-500 transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
@@ -424,7 +427,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
                   <div
                     key={`${item.label}-${index}`}
                     className={`flex-shrink-0 rounded-lg border px-2 py-1.5 text-[10px] ${
-                      isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950'
+                      'border-line-strong bg-surface-sunken'
                     }`}
                   >
                     <div className="font-bold max-w-36 truncate">{item.label}</div>
@@ -470,19 +473,19 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
             </div>
 
             <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs ${subtextClass}`}>
-              <div className={`rounded-lg border p-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'}`}>
+              <div className={`rounded-lg border p-2 border-line bg-surface-sunken`}>
                 <div className="text-[10px] font-bold uppercase tracking-wider opacity-60">Size</div>
                 <div className="font-semibold text-sm mt-0.5">{currentShot.shotSize}</div>
               </div>
-              <div className={`rounded-lg border p-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'}`}>
+              <div className={`rounded-lg border p-2 border-line bg-surface-sunken`}>
                 <div className="text-[10px] font-bold uppercase tracking-wider opacity-60">Lens</div>
                 <div className="font-semibold text-sm mt-0.5">{currentShot.lensMm}mm</div>
               </div>
-              <div className={`rounded-lg border p-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'}`}>
+              <div className={`rounded-lg border p-2 border-line bg-surface-sunken`}>
                 <div className="text-[10px] font-bold uppercase tracking-wider opacity-60">Movement</div>
                 <div className="font-semibold text-sm mt-0.5 truncate">{currentShot.movement}</div>
               </div>
-              <div className={`rounded-lg border p-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'}`}>
+              <div className={`rounded-lg border p-2 border-line bg-surface-sunken`}>
                 <div className="text-[10px] font-bold uppercase tracking-wider opacity-60">Takes</div>
                 <div className="font-semibold text-sm mt-0.5">{currentEntry?.takeCount ?? 0}</div>
               </div>
@@ -497,8 +500,8 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               {PLANNING_STATUSES.map(({ status, label }) => {
                 const isActive = currentShot.status === status;
                 const activeClass = isLight
-                  ? 'bg-sky-600 border-sky-600 text-white'
-                  : 'bg-sky-600 border-sky-500 text-white';
+                  ? 'bg-sky-700 border-sky-600 text-white'
+                  : 'bg-sky-700 border-sky-500 text-white';
                 return (
                   <button
                     key={status}
@@ -514,7 +517,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
             </div>
 
             <div className={`rounded-xl border p-3 space-y-2 ${
-              isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950'
+              'border-line-strong bg-surface-sunken'
             }`}>
               <label className={`block text-[10px] font-bold uppercase tracking-wider ${subtextClass}`}>
                 Take note
@@ -535,7 +538,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
                 </button>
                 <button
                   onClick={() => recordTake(true)}
-                  className="min-h-[48px] px-3 rounded-xl border border-emerald-500 bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2"
+                  className="min-h-[48px] px-3 rounded-xl border border-emerald-500 bg-emerald-700 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2"
                 >
                   <Check className="w-4 h-4" /> Good
                 </button>
@@ -640,6 +643,16 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Cast clock: stamp performer times into the day's Exhibit G sheet */}
+        {selectedDay && (
+          <div className={`rounded-2xl border p-3 ${panelClass}`}>
+            <div className="text-[10px] font-bold uppercase tracking-wider opacity-60 mb-2 px-1">
+              Cast clock — performers production time report
+            </div>
+            <OnSetCastClock dayId={selectedDay.id} isLight={isLight} />
           </div>
         )}
 

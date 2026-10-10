@@ -7,8 +7,10 @@
  * the derived equipment manifest rather than asking anyone to type the gear a
  * second time; the weights come from the fixture catalogue where it has them.
  */
+import { EmptyState } from '../common/EmptyState';
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Box, Package, Plus, Trash2, Truck, Wand2 } from 'lucide-react';
+import { setLogisticsDayFilterCommand, updateLogisticsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import {
@@ -85,7 +87,7 @@ const EMPTY_ITEM_DRAFT: ItemDraft = {
 type PackScope = 'scene' | 'production';
 
 export const LogisticsPanel: React.FC = () => {
-  const { project, activeSetup, updateProjectMeta } = useFloorPlan();
+  const { project, activeSetup, runCommand } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
   const catalog = useFixtureCatalog();
@@ -116,12 +118,12 @@ export const LogisticsPanel: React.FC = () => {
   const locationLabel = (id: string | undefined): string | undefined =>
     id ? locations.find((candidate) => candidate.id === id)?.name : undefined;
 
-  // --- Mutations (all immutable via updateProjectMeta) ---
+  // --- Mutations (commands over the committed lists) ---
 
-  const mutateContainers = (fn: (prev: LogisticsContainer[]) => LogisticsContainer[]) =>
-    updateProjectMeta((prev) => ({ logisticsContainers: fn(prev.logisticsContainers ?? []) }));
-  const mutateItems = (fn: (prev: PackedItem[]) => PackedItem[]) =>
-    updateProjectMeta((prev) => ({ packedItems: fn(prev.packedItems ?? []) }));
+  const mutateContainers = (fn: (prev: LogisticsContainer[]) => LogisticsContainer[], description = 'Edit cases') =>
+    runCommand(updateLogisticsCommand, { containers: fn, description });
+  const mutateItems = (fn: (prev: PackedItem[]) => PackedItem[], description = 'Edit packed items') =>
+    runCommand(updateLogisticsCommand, { packedItems: fn, description });
 
   const addContainer = (kind: LogisticsContainerKind, name: string, parentContainerId?: string) => {
     const container: LogisticsContainer = {
@@ -260,7 +262,7 @@ export const LogisticsPanel: React.FC = () => {
       unitWeightKg: (item) => catalogueUnitWeightKg(catalog.profiles, item),
       newId: () => createId('packed'),
     });
-    updateProjectMeta({ packedItems: result.items });
+    mutateItems(() => result.items, 'Pack equipment');
     setPackReport(
       `${result.added} added, ${result.updated} updated · ${result.unknownWeightCount} without a known weight`,
     );
@@ -277,18 +279,18 @@ export const LogisticsPanel: React.FC = () => {
   const subCardClass = isLight
     ? 'bg-slate-50 border-slate-200'
     : 'bg-slate-950/60 border-slate-800';
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
-  const headingText = isLight ? 'text-slate-700' : 'text-slate-300';
+  const mutedText = 'text-ink-muted';
+  const headingText = 'text-ink-soft';
   const inputClass = `min-h-[36px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${
     isLight
       ? 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
       : 'bg-slate-950 border-slate-700 text-slate-100 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
   }`;
   const iconBtnClass = `flex items-center justify-center min-w-[36px] min-h-[36px] rounded-lg transition-colors flex-shrink-0 ${
-    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+    'text-ink-muted hover:text-ink hover:bg-surface-hover'
   }`;
   const primaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors flex-shrink-0 disabled:opacity-40 ${
-    isLight ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-600 text-white hover:bg-sky-500'
+    'bg-accent text-white hover:bg-accent-hover'
   }`;
   const secondaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 disabled:opacity-40 ${
     isLight
@@ -296,12 +298,12 @@ export const LogisticsPanel: React.FC = () => {
       : 'border-slate-700 text-slate-300 hover:bg-slate-800'
   }`;
   const chipClass = `px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
-    isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-300'
+    'bg-surface-muted text-ink-soft'
   }`;
   const estimateChipClass = `px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-    isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-950/60 text-amber-300'
+    'bg-warn-soft text-warn'
   }`;
-  const unknownText = 'text-amber-500 italic';
+  const unknownText = 'text-warn italic';
 
   const sectionHeading = (icon: React.ReactNode, title: string, count?: number) => (
     <h3 className={`text-xs font-bold flex items-center gap-1.5 ${headingText}`}>
@@ -389,7 +391,7 @@ export const LogisticsPanel: React.FC = () => {
       </div>
       <label
         className={`flex items-center gap-1.5 min-h-[36px] px-1 text-[10px] cursor-pointer ${
-          isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/60'
+          'hover:bg-surface-hover'
         } rounded`}
       >
         <input
@@ -462,7 +464,7 @@ export const LogisticsPanel: React.FC = () => {
         </div>
         <label
           className={`flex items-center gap-1.5 min-h-[36px] px-1 text-[10px] cursor-pointer ${
-            isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/60'
+            'hover:bg-surface-hover'
           } rounded w-fit`}
         >
           <input
@@ -832,7 +834,7 @@ export const LogisticsPanel: React.FC = () => {
           <span className={`text-[11px] ${mutedText}`}>Day</span>
           <select
             value={dayFilterId ?? ''}
-            onChange={(e) => updateProjectMeta({ logisticsDayFilterId: e.target.value || undefined })}
+            onChange={(e) => runCommand(setLogisticsDayFilterCommand, { productionDayId: e.target.value || undefined })}
             aria-label="Show the load for one shoot day"
             className={`${inputClass} !w-auto max-w-[180px]`}
           >
@@ -845,7 +847,7 @@ export const LogisticsPanel: React.FC = () => {
           </select>
         </label>
         {/* The load list is worked from paper at the truck. */}
-        <PdfExportButton onClick={() => openExportModal('logistics')} title="Ladeliste als PDF exportieren" className="ml-auto" />
+        <PdfExportButton onClick={() => openExportModal('logistics')} title="Download the load list as a PDF" className="ml-auto" />
         <span className={`text-[11px] ${mutedText}`}>
           Containers <span className={`font-mono ${headingText}`}>{fleet.containerCount}</span>
         </span>
@@ -980,9 +982,9 @@ export const LogisticsPanel: React.FC = () => {
           </button>
         </div>
         {containers.length === 0 && (
-          <p className={`text-[11px] ${mutedText}`}>
-            No containers yet — add cases, carts or vehicles above.
-          </p>
+          <EmptyState icon={<Package className="w-5 h-5" />} title="No containers yet">
+            Add cases, carts and vehicles above, then pack the scene's gear into them to get weights, volumes and a load list per day.
+          </EmptyState>
         )}
         {hiddenByDayFilter > 0 && (
           <p className={`text-[10px] ${mutedText}`}>

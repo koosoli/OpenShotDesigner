@@ -31,7 +31,7 @@ export const ArrowInspector: React.FC<ArrowInspectorProps> = ({ arr, isLight }) 
   const optionBtn = (active: boolean) =>
     `py-1.5 text-[10px] font-semibold rounded border capitalize ${
       active
-        ? 'bg-sky-600 text-white border-sky-500'
+        ? 'bg-accent text-white border-sky-500'
         : isLight
         ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
         : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'
@@ -53,7 +53,7 @@ export const ArrowInspector: React.FC<ArrowInspectorProps> = ({ arr, isLight }) 
             value={arr.label || ''}
             onChange={(e) => updateElement(arr.id, { label: e.target.value })}
             placeholder="e.g. Camera move, Actor blocking…"
-            className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+            className={`w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`}
           />
         </div>
 

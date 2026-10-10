@@ -1,4 +1,5 @@
 import React, { useId } from 'react';
+import { LANGUAGE_SWITCHING_ENABLED } from '../../config/features';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import {
@@ -122,7 +123,7 @@ import { compassPoint, formatSunTime, sceneSunPlan } from '../../domain/sun';
 import { ProjectImage } from '../common/ProjectImage';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { DOCUMENT_LANGUAGE_LABELS, DOCUMENT_LANGUAGES } from '../../domain/documentText';
-import { setDocumentLanguageCommand } from '../../domain/commands';
+import { clearMasterPlanCommand, setDocumentLanguageCommand, setMasterPlanCommand, setSetupLocationCommand, updateProductionDetailsCommand } from '../../domain/commands';
 import type { DocumentLanguage } from '../../domain/documentText';
 import {
   ColorField,
@@ -137,7 +138,7 @@ export const InspectorPanel: React.FC = () => {
   // readers announced every one of these inputs unlabelled.
   const fieldId = useId();
   const logoInputRef = React.useRef<HTMLInputElement>(null);
-  const { activeSetup, project, updateProjectMeta, runCommand, selectedElementIds, updateElement, deleteSelectedElements, duplicateSelected, updateSetupMeta, setActiveSetupId, rotateElementBy, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, updateBackgroundImage, removeBackgroundImage, displaySettings, updateDisplaySettings, updateMultipleElements, setGridSettings, calibratingBackgroundId, startBackgroundCalibration, cancelBackgroundCalibration } = useFloorPlan();
+  const { activeSetup, project, runCommand, selectedElementIds, updateElement, deleteSelectedElements, duplicateSelected, updateSetupMeta, setActiveSetupId, rotateElementBy, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, updateBackgroundImage, removeBackgroundImage, displaySettings, updateDisplaySettings, updateMultipleElements, setGridSettings, calibratingBackgroundId, startBackgroundCalibration, cancelBackgroundCalibration } = useFloorPlan();
   const { notice, prompt } = useDialogs();
   const { theme } = useWorkspaceUI();
 
@@ -206,58 +207,22 @@ export const InspectorPanel: React.FC = () => {
 
   /** Assign/unassign the semantic location link; releases mastership cleanly. */
   const assignSetupLocation = (locationId: string) => {
-    const nextId = locationId || undefined;
-    const prevLocation = assignedLocation;
-    if (prevLocation && prevLocation.id !== nextId) {
-      const wasMasterHere =
-        prevLocation.masterPlanId === activeSetup.id ||
-        activeSetup.masterPlanForLocationId === prevLocation.id;
-      if (wasMasterHere) {
-        updateProjectMeta({
-          locations: (project.locations ?? []).map((l) =>
-            l.id === prevLocation.id ? { ...l, masterPlanId: undefined } : l
-          ),
-        });
-        updateSetupMeta({ locationId: nextId, masterPlanForLocationId: undefined });
-        return;
-      }
-    }
-    updateSetupMeta({ locationId: nextId });
+    runCommand(setSetupLocationCommand, { setupId: activeSetup.id, locationId: locationId || undefined }, { domain: 'plan' });
   };
 
   /**
    * Declare this setup as THE reusable master plan for its assigned location.
-   * Both sides are kept in sync: SceneSetup.masterPlanForLocationId (§4.13)
-   * and Location.masterPlanId. Any previous claimant is demoted first.
+   * Both sides stay in sync (SceneSetup.masterPlanForLocationId §4.13 and
+   * Location.masterPlanId), in one write; any previous claimant is demoted.
    */
   const makeThisSetupMasterPlan = () => {
-    const targetId = activeSetup.locationId;
-    if (!targetId) return;
-    updateProjectMeta({
-      locations: (project.locations ?? []).map((l) =>
-        l.id === targetId
-          ? { ...l, masterPlanId: activeSetup.id }
-          : l.masterPlanId === activeSetup.id
-          ? { ...l, masterPlanId: undefined }
-          : l
-      ),
-      setups: project.setups.map((s) =>
-        s.id !== activeSetup.id && s.masterPlanForLocationId === targetId
-          ? { ...s, masterPlanForLocationId: undefined }
-          : s
-      ),
-    });
-    updateSetupMeta({ masterPlanForLocationId: targetId });
+    if (!activeSetup.locationId) return;
+    runCommand(setMasterPlanCommand, { setupId: activeSetup.id }, { domain: 'plan' });
   };
 
   const unsetMasterPlan = () => {
     if (!assignedLocation) return;
-    updateProjectMeta({
-      locations: (project.locations ?? []).map((l) =>
-        l.id === assignedLocation.id ? { ...l, masterPlanId: undefined } : l
-      ),
-    });
-    updateSetupMeta({ masterPlanForLocationId: undefined });
+    runCommand(clearMasterPlanCommand, { setupId: activeSetup.id }, { domain: 'plan' });
   };
 
   /**
@@ -278,10 +243,10 @@ export const InspectorPanel: React.FC = () => {
       <div
         id="inspector-panel-image"
         className={`flex flex-col h-full text-xs p-4 space-y-4 select-none overflow-y-auto ${
-          isLight ? 'bg-white text-slate-800' : 'bg-slate-900 text-slate-200'
+          'bg-surface text-ink'
         }`}
       >
-        <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div className={`flex items-center justify-between pb-3 border-b border-line`}>
           <div className="flex items-center gap-2 min-w-0">
             <ImageIcon className="w-4 h-4 text-teal-500 flex-shrink-0" />
             <h3 className="text-xs font-bold uppercase tracking-wider truncate">
@@ -293,7 +258,7 @@ export const InspectorPanel: React.FC = () => {
             title="Close image settings (back to scene setup)"
             aria-label="Close image settings (back to scene setup)"
             className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
-              isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
+              'text-ink-muted hover:bg-surface-muted'
             }`}
           >
             ✕
@@ -301,7 +266,7 @@ export const InspectorPanel: React.FC = () => {
         </div>
 
         {/* Thumbnail preview */}
-        <div className={`rounded-xl overflow-hidden border ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div className={`rounded-xl overflow-hidden border border-line`}>
           <div
             className="w-full h-32 bg-slate-100 flex items-center justify-center"
             style={{ backgroundImage: 'linear-gradient(45deg,#e2e8f0 25%,transparent 25%,transparent 75%,#e2e8f0 75%),linear-gradient(45deg,#e2e8f0 25%,transparent 25%,transparent 75%,#e2e8f0 75%)', backgroundSize: '16px 16px', backgroundPosition: '0 0, 8px 8px' }}
@@ -317,7 +282,7 @@ export const InspectorPanel: React.FC = () => {
 
         {/* Name */}
         <div>
-          <label htmlFor={`${fieldId}-image-name`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+          <label htmlFor={`${fieldId}-image-name`} className={`block mb-1 font-medium text-ink-muted`}>
             Image Name
           </label>
           <input id={`${fieldId}-image-name`}
@@ -326,7 +291,7 @@ export const InspectorPanel: React.FC = () => {
             onChange={(e) => updateBackgroundImage(selectedBg.id, { name: e.target.value })}
             placeholder="e.g. Floorplan Scan, Scout Photo"
             className={`w-full border rounded-lg p-2 focus:border-teal-500 focus:outline-none ${
-              isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              'bg-field text-ink border-line-strong'
             }`}
           />
         </div>
@@ -353,46 +318,46 @@ export const InspectorPanel: React.FC = () => {
         {/* Position & Size */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label htmlFor={`${fieldId}-x`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>X</label>
+            <label htmlFor={`${fieldId}-x`} className={`block mb-1 text-ink-muted`}>X</label>
             <input id={`${fieldId}-x`}
               type="number"
               value={Math.round(selectedBg.x)}
               onChange={(e) => updateBackgroundImage(selectedBg.id, { x: Number(e.target.value) })}
               className={`w-full border rounded-lg p-2 focus:border-teal-500 ${
-                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                'bg-field text-ink border-line-strong'
               }`}
             />
           </div>
           <div>
-            <label htmlFor={`${fieldId}-y`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Y</label>
+            <label htmlFor={`${fieldId}-y`} className={`block mb-1 text-ink-muted`}>Y</label>
             <input id={`${fieldId}-y`}
               type="number"
               value={Math.round(selectedBg.y)}
               onChange={(e) => updateBackgroundImage(selectedBg.id, { y: Number(e.target.value) })}
               className={`w-full border rounded-lg p-2 focus:border-teal-500 ${
-                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                'bg-field text-ink border-line-strong'
               }`}
             />
           </div>
           <div>
-            <label htmlFor={`${fieldId}-width`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Width</label>
+            <label htmlFor={`${fieldId}-width`} className={`block mb-1 text-ink-muted`}>Width</label>
             <input id={`${fieldId}-width`}
               type="number"
               value={Math.round(selectedBg.width)}
               onChange={(e) => updateBackgroundImage(selectedBg.id, { width: Number(e.target.value) })}
               className={`w-full border rounded-lg p-2 focus:border-teal-500 ${
-                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                'bg-field text-ink border-line-strong'
               }`}
             />
           </div>
           <div>
-            <label htmlFor={`${fieldId}-height`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Height</label>
+            <label htmlFor={`${fieldId}-height`} className={`block mb-1 text-ink-muted`}>Height</label>
             <input id={`${fieldId}-height`}
               type="number"
               value={Math.round(selectedBg.height)}
               onChange={(e) => updateBackgroundImage(selectedBg.id, { height: Number(e.target.value) })}
               className={`w-full border rounded-lg p-2 focus:border-teal-500 ${
-                isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                'bg-field text-ink border-line-strong'
               }`}
             />
           </div>
@@ -439,7 +404,7 @@ export const InspectorPanel: React.FC = () => {
             className={`py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
               selectedBg.visible
                 ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
-                : isLight ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'
+                : 'bg-surface-muted text-ink-muted border-line-strong'
             }`}
           >
             <Eye className="w-3.5 h-3.5" />
@@ -452,7 +417,7 @@ export const InspectorPanel: React.FC = () => {
             className={`py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
               selectedBg.locked
                 ? isLight ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-800'
-                : isLight ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'
+                : 'bg-surface-muted text-ink-muted border-line-strong'
             }`}
           >
             {selectedBg.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
@@ -476,7 +441,7 @@ export const InspectorPanel: React.FC = () => {
           Delete Image
         </button>
 
-        <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+        <p className={`text-[10px] italic text-ink-subtle`}>
           Drag the image on the canvas to move it, use the corner handles to scale
           (proportions preserved), or press <strong>Delete</strong> to remove it.
         </p>
@@ -490,21 +455,21 @@ export const InspectorPanel: React.FC = () => {
       <div
         id="inspector-panel-empty"
         className={`flex flex-col h-full text-xs p-4 space-y-4 select-none overflow-y-auto ${
-          isLight ? 'bg-white text-slate-800' : 'bg-slate-900 text-slate-200'
+          'bg-surface text-ink'
         }`}
       >
         {/* Nothing is selected, so this is the plan/scene settings view rather
             than an element inspector. The two are named apart on purpose:
             "inspector" means the selected element, everything here applies to
             the whole plan, scene or project. */}
-        <div className={`pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div className={`pb-3 border-b border-line`}>
           <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-sky-500" />
+            <Sliders className="w-4 h-4 text-accent-ink" />
             <h3 className="text-xs font-bold uppercase tracking-wider">
               Plan &amp; Scene Settings
             </h3>
           </div>
-          <p className={`mt-1 text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          <p className={`mt-1 text-[10px] text-ink-muted`}>
             Nothing selected — pick an element on the plan to inspect it.
           </p>
         </div>
@@ -514,9 +479,9 @@ export const InspectorPanel: React.FC = () => {
           <RubricSection
             persistKey="inspectorpanel.scene-environment"
             title="Scene & Environment"
-            icon={<Sliders className="w-3.5 h-3.5 text-sky-500" />}
+            icon={<Sliders className="w-3.5 h-3.5 text-accent-ink" />}
             badge={
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500 font-semibold">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-accent-ink font-semibold">
                 Scene {activeSetup.sceneNumber}
               </span>
             }
@@ -524,58 +489,58 @@ export const InspectorPanel: React.FC = () => {
             isLight={isLight}
           >
             <div>
-              <label htmlFor={`${fieldId}-scene-setup-name`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene Setup Name</label>
+              <label htmlFor={`${fieldId}-scene-setup-name`} className={`block mb-1 font-medium text-ink-muted`}>Scene Setup Name</label>
               <input id={`${fieldId}-scene-setup-name`}
                 type="text"
                 value={activeSetup.name}
                 onChange={(e) => updateSetupMeta({ name: e.target.value })}
                 className={`w-full border rounded-lg p-2 focus:border-sky-500 focus:outline-none ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label htmlFor={`${fieldId}-scene-setup-number`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene / Setup Number</label>
+                <label htmlFor={`${fieldId}-scene-setup-number`} className={`block mb-1 text-ink-muted`}>Scene / Setup Number</label>
                 <input id={`${fieldId}-scene-setup-number`}
                   type="text"
                   value={activeSetup.sceneNumber}
                   onChange={(e) => updateSetupMeta({ sceneNumber: e.target.value })}
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
               <div>
-                <label htmlFor={`${fieldId}-script-page`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Script Page</label>
+                <label htmlFor={`${fieldId}-script-page`} className={`block mb-1 text-ink-muted`}>Script Page</label>
                 <input id={`${fieldId}-script-page`}
                   type="text"
                   value={activeSetup.scriptPage || ''}
                   onChange={(e) => updateSetupMeta({ scriptPage: e.target.value })}
                   placeholder="e.g. p. 12-14"
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor={`${fieldId}-scene-location-slugline`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Scene Location / Slugline</label>
+              <label htmlFor={`${fieldId}-scene-location-slugline`} className={`block mb-1 text-ink-muted`}>Scene Location / Slugline</label>
               <input id={`${fieldId}-scene-location-slugline`}
                 type="text"
                 value={activeSetup.location}
                 onChange={(e) => updateSetupMeta({ location: e.target.value })}
                 placeholder="e.g. INT. LIVING ROOM - NIGHT"
                 className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               />
             </div>
 
             <div>
-              <label htmlFor={`${fieldId}-lighting-time-of-day`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Lighting / Time of Day</label>
+              <label htmlFor={`${fieldId}-lighting-time-of-day`} className={`block mb-1 text-ink-muted`}>Lighting / Time of Day</label>
               <select id={`${fieldId}-lighting-time-of-day`}
                 value={activeSetup.timeOfDay}
                 onChange={(e) =>
@@ -584,7 +549,7 @@ export const InspectorPanel: React.FC = () => {
                   })
                 }
                 className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               >
                 <option value="Day INT">Day INT (Interior Daylight)</option>
@@ -596,7 +561,7 @@ export const InspectorPanel: React.FC = () => {
 
             {/* Project Aspect Ratio (also frames storyboards) */}
             <div>
-              <label htmlFor={`${fieldId}-project-aspect-ratio`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              <label htmlFor={`${fieldId}-project-aspect-ratio`} className={`block mb-1 font-medium text-ink-muted`}>
                 Project Aspect Ratio
               </label>
               <select id={`${fieldId}-project-aspect-ratio`}
@@ -611,7 +576,7 @@ export const InspectorPanel: React.FC = () => {
                   })
                 }
                 className={`w-full border rounded-lg p-2 focus:border-violet-500 ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               >
                 {ASPECT_RATIOS.map((ar) => (
@@ -624,7 +589,7 @@ export const InspectorPanel: React.FC = () => {
 
             {/* Measurement / Grid Units */}
             <div>
-              <span id={`${fieldId}-measurement-units-group`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              <span id={`${fieldId}-measurement-units-group`} className={`block mb-1 font-medium text-ink-muted`}>
                 Measurement Units
               </span>
               <div role="group" aria-labelledby={`${fieldId}-measurement-units-group`} className="grid grid-cols-2 gap-1.5">
@@ -639,14 +604,14 @@ export const InspectorPanel: React.FC = () => {
                   aria-pressed={(activeSetup.gridSettings?.unit || 'm') === 'm'}
                   className={`py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center justify-center gap-1.5 ${
                     (activeSetup.gridSettings?.unit || 'm') === 'm'
-                      ? 'bg-sky-600 text-white border-sky-500 shadow-sm'
+                      ? 'bg-accent text-white border-sky-500 shadow-sm'
                       : isLight
                       ? 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
                       : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
                   }`}
                 >
                   <span>Meters (m)</span>
-                  <span className="text-[10px] opacity-75 font-mono">Metric</span>
+                  <span className="text-[10px] opacity-90 font-mono">Metric</span>
                 </button>
                 <button
                   type="button"
@@ -659,14 +624,14 @@ export const InspectorPanel: React.FC = () => {
                   aria-pressed={activeSetup.gridSettings?.unit === 'ft'}
                   className={`py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center justify-center gap-1.5 ${
                     activeSetup.gridSettings?.unit === 'ft'
-                      ? 'bg-sky-600 text-white border-sky-500 shadow-sm'
+                      ? 'bg-accent text-white border-sky-500 shadow-sm'
                       : isLight
                       ? 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
                       : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
                   }`}
                 >
                   <span>Feet (ft)</span>
-                  <span className="text-[10px] opacity-75 font-mono">Imperial</span>
+                  <span className="text-[10px] opacity-90 font-mono">Imperial</span>
                 </button>
               </div>
             </div>
@@ -676,10 +641,10 @@ export const InspectorPanel: React.FC = () => {
           <RubricSection
             persistKey="inspectorpanel.location"
             title="Location"
-            icon={<MapPin className="w-3.5 h-3.5 text-sky-500" />}
+            icon={<MapPin className="w-3.5 h-3.5 text-accent-ink" />}
             badge={
               assignedLocation ? (
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-semibold truncate max-w-[110px]">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-ok font-semibold truncate max-w-[110px]">
                   {assignedLocation.name}
                 </span>
               ) : undefined
@@ -688,11 +653,11 @@ export const InspectorPanel: React.FC = () => {
             isLight={isLight}
           >
             <div>
-              <span className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              <span className={`block mb-1 text-ink-muted`}>
                 Linked location
               </span>
               {(project.locations ?? []).length === 0 ? (
-                <p className={`text-[11px] italic mb-1 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                <p className={`text-[11px] italic mb-1 text-ink-subtle`}>
                   No locations defined yet — add some in the Loc tab.
                 </p>
               ) : null}
@@ -700,7 +665,7 @@ export const InspectorPanel: React.FC = () => {
                 value={activeSetup.locationId ?? ''}
                 onChange={(e) => assignSetupLocation(e.target.value)}
                 className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               >
                 <option value="">— none —</option>
@@ -728,7 +693,7 @@ export const InspectorPanel: React.FC = () => {
             {assignedLocation && isThisSetupTheMaster && (
               <div className="flex items-center justify-between gap-2">
                 <span className={`text-[11px] flex items-center gap-1 min-w-0 ${
-                  isLight ? 'text-emerald-700' : 'text-emerald-300'
+                  'text-ok'
                 }`}>
                   <Crosshair className="w-3 h-3 flex-shrink-0" />
                   This is the master plan for “{assignedLocation.name}”.
@@ -750,9 +715,9 @@ export const InspectorPanel: React.FC = () => {
 
             {assignedLocation && masterSetupForLocation && masterSetupForLocation.id !== activeSetup.id && (
               <div className={`rounded-lg border p-2 space-y-1.5 ${
-                isLight ? 'bg-white border-slate-200' : 'bg-slate-950/60 border-slate-700'
+                'bg-field border-line-strong'
               }`}>
-                <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                <p className={`text-[11px] text-ink-muted`}>
                   Master plan for this location: <strong>{masterSetupForLocation.name}</strong>
                 </p>
                 <div className="flex gap-1.5 flex-wrap">
@@ -774,14 +739,14 @@ export const InspectorPanel: React.FC = () => {
                     title="Copy the master plan's floor plan elements into this setup with fresh ids"
                     className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                       isLight
-                        ? 'bg-sky-600 text-white hover:bg-sky-700'
-                        : 'bg-sky-600 text-white hover:bg-sky-500'
+                        ? 'bg-accent hover:bg-accent-hover text-white'
+                        : 'bg-accent hover:bg-accent-hover text-white'
                     }`}
                   >
                     Insert copy of master elements
                   </button>
                 </div>
-                <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                <p className={`text-[10px] italic text-ink-subtle`}>
                   Copies current state — future edits stay independent.
                 </p>
               </div>
@@ -792,10 +757,10 @@ export const InspectorPanel: React.FC = () => {
           <RubricSection
             persistKey="inspectorpanel.production-details-whole-project"
             title="Production Details (whole project)"
-            icon={<Film className="w-3.5 h-3.5 text-sky-500" />}
+            icon={<Film className="w-3.5 h-3.5 text-accent-ink" />}
             badge={
               project.title ? (
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 opacity-75 truncate max-w-[100px]">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 opacity-75 truncate max-w-[100px]">
                   {project.title}
                 </span>
               ) : undefined
@@ -804,40 +769,40 @@ export const InspectorPanel: React.FC = () => {
             isLight={isLight}
           >
             <div>
-              <label htmlFor={`${fieldId}-project-title`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Project Title</label>
+              <label htmlFor={`${fieldId}-project-title`} className={`block mb-1 text-ink-muted`}>Project Title</label>
               <input id={`${fieldId}-project-title`}
                 type="text"
                 value={project.title}
-                onChange={(e) => updateProjectMeta({ title: e.target.value })}
+                onChange={(e) => runCommand(updateProductionDetailsCommand, { updates: { title: e.target.value } }, { domain: 'project' })}
                 className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label htmlFor={`${fieldId}-director`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Director</label>
+                <label htmlFor={`${fieldId}-director`} className={`block mb-1 text-ink-muted`}>Director</label>
                 <input id={`${fieldId}-director`}
                   type="text"
                   list="crew-name-options"
                   value={project.director}
                   placeholder="e.g. Jane Doe"
-                  onChange={(e) => updateProjectMeta({ director: e.target.value })}
+                  onChange={(e) => runCommand(updateProductionDetailsCommand, { updates: { director: e.target.value } }, { domain: 'project' })}
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
               <div>
-                <label htmlFor={`${fieldId}-cinematographer-dp`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Cinematographer / DP</label>
+                <label htmlFor={`${fieldId}-cinematographer-dp`} className={`block mb-1 text-ink-muted`}>Cinematographer / DP</label>
                 <input id={`${fieldId}-cinematographer-dp`}
                   type="text"
                   list="crew-name-options"
                   value={project.cinematographer}
                   placeholder="e.g. John Smith"
-                  onChange={(e) => updateProjectMeta({ cinematographer: e.target.value })}
+                  onChange={(e) => runCommand(updateProductionDetailsCommand, { updates: { cinematographer: e.target.value } }, { domain: 'project' })}
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
@@ -849,63 +814,65 @@ export const InspectorPanel: React.FC = () => {
                 <option key={person.id} value={person.displayName} />
               ))}
             </datalist>
-            <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            <p className={`text-[10px] text-ink-muted`}>
               Assign these by role — with phone, email and department — on the Crew tab.
             </p>
             {/* Paperwork language. Deliberately here and not in the app's own
                 language switch: the interface follows the reader, the call
                 sheet follows the production, and a German AD can be shooting
                 an English-language co-production. */}
-            <div>
-              <label htmlFor={`${fieldId}-document-language`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Paperwork language</label>
+            {/* Hidden while language switching is off — unless a project
+                already prints in another language, so it can be switched back. */}
+            {(LANGUAGE_SWITCHING_ENABLED || (project.documentLanguage ?? 'en') !== 'en') && <div>
+              <label htmlFor={`${fieldId}-document-language`} className={`block mb-1 text-ink-muted`}>Paperwork language</label>
               <select id={`${fieldId}-document-language`}
                 value={project.documentLanguage ?? 'en'}
                 onChange={(e) => runCommand(setDocumentLanguageCommand, { language: e.target.value as DocumentLanguage }, { domain: 'project' })}
                 className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               >
                 {DOCUMENT_LANGUAGES.map((language) => (
                   <option key={language} value={language}>{DOCUMENT_LANGUAGE_LABELS[language]}</option>
                 ))}
               </select>
-              <p className={`text-[10px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              <p className={`text-[10px] mt-1 text-ink-muted`}>
                 Call sheets print in this language for everyone, whatever language the app itself is set to.
               </p>
-            </div>
+            </div>}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label htmlFor={`${fieldId}-production-company`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Company</label>
+                <label htmlFor={`${fieldId}-production-company`} className={`block mb-1 text-ink-muted`}>Production Company</label>
                 <input id={`${fieldId}-production-company`}
                   type="text"
                   value={project.productionCompany || ''}
                   placeholder="e.g. Studio Films"
-                  onChange={(e) => updateProjectMeta({ productionCompany: e.target.value })}
+                  onChange={(e) => runCommand(updateProductionDetailsCommand, { updates: { productionCompany: e.target.value } }, { domain: 'project' })}
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
               <div>
-                <label htmlFor={`${fieldId}-date`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Date</label>
+                <label htmlFor={`${fieldId}-date`} className={`block mb-1 text-ink-muted`}>Date</label>
                 <input id={`${fieldId}-date`}
                   type="text"
                   value={project.date}
                   placeholder="YYYY-MM-DD"
-                  onChange={(e) => updateProjectMeta({ date: e.target.value })}
+                  onChange={(e) => runCommand(updateProductionDetailsCommand, { updates: { date: e.target.value } }, { domain: 'project' })}
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
             </div>
             {/* Production logo (mirrored with Schedule → Call sheets) */}
             <div>
-              <span id={`${fieldId}-production-logo-group`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Production Logo</span>
+              <span id={`${fieldId}-production-logo-group`} className={`block mb-1 text-ink-muted`}>Production Logo</span>
               <div role="group" aria-labelledby={`${fieldId}-production-logo-group`} className="flex items-center gap-2">
                 <div
                   className={`w-16 h-12 rounded-lg border flex items-center justify-center overflow-hidden flex-shrink-0 ${
-                    isLight ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'
+                    'bg-field border-line-strong'
                   }`}
                 >
                   {project.logo ? (
@@ -924,7 +891,7 @@ export const InspectorPanel: React.FC = () => {
                       const file = e.target.files?.[0];
                       if (file) {
                         loadLogoFile(file)
-                          .then(({ ref, name }) => updateProjectMeta({ logo: ref, logoName: name }))
+                          .then(({ ref, name }) => runCommand(updateProductionDetailsCommand, { updates: { logo: ref, logoName: name } }, { domain: 'project' }))
                           .catch(() => { void notice({ title: 'Logo unreadable', message: 'Could not load that image as a logo.' }); });
                       }
                       e.target.value = '';
@@ -934,21 +901,21 @@ export const InspectorPanel: React.FC = () => {
                     <button
                       onClick={() => logoInputRef.current?.click()}
                       className={`px-2 py-1 rounded-lg border text-[11px] font-semibold ${
-                        isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+                        'border-line-strong hover:bg-surface-hover'
                       }`}
                     >
                       {project.logo ? 'Replace logo' : 'Upload logo'}
                     </button>
                     {project.logo && (
                       <button
-                        onClick={() => updateProjectMeta({ logo: undefined, logoName: undefined })}
+                        onClick={() => runCommand(updateProductionDetailsCommand, { updates: { logo: undefined, logoName: undefined } }, { domain: 'project' })}
                         className="px-2 py-1 rounded-lg border border-rose-500/50 text-rose-500 text-[11px] font-semibold"
                       >
                         Remove
                       </button>
                     )}
                   </div>
-                  <p className={`text-[10px] truncate ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <p className={`text-[10px] truncate text-ink-subtle`}>
                     {project.logoName || 'PNG with transparency works best'}
                   </p>
                 </div>
@@ -957,71 +924,63 @@ export const InspectorPanel: React.FC = () => {
             {/* Company contact block (same canonical fields as the call-sheet workspace) */}
             <div className="grid grid-cols-2 gap-2">
               <div className="col-span-2">
-                <label htmlFor={`${fieldId}-company-address`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Address</label>
+                <label htmlFor={`${fieldId}-company-address`} className={`block mb-1 text-ink-muted`}>Company Address</label>
                 <input id={`${fieldId}-company-address`}
                   type="text"
                   value={project.productionCompanyInfo?.address || ''}
                   placeholder="Street, city"
                   onChange={(e) =>
-                    updateProjectMeta({
-                      productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), address: e.target.value || undefined },
-                    })
+                    runCommand(updateProductionDetailsCommand, { updates: { productionCompanyInfo: { address: e.target.value || undefined } } }, { domain: 'project' })
                   }
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
               <div>
-                <label htmlFor={`${fieldId}-company-phone`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Phone</label>
+                <label htmlFor={`${fieldId}-company-phone`} className={`block mb-1 text-ink-muted`}>Company Phone</label>
                 <input id={`${fieldId}-company-phone`}
                   type="text"
                   value={project.productionCompanyInfo?.phone || ''}
                   placeholder="+49 …"
                   onChange={(e) =>
-                    updateProjectMeta({
-                      productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), phone: e.target.value || undefined },
-                    })
+                    runCommand(updateProductionDetailsCommand, { updates: { productionCompanyInfo: { phone: e.target.value || undefined } } }, { domain: 'project' })
                   }
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
               <div>
-                <label htmlFor={`${fieldId}-company-email`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Email</label>
+                <label htmlFor={`${fieldId}-company-email`} className={`block mb-1 text-ink-muted`}>Company Email</label>
                 <input id={`${fieldId}-company-email`}
                   type="text"
                   value={project.productionCompanyInfo?.email || ''}
                   placeholder="office@studio.example"
                   onChange={(e) =>
-                    updateProjectMeta({
-                      productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), email: e.target.value || undefined },
-                    })
+                    runCommand(updateProductionDetailsCommand, { updates: { productionCompanyInfo: { email: e.target.value || undefined } } }, { domain: 'project' })
                   }
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
               <div className="col-span-2">
-                <label htmlFor={`${fieldId}-company-website`} className={`block mb-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company Website</label>
+                <label htmlFor={`${fieldId}-company-website`} className={`block mb-1 text-ink-muted`}>Company Website</label>
                 <input id={`${fieldId}-company-website`}
                   type="text"
                   value={project.productionCompanyInfo?.website || ''}
                   placeholder="https://…"
                   onChange={(e) =>
-                    updateProjectMeta({
-                      productionCompanyInfo: { ...(project.productionCompanyInfo ?? {}), website: e.target.value || undefined },
-                    })
+                    runCommand(updateProductionDetailsCommand, { updates: { productionCompanyInfo: { website: e.target.value || undefined } } }, { domain: 'project' })
                   }
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
-                    isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
             </div>
-            <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+            <p className={`text-[10px] italic text-ink-subtle`}>
               These details also appear on every call sheet — the same fields are editable in{' '}
               <span className="font-semibold not-italic">Schedule → Call sheets → Production company</span>.
             </p>
@@ -1034,10 +993,10 @@ export const InspectorPanel: React.FC = () => {
           <RubricSection
             persistKey="inspectorpanel.sun-time-of-day"
             title="Sun & Time of Day"
-            icon={<Sun className="w-3.5 h-3.5 text-amber-500" />}
+            icon={<Sun className="w-3.5 h-3.5 text-warn" />}
             badge={
               sunReadout ? (
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-warn font-bold">
                   {sunReadout}
                 </span>
               ) : undefined
@@ -1072,7 +1031,7 @@ export const InspectorPanel: React.FC = () => {
                       value={activeSetup.sunSettings?.date ?? project.date ?? ''}
                       onChange={(e) => patchSunSettings({ date: e.target.value || undefined })}
                       className={`w-full border rounded p-1.5 text-xs ${
-                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        'bg-field text-ink border-line-strong'
                       }`}
                     />
                   </div>
@@ -1105,7 +1064,7 @@ export const InspectorPanel: React.FC = () => {
                     onChange={(e) => patchSunSettings({ planNorthDeg: Number(e.target.value) })}
                     className="w-full accent-sky-500 cursor-pointer"
                   />
-                  <p className="opacity-50 text-[9px] mt-0.5">
+                  <p className="opacity-50 text-[10px] mt-0.5">
                     A floor plan is drawn to fit the page, so tell it which way north actually points.
                   </p>
                 </div>
@@ -1258,7 +1217,7 @@ export const InspectorPanel: React.FC = () => {
                             }
                             className="flex-1 accent-sky-500 cursor-pointer"
                           />
-                          <span className="font-mono text-[10px] font-bold text-sky-500 w-8 text-right">
+                          <span className="font-mono text-[10px] font-bold text-accent-ink w-8 text-right">
                             {Math.round(value * 100)}%
                           </span>
                         </div>
@@ -1291,7 +1250,7 @@ export const InspectorPanel: React.FC = () => {
           <RubricSection
             persistKey="inspectorpanel.camera-light-hud-details"
             title="Camera & Light HUD Details"
-            icon={<Tv className="w-3.5 h-3.5 text-sky-500" />}
+            icon={<Tv className="w-3.5 h-3.5 text-accent-ink" />}
             defaultOpen={false}
             isLight={isLight}
           >
@@ -1346,7 +1305,7 @@ export const InspectorPanel: React.FC = () => {
           <RubricSection
             persistKey="inspectorpanel.label-colors-opacity"
             title="Label Colors & Opacity"
-            icon={<Palette className="w-3.5 h-3.5 text-amber-500" />}
+            icon={<Palette className="w-3.5 h-3.5 text-warn" />}
             defaultOpen={false}
             isLight={isLight}
           >
@@ -1474,7 +1433,7 @@ export const InspectorPanel: React.FC = () => {
           <RubricSection
             persistKey="inspectorpanel.declutter-floor-plan"
             title="Declutter Floor Plan"
-            icon={<Grid3x3 className="w-3.5 h-3.5 text-emerald-500" />}
+            icon={<Grid3x3 className="w-3.5 h-3.5 text-ok" />}
             defaultOpen={false}
             isLight={isLight}
           >
@@ -1501,7 +1460,7 @@ export const InspectorPanel: React.FC = () => {
               <div className="pt-2.5 mt-2 border-t border-slate-700/30">
                 <div className="flex justify-between text-[11px] mb-1">
                   <span className="opacity-70">Camera FOV Cone Opacity</span>
-                  <span className="font-mono text-sky-500 font-bold">
+                  <span className="font-mono text-accent-ink font-bold">
                     {Math.round((displaySettings.fovConeOpacity ?? 1) * 100)}%
                   </span>
                 </div>
@@ -1539,7 +1498,7 @@ export const InspectorPanel: React.FC = () => {
                   <div
                     key={bg.id}
                     className={`p-2.5 rounded-xl border ${
-                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+                      'bg-surface-sunken border-line'
                     }`}
                   >
                     {/* Header row */}
@@ -1589,7 +1548,7 @@ export const InspectorPanel: React.FC = () => {
                         className={`py-1.5 text-[10px] font-semibold rounded-lg border flex items-center justify-center gap-1 transition-colors ${
                           bg.visible
                             ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
-                            : isLight ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'
+                            : 'bg-surface-muted text-ink-muted border-line-strong'
                         }`}
                       >
                         <Eye className="w-3 h-3" />
@@ -1602,7 +1561,7 @@ export const InspectorPanel: React.FC = () => {
                         className={`py-1.5 text-[10px] font-semibold rounded-lg border flex items-center justify-center gap-1 transition-colors ${
                           bg.locked
                             ? isLight ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-800'
-                            : isLight ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'
+                            : 'bg-surface-muted text-ink-muted border-line-strong'
                         }`}
                       >
                         {bg.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
@@ -1625,7 +1584,7 @@ export const InspectorPanel: React.FC = () => {
                   </div>
                 ))}
 
-                <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                <p className={`text-[10px] italic text-ink-subtle`}>
                   Click an image on the canvas to select it, drag it to move, use the corner handles to scale
                   (proportions preserved), or press <strong>Delete</strong> to remove it. Upload more via the
                   teal image button in the left toolbar.
@@ -1634,17 +1593,17 @@ export const InspectorPanel: React.FC = () => {
             </RubricSection>
           )}
 
-          <div className={`pt-4 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className={`pt-4 border-t border-line`}>
             <h4 className="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-2">
               Scene Statistics
             </h4>            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className={`p-2.5 rounded-lg border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+              <div className={`p-2.5 rounded-lg border bg-surface-sunken border-line`}>
                 <span className="opacity-60 block text-[10px]">TOTAL ELEMENTS</span>
-                <span className="text-base font-bold font-mono text-sky-500">{activeSetup.elements.length}</span>
+                <span className="text-base font-bold font-mono text-accent-ink">{activeSetup.elements.length}</span>
               </div>
-              <div className={`p-2.5 rounded-lg border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+              <div className={`p-2.5 rounded-lg border bg-surface-sunken border-line`}>
                 <span className="opacity-60 block text-[10px]">PLANNED SHOTS</span>
-                <span className="text-base font-bold font-mono text-emerald-500">{activeSetup.shots.length}</span>
+                <span className="text-base font-bold font-mono text-ok">{activeSetup.shots.length}</span>
               </div>
             </div>
           </div>
@@ -1696,12 +1655,12 @@ export const InspectorPanel: React.FC = () => {
       <div
         id="inspector-panel-multi"
         className={`flex flex-col h-full text-xs p-4 space-y-4 select-none ${
-          isLight ? 'bg-white text-slate-800' : 'bg-slate-900 text-slate-200'
+          'bg-surface text-ink'
         }`}
       >
-        <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div className={`flex items-center justify-between pb-3 border-b border-line`}>
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-sky-500" />
+            <Users className="w-4 h-4 text-accent-ink" />
             <h3 className="text-xs font-bold uppercase tracking-wider">
               {selectedElementIds.length} Items Selected
             </h3>
@@ -1728,7 +1687,7 @@ export const InspectorPanel: React.FC = () => {
           >
             {selectedElementIds.every((id) => activeSetup.elements.find((e) => e.id === id)?.locked) ? (
               <>
-                <Lock className="w-3.5 h-3.5 text-amber-500" />
+                <Lock className="w-3.5 h-3.5 text-warn" />
                 <span>All Locked</span>
               </>
             ) : (
@@ -1764,7 +1723,7 @@ export const InspectorPanel: React.FC = () => {
             <button
               onClick={() => rotateMultiSelection(-45)}
               className={`py-2 px-3 border rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors ${
-                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                'bg-surface-muted hover:bg-surface-hover text-ink-soft border-line-strong'
               }`}
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -1773,7 +1732,7 @@ export const InspectorPanel: React.FC = () => {
             <button
               onClick={() => rotateMultiSelection(45)}
               className={`py-2 px-3 border rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors ${
-                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                'bg-surface-muted hover:bg-surface-hover text-ink-soft border-line-strong'
               }`}
             >
               <RotateCw className="w-3.5 h-3.5" />
@@ -1853,10 +1812,10 @@ export const InspectorPanel: React.FC = () => {
                     <div
                       key={wp.id}
                       className={`flex items-center gap-1.5 p-1 rounded border ${
-                        isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950'
+                        'border-line bg-surface-sunken'
                       }`}
                     >
-                      <span className="w-6 text-[10px] font-mono font-bold text-sky-500">B{wp.beat}</span>
+                      <span className="w-6 text-[10px] font-mono font-bold text-accent-ink">B{wp.beat}</span>
                       <input
                         type="number"
                         min={1}
@@ -1864,7 +1823,7 @@ export const InspectorPanel: React.FC = () => {
                         onChange={(e) => updateGroupKeyframe(wp.id, { beat: Math.max(1, Math.round(Number(e.target.value)) || 1) })}
                         title="Beat"
                         aria-label={`Group keyframe beat (currently ${wp.beat})`}
-                        className={`w-12 border rounded px-1 py-0.5 text-[10px] font-mono ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}
+                        className={`w-12 border rounded px-1 py-0.5 text-[10px] font-mono bg-surface border-line-strong`}
                       />
                       <input
                         type="number"
@@ -1872,9 +1831,9 @@ export const InspectorPanel: React.FC = () => {
                         onChange={(e) => updateGroupKeyframe(wp.id, { rotation: Number(e.target.value) || 0 })}
                         title="Rotation delta at this keyframe (degrees)"
                         aria-label="Group keyframe rotation delta in degrees"
-                        className={`flex-1 min-w-0 border rounded px-1 py-0.5 text-[10px] font-mono ${isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'}`}
+                        className={`flex-1 min-w-0 border rounded px-1 py-0.5 text-[10px] font-mono bg-surface border-line-strong`}
                       />
-                      <span className="text-[9px] opacity-50">deg</span>
+                      <span className="text-[10px] opacity-50">deg</span>
                       <button
                         onClick={() => deleteGroupKeyframe(wp.id)}
                         title="Delete keyframe"
@@ -2043,18 +2002,18 @@ export const InspectorPanel: React.FC = () => {
     <div
       id="inspector-panel"
       className={`flex flex-col h-full p-4 space-y-4 select-none overflow-y-auto custom-scrollbar text-xs ${
-        isLight ? 'bg-white text-slate-800' : 'bg-slate-900 text-slate-200'
+        'bg-surface text-ink'
       }`}
     >
       {/* 1. Header with Delete & Duplicate */}
-      <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+      <div className={`flex items-center justify-between pb-3 border-b border-line`}>
         <div className="flex items-center gap-2">
           {el.type === 'camera' ? (
-            <MovieCameraIcon className="w-4 h-4 text-sky-500" />
+            <MovieCameraIcon className="w-4 h-4 text-accent-ink" />
           ) : el.type === 'actor' ? (
-            <User className="w-4 h-4 text-emerald-500" />
+            <User className="w-4 h-4 text-ok" />
           ) : el.type === 'light' ? (
-            <FresnelLightIcon className="w-4 h-4 text-amber-500" />
+            <FresnelLightIcon className="w-4 h-4 text-warn" />
           ) : (
             <Sliders className="w-4 h-4 text-purple-500" />
           )}
@@ -2076,7 +2035,7 @@ export const InspectorPanel: React.FC = () => {
                   : 'text-slate-400 hover:text-white border-slate-700 hover:bg-slate-800'
             }`}
           >
-            {el.locked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5" />}
+            {el.locked ? <Lock className="w-3.5 h-3.5 text-warn" /> : <Unlock className="w-3.5 h-3.5" />}
             <span>{el.locked ? 'Locked' : 'Lock'}</span>
           </button>
           <button
@@ -2084,7 +2043,7 @@ export const InspectorPanel: React.FC = () => {
             title="Duplicate (Ctrl+D)"
             aria-label="Duplicate (Ctrl+D)"
             className={`p-1.5 rounded-lg transition-colors ${
-              isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              'text-ink-muted hover:text-ink hover:bg-surface-hover'
             }`}
           >
             <Copy className="w-3.5 h-3.5" />
@@ -2108,13 +2067,13 @@ export const InspectorPanel: React.FC = () => {
       {/* 2. Common Properties (Name & Position Rubric) */}
       <div className="space-y-3">
         <div>
-          <label htmlFor={`${fieldId}-element-name-label`} className={`block mb-1 font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Element Name / Label</label>
+          <label htmlFor={`${fieldId}-element-name-label`} className={`block mb-1 font-medium text-ink-muted`}>Element Name / Label</label>
           <input id={`${fieldId}-element-name-label`}
             type="text"
             value={el.name}
             onChange={(e) => updateElement(el.id, { name: e.target.value })}
             className={`w-full border rounded-lg p-2 focus:border-sky-500 focus:outline-none ${
-              isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              'bg-field text-ink border-line-strong'
             }`}
           />
         </div>
@@ -2125,7 +2084,7 @@ export const InspectorPanel: React.FC = () => {
           title="Position & Orientation"
           icon={<Move3d className="w-3.5 h-3.5 text-slate-400" />}
           badge={
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 opacity-75">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 opacity-75">
               X:{Math.round(el.x)} Y:{Math.round(el.y)} {currentRotation !== undefined ? `· ${currentRotation}°` : ''}
             </span>
           }
@@ -2141,7 +2100,7 @@ export const InspectorPanel: React.FC = () => {
                 value={Math.round(el.x)}
                 onChange={(e) => updateElement(el.id, { x: Number(e.target.value) })}
                 className={`w-full border rounded px-2 py-1 font-mono text-xs ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               />
             </div>
@@ -2152,7 +2111,7 @@ export const InspectorPanel: React.FC = () => {
                 value={Math.round(el.y)}
                 onChange={(e) => updateElement(el.id, { y: Number(e.target.value) })}
                 className={`w-full border rounded px-2 py-1 font-mono text-xs ${
-                  isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               />
             </div>
@@ -2163,7 +2122,7 @@ export const InspectorPanel: React.FC = () => {
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-xs flex items-center gap-1.5 opacity-80">
-                  <Compass className="w-3.5 h-3.5 text-sky-500" />
+                  <Compass className="w-3.5 h-3.5 text-accent-ink" />
                   Rotation Angle
                 </span>
                 <div className="flex items-center gap-1">
@@ -2173,11 +2132,11 @@ export const InspectorPanel: React.FC = () => {
                     max={360}
                     value={currentRotation}
                     onChange={(e) => updateElement(el.id, { rotation: ((Number(e.target.value) % 360) + 360) % 360 })}
-                    className={`w-14 text-right border rounded px-1.5 py-0.5 font-mono text-xs font-bold text-sky-500 ${
-                      isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                    className={`w-14 text-right border rounded px-1.5 py-0.5 font-mono text-xs font-bold text-accent-ink ${
+                      'bg-surface border-line-strong'
                     }`}
                   />
-                  <span className="text-xs font-mono font-bold text-sky-500">°</span>
+                  <span className="text-xs font-mono font-bold text-accent-ink">°</span>
                 </div>
               </div>
 
@@ -2197,7 +2156,7 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => rotateElementBy(el.id, -90)}
                   title="Rotate -90°"
                   className={`py-1 text-[10px] font-mono rounded border flex items-center justify-center gap-0.5 ${
-                    isLight ? 'bg-white hover:bg-slate-100 border-slate-300' : 'bg-slate-900 hover:bg-slate-800 border-slate-700'
+                    'bg-surface hover:bg-surface-hover border-line-strong'
                   }`}
                 >
                   <RotateCcw className="w-2.5 h-2.5" /> -90°
@@ -2206,7 +2165,7 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => rotateElementBy(el.id, -45)}
                   title="Rotate -45°"
                   className={`py-1 text-[10px] font-mono rounded border flex items-center justify-center gap-0.5 ${
-                    isLight ? 'bg-white hover:bg-slate-100 border-slate-300' : 'bg-slate-900 hover:bg-slate-800 border-slate-700'
+                    'bg-surface hover:bg-surface-hover border-line-strong'
                   }`}
                 >
                   <RotateCcw className="w-2.5 h-2.5" /> -45°
@@ -2215,7 +2174,7 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => rotateElementBy(el.id, 45)}
                   title="Rotate +45°"
                   className={`py-1 text-[10px] font-mono rounded border flex items-center justify-center gap-0.5 ${
-                    isLight ? 'bg-white hover:bg-slate-100 border-slate-300' : 'bg-slate-900 hover:bg-slate-800 border-slate-700'
+                    'bg-surface hover:bg-surface-hover border-line-strong'
                   }`}
                 >
                   <RotateCw className="w-2.5 h-2.5" /> +45°
@@ -2224,7 +2183,7 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => rotateElementBy(el.id, 90)}
                   title="Rotate +90°"
                   className={`py-1 text-[10px] font-mono rounded border flex items-center justify-center gap-0.5 ${
-                    isLight ? 'bg-white hover:bg-slate-100 border-slate-300' : 'bg-slate-900 hover:bg-slate-800 border-slate-700'
+                    'bg-surface hover:bg-surface-hover border-line-strong'
                   }`}
                 >
                   <RotateCw className="w-2.5 h-2.5" /> +90°
@@ -2232,12 +2191,12 @@ export const InspectorPanel: React.FC = () => {
               </div>
 
               {/* Cardinal Facing Presets */}
-              <div className="grid grid-cols-4 gap-1 text-[9px] font-mono">
+              <div className="grid grid-cols-4 gap-1 text-[10px] font-mono">
                 <button
                   onClick={() => updateElement(el.id, { rotation: 0 })}
                   aria-pressed={currentRotation === 0}
                   className={`py-0.5 rounded border text-center ${
-                    currentRotation === 0 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                    currentRotation === 0 ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
                   }`}
                 >
                   0° (Right)
@@ -2246,7 +2205,7 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => updateElement(el.id, { rotation: 90 })}
                   aria-pressed={currentRotation === 90}
                   className={`py-0.5 rounded border text-center ${
-                    currentRotation === 90 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                    currentRotation === 90 ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
                   }`}
                 >
                   90° (Down)
@@ -2255,7 +2214,7 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => updateElement(el.id, { rotation: 180 })}
                   aria-pressed={currentRotation === 180}
                   className={`py-0.5 rounded border text-center ${
-                    currentRotation === 180 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                    currentRotation === 180 ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
                   }`}
                 >
                   180° (Left)
@@ -2264,7 +2223,7 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => updateElement(el.id, { rotation: 270 })}
                   aria-pressed={currentRotation === 270}
                   className={`py-0.5 rounded border text-center ${
-                    currentRotation === 270 ? 'bg-sky-600 text-white font-bold border-sky-500' : isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+                    currentRotation === 270 ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
                   }`}
                 >
                   270° (Up)
@@ -2276,8 +2235,8 @@ export const InspectorPanel: React.FC = () => {
           {/* Per-Item Opacity Slider */}
           <div className="pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
             <div className="flex justify-between text-[11px] mb-1 font-medium">
-              <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>Item Opacity</span>
-              <span className="font-mono font-bold text-sky-500">
+              <span className="text-ink-muted">Item Opacity</span>
+              <span className="font-mono font-bold text-accent-ink">
                 {Math.round((el.opacity ?? 1.0) * 100)}%
               </span>
             </div>

@@ -29,7 +29,7 @@ export const DoorInspector: React.FC<DoorInspectorProps> = ({ door, isLight }) =
       <RubricSection
             persistKey="doorinspector.door-dimensions-swing"
         title="Door Dimensions & Swing"
-        icon={<DoorClosed className="w-3.5 h-3.5 text-amber-500" />}
+        icon={<DoorClosed className="w-3.5 h-3.5 text-warn" />}
         defaultOpen={true}
         isLight={isLight}
       >
@@ -42,7 +42,7 @@ export const DoorInspector: React.FC<DoorInspectorProps> = ({ door, isLight }) =
             value={door.width || 60}
             onChange={(e) => updateElement(door.id, { width: Number(e.target.value) })}
             className={`w-full border rounded p-1.5 font-mono text-xs ${
-              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              'bg-field text-ink border-line-strong'
             }`}
           />
         </div>
@@ -70,19 +70,19 @@ export const DoorInspector: React.FC<DoorInspectorProps> = ({ door, isLight }) =
           <button
             onClick={() => updateElement(door.id, { swingDirection: door.swingDirection === 'left' ? 'right' : 'left' })}
             className={`py-1.5 px-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1 transition-colors ${
-              isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              'bg-surface-muted hover:bg-surface-hover text-ink-soft border-line-strong'
             }`}
           >
-            <FlipHorizontal className="w-3.5 h-3.5 text-amber-500" />
+            <FlipHorizontal className="w-3.5 h-3.5 text-warn" />
             <span>{door.swingDirection === 'left' ? 'Left Hinge' : 'Right Hinge'}</span>
           </button>
           <button
             onClick={() => updateElement(door.id, { isOpen: !door.isOpen })}
             className={`py-1.5 px-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1 transition-colors ${
-              isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              'bg-surface-muted hover:bg-surface-hover text-ink-soft border-line-strong'
             }`}
           >
-            <SquareSplitHorizontal className="w-3.5 h-3.5 text-amber-500" />
+            <SquareSplitHorizontal className="w-3.5 h-3.5 text-warn" />
             <span>{door.isOpen ? 'Door Open' : 'Door Closed'}</span>
           </button>
         </div>

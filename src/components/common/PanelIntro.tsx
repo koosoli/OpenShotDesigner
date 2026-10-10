@@ -77,13 +77,13 @@ export const PanelIntro: React.FC<PanelIntroProps> = ({ moduleId, isLight }) => 
           : 'bg-sky-950/30 border-sky-900 text-sky-100'
       }`}
     >
-      <HelpCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-sky-500" />
+      <HelpCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-accent-ink" />
       <div className="flex-1 min-w-0 space-y-1">
         <p className="text-[11px] font-semibold leading-snug">{guide.purpose}</p>
         <p className="text-[10px] leading-snug opacity-80">{guide.feeds}</p>
         {guide.output && (
           <p className="text-[10px] leading-snug opacity-70">
-            <span className="font-bold uppercase tracking-wider text-[8px]">Exports</span>{' '}
+            <span className="font-bold uppercase tracking-wider text-[10px]">Exports</span>{' '}
             {guide.output}
           </p>
         )}

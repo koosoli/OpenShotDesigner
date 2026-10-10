@@ -1,6 +1,8 @@
 import React from 'react';
 import { ProjectImage } from '../common/ProjectImage';
 import { formatPageEighths } from '../../domain/reports';
+import { STRIP_COLORS } from '../../domain/scheduling/stripboardPrint';
+import type { StripColorKey } from '../../domain/scheduling/stripboardPrint';
 
 export interface PrintableStripboardItem {
   label: string;
@@ -8,6 +10,8 @@ export interface PrintableStripboardItem {
   minutes?: number;
   /** Hex accent mirroring the on-screen strip color (see SchedulePanel); undefined = neutral. */
   tone?: string;
+  /** Whole-strip colour as the board shows it. */
+  colorKey?: StripColorKey;
   castNumbers?: number[];
   pageEighths?: number;
 }
@@ -87,6 +91,12 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
         .sb-table th { background: #f1f5f9; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; color: #475569; }
         .sb-table td.num, .sb-table th.num { text-align: right; white-space: nowrap; font-family: 'Courier New', monospace; }
         .sb-item > td:first-child { border-left: 3px solid var(--tone, #cbd5e1); }
+        .sb-item { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .sb-item.is-colored > td { background: var(--strip-fill); color: var(--strip-ink); border-color: var(--strip-border); }
+        .sb-item.is-colored .sb-kind { background: rgba(255, 255, 255, 0.55); color: inherit; }
+        .sb-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 6px 0 0; font-size: 8px; color: #475569; }
+        .sb-legend span { display: inline-flex; align-items: center; gap: 3px; }
+        .sb-legend i { display: inline-block; width: 10px; height: 8px; border: 1px solid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .sb-kind { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e2e8f0; background: color-mix(in srgb, var(--tone, #94a3b8) 16%, #ffffff); font-size: 7.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; }
         .sb-total-row td { font-weight: 700; background: #f8fafc; }
         .sb-footer { margin-top: 14px; border-top: 1px solid #94a3b8; padding-top: 5px; font-size: 8.5px; color: #475569; display: flex; justify-content: space-between; gap: 10px; }
@@ -129,7 +139,20 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
               </thead>
               <tbody>
                 {day.items.map((item, i) => (
-                  <tr key={`item-${i}`} className="sb-item" style={{ '--tone': item.tone } as React.CSSProperties}>
+                  <tr
+                    key={`item-${i}`}
+                    className={`sb-item${item.colorKey ? ' is-colored' : ''}`}
+                    style={{
+                      '--tone': item.colorKey ? STRIP_COLORS[item.colorKey].border : item.tone,
+                      ...(item.colorKey
+                        ? {
+                            '--strip-fill': STRIP_COLORS[item.colorKey].fill,
+                            '--strip-ink': STRIP_COLORS[item.colorKey].ink,
+                            '--strip-border': STRIP_COLORS[item.colorKey].border,
+                          }
+                        : {}),
+                    } as React.CSSProperties}
+                  >
                     <td className="num">{i + 1}</td>
                     <td>{item.label}</td>
                     <td><span className="sb-kind">{item.kindLabel}</span></td>
@@ -146,6 +169,15 @@ export const StripboardPrintView: React.FC<StripboardPrintViewProps> = ({
             </table>
           </section>
         ))}
+
+        <div className="sb-legend">
+          {(Object.keys(STRIP_COLORS) as StripColorKey[]).map((key) => (
+            <span key={key}>
+              <i style={{ background: STRIP_COLORS[key].fill, borderColor: STRIP_COLORS[key].border }} />
+              {STRIP_COLORS[key].label}
+            </span>
+          ))}
+        </div>
 
         <footer className="sb-footer">
           <p>Generated from project data · {generatedAt}</p>

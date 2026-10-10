@@ -47,16 +47,16 @@ export const StandingCallSheetEditor: React.FC<StandingCallSheetEditorProps> = (
   return (
     <div className="space-y-2">
       <div>
-        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-600 flex items-center gap-1.5">
+        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-400 flex items-center gap-1.5">
           <Radio className="w-3 h-3" /> Standing content
         </div>
-        <p className="text-[9px] text-slate-500 mt-0.5">
+        <p className="text-[10px] text-slate-500 mt-0.5">
           Every shooting day inherits these. A day that fills the same field in its own setup
           overrides them for that day only.
         </p>
       </div>
       {FIELDS.map((field) => (
-        <label key={field.key} className="text-[9px] font-bold uppercase text-slate-500 block">
+        <label key={field.key} className="text-[10px] font-bold uppercase text-slate-500 block">
           {field.label}
           <textarea
             rows={field.rows ?? 2}

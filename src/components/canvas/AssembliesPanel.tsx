@@ -298,7 +298,7 @@ export const AssembliesPanel: React.FC = () => {
         className="w-full flex items-center justify-between px-3 py-2 rounded-xl"
       >
         <span className="flex items-center gap-2 font-bold uppercase tracking-wider text-[10px]">
-          <Package className="w-3.5 h-3.5 text-sky-500" />
+          <Package className="w-3.5 h-3.5 text-accent-ink" />
           Reusable Assemblies
         </span>
         {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 opacity-60" /> : <ChevronDown className="w-3.5 h-3.5 opacity-60" />}
@@ -306,7 +306,7 @@ export const AssembliesPanel: React.FC = () => {
 
       {!isCollapsed && (
         <div className="px-3 pb-3 space-y-2">
-          <div className={`flex items-center gap-1.5 border rounded-lg px-2 py-1.5 ${isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-950'}`}>
+          <div className={`flex items-center gap-1.5 border rounded-lg px-2 py-1.5 border-line-strong bg-field`}>
             <Search className="w-3 h-3 opacity-50" />
             <input
               type="text"
@@ -324,16 +324,16 @@ export const AssembliesPanel: React.FC = () => {
             {filtered.map((assembly) => (
               <div
                 key={assembly.id}
-                className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900'}`}
+                className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 border-line bg-surface`}
               >
                 <button
                   onClick={() => insertAssembly(assembly)}
                   title={`Insert "${assembly.name}" grouped at canvas center`}
                   className="flex items-center gap-1.5 flex-1 min-w-0 text-left text-[11px] hover:text-sky-500 transition-colors"
                 >
-                  <Plus className="w-3 h-3 flex-shrink-0 text-sky-500" />
+                  <Plus className="w-3 h-3 flex-shrink-0 text-accent-ink" />
                   <span className="truncate">{assembly.name}</span>
-                  <span className="text-[9px] opacity-50 flex-shrink-0">
+                  <span className="text-[10px] opacity-50 flex-shrink-0">
                     {assembly.category === 'builtin' ? 'example' : `${assembly.elements.length} els`}
                   </span>
                 </button>
@@ -351,7 +351,7 @@ export const AssembliesPanel: React.FC = () => {
             ))}
           </div>
 
-          <p className="text-[9px] italic opacity-50">
+          <p className="text-[10px] italic opacity-50">
             Saved assemblies are workspace templates (not project data); inserting creates fresh grouped copies.
           </p>
         </div>

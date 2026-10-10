@@ -69,3 +69,14 @@ export {
 export type { NumberableLine } from './numbering';
 export { compareScriptRevisions } from './revision';
 export type { ScriptRevisionComparison, ScriptSceneChange } from './revision';
+export { estimateScenePageEighths, parsePageEighths, wrappedLineCount, SCREENPLAY_LINES_PER_PAGE } from './pageCount';
+export type { PageCountLine } from './pageCount';
+export { HIGHLIGHT_PALETTE, characterColor, deriveLineHighlights, locationColors } from './highlight';
+export type { HighlightLegendEntry, HighlightLine, HighlightMode, LineHighlight, NameMention } from './highlight';
+export { REVISION_COLORS, currentRevisionColor, markRevisedLines, revisionColorAt } from './revisionColors';
+export type { RevisionColor, RevisionColorKey } from './revisionColors';
+export { cachedScriptBreakdown } from './breakdownCache';
+export { layoutPages, lockPages, pageLabels } from './pageLock';
+export type { PageLabels, PageLine, PageLock } from './pageLock';
+export { serializeToFdx } from './fdxExport';
+export type { FdxLine } from './fdxExport';

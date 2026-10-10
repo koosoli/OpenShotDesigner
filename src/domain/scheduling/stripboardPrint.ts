@@ -58,6 +58,35 @@ export const STRIP_PRINT_TONES: Record<string, string> = {
   other: '#475569',
 };
 
+/**
+ * The strip colours as the board shows them: scene-type strips by INT/EXT and
+ * DAY/NIGHT (the classic stripboard code), banners solid by their type. One
+ * rule for the editor, the print view and the PDF, so a printed board reads
+ * like the one on screen. Light-paper values; the editor tints them for dark.
+ */
+export type StripColorKey = 'int_day' | 'ext_day' | 'int_night' | 'ext_night' | 'meal' | 'move' | 'banner';
+
+export const STRIP_COLORS: Record<StripColorKey, { fill: string; border: string; ink: string; label: string }> = {
+  int_day: { fill: '#ffffff', border: '#cbd5e1', ink: '#0f172a', label: 'INT / day' },
+  ext_day: { fill: '#fef3c7', border: '#fcd34d', ink: '#451a03', label: 'EXT / day' },
+  int_night: { fill: '#dbeafe', border: '#93c5fd', ink: '#172554', label: 'INT / night' },
+  ext_night: { fill: '#d1fae5', border: '#6ee7b7', ink: '#022c22', label: 'EXT / night' },
+  meal: { fill: '#059669', border: '#047857', ink: '#ffffff', label: 'Meal' },
+  move: { fill: '#7c3aed', border: '#6d28d9', ink: '#ffffff', label: 'Company move' },
+  banner: { fill: '#334155', border: '#1e293b', ink: '#ffffff', label: 'Banner' },
+};
+
+/** Which strip colour a block takes, from its kind and its INT/EXT + time of day text. */
+export const stripColorKey = (block: ScheduleBlock, environment: string): StripColorKey => {
+  if (block.kind === 'manual') {
+    return block.manualType === 'meal' ? 'meal' : block.manualType === 'move' ? 'move' : 'banner';
+  }
+  const text = environment.toUpperCase();
+  const exterior = text.includes('EXT');
+  const night = text.includes('NIGHT');
+  return exterior && night ? 'ext_night' : exterior ? 'ext_day' : night ? 'int_night' : 'int_day';
+};
+
 export const blockPrintTone = (block: ScheduleBlock): string =>
   block.kind === 'manual'
     ? STRIP_PRINT_TONES[block.manualType ?? 'other']
@@ -94,8 +123,8 @@ export const blockLabel = (block: ScheduleBlock, ctx: StripboardLabelContext): s
 
 /** Minimal project shape the board needs — keeps this pure and testable. */
 export interface StripboardProjectLike {
-  scriptScenes?: Array<{ id: string; sceneNumber: string | number; heading: string; pageLengthEighths?: number }>;
-  setups?: Array<{ id: string; name: string; sceneNumber?: string; shots?: Array<{ id: string; shotNumber: string | number; name: string }> }>;
+  scriptScenes?: Array<{ id: string; sceneNumber: string | number; heading: string; pageLengthEighths?: number; intExt?: string; timeOfDay?: string }>;
+  setups?: Array<{ id: string; name: string; sceneNumber?: string; timeOfDay?: string; shots?: Array<{ id: string; shotNumber: string | number; name: string }> }>;
   productionSegments?: Array<{ id: string; name: string }>;
   productionDays?: Array<{
     id: string;
@@ -137,6 +166,8 @@ export interface PrintableStripboardItem {
   kindLabel: string;
   minutes?: number;
   tone: string;
+  /** Strip colour as the board shows it (whole-row fill). */
+  colorKey?: StripColorKey;
   castNumbers?: number[];
   /** Script length in canonical eighths; unknown for non-script strips. */
   pageEighths?: number;
@@ -182,6 +213,19 @@ export const buildPrintableStripboardDays = (
     if (scenes.length === 0 || scenes.some((scene) => scene.pageLengthEighths === undefined)) return undefined;
     return scenes.reduce((total, scene) => total + (scene.pageLengthEighths ?? 0), 0);
   };
+  // INT/EXT + time of day text, resolved the way the board resolves it.
+  const environmentFor = (block: ScheduleBlock): string => {
+    if (block.kind === 'scene') {
+      const scene = scenesById.get(block.scriptSceneId);
+      return scene ? `${scene.intExt ?? ''} ${scene.timeOfDay ?? ''}` : '';
+    }
+    const setup = block.kind === 'setup'
+      ? setupsById.get(block.setupId)
+      : block.kind === 'shots' ? setupByShotId.get(block.shotIds[0]) : undefined;
+    if (!setup) return '';
+    const scene = setup.sceneNumber ? scenesByNumber.get(String(setup.sceneNumber)) : undefined;
+    return scene ? `${scene.intExt ?? ''} ${scene.timeOfDay ?? ''}` : setup.timeOfDay ?? '';
+  };
   return (project.productionDays ?? []).map((day) => {
     const items = day.scheduleBlockIds
       .map((id) => byId.get(id))
@@ -189,6 +233,7 @@ export const buildPrintableStripboardDays = (
       .map((block) => {
         const pageEighths = pageEighthsFor(block);
         return {
+          colorKey: stripColorKey(block, environmentFor(block)),
           label: blockLabel(block, ctx),
           kindLabel: BLOCK_KIND_LABELS[block.kind],
           minutes: 'estimatedMinutes' in block ? block.estimatedMinutes : undefined,

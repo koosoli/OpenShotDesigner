@@ -38,7 +38,7 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
   src,
   framing,
   onChange,
-  isLight,
+  isLight: _isLight,
 }) => {
   const current = normaliseFraming(framing);
   const [dragging, setDragging] = useState(false);
@@ -83,7 +83,7 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
   };
 
   const button = `text-[10px] font-semibold px-2 py-1 rounded-lg border ${
-    isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+    'border-line-strong hover:bg-surface-hover'
   }`;
 
   return (
@@ -100,7 +100,7 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
         style={{ width: PREVIEW_SIZE, height: PREVIEW_SIZE, touchAction: 'none' }}
         className={`rounded-full overflow-hidden border-2 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
           dragging ? 'cursor-grabbing' : 'cursor-grab'
-        } ${isLight ? 'border-slate-300' : 'border-slate-700'}`}
+        } border-line-strong`}
       >
         <img
           src={src}
@@ -114,7 +114,7 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
       </div>
 
       <div className="min-w-0 flex-1 space-y-1.5">
-        <label className="block text-[9px] font-bold uppercase text-slate-500">
+        <label className="block text-[10px] font-bold uppercase text-slate-500">
           <span className="flex items-center gap-1">
             <ZoomIn className="w-3 h-3" /> Zoom
           </span>
@@ -139,7 +139,7 @@ export const HeadshotReframer: React.FC<HeadshotReframerProps> = ({
               <RotateCcw className="w-3 h-3" /> Reset
             </span>
           </button>
-          <span className={`text-[9px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          <span className={`text-[10px] text-ink-muted`}>
             Drag the picture to reposition it
           </span>
         </div>

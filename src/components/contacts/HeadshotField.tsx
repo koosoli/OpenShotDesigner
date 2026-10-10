@@ -57,7 +57,7 @@ export const HeadshotField: React.FC<HeadshotFieldProps> = ({ draft, onChange, i
   };
 
   const button = `text-[10px] font-semibold px-2 py-1 rounded-lg border ${
-    isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+    'border-line-strong hover:bg-surface-hover'
   }`;
 
   return (
@@ -89,7 +89,7 @@ export const HeadshotField: React.FC<HeadshotFieldProps> = ({ draft, onChange, i
             </button>
           )}
         </div>
-        <p className={`text-[9px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+        <p className={`text-[10px] mt-1 text-ink-muted`}>
           {error ?? 'Shown on the crew list, contact sheet and call sheet.'}
         </p>
       </div>

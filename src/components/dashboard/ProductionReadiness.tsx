@@ -7,10 +7,9 @@ import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 
 export const ProductionReadiness: React.FC = () => {
   const { project, updateProjectMeta, displaySettings } = useFloorPlan();
-  const { theme, setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
+  const { setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
   const [open, setOpen] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
-  const isLight = theme === 'light';
   const dialogRef = useDialogFocusTrap(open);
   useEffect(() => {
     if (!open) return;
@@ -62,22 +61,22 @@ export const ProductionReadiness: React.FC = () => {
       {open && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <div ref={dialogRef} tabIndex={-1} className={`relative w-full max-w-2xl max-h-[78vh] overflow-hidden rounded-2xl border shadow-2xl ${isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-100'}`} role="dialog" aria-modal="true" aria-labelledby="readiness-title">
+          <div ref={dialogRef} tabIndex={-1} className={`relative w-full max-w-2xl max-h-[78vh] overflow-hidden rounded-2xl border shadow-2xl bg-surface border-line-strong text-ink`} role="dialog" aria-modal="true" aria-labelledby="readiness-title">
             <div className="p-4 border-b border-inherit flex items-start justify-between gap-3">
-              <div><h2 id="readiness-title" className="font-black flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-emerald-500" /> Production readiness</h2><p className="text-[11px] opacity-60 mt-1">Findings already computed across schedule health, call sheets, continuity, tasks, locations, power, DMX, rigging and budget — gathered, not recalculated.</p></div>
+              <div><h2 id="readiness-title" className="font-black flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-ok" /> Production readiness</h2><p className="text-[11px] opacity-60 mt-1">Findings already computed across schedule health, call sheets, continuity, tasks, locations, power, DMX, rigging and budget — gathered, not recalculated.</p></div>
               <button onClick={() => setOpen(false)} aria-label="Close readiness" className="p-1.5"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-4 overflow-y-auto max-h-[62vh]">
               {items.length === 0 ? (
-                <div className="py-8 text-center"><CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" /><div className="mt-2 font-bold">No active blockers or warnings</div><p className="text-xs opacity-60 mt-1">This is a readiness check, not a safety or legal certification.</p></div>
+                <div className="py-8 text-center"><CheckCircle2 className="w-10 h-10 text-ok mx-auto" /><div className="mt-2 font-bold">No active blockers or warnings</div><p className="text-xs opacity-60 mt-1">This is a readiness check, not a safety or legal certification.</p></div>
               ) : (
                 <div className="space-y-2">
                   {items.map((item) => (
-                    <div key={item.id} className={`w-full rounded-xl border flex items-stretch ${isLight ? 'border-slate-200 hover:bg-slate-50' : 'border-slate-800 hover:bg-slate-800'}`}>
+                    <div key={item.id} className={`w-full rounded-xl border flex items-stretch border-line hover:bg-surface-hover`}>
                       <button onClick={() => navigate(item.tab)} className="flex-1 min-w-0 text-left p-3 flex gap-3">
-                        <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${item.severity === 'blocker' ? 'text-rose-500' : 'text-amber-500'}`} />
+                        <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${item.severity === 'blocker' ? 'text-rose-500' : 'text-warn'}`} />
                         <span className="flex-1"><span className="block text-xs font-bold">{item.label}</span><span className="block text-[10px] opacity-60 mt-0.5">{item.detail}</span></span>
-                        <span className="text-[9px] uppercase font-bold opacity-50">Open {item.tab}</span>
+                        <span className="text-[10px] uppercase font-bold opacity-50">Open {item.tab}</span>
                       </button>
                       <button onClick={() => dismiss(item)} aria-label={`Dismiss ${item.label}`} title="Dismiss until this finding changes" className="px-3 border-l border-inherit opacity-55 hover:opacity-100"><EyeOff className="w-4 h-4" /></button>
                     </div>

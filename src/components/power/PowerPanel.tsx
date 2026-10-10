@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { EmptyState } from '../common/EmptyState';
 import {
   AlertTriangle,
   Gauge,
@@ -296,18 +297,18 @@ export const PowerPanel: React.FC = () => {
   const cardClass = isLight
     ? 'bg-white border-slate-200'
     : 'bg-slate-900 border-slate-700';
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
-  const headingText = isLight ? 'text-slate-700' : 'text-slate-300';
+  const mutedText = 'text-ink-muted';
+  const headingText = 'text-ink-soft';
   const inputClass = `min-h-[36px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${
     isLight
       ? 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
       : 'bg-slate-950 border-slate-700 text-slate-100 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
   }`;
   const iconBtnClass = `flex items-center justify-center min-w-[36px] min-h-[36px] rounded-lg transition-colors flex-shrink-0 ${
-    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+    'text-ink-muted hover:text-ink hover:bg-surface-hover'
   }`;
   const primaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors flex-shrink-0 disabled:opacity-40 ${
-    isLight ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-600 text-white hover:bg-sky-500'
+    'bg-accent text-white hover:bg-accent-hover'
   }`;
   const secondaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 disabled:opacity-40 ${
     isLight
@@ -315,7 +316,7 @@ export const PowerPanel: React.FC = () => {
       : 'border-slate-700 text-slate-300 hover:bg-slate-800'
   }`;
   const chipClass = `px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
-    isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-300'
+    'bg-surface-muted text-ink-soft'
   }`;
 
   const sectionHeading = (icon: React.ReactNode, title: string, count?: number) => (
@@ -350,7 +351,7 @@ export const PowerPanel: React.FC = () => {
           <span className="ml-auto transition-transform group-open:rotate-90">›</span>
         </summary>
         <div className="pt-2 flex justify-end">
-          <PdfExportButton onClick={() => openExportModal('power')} title="Strom- und Verteilungsplan als PDF exportieren" />
+          <PdfExportButton onClick={() => openExportModal('power')} title="Download the power plan as a PDF" />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           <span className="font-semibold">
@@ -358,7 +359,7 @@ export const PowerPanel: React.FC = () => {
             <span className="font-mono">{formatWatts(load.knownWatts)}</span>
           </span>
           {load.unknownConsumerCount > 0 && (
-            <span className="text-amber-500 font-medium" role="status">
+            <span className="text-warn font-medium" role="status">
               ⚠ {load.unknownConsumerCount} unknown — not counted
             </span>
           )}
@@ -375,7 +376,7 @@ export const PowerPanel: React.FC = () => {
                     className={`font-mono ${
                       headroom.overloaded
                         ? 'text-red-500 font-bold'
-                        : isLight ? 'text-emerald-600' : 'text-emerald-400'
+                        : 'text-ok'
                     }`}
                   >
                     {formatAmps(headroom.usedA)} / {circuit.maxAmperesA} A ·{' '}
@@ -406,7 +407,7 @@ export const PowerPanel: React.FC = () => {
         {(trussLoads.groups.length > 0 || zoneLoads.groups.length > 0) && (
           <div
             className={`flex flex-col gap-1 pt-1 border-t border-dashed ${
-              isLight ? 'border-slate-200' : 'border-slate-800'
+              'border-line'
             }`}
           >
             {trussLoads.groups.length > 0 && (
@@ -419,7 +420,7 @@ export const PowerPanel: React.FC = () => {
                       <span className={`font-mono ${mutedText}`}>{formatWatts(group.knownWatts)}</span>
                       <span className={chipClass}>{group.consumerIds.length} fixtures</span>
                       {group.unknownConsumerCount > 0 && (
-                        <span className="text-amber-500 font-medium">
+                        <span className="text-warn font-medium">
                           ⚠ {group.unknownConsumerCount} unknown
                         </span>
                       )}
@@ -440,7 +441,7 @@ export const PowerPanel: React.FC = () => {
                       <span className={`font-mono ${mutedText}`}>{formatWatts(group.knownWatts)}</span>
                       <span className={chipClass}>{group.consumerIds.length} items</span>
                       {group.unknownConsumerCount > 0 && (
-                        <span className="text-amber-500 font-medium">
+                        <span className="text-warn font-medium">
                           ⚠ {group.unknownConsumerCount} unknown
                         </span>
                       )}
@@ -463,7 +464,7 @@ export const PowerPanel: React.FC = () => {
         {phaseRows.length > 0 && (
           <div
             className={`flex flex-col gap-1 pt-1 border-t border-dashed ${
-              isLight ? 'border-slate-200' : 'border-slate-800'
+              'border-line'
             }`}
           >
             <p className={`text-[10px] font-bold uppercase tracking-wider ${mutedText}`}>Phase balance</p>
@@ -475,7 +476,7 @@ export const PowerPanel: React.FC = () => {
                     key={leg.leg}
                     className={`font-mono ${
                       balance.busiestLeg === leg.leg && (balance.imbalanceRatio ?? 0) > 0.2
-                        ? 'text-amber-500 font-bold'
+                        ? 'text-warn font-bold'
                         : mutedText
                     }`}
                   >
@@ -486,7 +487,7 @@ export const PowerPanel: React.FC = () => {
                 {balance.imbalanceRatio === null ? (
                   <span className={`${mutedText} italic`}>no legs assigned yet</span>
                 ) : (
-                  <span className={balance.imbalanceRatio > 0.2 ? 'text-amber-500 font-medium' : mutedText}>
+                  <span className={balance.imbalanceRatio > 0.2 ? 'text-warn font-medium' : mutedText}>
                     {Math.round(balance.imbalanceRatio * 100)}% spread
                   </span>
                 )}
@@ -503,12 +504,12 @@ export const PowerPanel: React.FC = () => {
         {sourceRows.length > 0 && (
           <ul
             className={`flex flex-col gap-1 pt-1 border-t border-dashed ${
-              isLight ? 'border-slate-200' : 'border-slate-800'
+              'border-line'
             }`}
           >
             {sourceRows.map(({ source, load }) => (
               <li key={source.id} className="flex items-center gap-2 text-[11px] flex-wrap">
-                <Zap className="w-3 h-3 flex-shrink-0 text-amber-500" />
+                <Zap className="w-3 h-3 flex-shrink-0 text-warn" />
                 <span className="font-medium truncate max-w-[45%]">{source.name}</span>
                 <span className={`font-mono ${mutedText}`}>{formatWatts(load.knownWatts)}</span>
                 {/* The volt-amps only appear once a power factor makes them
@@ -536,9 +537,13 @@ export const PowerPanel: React.FC = () => {
         )}
 
         {sources.length === 0 && circuits.length === 0 && consumers.length === 0 && (
-          <p className={`text-[11px] ${mutedText}`}>
-            Add a source, then circuits and consumers to see loads.
-          </p>
+          <EmptyState
+            icon={<Plug className="w-5 h-5" />}
+            title="No power plan yet"
+            action={{ label: 'Add a power source', onClick: addSource, icon: <Plus className="w-3.5 h-3.5" /> }}
+          >
+            Add a generator or house supply, then circuits and the lights on the plan, to see the load per phase before anything trips.
+          </EmptyState>
         )}
       </details>
 
@@ -944,7 +949,7 @@ export const PowerPanel: React.FC = () => {
                       : 'Wattage unknown — pick a fixture in the inspector, or enter W'}
                   </span>
                   {consumer.orphanedFromPlan && (
-                    <span className="text-amber-500 font-semibold">
+                    <span className="text-warn font-semibold">
                       No longer on the floor plan
                     </span>
                   )}

@@ -110,3 +110,53 @@ describe('deriveDood', () => {
     expect(result.rows.every((r) => r.cells[0].status === 'off')).toBe(true);
   });
 });
+
+describe('deriveDood — industry codes', () => {
+  const dated = (id: string, date: string): ProductionDay => ({ id, name: id, date, scheduleBlockIds: [`b-${id}`] });
+
+  it('marks a one-day performer SWF', () => {
+    const result = deriveDood({
+      days: [dated('d1', '2026-09-01')],
+      blocks: [{ id: 'b-d1', kind: 'scene', scriptSceneId: 'sc-1' }],
+      characters: [characters[0]],
+      getSceneCharacterIds: () => ['c-hero'],
+    });
+    expect(result.rows[0].cells[0].status).toBe('start_finish');
+    expect(result.rows[0].totals).toMatchObject({ work: 1, hold: 0, total: 1 });
+  });
+
+  it('drops and picks up across a long gap instead of holding', () => {
+    const days = [dated('d1', '2026-09-01'), dated('d2', '2026-09-02'), dated('d3', '2026-09-20')];
+    const blocks: ScheduleBlock[] = days.map((day) => ({ id: `b-${day.id}`, kind: 'scene', scriptSceneId: day.id === 'd2' ? 'other' : 'sc-1' }));
+    const result = deriveDood({ days, blocks, characters: [characters[0]], getSceneCharacterIds: (id) => (id === 'sc-1' ? ['c-hero'] : []) });
+    expect(result.rows[0].cells.map((c) => c.status)).toEqual(['drop', 'off', 'finish']);
+    // Same gap with drops disabled is held.
+    const held = deriveDood({ days, blocks, characters: [characters[0]], getSceneCharacterIds: (id) => (id === 'sc-1' ? ['c-hero'] : []), dropAfterDays: 0 });
+    expect(held.rows[0].cells.map((c) => c.status)).toEqual(['start', 'hold', 'finish']);
+  });
+
+  it('applies hand-entered travel and counts it in the totals', () => {
+    const result = deriveDood({
+      days,
+      blocks,
+      characters: [characters[0]],
+      getSceneCharacterIds: (id) => sceneCast[id],
+      overrides: [{ rowId: 'c-hero', dayId: 'd3', status: 'travel' }],
+    });
+    expect(result.rows[0].cells[2]).toEqual({ dayId: 'd3', status: 'travel', manual: true });
+    expect(result.rows[0].totals).toMatchObject({ work: 3, hold: 0, travel: 1, total: 4 });
+  });
+
+  it('orders rows by cast number', () => {
+    const result = deriveDood({
+      days,
+      blocks,
+      characters,
+      castAssignments: [{ id: 'a', characterId: 'c-side', personId: 'p-hero', castNumber: 1 }],
+      people,
+      getSceneCharacterIds: (id) => sceneCast[id],
+    });
+    expect(result.rows[0].characterId).toBe('c-side');
+    expect(result.rows[0].castNumber).toBe(1);
+  });
+});

@@ -21,8 +21,12 @@
 import type { ExportSection } from '../../context/WorkspaceUIContext';
 import type { AVScriptRow, LightElement, Project, SceneSetup, ScriptLine, Shot } from '../../types';
 import { downloadBlob } from '../download';
-import { createIdbAssetStore } from '../../domain/storage/idbAssetStore';
-import { isAssetRef } from '../../domain/media/imageRef';
+import { resolvePdfImageBytes, resolvePdfRasterBytes } from './imageBytes';
+import { currentRevisionColor } from '../../domain/script/revisionColors';
+import { pageLabels } from '../../domain/script/pageLock';
+import { shotListStoryboards } from './shotListBoards';
+
+export { resolvePdfImageBytes } from './imageBytes';
 import {
   attachBreakdownItemsToScenes,
 } from '../../domain/script';
@@ -49,6 +53,7 @@ import { buildRunOfShowPrintModel } from '../../components/reports/RunOfShowPrin
 import { buildDailyProgressPrintModel } from '../../components/reports/DailyProgressPrintView';
 import { buildCameraReportPrintModel, buildSoundReportPrintModel } from '../../components/reports/SetReportsPrintView';
 import type { TrussCapacityVerdict } from '../../domain/rigging/logic';
+import type { ScriptReportsPdfSections } from './scriptReportsPdf';
 import { renderSvgToPngBytes } from '../exportFloorPlanPng';
 import {
   buildAvScriptPdfFilename,
@@ -129,38 +134,25 @@ export interface SectionPdfContext {
   /** Live SVG element for the floor-plan blueprint render. */
   floorPlanSvg?: SVGSVGElement | null;
   omitBlankStoryboardFrames?: boolean;
+  /** Shot list: include storyboard frames at this size (as the shot list shows them). */
+  shotListBoards?: { size: import('./shotListPdf').ShotListBoardSize; aspectRatio: number };
+  /** Script reports: print only these sections (all when absent). */
+  scriptReportSections?: ScriptReportsPdfSections;
 }
 
-interface ResolvedImage {
-  bytes: Uint8Array;
-  mimeType: string;
-}
+/** File name for a single script report printed on its own. */
+const SCRIPT_REPORT_FILE_NAMES: Record<string, string> = {
+  scenes: 'scene-list',
+  characters: 'character-report',
+  locations: 'location-breakdown',
+  elements: 'element-breakdown',
+  dood: 'day-out-of-days',
+};
 
 export interface RenderedPdf {
   filename: string;
   bytes: Uint8Array;
 }
-
-/** Asset id, data URL or nothing -> raster bytes. Never throws. */
-export const resolvePdfImageBytes = async (ref?: string): Promise<ResolvedImage | null> => {
-  try {
-    if (!ref) return null;
-    if (ref.startsWith('data:')) {
-      const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(ref);
-      if (!match || match[2] !== ';base64') return null;
-      const binary = atob(match[3]);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return { bytes, mimeType: match[1] || 'application/octet-stream' };
-    }
-    if (!isAssetRef(ref)) return null;
-    const blob = await createIdbAssetStore().get(ref);
-    if (!blob) return null;
-    return { bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: blob.type || 'application/octet-stream' };
-  } catch {
-    return null;
-  }
-};
 
 const resolveLogoBytes = async (project: Project): Promise<Uint8Array | undefined> => {
   const resolved = await resolvePdfImageBytes(project.logo);
@@ -205,7 +197,7 @@ const storyboardFramesOf = async (
     ];
     const withImages = omitBlank ? candidates.filter((candidate) => candidate.ref) : candidates;
     for (const candidate of withImages) {
-      const resolved = await resolvePdfImageBytes(candidate.ref);
+      const resolved = await resolvePdfRasterBytes(candidate.ref);
       frames.push({
         ...(resolved ? { imageBytes: resolved.bytes, mimeType: resolved.mimeType } : {}),
         ...(shot.shotNumber ? { shotNumber: shot.shotNumber } : {}),
@@ -267,6 +259,9 @@ export const renderSectionPdf = async (
         productionTitle: title,
         subtitle: `Scene ${activeSetup.sceneNumber || ''} — ${activeSetup.name || ''}`.trim(),
         rows: shotListRowsFromSetups([activeSetup]),
+        ...(ctx.shotListBoards
+          ? { storyboards: await shotListStoryboards([activeSetup], ctx.shotListBoards.size, ctx.shotListBoards.aspectRatio) }
+          : {}),
         ...logo,
       });
       return renderedPdf(bytes, buildPdfFilename({ production: title, document: 'shot-list' }));
@@ -283,6 +278,7 @@ export const renderSectionPdf = async (
       return renderedPdf(bytes, buildStoryboardPdfFilename({ productionTitle: title }));
     }
     case 'linedscript': {
+      const revision = currentRevisionColor(project);
       const bytes = await createLinedScriptPdf({
         productionTitle: title,
         lines: ctx.scriptLines.map((line) => ({
@@ -290,7 +286,17 @@ export const renderSectionPdf = async (
           text: line.text,
           ...(line.sceneNumber ? { sceneNumber: line.sceneNumber } : {}),
           ...(line.omitted ? { omitted: true } : {}),
+          ...(line.revisedIn !== undefined && line.revisedIn === revision.index && revision.index > 0 ? { revised: true } : {}),
         })),
+        subtitle: `${revision.label} draft${revision.index > 0 ? ' · * marks changed lines' : ''}`,
+        // Locked pages print with their locked numbers and A-pages.
+        ...(project.scriptPageLock ? {
+          pageStarts: (() => {
+            const labels = pageLabels(ctx.scriptLines, project.scriptPageLock);
+            const indexOf = new Map(ctx.scriptLines.map((line, index) => [line.id, index] as const));
+            return labels.starts.flatMap((start) => (indexOf.has(start.lineId) ? [{ lineIndex: indexOf.get(start.lineId)!, label: start.label }] : []));
+          })(),
+        } : {}),
         ...logo,
       });
       return renderedPdf(bytes, buildLinedScriptPdfFilename({ productionTitle: title }));
@@ -326,14 +332,15 @@ export const renderSectionPdf = async (
           }),
         )
         .filter((entry) => entry.scenes.length > 0);
-      const sceneCharacters = new Map(scenes.map((scene) => [scene.id, scene.characterIds] as const));
       const dood = deriveDood({
         days: project.productionDays ?? [],
         blocks: project.scheduleBlocks ?? [],
         characters: derived.characters,
         castAssignments: project.castAssignments,
         people: project.people,
-        getSceneCharacterIds: (sceneId) => sceneCharacters.get(sceneId),
+        castSources: { scriptScenes: scenes, setups: project.setups, castAssignments: project.castAssignments },
+        overrides: project.doodOverrides,
+        dropAfterDays: project.doodDropAfterDays,
       });
       const doodMapped = doodPdfFromDood(dood);
       const bytes = await createScriptReportsPdf({
@@ -345,9 +352,12 @@ export const renderSectionPdf = async (
         doodColumns: doodMapped.columns,
         doodRows: doodMapped.rows,
         orientation: 'landscape',
+        ...(ctx.scriptReportSections ? { sections: ctx.scriptReportSections } : {}),
         ...logo,
       });
-      return renderedPdf(bytes, buildScriptReportsPdfFilename({ productionTitle: title }));
+      const only = Object.entries(ctx.scriptReportSections ?? {}).filter(([, on]) => on).map(([key]) => key);
+      const report = only.length === 1 ? SCRIPT_REPORT_FILE_NAMES[only[0]] ?? only[0] : undefined;
+      return renderedPdf(bytes, buildScriptReportsPdfFilename({ productionTitle: title, ...(report ? { report } : {}) }));
     }
     case 'equipment': {
       const scope = ctx.equipmentScope ?? 'current';
@@ -539,7 +549,7 @@ export const renderSectionPdf = async (
       const cards = [...board.cards].sort((a, b) => a.order - b.order);
       const frames: Array<{ imageBytes?: Uint8Array; mimeType?: string; caption?: string }> = [];
       for (const card of cards) {
-        const resolved = await resolvePdfImageBytes(card.assetId);
+        const resolved = await resolvePdfRasterBytes(card.assetId);
         frames.push({
           ...(resolved ? { imageBytes: resolved.bytes, mimeType: resolved.mimeType } : {}),
           caption: card.caption || card.tags.join(', '),

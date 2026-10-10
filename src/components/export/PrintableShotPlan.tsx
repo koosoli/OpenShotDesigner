@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { cachedScriptBreakdown } from '../../domain/script/breakdownCache';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ActorElement,
@@ -104,11 +105,17 @@ import {
 } from '../../domain/scheduling';
 import { useMoodboardImageSrcs } from '../moodboard/moodboardAssets';
 import { buildScriptSides, sidesCharacterOptions, splitScenes } from '../../domain/script';
-import { deriveScriptBreakdown } from '../../domain/script/logic';
 import { attachBreakdownItemsToScenes } from '../../domain/script';
 import { ProjectImage } from '../common/ProjectImage';
 import { useImageRefSrcs } from '../../utils/assetImages';
 import { keyFrameImage } from '../../utils/storyboardFrames';
+import { currentRevisionColor } from '../../domain/script/revisionColors';
+import { pageLabels } from '../../domain/script/pageLock';
+import { SHOT_LIST_BOARD_SIZES, readShotListBoardSize, readShotListBoardsShown, writeUiPref } from '../../utils/uiPrefs';
+import type { ShotListBoardSize } from '../../utils/uiPrefs';
+
+/** Printed board width (px) per shot-list size. */
+const PRINT_BOARD_WIDTH: Record<ShotListBoardSize, number> = { S: 48, M: 84, L: 144, XL: 220 };
 import { castNumbersScheduledOn } from '../../domain/reports';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { useDialogs } from '../dialog/DialogProvider';
@@ -129,6 +136,12 @@ export const PrintableShotPlan: React.FC = () => {
   );
   const [pngScale, setPngScale] = useState<2 | 3>(2);
   const [showStoryboards, setShowStoryboards] = useState(false);
+  // Board size follows the shot list's S/M/L/XL, and changing it here changes it there.
+  const [boardSize, setBoardSizeState] = useState<ShotListBoardSize>(readShotListBoardSize);
+  const setBoardSize = (size: ShotListBoardSize) => {
+    setBoardSizeState(size);
+    writeUiPref('shotlist_board_size', size);
+  };
   const [omitBlankWaypoints, setOmitBlankWaypoints] = useState(
     displaySettings.hideBlankStoryboardWaypoints ?? false
   );
@@ -200,7 +213,7 @@ export const PrintableShotPlan: React.FC = () => {
     setSidesSceneIds(sceneIds);
   };
   const crewCharacters = React.useMemo(
-    () => deriveScriptBreakdown(scriptLines, project.characters ?? [], project.locations ?? []).characters,
+    () => cachedScriptBreakdown(scriptLines, project.characters, project.locations).characters,
     [scriptLines, project.characters, project.locations],
   );
   const [crewShowRates, setCrewShowRates] = useState(false);
@@ -212,7 +225,7 @@ export const PrintableShotPlan: React.FC = () => {
   // does not know about elements — so resolve the tagged ones onto them here
   // rather than storing that link a second time (rule 37).
   const reportBreakdown = React.useMemo(() => {
-    const derived = deriveScriptBreakdown(scriptLines, project.characters ?? [], project.locations ?? []);
+    const derived = cachedScriptBreakdown(scriptLines, project.characters, project.locations);
     return {
       ...derived,
       scenes: attachBreakdownItemsToScenes(derived.scenes, scriptLines, project.breakdownItems ?? []),
@@ -231,16 +244,17 @@ export const PrintableShotPlan: React.FC = () => {
     [reportBreakdown, project.people, project.castAssignments],
   );
   const reportDood = React.useMemo(() => {
-    const sceneCharacters = new Map(reportBreakdown.scenes.map((scene) => [scene.id, scene.characterIds] as const));
     return deriveDood({
       days: project.productionDays ?? [],
       blocks: project.scheduleBlocks ?? [],
       characters: reportBreakdown.characters,
       castAssignments: project.castAssignments,
       people: project.people,
-      getSceneCharacterIds: (sceneId) => sceneCharacters.get(sceneId),
+      castSources: { scriptScenes: reportBreakdown.scenes, setups: project.setups, castAssignments: project.castAssignments },
+      overrides: project.doodOverrides,
+      dropAfterDays: project.doodDropAfterDays,
     });
-  }, [reportBreakdown, project.productionDays, project.scheduleBlocks, project.castAssignments, project.people]);
+  }, [reportBreakdown, project.productionDays, project.scheduleBlocks, project.castAssignments, project.people, project.setups, project.doodOverrides, project.doodDropAfterDays]);
   const dmxRows = React.useMemo(
     () => sortedPatchRows(findConflicts(collectFixturePatches(
       activeSetup.elements.filter((element): element is LightElement => element.type === 'light'),
@@ -262,7 +276,11 @@ export const PrintableShotPlan: React.FC = () => {
   // storyboard attached (still fully toggleable off/on by the user).
   useEffect(() => {
     if (isExportModalOpen) {
-      setShowStoryboards(activeSetup.shots.some((s) => !!s.storyboardImage));
+      // Follow the shot list: shown there means shown here.
+      const chosen = readShotListBoardsShown();
+      const hasBoards = activeSetup.shots.some((s) => !!keyFrameImage(s));
+      setShowStoryboards(chosen === 'auto' ? hasBoards : chosen === 'on' && hasBoards);
+      setBoardSizeState(readShotListBoardSize());
       setOmitBlankWaypoints(displaySettings.hideBlankStoryboardWaypoints ?? false);
       setFloorPlanZoom({ z: 1, panX: 0, panY: 0 });
     }
@@ -577,6 +595,10 @@ export const PrintableShotPlan: React.FC = () => {
         moodboardId: exportBoardId,
         floorPlanSvg: floorPlanSvgRef.current,
         omitBlankStoryboardFrames: omitBlankWaypoints,
+        ...(showStoryboards ? { shotListBoards: { size: boardSize, aspectRatio: sceneAspectRatio } } : {}),
+        // The section ticks in the studio decide what the PDF holds too, so
+        // "just the DOOD" is one untick away rather than a separate report.
+        scriptReportSections: reportSections,
       });
     } catch (error) {
       await notice({
@@ -742,7 +764,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('floorplan')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'floorplan'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -752,7 +774,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('shotlist')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'shotlist'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -762,7 +784,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('storyboard')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'storyboard'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -772,7 +794,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('linedscript')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'linedscript'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -782,7 +804,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('avscript')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'avscript'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -792,7 +814,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('sides')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'sides'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -802,7 +824,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('scriptreports')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'scriptreports'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -812,7 +834,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('dmx')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'dmx'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -822,7 +844,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('crew')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'crew'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -832,7 +854,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('equipment')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'equipment'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -842,7 +864,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('power')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'power'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -852,7 +874,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('rigging')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'rigging'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -862,7 +884,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('logistics')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'logistics'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -872,7 +894,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('continuity')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'continuity'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -882,7 +904,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('camerareport')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'camerareport'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -892,7 +914,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('soundreport')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'soundreport'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -902,7 +924,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('dailyprogress')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'dailyprogress'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -912,7 +934,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('runofshow')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'runofshow'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -922,7 +944,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('moodboard')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'moodboard'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -932,7 +954,7 @@ export const PrintableShotPlan: React.FC = () => {
               onClick={() => setExportSection('combined')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
                 exportSection === 'combined'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -956,7 +978,7 @@ export const PrintableShotPlan: React.FC = () => {
             {/* Print / Save PDF */}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold shadow-md transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-700 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold shadow-md transition-colors"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print / Save PDF</span>
@@ -990,7 +1012,7 @@ export const PrintableShotPlan: React.FC = () => {
                 <select
                   value={pngScale}
                   onChange={(e) => setPngScale(Number(e.target.value) as 2 | 3)}
-                  title="PNG resolution scale"
+                  aria-label="PNG resolution scale" title="PNG resolution scale"
                   className="px-1.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   <option value={2}>2x</option>
@@ -1013,7 +1035,7 @@ export const PrintableShotPlan: React.FC = () => {
                 <button
                   onClick={() => exportShotListToCsv(activeSetup, project.title)}
                   title="Download this scene's shot list as Excel / CSV"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   <span>CSV</span>
@@ -1037,7 +1059,7 @@ export const PrintableShotPlan: React.FC = () => {
                     onClick={() => setEquipmentScope('current')}
                     className={`px-2 py-1 rounded transition-colors ${
                       equipmentScope === 'current'
-                        ? 'bg-sky-600 text-white shadow-xs'
+                        ? 'bg-sky-700 text-white shadow-xs'
                         : 'text-slate-300 hover:text-white'
                     }`}
                   >
@@ -1067,7 +1089,7 @@ export const PrintableShotPlan: React.FC = () => {
                   title={`Download ${
                     equipmentScope === 'all' ? 'All Scenes Master Truck' : `Scene ${activeSetup.sceneNumber || '1'}`
                   } equipment manifest as Excel / CSV spreadsheet`}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   <span>CSV</span>
@@ -1094,6 +1116,17 @@ export const PrintableShotPlan: React.FC = () => {
               </span>
               Storyboards
             </button>
+            {showStoryboards && (
+              <select
+                value={boardSize}
+                onChange={(event) => setBoardSize(event.target.value as ShotListBoardSize)}
+                title="Storyboard size in the shot list (same setting as the Shot list tab)"
+                aria-label="Storyboard size in the shot list"
+                className="px-1.5 py-1.5 rounded-lg text-xs font-semibold border bg-slate-800 text-slate-200 border-slate-700"
+              >
+                {SHOT_LIST_BOARD_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
+              </select>
+            )}
 
             {/* Omit blank waypoints toggle */}
             {(exportSection === 'storyboard' || (exportSection === 'combined' && showStoryboards)) && (
@@ -1149,7 +1182,7 @@ export const PrintableShotPlan: React.FC = () => {
                   title="Everything Turned ON: all camera cones, light beams, labels, Kelvin, dim %, blocking waypoints and cues"
                   className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-all ${
                     exportViewMode === 'full' && Object.keys(customOverrides).length === 0
-                      ? 'bg-sky-600 text-white shadow-sm'
+                      ? 'bg-sky-700 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -1164,7 +1197,7 @@ export const PrintableShotPlan: React.FC = () => {
                   title="As Shown on Canvas: exactly matches your active floor plan workspace display toggles"
                   className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-all ${
                     exportViewMode === 'canvas' && Object.keys(customOverrides).length === 0
-                      ? 'bg-sky-600 text-white shadow-sm'
+                      ? 'bg-sky-700 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -1285,7 +1318,7 @@ export const PrintableShotPlan: React.FC = () => {
                 value={sidesDayId}
                 onChange={(e) => applySidesDay(e.target.value)}
                 className="px-2 py-1.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
-                title="Take the scenes scheduled on a shooting day, in shooting order"
+                aria-label="Take the scenes scheduled on a shooting day, in shooting order" title="Take the scenes scheduled on a shooting day, in shooting order"
               >
                 <option value="">From shooting day…</option>
                 {(project.productionDays ?? []).map((day) => (
@@ -1318,7 +1351,7 @@ export const PrintableShotPlan: React.FC = () => {
                     }}
                     title={heading.text}
                     className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
-                      on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-500'
+                      on ? 'bg-sky-700 border-sky-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-500'
                     } ${heading.omitted ? 'line-through' : ''}`}
                   >
                     {number}
@@ -1887,7 +1920,7 @@ export const PrintableShotPlan: React.FC = () => {
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-bold">
                       {showStoryboards && (
-                        <th className="p-2.5 w-16">STORY</th>
+                        <th className="p-2.5" style={{ width: PRINT_BOARD_WIDTH[boardSize] + 20 }}>STORY</th>
                       )}
                       <th className="p-2.5 font-mono w-16">SHOT #</th>
                       <th className="p-2.5 w-14">CAM</th>
@@ -1910,7 +1943,7 @@ export const PrintableShotPlan: React.FC = () => {
                               {keyFrameImage(shot) ? (
                                 <div
                                   className="overflow-hidden rounded border border-slate-300 bg-slate-100"
-                                  style={{ width: 64, aspectRatio: `${sceneAspectRatio} / 1` }}
+                                  style={{ width: PRINT_BOARD_WIDTH[boardSize], aspectRatio: `${sceneAspectRatio} / 1` }}
                                 >
                                   <ProjectImage
                                     imageRef={keyFrameImage(shot)}
@@ -2257,7 +2290,7 @@ export const PrintableShotPlan: React.FC = () => {
                       <button
                         onClick={() => setScriptScope('lined')}
                         className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
-                          scriptScope === 'lined' ? 'bg-sky-600 text-white' : 'text-slate-600'
+                          scriptScope === 'lined' ? 'bg-sky-700 text-white' : 'text-slate-600'
                         }`}
                       >
                         Lined portions
@@ -2265,7 +2298,7 @@ export const PrintableShotPlan: React.FC = () => {
                       <button
                         onClick={() => setScriptScope('full')}
                         className={`px-2 py-0.5 text-[11px] font-semibold rounded ${
-                          scriptScope === 'full' ? 'bg-sky-600 text-white' : 'text-slate-600'
+                          scriptScope === 'full' ? 'bg-sky-700 text-white' : 'text-slate-600'
                         }`}
                       >
                         Full screenplay
@@ -2300,6 +2333,8 @@ export const PrintableShotPlan: React.FC = () => {
                         showShotSize={eff.showShotSizeInScript !== false}
                         isLight
                         print
+                        revisionIndex={currentRevisionColor(project).index}
+                        pageStarts={project.scriptPageLock ? new Map(pageLabels(printedScriptLines, project.scriptPageLock).starts.map((start) => [start.lineId, start.label] as const)) : undefined}
                       />
                     )}
                   </div>

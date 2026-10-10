@@ -28,7 +28,7 @@ export const LayersPanel: React.FC = () => {
 
   if (layers.length === 0) {
     return (
-      <p className={`text-[11px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+      <p className={`text-[11px] italic text-ink-subtle`}>
         This scene has no layers yet — every element is unlayered and always visible.
       </p>
     );
@@ -37,7 +37,7 @@ export const LayersPanel: React.FC = () => {
   const iconBtnClass = (active: boolean) =>
     `flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 transition-colors ${
       active
-        ? 'bg-sky-600/15 text-sky-500'
+        ? 'bg-sky-600/15 text-accent-ink'
         : isLight
           ? 'text-slate-400 hover:bg-slate-200/70'
           : 'text-slate-500 hover:bg-slate-800'
@@ -64,7 +64,7 @@ export const LayersPanel: React.FC = () => {
               className={iconBtnClass(layer.locked)}
             >
               {layer.locked ? (
-                <Lock className="w-4 h-4 text-amber-500" />
+                <Lock className="w-4 h-4 text-warn" />
               ) : (
                 <Unlock className="w-4 h-4" />
               )}
@@ -77,7 +77,7 @@ export const LayersPanel: React.FC = () => {
               {layer.name}
             </span>
             {layer.opacity !== undefined && (
-              <span className="text-[9px] font-mono text-sky-500 flex-shrink-0 select-none">
+              <span className="text-[10px] font-mono text-accent-ink flex-shrink-0 select-none">
                 {Math.round(layer.opacity * 100)}%
               </span>
             )}
@@ -90,13 +90,13 @@ export const LayersPanel: React.FC = () => {
               step={5}
               value={Math.round((layer.opacity ?? 1) * 100)}
               onChange={(e) => updateLayer(layer.id, { opacity: Number(e.target.value) / 100 })}
-              title="Layer opacity"
+              aria-label="Layer opacity" title="Layer opacity"
               className="w-full h-1.5 accent-sky-500 cursor-pointer"
             />
           </div>
         </div>
       ))}
-      <p className={`text-[10px] italic pt-1 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+      <p className={`text-[10px] italic pt-1 text-ink-subtle`}>
         Hidden layers are not rendered or exported to screen; locked layers cannot be selected or
         dragged. Unlayered elements always show.
       </p>

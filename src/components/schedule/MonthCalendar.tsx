@@ -68,23 +68,23 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
 }) => {
   const grid = useMemo(() => buildMonthGrid(yearMonth), [yearMonth]);
   const today = todayIso();
-  const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';
+  const mutedCls = 'text-ink-muted';
 
   return (
-    <div className={`rounded-lg border overflow-hidden ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-900'}`}>
+    <div className={`rounded-lg border overflow-hidden border-line-strong bg-surface`}>
       <div className="flex items-center justify-between px-2 py-1.5 bg-slate-900 text-white">
         <button onClick={() => onChangeMonth(shiftYearMonth(yearMonth, -1))} className="p-1 rounded hover:bg-white/10" title="Previous month" aria-label="Previous month"><ChevronLeft className="w-4 h-4" /></button>
         <div className="flex items-center gap-2">
           <span className="text-xs font-black uppercase tracking-wider">{monthLabel(yearMonth)}</span>
-          <button onClick={() => onChangeMonth(yearMonthOf(today))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">Today</button>
+          <button onClick={() => onChangeMonth(yearMonthOf(today))} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">Today</button>
         </div>
         <button onClick={() => onChangeMonth(shiftYearMonth(yearMonth, 1))} className="p-1 rounded hover:bg-white/10" title="Next month" aria-label="Next month"><ChevronRight className="w-4 h-4" /></button>
       </div>
-      <div className={`grid grid-cols-7 text-[9px] font-black uppercase tracking-wider ${isLight ? 'bg-slate-100 text-slate-500' : 'bg-slate-950 text-slate-400'}`}>
+      <div className={`grid grid-cols-7 text-[10px] font-black uppercase tracking-wider bg-surface-sunken text-ink-muted`}>
         {WEEKDAYS.map((day) => <div key={day} className="px-1.5 py-1 text-center">{day}</div>)}
       </div>
       {grid.weeks.map((week, weekIndex) => (
-        <div key={weekIndex} className={`grid grid-cols-7 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div key={weekIndex} className={`grid grid-cols-7 border-t border-line`}>
           {week.map((day) => {
             const dayEvents = eventsOnDay(events, day.iso);
             const shootDays = productionDaysOn(days, day.iso);
@@ -103,7 +103,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                 <div className="flex items-center justify-between">
                   <span className={`text-[10px] font-bold w-5 h-5 grid place-items-center rounded-full ${isToday ? 'bg-cyan-500 text-white' : mutedCls}`}>{day.dayOfMonth}</span>
                   {shootDays.length > 0 && (
-                    <span className="text-[8px] font-black uppercase px-1 rounded bg-amber-500 text-black" title={shootDays.map((d) => d.name).join(', ')}>
+                    <span className="text-[10px] font-black uppercase px-1 rounded bg-amber-500 text-black" title={shootDays.map((d) => d.name).join(', ')}>
                       {shootDays.length === 1 ? shootDays[0].name : `${shootDays.length} days`}
                     </span>
                   )}
@@ -112,14 +112,14 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                   {scheduledWork.flatMap((workDay) => workDay.items).slice(0, 2).map((item, index) => (
                     <p
                       key={`work-${index}-${item.label}`}
-                      className={`text-[8px] truncate px-1 rounded border font-semibold ${isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/50 text-amber-200'}`}
+                      className={`text-[10px] truncate px-1 rounded border font-semibold ${isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/50 text-amber-200'}`}
                       title={item.label}
                     >
                       {item.label}
                     </p>
                   ))}
                   {scheduledWork.reduce((sum, workDay) => sum + workDay.items.length, 0) > 2 && (
-                    <p className={`text-[8px] ${mutedCls}`}>
+                    <p className={`text-[10px] ${mutedCls}`}>
                       +{scheduledWork.reduce((sum, workDay) => sum + workDay.items.length, 0) - 2} scheduled
                     </p>
                   )}
@@ -135,7 +135,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                           e.stopPropagation();
                           onSelectEvent(selected ? null : event.id);
                         }}
-                        className={`w-full text-left text-[9px] font-bold text-white px-1 leading-4 truncate ${starts ? 'rounded-l' : ''} ${ends ? 'rounded-r' : ''} ${
+                        className={`w-full text-left text-[10px] font-bold text-white px-1 leading-4 truncate ${starts ? 'rounded-l' : ''} ${ends ? 'rounded-r' : ''} ${
                           selected ? 'ring-2 ring-white/80' : ''
                         } ${event.status === 'done' ? 'opacity-60 line-through' : ''}`}
                         style={{ backgroundColor: color }}
@@ -145,9 +145,9 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                       </button>
                     );
                   })}
-                  {dayEvents.length > 3 && <p className={`text-[8px] ${mutedCls}`}>+{dayEvents.length - 3} more</p>}
+                  {dayEvents.length > 3 && <p className={`text-[10px] ${mutedCls}`}>+{dayEvents.length - 3} more</p>}
                   {due.slice(0, 2).map((task) => (
-                    <p key={task.id} className={`text-[8px] truncate px-1 rounded border ${task.completedAt ? 'opacity-50 line-through' : ''} ${isLight ? 'border-violet-300 text-violet-700 bg-violet-50' : 'border-violet-700 text-violet-300 bg-violet-950/40'}`} title={`Task due: ${task.title}`}>
+                    <p key={task.id} className={`text-[10px] truncate px-1 rounded border ${task.completedAt ? 'opacity-50 line-through' : ''} ${isLight ? 'border-violet-300 text-violet-700 bg-violet-50' : 'border-violet-700 text-violet-300 bg-violet-950/40'}`} title={`Task due: ${task.title}`}>
                       ☐ {task.title}
                     </p>
                   ))}
@@ -173,15 +173,15 @@ interface CalendarEventEditorProps {
 /** Inline editor for one calendar event: dates, category, status, color, assignees, notes. */
 export const CalendarEventEditor: React.FC<CalendarEventEditorProps> = ({ event, people, onUpdate, onDelete, onClose, isLight }) => {
   const inputCls = `min-h-[32px] w-full rounded-md border px-2 py-1 text-xs outline-none ${
-    isLight ? 'border-slate-300 bg-white text-slate-800 focus:border-sky-400' : 'border-slate-700 bg-slate-950 text-slate-200 focus:border-sky-500'
+    'border-line-strong bg-field text-ink focus:border-accent'
   }`;
-  const labelCls = `text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`;
+  const labelCls = `text-[10px] font-bold uppercase tracking-wider text-ink-muted`;
   const assignees = event.assigneeIds ?? [];
   return (
     <div className={`rounded-lg border p-3 space-y-2 ${isLight ? 'border-sky-200 bg-sky-50/60' : 'border-sky-900/60 bg-sky-950/20'}`}>
       <div className="flex items-center gap-2">
         <input value={event.title} onChange={(e) => onUpdate({ title: e.target.value })} className={`${inputCls} font-semibold`} />
-        <button onClick={onClose} className={`text-[10px] font-bold px-2 py-1 rounded border ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>Close</button>
+        <button onClick={onClose} className={`text-[10px] font-bold px-2 py-1 rounded border border-line-strong`}>Close</button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <label className="block space-y-1"><span className={labelCls}>Start</span>
@@ -218,7 +218,7 @@ export const CalendarEventEditor: React.FC<CalendarEventEditorProps> = ({ event,
                   key={person.id}
                   onClick={() => onUpdate({ assigneeIds: on ? assignees.filter((id) => id !== person.id) : [...assignees, person.id] })}
                   aria-pressed={on}
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${on ? 'bg-sky-600 text-white border-sky-500' : isLight ? 'border-slate-300 text-slate-600' : 'border-slate-700 text-slate-300'}`}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${on ? 'bg-accent text-white border-sky-500' : 'border-line-strong text-ink-soft'}`}
                 >
                   {person.displayName}
                 </button>

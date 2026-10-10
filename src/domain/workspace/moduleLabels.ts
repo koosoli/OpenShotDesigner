@@ -19,35 +19,36 @@ export const MODULE_PICKER_GROUPS: Array<{
       { id: 'equipment', label: 'Gear & DMX' },
     ],
   },
+  // The Production menu, grouped by phase in the order the work happens.
   {
-    label: 'Planning',
+    label: 'Prep',
     modules: [
-      { id: 'schedule', label: 'Schedule & call sheets' },
-      { id: 'locations', label: 'Locations' },
+      { id: 'locations', label: 'Locations & scouting' },
       { id: 'moodboard', label: 'Moodboard' },
-    ],
-  },
-  {
-    label: 'People & money',
-    modules: [
       { id: 'contacts', label: 'Crew, cast & contacts' },
-      { id: 'tasks', label: 'Task board' },
       { id: 'budget', label: 'Budget' },
+      { id: 'tasks', label: 'Task board' },
     ],
   },
   {
-    label: 'Operations',
-    modules: [
-      { id: 'logistics', label: 'Logistics' },
-      { id: 'run_of_show', label: 'Run of show' },
-      { id: 'continuity', label: 'Continuity' },
-    ],
-  },
-  {
-    label: 'Technical',
+    label: 'Plan',
     modules: [
       { id: 'power', label: 'Power' },
       { id: 'rigging', label: 'Rigging' },
+    ],
+  },
+  {
+    label: 'Schedule',
+    modules: [
+      { id: 'schedule', label: 'Schedule, call sheets & time reports' },
+      { id: 'run_of_show', label: 'Run of show' },
+    ],
+  },
+  {
+    label: 'Shoot',
+    modules: [
+      { id: 'continuity', label: 'Continuity' },
+      { id: 'logistics', label: 'Logistics' },
     ],
   },
 ];

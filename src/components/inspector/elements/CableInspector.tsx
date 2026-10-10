@@ -32,7 +32,7 @@ export const CableInspector: React.FC<CableInspectorProps> = ({ cable, isLight }
   const unit = activeSetup.gridSettings?.unit || 'm';
   const lengthVal = Math.round((Math.hypot((cable.x2 ?? cable.x + 150) - cable.x, (cable.y2 ?? cable.y) - cable.y) / ppu) * 10) / 10;
   const strokeWidth = cable.strokeWidth || 3.5;
-  const inputClass = `w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`;
+  const inputClass = `w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`;
   const linkableElements = activeSetup.elements.filter((e) => e.id !== cable.id);
   const fromLinked = cable.fromElementId ? activeSetup.elements.find((e) => e.id === cable.fromElementId) : undefined;
   const toLinked = cable.toElementId ? activeSetup.elements.find((e) => e.id === cable.toElementId) : undefined;
@@ -263,7 +263,7 @@ export const CableInspector: React.FC<CableInspectorProps> = ({ cable, isLight }
             onClick={() => updateElement(cable.id, { showLabel: cable.showLabel !== false ? false : true })}
             className={`px-3 py-1 text-[10px] font-bold rounded border ${
               cable.showLabel !== false
-                ? 'bg-sky-600 text-white border-sky-500'
+                ? 'bg-accent text-white border-sky-500'
                 : isLight
                 ? 'bg-slate-50 text-slate-500 border-slate-300'
                 : 'bg-slate-950 text-slate-500 border-slate-700'

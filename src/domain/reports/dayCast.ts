@@ -20,10 +20,57 @@
 import type { ScheduleBlock } from '../scheduling';
 import type { CastAssignment } from '../people';
 
+/**
+ * Lookup tables, cached per source array. Every derivation here runs once per
+ * day (and the one-liner once per strip), so scanning the block, setup and
+ * scene lists each time made a long schedule quadratic. The project's arrays
+ * are immutable, so a WeakMap keyed on the array itself is a safe cache.
+ */
+const memo = <K extends object, V>(build: (key: K) => V) => {
+  const cache = new WeakMap<K, V>();
+  return (key: K): V => {
+    let value = cache.get(key);
+    if (value === undefined) {
+      value = build(key);
+      cache.set(key, value);
+    }
+    return value;
+  };
+};
+
+const blockIndex = memo((blocks: readonly ScheduleBlock[]) => new Map(blocks.map((block) => [block.id, block] as const)));
+
+type SetupLike = { id: string; sceneNumber?: string; elements?: Array<{ id: string; type: string; characterId?: string }>; shots?: Array<{ id: string }> };
+const setupIndex = memo((setups: readonly SetupLike[]) => {
+  const byId = new Map<string, SetupLike>();
+  const ownerOfShot = new Map<string, SetupLike>();
+  for (const setup of setups) {
+    byId.set(setup.id, setup);
+    for (const shot of setup.shots ?? []) if (!ownerOfShot.has(shot.id)) ownerOfShot.set(shot.id, setup);
+  }
+  return { byId, ownerOfShot };
+});
+
+const sceneIndex = memo((scenes: ReadonlyArray<{ id: string; sceneNumber?: string; characterIds?: string[] }>) => {
+  const byId = new Map(scenes.map((scene) => [scene.id, scene] as const));
+  const idsByNumber = new Map<string, string[]>();
+  for (const scene of scenes) {
+    const number = scene.sceneNumber?.trim();
+    if (!number) continue;
+    const list = idsByNumber.get(number);
+    if (list) list.push(scene.id);
+    else idsByNumber.set(number, [scene.id]);
+  }
+  return { byId, idsByNumber };
+});
+
+const NO_SETUPS: SetupLike[] = [];
+const NO_SCENES: Array<{ id: string; sceneNumber: string }> = [];
+
 /** The slice of a project this derivation needs; keeps it pure and testable. */
 export interface DayCastSources {
-  scriptScenes?: Array<{ id: string; characterIds?: string[] }>;
-  setups?: Array<{
+  scriptScenes?: ReadonlyArray<{ id: string; characterIds?: string[] }>;
+  setups?: ReadonlyArray<{
     id: string;
     elements?: Array<{ id: string; type: string; characterId?: string }>;
     shots?: Array<{ id: string }>;
@@ -48,14 +95,13 @@ export const charactersScheduledOn = (
   blocks: readonly ScheduleBlock[],
   sources: DayCastSources,
 ): Set<string> => {
-  const byId = new Map(blocks.map((block) => [block.id, block] as const));
-  const setups = sources.setups ?? [];
+  const byId = blockIndex(blocks);
+  const setups = setupIndex(sources.setups ?? NO_SETUPS);
+  const scenes = sceneIndex(sources.scriptScenes ?? NO_SCENES);
   const characterIds = new Set<string>();
 
-  const addSetup = (setupId: string): void => {
-    for (const id of characterIdsOnSetup(setups.find((setup) => setup.id === setupId))) {
-      characterIds.add(id);
-    }
+  const addSetup = (setup: SetupLike | undefined): void => {
+    for (const id of characterIdsOnSetup(setup)) characterIds.add(id);
   };
 
   for (const blockId of scheduleBlockIds) {
@@ -63,19 +109,15 @@ export const charactersScheduledOn = (
     if (!block) continue;
     switch (block.kind) {
       case 'scene': {
-        const scene = sources.scriptScenes?.find((candidate) => candidate.id === block.scriptSceneId);
-        for (const id of scene?.characterIds ?? []) characterIds.add(id);
+        for (const id of scenes.byId.get(block.scriptSceneId)?.characterIds ?? []) characterIds.add(id);
         break;
       }
       case 'setup':
-        addSetup(block.setupId);
+        addSetup(setups.byId.get(block.setupId));
         break;
       case 'shots': {
         // A shot belongs to exactly one setup; the actors on it are called.
-        for (const shotId of block.shotIds) {
-          const owner = setups.find((setup) => (setup.shots ?? []).some((shot) => shot.id === shotId));
-          if (owner) addSetup(owner.id);
-        }
+        for (const shotId of block.shotIds) addSetup(setups.ownerOfShot.get(shotId));
         break;
       }
       default:
@@ -85,6 +127,43 @@ export const charactersScheduledOn = (
   }
 
   return characterIds;
+};
+
+/** The slice of a project `sceneIdsScheduledOn` needs. */
+export interface DaySceneSources {
+  scriptScenes?: ReadonlyArray<{ id: string; sceneNumber: string }>;
+  setups?: ReadonlyArray<{ id: string; sceneNumber?: string; shots?: Array<{ id: string }> }>;
+}
+
+/**
+ * Script scenes shot on a day, from scene strips directly and from setup and
+ * shot strips through the setup's scene number — the same link the strip
+ * labels use. A setup numbered "12" brings every scene numbered "12".
+ */
+export const sceneIdsScheduledOn = (
+  scheduleBlockIds: readonly string[],
+  blocks: readonly ScheduleBlock[],
+  sources: DaySceneSources,
+): Set<string> => {
+  const byId = blockIndex(blocks);
+  const setups = setupIndex(sources.setups ?? NO_SETUPS);
+  const scenes = sceneIndex(sources.scriptScenes ?? NO_SCENES);
+  const ids = new Set<string>();
+  const addSetup = (setup: SetupLike | undefined) => {
+    const number = setup?.sceneNumber?.trim();
+    if (!number) return;
+    for (const id of scenes.idsByNumber.get(number) ?? []) ids.add(id);
+  };
+  for (const blockId of scheduleBlockIds) {
+    const block = byId.get(blockId);
+    if (!block) continue;
+    if (block.kind === 'scene') ids.add(block.scriptSceneId);
+    else if (block.kind === 'setup') addSetup(setups.byId.get(block.setupId));
+    else if (block.kind === 'shots') {
+      for (const shotId of block.shotIds) addSetup(setups.ownerOfShot.get(shotId));
+    }
+  }
+  return ids;
 };
 
 /**

@@ -31,7 +31,7 @@ export const RoadInspector: React.FC<RoadInspectorProps> = ({ road, isLight }) =
   const btn = (active: boolean) =>
     `py-1.5 px-2 rounded-lg border text-[10px] font-semibold transition-colors ${
       active
-        ? 'bg-sky-600 text-white border-sky-500'
+        ? 'bg-accent text-white border-sky-500'
         : isLight
         ? 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
         : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
@@ -43,7 +43,7 @@ export const RoadInspector: React.FC<RoadInspectorProps> = ({ road, isLight }) =
         title="Street Surface & Markings"
         icon={<Square className="w-3.5 h-3.5 text-zinc-400" />}
         badge={
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/10 font-bold">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-500/10 font-bold">
             {(length / 50).toFixed(2)}m
           </span>
         }
@@ -52,7 +52,7 @@ export const RoadInspector: React.FC<RoadInspectorProps> = ({ road, isLight }) =
       >
         <div className="flex items-center justify-between text-xs">
           <span className="opacity-60">Run length:</span>
-          <span className="font-mono text-sky-500 font-bold">{(length / 50).toFixed(2)}m ({length}px)</span>
+          <span className="font-mono text-accent-ink font-bold">{(length / 50).toFixed(2)}m ({length}px)</span>
         </div>
 
         <div>
@@ -125,7 +125,7 @@ export const RoadInspector: React.FC<RoadInspectorProps> = ({ road, isLight }) =
                 updateElement(road.id, { lanes: Math.max(1, Math.min(8, Number(e.target.value) || 1)) })
               }
               className={`w-full border rounded p-1.5 font-mono text-xs ${
-                isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                'bg-field text-ink border-line-strong'
               }`}
             />
           </div>
@@ -150,7 +150,7 @@ export const RoadInspector: React.FC<RoadInspectorProps> = ({ road, isLight }) =
             onChange={(e) => updateElement(road.id, { label: e.target.value || undefined })}
             placeholder="e.g. Riverside Promenade"
             className={`w-full border rounded p-1.5 text-xs ${
-              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+              'bg-field text-ink border-line-strong'
             }`}
           />
         </div>

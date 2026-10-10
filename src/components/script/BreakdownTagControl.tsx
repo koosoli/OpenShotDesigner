@@ -35,7 +35,7 @@ export const BreakdownTagControl: React.FC<BreakdownTagControlProps> = ({
   lineIds,
   ranges,
   selectedText,
-  isLight,
+  isLight: _isLight,
 }) => {
   const { project, updateProjectMeta } = useFloorPlan();
   const [category, setCategory] = useState<BreakdownCategory>('prop');
@@ -66,7 +66,7 @@ export const BreakdownTagControl: React.FC<BreakdownTagControlProps> = ({
   };
 
   const field = `rounded-lg border px-2 py-1.5 text-[11px] ${
-    isLight ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700'
+    'bg-surface border-line-strong'
   }`;
 
   return (
@@ -75,7 +75,7 @@ export const BreakdownTagControl: React.FC<BreakdownTagControlProps> = ({
         value={category}
         onMouseDown={(event) => event.stopPropagation()}
         onChange={(event) => setCategory(event.target.value as BreakdownCategory)}
-        title="Which department this element belongs to"
+        aria-label="Which department this element belongs to" title="Which department this element belongs to"
         className={field}
         style={{ borderLeft: `3px solid ${breakdownCategoryTint(category)}` }}
       >
@@ -95,7 +95,7 @@ export const BreakdownTagControl: React.FC<BreakdownTagControlProps> = ({
           }
         }}
         placeholder={suggestion ? `Element name (${suggestion})` : 'Element name'}
-        title="Leave blank to use the highlighted words"
+        aria-label="Leave blank to use the highlighted words" title="Leave blank to use the highlighted words"
         className={`flex-1 min-w-[9rem] ${field}`}
       />
       <button

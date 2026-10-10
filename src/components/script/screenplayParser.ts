@@ -239,7 +239,10 @@ export const parseFinalDraftXml = (raw: string): ParsedElement[] => {
   const out: ParsedElement[] = [];
   let currentScene: string | undefined;
 
-  Array.from(doc.querySelectorAll('Paragraph')).forEach((paragraph) => {
+  // Only the script body: a Final Draft file's <TitlePage> holds paragraphs
+  // too, and reading those imported the cover as action lines.
+  const body = doc.querySelector('FinalDraft > Content') ?? doc.documentElement;
+  Array.from(body.querySelectorAll(':scope > Paragraph')).forEach((paragraph) => {
     const text = Array.from(paragraph.querySelectorAll('Text'))
       .map((node) => node.textContent || '')
       .join('')

@@ -124,7 +124,7 @@ test('GOOD take drives On-set coverage and the Continuity checklist', async ({ p
   await expect(page.getByRole('dialog', { name: 'On-set mode' }).getByText(/1 covered/)).toBeVisible();
   await page.getByRole('dialog', { name: 'On-set mode' }).getByRole('button', { name: /Exit on-set mode/ }).click();
 
-  await page.getByRole('button', { name: 'Production', exact: true }).click();
+  await page.getByRole('button', { name: /^Production modules/ }).click();
   await page.getByRole('button', { name: 'Continuity', exact: true }).click();
   await expect(page.getByText(/(?:Shooting-day|Whole-production) checklist/)).toBeVisible();
   await expect(page.getByText('1 take', { exact: true }).first()).toBeVisible();
@@ -210,7 +210,7 @@ test('a multi-role crew member has one crew row on the call sheet', async ({ pag
   fixture.castAssignments = [];
 
   await importProject(page, fixture);
-  await page.getByRole('button', { name: 'Production', exact: true }).click();
+  await page.getByRole('button', { name: /^Production modules/ }).click();
   await page.getByRole('button', { name: 'Schedule', exact: true }).click();
   await page.getByRole('button', { name: 'Call sheets', exact: true }).click();
 
@@ -350,7 +350,7 @@ test('shot list downloads as a real PDF file', async ({ page }) => {
   await createExampleProject(page, `PDF export ${Date.now()}`);
   await page.getByRole('button', { name: /Shot list/ }).click();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Shotliste als PDF exportieren' }).click();
+  await page.getByRole('button', { name: 'Download the shot list as a PDF' }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/\.pdf$/);
   expect(await download.path()).toBeTruthy();

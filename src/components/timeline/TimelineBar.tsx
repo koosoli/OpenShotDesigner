@@ -54,7 +54,7 @@ export const TimelineBar: React.FC = () => {
           onClick={() => setCurrentBeat(1)}
           title="Rewind to Start (Beat 1)"
           aria-label="Rewind to Start (Beat 1)"
-          className={`p-2 rounded-lg transition-colors ${isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+          className={`p-2 rounded-lg transition-colors text-ink-muted hover:text-ink hover:bg-surface-hover`}
         >
           <RotateCcw className="w-4 h-4" />
         </button>
@@ -63,7 +63,7 @@ export const TimelineBar: React.FC = () => {
           onClick={() => setCurrentBeat(Math.max(1, Math.floor(currentBeat - 1)))}
           title="Previous Beat"
           aria-label="Previous Beat"
-          className={`p-2 rounded-lg transition-colors ${isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+          className={`p-2 rounded-lg transition-colors text-ink-muted hover:text-ink hover:bg-surface-hover`}
         >
           <SkipBack className="w-4 h-4" />
         </button>
@@ -73,7 +73,7 @@ export const TimelineBar: React.FC = () => {
           onClick={togglePlayback}
           title={isPlaying ? 'Pause Simulation (Space)' : 'Play Blocking Animation'}
           aria-label={isPlaying ? 'Pause Simulation (Space)' : 'Play Blocking Animation'}
-          className="flex items-center justify-center w-10 h-10 bg-sky-600 hover:bg-sky-500 text-white rounded-xl shadow-lg transition-transform active:scale-95"
+          className="flex items-center justify-center w-10 h-10 bg-accent hover:bg-accent-hover text-white rounded-xl shadow-lg transition-transform active:scale-95"
         >
           {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
         </button>
@@ -82,12 +82,12 @@ export const TimelineBar: React.FC = () => {
           onClick={() => setCurrentBeat(Math.min(totalBeats, Math.floor(currentBeat + 1)))}
           title="Next Beat"
           aria-label="Next Beat"
-          className={`p-2 rounded-lg transition-colors ${isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+          className={`p-2 rounded-lg transition-colors text-ink-muted hover:text-ink hover:bg-surface-hover`}
         >
           <SkipForward className="w-4 h-4" />
         </button>
 
-        <div className={`w-[1px] h-6 mx-1 ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`} />
+        <div className={`w-[1px] h-6 mx-1 bg-surface-muted`} />
 
         {/* Speed Toggle */}
         <button
@@ -110,7 +110,7 @@ export const TimelineBar: React.FC = () => {
           className={`p-2 rounded-lg transition-colors ${
             isLooping
               ? isLight ? 'bg-sky-100 text-sky-600 border border-sky-300' : 'bg-sky-950 text-sky-400 border border-sky-800/60'
-              : isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-500 hover:text-slate-300'
+              : 'text-ink-subtle hover:text-ink-soft'
           }`}
           title="Loop Animation"
           aria-label="Loop Animation"
@@ -124,7 +124,7 @@ export const TimelineBar: React.FC = () => {
           className={`p-2 rounded-lg border transition-colors ${
             displaySettings.showSpeechBubbles
               ? isLight ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-emerald-950/50 text-emerald-400 border-emerald-800'
-              : isLight ? 'text-slate-400 border-slate-200 hover:text-slate-700' : 'text-slate-500 border-slate-800 hover:text-slate-300'
+              : 'text-ink-subtle border-line hover:text-ink-soft'
           }`}
           title={displaySettings.showSpeechBubbles ? 'Hide actor speech bubbles' : 'Show actor speech bubbles'}
           aria-label={displaySettings.showSpeechBubbles ? 'Hide actor speech bubbles' : 'Show actor speech bubbles'}
@@ -137,10 +137,10 @@ export const TimelineBar: React.FC = () => {
       {/* 2. Central Timeline Scrubber with Beat Markers & Dialogue tooltips */}
       <div className="flex-1 max-w-2xl px-4 flex flex-col justify-center">
         <div className="flex items-center justify-between text-[11px] font-mono mb-1">
-          <span className="flex items-center gap-1.5 font-bold text-sky-500">
+          <span className="flex items-center gap-1.5 font-bold text-accent-ink">
             <Film className="w-3.5 h-3.5" />
             BEAT {Math.floor(currentBeat)} / {totalBeats}
-            <span className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+            <span className={`text-[10px] text-ink-subtle`}>
               ({Math.round(((currentBeat - 1) / (totalBeats - 1 || 1)) * 100)}%)
             </span>
           </span>
@@ -149,7 +149,7 @@ export const TimelineBar: React.FC = () => {
             {dialogueBeats
               .filter((d) => Math.abs(d.beat - Math.round(currentBeat)) <= 0.5)
               .map((d, i) => (
-                <span key={i} className="text-emerald-500 italic text-[11px] truncate max-w-xs font-semibold">
+                <span key={i} className="text-ok italic text-[11px] truncate max-w-xs font-semibold">
                   {d.actorName}: {d.cue}
                 </span>
               ))}
@@ -159,7 +159,7 @@ export const TimelineBar: React.FC = () => {
         {/* Scrubber Track */}
         <div className="relative flex items-center h-5">
           {/* Beat Markers along track */}
-          <div className={`absolute inset-x-0 h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
+          <div className={`absolute inset-x-0 h-1.5 rounded-full overflow-hidden bg-surface-muted`}>
             <div
               className="h-full bg-sky-500 transition-all duration-75"
               style={{
@@ -174,6 +174,7 @@ export const TimelineBar: React.FC = () => {
             min={1}
             max={totalBeats}
             step={0.01}
+            aria-label="Playback position"
             value={currentBeat}
             onChange={(e) => setCurrentBeat(Number(e.target.value))}
             className="w-full relative z-10 opacity-0 cursor-pointer h-5"
@@ -191,12 +192,12 @@ export const TimelineBar: React.FC = () => {
                 onClick={() => setCurrentBeat(beatNum)}
                 aria-label={`Go to beat ${beatNum}`}
                 style={{ left: `${leftPercent}%` }}
-                className={`absolute -translate-x-1/2 w-4 h-4 rounded-full border-2 flex items-center justify-center text-[9px] font-bold font-mono transition-transform hover:scale-125 z-20 ${
+                className={`absolute -translate-x-1/2 w-4 h-4 rounded-full border-2 flex items-center justify-center text-[10px] font-bold font-mono transition-transform hover:scale-125 z-20 ${
                   Math.abs(currentBeat - beatNum) < 0.2
                     ? 'bg-sky-500 text-white border-white scale-110 shadow-lg'
                     : isPassed
                     ? isLight ? 'bg-sky-100 text-sky-700 border-sky-500' : 'bg-sky-950 text-sky-300 border-sky-500'
-                    : isLight ? 'bg-white text-slate-400 border-slate-300' : 'bg-slate-900 text-slate-500 border-slate-700'
+                    : 'bg-surface text-ink-subtle border-line-strong'
                 }`}
               >
                 {beatNum}
@@ -213,7 +214,7 @@ export const TimelineBar: React.FC = () => {
           disabled={totalBeats <= 2}
           title="Remove last beat"
           className={`px-2 py-1 text-xs disabled:opacity-30 rounded border ${
-            isLight ? 'text-slate-500 hover:text-slate-800 border-slate-300 hover:bg-slate-100' : 'text-slate-400 hover:text-slate-200 border-slate-800 hover:bg-slate-800'
+            'text-ink-muted hover:text-ink-soft border-line-strong hover:bg-surface-hover'
           }`}
         >
           - Beat

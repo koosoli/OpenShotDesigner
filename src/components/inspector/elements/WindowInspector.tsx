@@ -29,7 +29,7 @@ export const WindowInspector: React.FC<WindowInspectorProps> = ({ win, isLight }
       <RubricSection
             persistKey="windowinspector.window-dimensions-sunlight"
         title="Window Dimensions & Sunlight"
-        icon={<AppWindow className="w-3.5 h-3.5 text-sky-500" />}
+        icon={<AppWindow className="w-3.5 h-3.5 text-accent-ink" />}
         defaultOpen={true}
         isLight={isLight}
       >
@@ -41,7 +41,7 @@ export const WindowInspector: React.FC<WindowInspectorProps> = ({ win, isLight }
             max={250}
             value={win.width || 80}
             onChange={(e) => updateElement(win.id, { width: Number(e.target.value) })}
-            className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+            className={`w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`}
           />
         </div>
 
@@ -53,7 +53,7 @@ export const WindowInspector: React.FC<WindowInspectorProps> = ({ win, isLight }
             max={30}
             value={win.depth || 12}
             onChange={(e) => updateElement(win.id, { depth: Number(e.target.value) })}
-            className={`w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+            className={`w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`}
           />
         </div>
 
@@ -77,7 +77,7 @@ export const WindowInspector: React.FC<WindowInspectorProps> = ({ win, isLight }
         <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
           <div className="flex justify-between items-center mb-1">
             <span className="opacity-60 text-xs">Window Facing Angle</span>
-            <span className="font-mono text-xs font-bold text-sky-500">
+            <span className="font-mono text-xs font-bold text-accent-ink">
               {Math.round(((win.rotation || 0) % 360 + 360) % 360)}°
             </span>
           </div>

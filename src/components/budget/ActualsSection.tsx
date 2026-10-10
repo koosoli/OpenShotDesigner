@@ -68,9 +68,9 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
   const [draftCategory, setDraftCategory] = useState<BudgetCategory>('other');
 
   const inputCls = `w-full text-xs rounded-md border px-2 py-1.5 ${
-    isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-950'
+    'border-line-strong bg-field'
   }`;
-  const labelCls = `text-[10px] font-semibold ${isLight ? 'text-slate-500' : 'text-slate-400'}`;
+  const labelCls = `text-[10px] font-semibold text-ink-muted`;
   const cardCls = `rounded-xl border p-3 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800/60 bg-slate-900/40'}`;
 
   const patchActuals = (next: BudgetActual[]) =>
@@ -173,10 +173,10 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
                   ? Math.round((spent - estimate.plannedNet) * 100) / 100
                   : undefined;
                 return (
-                  <tr key={estimate.id} className={`border-t ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>
+                  <tr key={estimate.id} className={`border-t border-line`}>
                     <td className="px-3 py-1.5 min-w-0">
                       <div className="font-semibold truncate">{estimate.label}</div>
-                      <div className={`text-[9px] truncate ${labelCls}`}>{estimate.detail ?? estimate.category}</div>
+                      <div className={`text-[10px] truncate ${labelCls}`}>{estimate.detail ?? estimate.category}</div>
                     </td>
                     <td className="px-2 py-1.5 text-right font-mono">{estimate.plannedNet === undefined ? 'Not priced' : formatMoney(estimate.plannedNet, currency)}</td>
                     <td className="px-2 py-1.5">
@@ -199,7 +199,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
                       />
                     </td>
                     <td className={`px-3 py-1.5 text-right font-mono font-bold ${
-                      difference === undefined ? labelCls : difference > 0 ? 'text-amber-500' : difference < 0 ? 'text-emerald-500' : ''
+                      difference === undefined ? labelCls : difference > 0 ? 'text-warn' : difference < 0 ? 'text-ok' : ''
                     }`}>
                       {difference === undefined
                         ? '—'
@@ -346,7 +346,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
       </div>
 
       {actuals.length > 0 && (
-        <div className={`mt-2 pt-2 border-t space-y-1 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div className={`mt-2 pt-2 border-t space-y-1 border-line`}>
           <div className={`text-[10px] font-black uppercase tracking-wider ${labelCls}`}>
             Cost report — estimate vs actual, per category
           </div>
@@ -366,7 +366,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
                   <td className="text-right font-mono">{row.estimate === null ? '—' : formatMoney(row.estimate, currency)}</td>
                   <td className="text-right font-mono">{formatMoney(row.spent, currency)}</td>
                   <td className={`text-right font-mono font-semibold ${
-                    row.over === null ? '' : row.over > 0 ? 'text-amber-500' : row.over < 0 ? 'text-emerald-500' : ''
+                    row.over === null ? '' : row.over > 0 ? 'text-warn' : row.over < 0 ? 'text-ok' : ''
                   }`}>
                     {row.estimate === null
                       ? '—'
@@ -375,12 +375,12 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
                 </tr>
               ))}
               {estimatedNet !== undefined && (
-                <tr className={`border-t ${isLight ? 'border-slate-200' : 'border-slate-800'} font-bold`}>
+                <tr className={`border-t border-line font-bold`}>
                   <td>Total</td>
                   <td className="text-right font-mono">{formatMoney(estimatedNet, currency)}</td>
                   <td className="text-right font-mono">{formatMoney(total, currency)}</td>
                   {variance && (
-                    <td className={`text-right font-mono ${variance.over > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                    <td className={`text-right font-mono ${variance.over > 0 ? 'text-warn' : 'text-ok'}`}>
                       {variance.over > 0 ? '+' : variance.over < 0 ? '−' : ''}
                       {formatMoney(Math.abs(variance.over), currency)}
                     </td>
@@ -395,13 +395,13 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
       {/* Line detail: only lines with an attachment can speak here.
           "Alex wants more money" is a number on Alex's row, not a mood. */}
       {lineVariances.length > 0 && (
-        <div className={`mt-2 pt-2 border-t space-y-0.5 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div className={`mt-2 pt-2 border-t space-y-0.5 border-line`}>
           <div className={`text-[10px] font-black uppercase tracking-wider ${labelCls}`}>By line</div>
           {lineVariances.map((row) => (
             <div key={row.entryId} className="flex items-center justify-between gap-3 text-[11px]">
               <span className="truncate">{attachLabel(row.entryId)}</span>
               <span className={`font-mono font-semibold flex-shrink-0 ${
-                row.over > 0 ? 'text-amber-500' : row.over < 0 ? 'text-emerald-500' : ''
+                row.over > 0 ? 'text-warn' : row.over < 0 ? 'text-ok' : ''
               }`}>
                 {formatMoney(row.spent, currency)}
                 {' / '}
@@ -453,7 +453,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
           type="button"
           onClick={addEntry}
           title="Log spend"
-          className="h-[30px] px-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1"
+          className="h-[30px] px-2 rounded-md bg-emerald-700 hover:bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1"
         >
           <Plus className="w-3 h-3" /> Log
         </button>
@@ -461,13 +461,13 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
 
       {actuals.length > 0 && (
         <div className={`flex items-center justify-between gap-3 mt-2 pt-2 border-t text-xs font-bold ${
-          isLight ? 'border-slate-200' : 'border-slate-800'
+          'border-line'
         }`}>
           <span className={labelCls}>
             Spent <span className="font-mono">{formatMoney(total, currency)}</span>
           </span>
           {variance && estimatedNet !== undefined && (
-            <span className={variance.over > 0 ? 'text-amber-500' : 'text-emerald-500'}>
+            <span className={variance.over > 0 ? 'text-warn' : 'text-ok'}>
               {formatMoney(Math.abs(variance.over), currency)}{' '}
               {variance.over > 0 ? 'over' : 'under'} the{' '}
               {formatMoney(estimatedNet, currency)} estimate

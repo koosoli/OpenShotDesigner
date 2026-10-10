@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toggleShortcutSheet } from '../common/ShortcutSheet';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { getSymbolById, searchSymbols } from '../../domain/assets';
@@ -38,7 +39,7 @@ import { useDialogs } from '../dialog/DialogProvider';
 import { exportProjectMvr, importProjectMvr } from '../../domain/technical/mvrExport';
 import { downloadBlob, safeFileName } from '../../utils/download';
 
-const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-sky-500' }) => (
+const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-accent-ink' }) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
@@ -197,9 +198,9 @@ interface QuickAsset {
   buildPartial: () => Partial<FloorPlanElement> & { type: FloorPlanElement['type'] };
 }
 
-const ACTOR_ICON = <User className="w-4 h-4 text-emerald-500" />;
-const CAMERA_ICON = <MovieCameraIcon className="w-4 h-4 text-sky-500" />;
-const LIGHT_ICON = <FresnelLightIcon className="w-4 h-4 text-amber-500" />;
+const ACTOR_ICON = <User className="w-4 h-4 text-ok" />;
+const CAMERA_ICON = <MovieCameraIcon className="w-4 h-4 text-accent-ink" />;
+const LIGHT_ICON = <FresnelLightIcon className="w-4 h-4 text-warn" />;
 const FLAG_ICON = <Flag className="w-4 h-4 text-slate-400" />;
 
 const SHARED_SYMBOL_BY_PROP_TYPE: Partial<Record<PropType, string>> = {
@@ -257,11 +258,11 @@ function buildAssetList(): QuickAsset[] {
       group: groupName,
       dimensions: `${p.defaultWidth}×${p.defaultHeight}cm`,
       icon: sharedSymbol ? (
-        <svg className="w-5 h-5 text-sky-500" viewBox="0 0 100 100" aria-hidden="true">
+        <svg className="w-5 h-5 text-accent-ink" viewBox="0 0 100 100" aria-hidden="true">
           <g dangerouslySetInnerHTML={{ __html: sharedSymbol.svg }} />
         </svg>
-      ) : p.type === 'tree' ? <TreePine className="w-4 h-4 text-emerald-500" /> :
-        p.category === 'Broadcast & Production' ? <Truck className="w-4 h-4 text-sky-500" /> :
+      ) : p.type === 'tree' ? <TreePine className="w-4 h-4 text-ok" /> :
+        p.category === 'Broadcast & Production' ? <Truck className="w-4 h-4 text-accent-ink" /> :
         p.category === 'Concert & Stage' ? <Mic2 className="w-4 h-4 text-purple-500" /> :
         <Armchair className="w-4 h-4 text-purple-500" />,
       buildPartial: sharedSymbol
@@ -366,7 +367,7 @@ function buildAssetList(): QuickAsset[] {
       categoryTag: 'elements',
       keywords: 'door entrance doorway entry exit threshold swing door',
       group: 'Core Scene Elements',
-      icon: <DoorClosed className="w-4 h-4 text-amber-500" />,
+      icon: <DoorClosed className="w-4 h-4 text-warn" />,
       buildPartial: () => ({ type: 'door' }),
     },
     {
@@ -375,7 +376,7 @@ function buildAssetList(): QuickAsset[] {
       categoryTag: 'elements',
       keywords: 'window glass opening glazing natural light daylight mullion pane window frame',
       group: 'Core Scene Elements',
-      icon: <ArchitecturalWindowIcon className="w-4 h-4 text-sky-500" />,
+      icon: <ArchitecturalWindowIcon className="w-4 h-4 text-accent-ink" />,
       buildPartial: () => ({ type: 'window' }),
     },
     {
@@ -516,6 +517,7 @@ export const QuickAssetSearch: React.FC = () => {
 
   const commandItems = useMemo((): ResultItem[] => {
     const commands: ResultItem[] = [
+      { kind: 'command', key: 'command-shortcuts', label: 'Keyboard shortcuts', detail: 'Command · ?', keywords: 'keyboard shortcuts keys hotkeys help cheat sheet', icon: <Command className="w-4 h-4" />, run: toggleShortcutSheet },
       { kind: 'command', key: 'command-projects', label: 'Open projects', detail: 'Command', keywords: 'project library dashboard open switch', icon: <Command className="w-4 h-4" />, run: openDashboard },
       { kind: 'command', key: 'command-export', label: 'Open print & export studio', detail: 'Command', keywords: 'print export pdf report download', icon: <FileOutput className="w-4 h-4" />, run: () => openExportModal() },
       { kind: 'command', key: 'command-mvr', label: 'Export current setup as MVR', detail: 'Command · Technical', keywords: 'export current setup mvr gdtf dmx lighting console previs truss', icon: <Zap className="w-4 h-4" />, run: async () => {
@@ -742,7 +744,7 @@ export const QuickAssetSearch: React.FC = () => {
         tabIndex={-1}
         onPointerDown={(e) => e.stopPropagation()}
         className={`relative mt-16 sm:mt-20 w-[540px] max-w-[94vw] rounded-2xl border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 outline-hidden ${
-          isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+          'bg-surface border-line text-ink'
         }`}
       >
         {/* Header / Search input */}
@@ -756,11 +758,11 @@ export const QuickAssetSearch: React.FC = () => {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search shots, scenes, people, days, locations, tasks, commands and assets…"
             className={`flex-1 bg-transparent outline-none text-sm font-medium placeholder:opacity-45 ${
-              isLight ? 'text-slate-900 placeholder:text-slate-400' : 'text-slate-100 placeholder:text-slate-500'
+              'text-ink placeholder:text-ink-subtle'
             }`}
           />
           <kbd className={`px-1.5 py-0.5 text-[10px] font-mono rounded border flex-shrink-0 ${
-            isLight ? 'border-slate-300 text-slate-500 bg-white' : 'border-slate-700 text-slate-400 bg-slate-800'
+            'border-line-strong text-ink-muted bg-raised'
           }`}>
             ⌘K / Ctrl K
           </kbd>
@@ -772,7 +774,7 @@ export const QuickAssetSearch: React.FC = () => {
             title="Close quick search"
             aria-label="Close quick search"
             className={`p-1 rounded-md flex-shrink-0 transition-colors ${
-              isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800'
+              'text-ink-subtle hover:text-ink-soft hover:bg-surface-hover'
             }`}
           >
             <X className="w-4 h-4" />
@@ -790,7 +792,7 @@ export const QuickAssetSearch: React.FC = () => {
               aria-pressed={activeCategory === tab.id}
               className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all flex items-center gap-1 ${
                 activeCategory === tab.id
-                  ? 'bg-violet-600 text-white shadow-sm'
+                  ? 'bg-accent text-white shadow-sm'
                   : isLight
                   ? 'text-slate-600 hover:bg-slate-200/70'
                   : 'text-slate-400 hover:bg-slate-800 text-slate-300'
@@ -805,10 +807,10 @@ export const QuickAssetSearch: React.FC = () => {
         {/* Results List */}
         <div
           ref={listRef}
-          className={`max-h-[52vh] overflow-y-auto custom-scrollbar ${isLight ? 'bg-white' : 'bg-slate-900'}`}
+          className={`max-h-[52vh] overflow-y-auto custom-scrollbar bg-surface`}
         >
           {filtered.length === 0 ? (
-            <div className={`px-4 py-12 text-center text-sm ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            <div className={`px-4 py-12 text-center text-sm text-ink-muted`}>
               <p className="font-semibold text-slate-300">No assets match “{query}”</p>
               <p className="text-xs opacity-60 mt-1">Try searching for couch, c-stand, boom, desk, plant, car, gun, tree, softbox...</p>
             </div>
@@ -836,14 +838,14 @@ export const QuickAssetSearch: React.FC = () => {
                   )}
                   {showSymbolHeader && (
                     <div className={`sticky top-0 z-10 px-4 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                      isLight ? 'bg-slate-100 text-slate-500 border-b border-slate-200' : 'bg-slate-950 text-slate-400 border-b border-slate-800'
+                      'bg-surface-sunken text-ink-muted border-b border-line'
                     }`}>
                       Production Symbols
                     </div>
                   )}
                   {showGroup && item.kind === 'asset' && (
                     <div className={`sticky top-0 z-10 px-4 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                      isLight ? 'bg-slate-100 text-slate-500 border-b border-slate-200' : 'bg-slate-950 text-slate-400 border-b border-slate-800'
+                      'bg-surface-sunken text-ink-muted border-b border-line'
                     }`}>
                       {item.asset.group}
                     </div>
@@ -872,7 +874,7 @@ export const QuickAssetSearch: React.FC = () => {
                     ) : (
                       <span
                         className={`flex-shrink-0 p-1 rounded bg-slate-800/40 ${
-                          active ? 'text-violet-300' : isLight ? 'text-slate-600' : 'text-slate-400'
+                          active ? 'text-violet-300' : 'text-ink-muted'
                         }`}
                         aria-hidden="true"
                       >
@@ -890,7 +892,7 @@ export const QuickAssetSearch: React.FC = () => {
                       <div className="text-[10px] opacity-45 truncate font-normal">
                         {item.kind === 'command' ? item.detail : item.kind === 'asset' ? item.asset.group : (
                           <span className={`inline-block mt-0.5 px-1.5 py-px rounded-full border uppercase tracking-wide ${
-                            isLight ? 'border-slate-200 bg-slate-100 text-slate-500' : 'border-slate-700 bg-slate-800/60 text-slate-400'
+                            'border-line bg-surface-muted text-ink-muted'
                           }`}>
                             {item.symbol.category}
                           </span>
@@ -907,7 +909,7 @@ export const QuickAssetSearch: React.FC = () => {
 
         {/* Footer info */}
         <div className={`px-4 py-2 border-t text-[10px] flex items-center justify-between ${
-          isLight ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-800 bg-slate-950/70 text-slate-400'
+          'border-line bg-surface-sunken text-ink-muted'
         }`}>
           <span>Press <strong>↵ Enter</strong> to open a result or place an asset.</span>
           <span className="font-mono">{filtered.length} results</span>

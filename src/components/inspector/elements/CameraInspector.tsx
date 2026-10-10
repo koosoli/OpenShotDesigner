@@ -38,7 +38,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
           {/* Quick Viewfinder Button */}
           <button
             onClick={() => openViewfinder(cam.id)}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-semibold text-xs transition-colors shadow-sm"
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-accent hover:bg-accent-hover text-white rounded-xl font-semibold text-xs transition-colors shadow-sm"
           >
             <Eye className="w-4 h-4" />
             <span>Simulate Camera Viewfinder</span>
@@ -48,9 +48,9 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
           <RubricSection
             persistKey="camerainspector.camera-identity-rig"
             title="Camera Identity & Rig"
-            icon={<MovieCameraIcon className="w-3.5 h-3.5 text-sky-500" />}
+            icon={<MovieCameraIcon className="w-3.5 h-3.5 text-accent-ink" />}
             badge={
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500 font-bold">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-accent-ink font-bold">
                 CAM {cam.cameraLabel}
               </span>
             }
@@ -67,7 +67,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                   maxLength={3}
                   onChange={(e) => updateElement(cam.id, { cameraLabel: e.target.value.toUpperCase() })}
                   className={`w-full border rounded px-2 py-1 font-bold text-center ${
-                    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
               </div>
@@ -112,55 +112,55 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                   updateElement(cam.id, updates);
                 }}
                 className={`w-full border rounded-lg p-2 text-xs font-semibold ${
-                  isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-slate-900 text-slate-100 border-slate-700'
+                  'bg-surface text-ink border-line-strong'
                 }`}
               >
-                <option value="" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                <option value="" className="bg-surface text-ink">
                   -- Custom / Generic Cinema Camera --
                 </option>
-                <optgroup label="Sony Cinema Line & Camcorders" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                <optgroup label="Sony Cinema Line & Camcorders" className="bg-surface text-ink">
                   {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Sony').filter((p) => !p.label.includes('HDC')).map((p) => (
-                    <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    <option key={p.model} value={p.model} className="bg-surface text-ink">
                       {p.label}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="ARRI Digital & 35mm" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                <optgroup label="ARRI Digital & 35mm" className="bg-surface text-ink">
                   {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'ARRI').map((p) => (
-                    <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    <option key={p.model} value={p.model} className="bg-surface text-ink">
                       {p.label}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="RED Digital Cinema" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                <optgroup label="RED Digital Cinema" className="bg-surface text-ink">
                   {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'RED').map((p) => (
-                    <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    <option key={p.model} value={p.model} className="bg-surface text-ink">
                       {p.label}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Blackmagic Design" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                <optgroup label="Blackmagic Design" className="bg-surface text-ink">
                   {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Blackmagic').map((p) => (
-                    <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    <option key={p.model} value={p.model} className="bg-surface text-ink">
                       {p.label}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Canon Cinema EOS" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                <optgroup label="Canon Cinema EOS" className="bg-surface text-ink">
                   {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Canon').map((p) => (
-                    <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    <option key={p.model} value={p.model} className="bg-surface text-ink">
                       {p.label}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Panasonic Cinema & Lumix" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                <optgroup label="Panasonic Cinema & Lumix" className="bg-surface text-ink">
                   {CAMERA_BODY_PRESETS.filter((p) => p.brand === 'Panasonic').filter((p) => !p.label.includes('Studio') && !p.label.includes('PTZ')).map((p) => (
-                    <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    <option key={p.model} value={p.model} className="bg-surface text-ink">
                       {p.label}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Broadcast / OB Studio & Live" className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                <optgroup label="Broadcast / OB Studio & Live" className="bg-surface text-ink">
                   {CAMERA_BODY_PRESETS.filter((p) =>
                     p.brand === 'Grass Valley' ||
                     p.label.includes('HDC') ||
@@ -170,7 +170,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                     p.label.includes('AK-UC') ||
                     p.label.includes('AW-UE')
                   ).map((p) => (
-                    <option key={p.model} value={p.model} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    <option key={p.model} value={p.model} className="bg-surface text-ink">
                       {p.label}
                     </option>
                   ))}
@@ -190,7 +190,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                     })
                   }
                   className={`w-full border rounded-lg p-1.5 text-xs ${
-                    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 >
                   {CAMERA_RIGS.map((r) => (
@@ -214,7 +214,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                     })
                   }
                   className={`w-full border rounded-lg p-1.5 text-xs ${
-                    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 >
                   {CAMERA_HEIGHTS.map((h) => (
@@ -233,7 +233,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
             title="Lens & Optics"
             icon={<Eye className="w-3.5 h-3.5 text-indigo-500" />}
             badge={
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500 font-bold">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500 font-bold">
                 {cam.focalLength}mm
               </span>
             }
@@ -244,7 +244,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-medium opacity-75">Lens Focal Length</span>
-                <span className="font-mono text-sky-500 font-bold">{cam.focalLength}mm</span>
+                <span className="font-mono text-accent-ink font-bold">{cam.focalLength}mm</span>
               </div>
               {/* Focal length preset buttons */}
               <div className="grid grid-cols-5 gap-1 mb-2">
@@ -254,7 +254,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                     onClick={() => updateElement(cam.id, { focalLength: mm, fovAngle: calculateFovAngle(mm, cam.sensorFormat) })}
                     className={`py-1 text-[11px] font-mono rounded border transition-colors ${
                       cam.focalLength === mm
-                        ? 'bg-sky-600 text-white border-sky-500 font-bold'
+                        ? 'bg-accent text-white border-sky-500 font-bold'
                         : isLight ? 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100' : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
                     }`}
                   >
@@ -286,7 +286,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                   updateElement(cam.id, { sensorFormat, fovAngle: calculateFovAngle(cam.focalLength || 35, sensorFormat) });
                 }}
                 className={`w-full border rounded-lg p-2 ${
-                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               >
                 {SENSOR_FORMATS.map((s) => (
@@ -296,7 +296,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                 ))}
               </select>
               <span className="text-[10px] opacity-60 mt-1 block">
-                Horizontal FOV: <strong className="text-sky-500">{cam.fovAngle}°</strong>
+                Horizontal FOV: <strong className="text-accent-ink">{cam.fovAngle}°</strong>
               </span>
             </div>
 
@@ -311,7 +311,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                   })
                 }
                 className={`w-full border rounded-lg p-2 ${
-                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               >
                 {ASPECT_RATIOS.map((ar) => (
@@ -326,7 +326,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="opacity-60">FOV Cone Opacity</span>
-                <span className="font-mono text-sky-500 font-bold">{Math.round((cam.fovOpacity ?? 1) * 100)}%</span>
+                <span className="font-mono text-accent-ink font-bold">{Math.round((cam.fovOpacity ?? 1) * 100)}%</span>
               </div>
               <input
                 type="range"
@@ -344,9 +344,9 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
           <RubricSection
             persistKey="camerainspector.cinematography-exposure"
             title="Cinematography Exposure"
-            icon={<Gauge className="w-3.5 h-3.5 text-amber-500" />}
+            icon={<Gauge className="w-3.5 h-3.5 text-warn" />}
             badge={
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-bold">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-warn font-bold">
                 {cam.aperture || 'f/2.8'} · ISO {cam.iso ?? 800}
               </span>
             }
@@ -453,7 +453,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
               <RubricSection
             persistKey="camerainspector.waypoints-storyboard"
                 title="Waypoints & Storyboard"
-                icon={<Compass className="w-3.5 h-3.5 text-emerald-500" />}
+                icon={<Compass className="w-3.5 h-3.5 text-ok" />}
                 defaultOpen={false}
                 isLight={isLight}
                 headerRight={
@@ -500,7 +500,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
               elementId={cam.id}
               path={cam.path || []}
               baseRotation={cam.rotation}
-              accentClass="text-sky-500"
+              accentClass="text-accent-ink"
               isLight={isLight}
             />
 
@@ -516,12 +516,12 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                 ASPECT_RATIOS.find((a) => a.value === (activeSetup.aspectRatio || '16:9'))?.ratio || 16 / 9;
 
               return (
-                <div className={`pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                <div className={`pt-3 border-t border-line`}>
                   <h4 className="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-1 flex items-center gap-1.5">
                     <ImageIcon className="w-3.5 h-3.5 text-violet-500" />
                     Storyboard — Shot {linkedShot.shotNumber}
                   </h4>
-                  <p className={`text-[10px] mb-2 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <p className={`text-[10px] mb-2 text-ink-muted`}>
                     {slots.length > 1
                       ? `One frame per keyframe of this move (${slots.map((slot) => slot.label).join(' → ')}).`
                       : 'Add a waypoint to this camera to board the move beat by beat.'}

@@ -1,11 +1,12 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
+import { toggleShortcutSheet } from '../common/ShortcutSheet';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import { ActiveTool, CableType, ShapeType } from '../../types';
 import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import { loadBackgroundImageFile } from '../../utils/image';
 import { useBreakpoint } from '../../utils/useMediaQuery';
-import { FresnelLightIcon, MovieCameraIcon } from '../icons/ProductionIcons';
+import { CStandIcon, DollyIcon, FresnelLightIcon, MovieCameraIcon } from '../icons/ProductionIcons';
 import {
   Cable,
   DoorClosed,
@@ -13,26 +14,30 @@ import {
   Hand,
   ImagePlus,
   MousePointer,
-  MoveHorizontal,
   Route,
   MoveUpRight,
-  Circle,
   Pencil,
   Ruler,
   Search,
   BrickWall,
   Armchair,
   Type,
-  User,
+  PersonStanding,
   MoreHorizontal,
   Mic2,
-  Clapperboard,
-  DoorOpen,
+  Building2,
+  Shapes,
+  Circle,
+  Keyboard,
 } from 'lucide-react';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 
+/** Toolbar sections, separated by a thin rule: how the tools are used, not what they draw. */
+type ToolGroup = 'navigate' | 'people' | 'set' | 'markup';
+
 interface ToolItem {
   id: ActiveTool;
+  group: ToolGroup;
   label: string;
   shortcut: string;
   icon: React.ReactNode;
@@ -99,7 +104,7 @@ const SHAPE_OPTIONS: { value: ShapeType; label: string }[] = [
 /** Tools that stay on the bar when there is no room for the full palette. */
 const PRIMARY_TOOL_IDS: ActiveTool[] = ['select', 'pan', 'actor', 'camera', 'light', 'wall'];
 
-const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-sky-500' }) => (
+const ArchitecturalWindowIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4 text-accent-ink' }) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
@@ -176,139 +181,159 @@ export const LeftToolbar: React.FC = () => {
   const tools: ToolItem[] = [
     {
       id: 'select',
+      group: 'navigate',
       label: 'Select / Move',
       shortcut: 'V',
       icon: <MousePointer className="w-4 h-4" />,
     },
     {
       id: 'pan',
+      group: 'navigate',
       label: 'Pan Canvas',
       shortcut: 'H',
       icon: <Hand className="w-4 h-4" />,
     },
     {
       id: 'actor',
+      group: 'people',
       label: 'Actor / Talent',
       shortcut: 'A',
-      icon: <User className="w-4 h-4 text-emerald-500" />,
+      icon: <PersonStanding className="w-4 h-4" />,
     },
     {
       id: 'camera',
+      group: 'people',
       label: 'Camera & Shot',
       shortcut: 'C',
-      icon: <MovieCameraIcon className="w-4 h-4 text-sky-500" />,
+      icon: <MovieCameraIcon className="w-4 h-4" />,
       hasSubmenu: true,
     },
     {
       id: 'light',
+      group: 'people',
       label: 'Light Fixture',
       shortcut: 'L',
-      icon: <FresnelLightIcon className="w-4 h-4 text-amber-500" />,
+      icon: <FresnelLightIcon className="w-4 h-4" />,
       hasSubmenu: true,
     },
     {
       id: 'wall',
+      group: 'set',
       label: 'Wall / Room',
       shortcut: 'W',
-      icon: <BrickWall className="w-4 h-4 text-amber-600" />,
+      icon: <BrickWall className="w-4 h-4" />,
     },
     {
       id: 'door',
+      group: 'set',
       label: 'Door (Wall Snap)',
       shortcut: 'D',
-      icon: <DoorClosed className="w-4 h-4 text-amber-500" />,
+      icon: <DoorClosed className="w-4 h-4" />,
     },
     {
       id: 'window',
+      group: 'set',
       label: 'Window (Wall Snap)',
       shortcut: 'N',
-      icon: <ArchitecturalWindowIcon className="w-4 h-4 text-sky-500" />,
+      icon: <ArchitecturalWindowIcon className="w-4 h-4" />,
     },
     {
       id: 'prop',
+      group: 'set',
       label: 'Props',
       shortcut: 'P',
-      icon: <Armchair className="w-4 h-4 text-purple-500" />,
+      icon: <Armchair className="w-4 h-4" />,
       hasSubmenu: true,
       submenuKey: 'prop',
       propCategories: SET_DRESSING_CATEGORIES,
     },
     {
       id: 'prop',
+      group: 'set',
       label: 'Staging & Live',
       shortcut: 'E',
-      icon: <Mic2 className="w-4 h-4 text-fuchsia-500" />,
+      icon: <Mic2 className="w-4 h-4" />,
       hasSubmenu: true,
       submenuKey: 'staging',
       propCategories: STAGING_CATEGORIES,
     },
     {
       id: 'prop',
+      group: 'set',
       label: 'Studio & Grip',
       shortcut: 'U',
-      icon: <Clapperboard className="w-4 h-4 text-amber-500" />,
+      icon: <CStandIcon className="w-4 h-4" />,
       hasSubmenu: true,
       submenuKey: 'grip',
       propCategories: GRIP_CATEGORIES,
     },
     {
       id: 'prop',
+      group: 'set',
       label: 'Architecture & Fixtures',
       shortcut: 'F',
-      icon: <DoorOpen className="w-4 h-4 text-emerald-500" />,
+      icon: <Building2 className="w-4 h-4" />,
       hasSubmenu: true,
       submenuKey: 'architecture',
       propCategories: ARCHITECTURE_CATEGORIES,
     },
     {
       id: 'shape',
+      group: 'set',
       label: 'Shape (zone / area)',
       shortcut: 'S',
-      icon: <Circle className="w-4 h-4 text-cyan-500" />,
+      icon: <Shapes className="w-4 h-4" />,
       hasSubmenu: true,
     },
     {
       id: 'track',
+      group: 'set',
       label: 'Dolly Track',
       shortcut: 'T',
-      icon: <MoveHorizontal className="w-4 h-4 text-blue-500" />,
+      icon: <DollyIcon className="w-4 h-4" />,
     },
     {
       id: 'road',
+      group: 'set',
       label: 'Street / Road',
       shortcut: 'R',
-      icon: <Route className="w-4 h-4 text-zinc-400" />,
+      icon: <Route className="w-4 h-4" />,
     },
     {
       id: 'measure',
+      group: 'markup',
       label: 'Tape Measure',
       shortcut: 'M',
-      icon: <Ruler className="w-4 h-4 text-yellow-500" />,
+      icon: <Ruler className="w-4 h-4" />,
     },
     {
       id: 'arrow',
+      group: 'markup',
       label: 'Arrow / Direction',
       shortcut: 'G',
-      icon: <MoveUpRight className="w-4 h-4 text-orange-500" />,
+      icon: <MoveUpRight className="w-4 h-4" />,
     },
     {
       id: 'cable',
+      group: 'markup',
       label: 'Cable / Patch Run',
       shortcut: 'K',
-      icon: <Cable className="w-4 h-4 text-cyan-500" />,
+      icon: <Cable className="w-4 h-4" />,
       hasSubmenu: true,
     },
     {
       id: 'text',
+      group: 'markup',
       label: 'Text Annotation',
       shortcut: 'X',
-      icon: <Type className="w-4 h-4 text-slate-400" />,
+      icon: <Type className="w-4 h-4" />,
     },
     {
       id: 'stroke',
+      group: 'markup',
       label: 'Pen / Annotate',
       shortcut: 'B',
-      icon: <Pencil className="w-4 h-4 text-amber-400" />,
+      icon: <Pencil className="w-4 h-4" />,
     },
   ];
 
@@ -336,13 +361,13 @@ export const LeftToolbar: React.FC = () => {
 
   const leftOffset = isCompact ? 'left-12' : 'left-14';
   const flyoutBase = `fixed ${leftOffset} top-14 ml-2 border rounded-xl shadow-2xl p-2.5 z-50 animate-in fade-in slide-in-from-left-1 max-h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar overscroll-contain ${
-    isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+    'bg-surface border-line text-ink'
   }`;
 
   const listButtonClass = (active: boolean) =>
     `w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
       active
-        ? 'bg-sky-600 text-white font-semibold'
+        ? 'bg-accent text-white font-semibold'
         : isLight
         ? 'text-slate-700 hover:bg-slate-100'
         : 'text-slate-300 hover:bg-slate-800'
@@ -376,7 +401,7 @@ export const LeftToolbar: React.FC = () => {
       aria-label="Drawing tools"
       ref={asideRef}
       className={`relative ${isCompact ? 'w-12 py-1.5 gap-1' : 'w-14 py-3 gap-1.5'} border-r flex flex-col items-center select-none z-20 transition-colors ${
-        isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+        'bg-surface border-line'
       }`}
     >
       {/* Quick Asset Search (Shift+Space) */}
@@ -384,8 +409,8 @@ export const LeftToolbar: React.FC = () => {
         <button
           id="tool-btn-quick-search"
           onClick={() => setQuickSearchOpen(true)}
-          title="Quick Search Assets (Shift+Space)"
-          aria-label="Quick Search Assets (Shift+Space)"
+          title="Quick search: shots, scenes, people, days, assets and commands (Shift+Space)"
+          aria-label="Quick search (Shift+Space)"
           className={`${buttonSize} rounded-xl flex items-center justify-center transition-all ring-1 ring-inset ${
             isLight
               ? 'text-slate-500 hover:text-sky-600 hover:bg-sky-50 ring-slate-200'
@@ -395,20 +420,23 @@ export const LeftToolbar: React.FC = () => {
           <Search className="w-4 h-4" />
         </button>
         <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg shadow-xl whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 flex items-center gap-1.5">
-          <span className="font-medium">Quick Search Assets</span>
+          <span className="font-medium">Quick search — shots, scenes, people, commands</span>
           <kbd className="px-1.5 py-0.2 text-[10px] font-mono bg-slate-800 text-slate-400 rounded border border-slate-700">
             Shift Space
           </kbd>
         </div>
       </div>
 
-      <div className={`w-8 border-t my-0.5 ${isLight ? 'border-slate-200' : 'border-slate-800'}`} />
+      <div className={`w-8 border-t my-0.5 border-line`} />
 
-      {visibleTools.map((tool) => {
+      {visibleTools.map((tool, index) => {
         const isActive = activeTool === tool.id;
+        const startsGroup = index > 0 && visibleTools[index - 1].group !== tool.group;
 
         return (
-          <div key={tool.submenuKey ?? tool.id} className="relative group">
+          <React.Fragment key={tool.submenuKey ?? tool.id}>
+          {startsGroup && <div aria-hidden className="w-6 border-t border-line my-0.5" />}
+          <div className="relative group">
             <button
               id={`tool-btn-${tool.submenuKey ?? tool.id}`}
               onClick={() => toggleSubmenu(tool)}
@@ -417,13 +445,17 @@ export const LeftToolbar: React.FC = () => {
               aria-pressed={isActive}
               className={`${buttonSize} ${iconScale} rounded-xl flex items-center justify-center transition-all ${
                 isActive
-                  ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 scale-105'
+                  ? 'bg-accent text-white shadow-md shadow-sky-600/30 scale-105'
                   : isLight
                   ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
               }`}
             >
               {tool.icon}
+              {/* A tool with a picker shows a corner tick, like most design apps. */}
+              {tool.hasSubmenu && (
+                <span aria-hidden className={`absolute bottom-1 right-1 w-0 h-0 border-l-[4px] border-l-transparent border-b-[4px] ${isActive ? 'border-b-white/80' : 'border-b-current opacity-50'}`} />
+              )}
             </button>
 
             {/* Hover Tooltip */}
@@ -439,7 +471,7 @@ export const LeftToolbar: React.FC = () => {
               <div className={`${flyoutBase} w-68 pb-6`}>
                 <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1 tracking-wider border-b border-slate-700/50 pb-1.5 flex items-center justify-between">
                   <span>{tool.label}</span>
-                  <span className="font-mono text-[9px] text-sky-400">
+                  <span className="font-mono text-[10px] text-sky-400">
                     {propsForTool(tool).length} items
                   </span>
                 </div>
@@ -454,7 +486,7 @@ export const LeftToolbar: React.FC = () => {
                       onChange={(e) => setPropSearch(e.target.value)}
                       placeholder="Filter props (e.g. car, gun)..."
                       className={`w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border placeholder:text-slate-500 focus:outline-none focus:border-sky-500 ${
-                        isLight ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-800/80 border-slate-700 text-slate-200'
+                        'bg-surface-muted border-line-strong text-ink'
                       }`}
                     />
                   </div>
@@ -488,15 +520,15 @@ export const LeftToolbar: React.FC = () => {
                           >
                             <span className="truncate">{prop.name}</span>
                             {prop.category === 'Weapons & Explosives' ? (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-950/60 text-rose-400 border border-rose-800/40 font-mono">
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-950/60 text-rose-400 border border-rose-800/40 font-mono">
                                 {prop.type === 'bomb' ? 'Explosive' : 'Weapon'}
                               </span>
                             ) : prop.category === 'Documents & Hand Props' ? (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-950/60 text-amber-400 border border-amber-800/40 font-mono">
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-950/60 text-amber-400 border border-amber-800/40 font-mono">
                                 Document
                               </span>
                             ) : (
-                              <span className="text-[9px] opacity-50 font-mono">{prop.category.split(' ')[0]}</span>
+                              <span className="text-[10px] opacity-50 font-mono">{prop.category.split(' ')[0]}</span>
                             )}
                           </button>
                         ))}
@@ -517,7 +549,7 @@ export const LeftToolbar: React.FC = () => {
               <div className={`${flyoutBase} w-72 pb-6`}>
                 <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1 tracking-wider border-b border-slate-700/50 pb-1.5 flex items-center justify-between">
                   <span>Lighting & Grip Fixtures</span>
-                  <span className="font-mono text-[9px] text-amber-400">{filteredLights.length} items</span>
+                  <span className="font-mono text-[10px] text-amber-400">{filteredLights.length} items</span>
                 </div>
 
                 {/* Filter input */}
@@ -530,7 +562,7 @@ export const LeftToolbar: React.FC = () => {
                       onChange={(e) => setLightSearch(e.target.value)}
                       placeholder="Filter lights (e.g. softbox, tube)..."
                       className={`w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border placeholder:text-slate-500 focus:outline-none focus:border-amber-500 ${
-                        isLight ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-800/80 border-slate-700 text-slate-200'
+                        'bg-surface-muted border-line-strong text-ink'
                       }`}
                     />
                   </div>
@@ -554,11 +586,11 @@ export const LeftToolbar: React.FC = () => {
                         {f.isFlag ? (
                           <Flag className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                         ) : (
-                          <FresnelLightIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                          <FresnelLightIcon className="w-3.5 h-3.5 text-warn flex-shrink-0" />
                         )}
                         <span className="truncate">{f.name}</span>
                       </span>
-                      <span className="text-[9px] font-mono flex-shrink-0 ml-1.5">
+                      <span className="text-[10px] font-mono flex-shrink-0 ml-1.5">
                         {f.type === 'softbox' ? (
                           <span className="px-1.5 py-0.2 rounded bg-amber-950/60 text-amber-300 border border-amber-800/40">
                             Softbox
@@ -641,7 +673,7 @@ export const LeftToolbar: React.FC = () => {
               <div className={`${flyoutBase} w-72`}>
                 <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1 mb-1 flex items-center justify-between">
                   <span>Signal / Power Cables</span>
-                  <span className="font-mono text-[9px] text-cyan-400">
+                  <span className="font-mono text-[10px] text-cyan-400">
                     {activeCableType}
                   </span>
                 </div>
@@ -666,7 +698,7 @@ export const LeftToolbar: React.FC = () => {
                         <span className="truncate">{ct.name}</span>
                       </span>
                       <span
-                        className={`text-[9px] px-1.5 py-0.2 rounded font-mono flex-shrink-0 ml-1.5 ${
+                        className={`text-[10px] px-1.5 py-0.2 rounded font-mono flex-shrink-0 ml-1.5 ${
                           ct.isPower
                             ? 'bg-rose-950/60 text-rose-300 border border-rose-800/40'
                             : 'bg-slate-800 text-slate-400 border border-slate-700'
@@ -680,6 +712,7 @@ export const LeftToolbar: React.FC = () => {
               </div>
             )}
           </div>
+          </React.Fragment>
         );
       })}
 
@@ -694,7 +727,7 @@ export const LeftToolbar: React.FC = () => {
             aria-label="More tools"
             className={`${buttonSize} rounded-xl flex items-center justify-center transition-all ${
               overflowTools.some((tool) => tool.id === activeTool)
-                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                ? 'bg-accent text-white shadow-md shadow-sky-600/30'
                 : isLight
                 ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
@@ -746,9 +779,7 @@ export const LeftToolbar: React.FC = () => {
           title="Upload Floorplan / Screenshot"
           aria-label="Upload Floorplan / Screenshot"
           className={`${buttonSize} rounded-xl flex items-center justify-center transition-all border-t pt-2.5 mt-1 ${
-            isLight
-              ? 'text-teal-600 hover:text-teal-700 hover:bg-teal-50 border-slate-200'
-              : 'text-teal-400 hover:text-teal-300 hover:bg-slate-800 border-slate-800'
+            'text-ink-muted hover:text-ink hover:bg-surface-hover border-line'
           }`}
         >
           <ImagePlus className="w-4 h-4" />
@@ -757,6 +788,23 @@ export const LeftToolbar: React.FC = () => {
         {/* Hover Tooltip */}
         <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg shadow-xl whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 flex items-center gap-1.5">
           <span className="font-medium">Upload Floorplan / Screenshot</span>
+        </div>
+      </div>
+
+      {/* Keyboard shortcuts — also on ? anywhere outside a text field */}
+      <div className="relative group mt-auto">
+        <button
+          type="button"
+          onClick={toggleShortcutSheet}
+          title="Keyboard shortcuts (?)"
+          aria-label="Keyboard shortcuts"
+          className={`${buttonSize} rounded-xl flex items-center justify-center transition-all text-ink-muted hover:text-ink hover:bg-surface-hover`}
+        >
+          <Keyboard className="w-4 h-4" />
+        </button>
+        <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg shadow-xl whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 flex items-center gap-1.5">
+          <span className="font-medium">Keyboard shortcuts</span>
+          <kbd className="px-1.5 py-0.2 text-[10px] font-mono bg-slate-800 text-slate-400 rounded border border-slate-700">?</kbd>
         </div>
       </div>
     </aside>

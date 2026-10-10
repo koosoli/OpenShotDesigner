@@ -80,10 +80,10 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
     setNewName('');
   };
 
-  const card = isLight ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-800 bg-slate-900/80';
-  const muted = isLight ? 'text-slate-500' : 'text-slate-400';
+  const card = 'border-line bg-surface shadow-sm';
+  const muted = 'text-ink-muted';
   const field = `rounded-lg border px-2 py-1 text-[11px] ${
-    isLight ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'
+    'bg-field border-line-strong'
   }`;
 
   return (
@@ -129,10 +129,10 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
 
       {groups.length === 0 ? (
         <div className={`border border-dashed rounded-xl p-4 text-[11px] ${
-          isLight ? 'border-slate-300 text-slate-500' : 'border-slate-700 text-slate-400'
+          'border-line-strong text-ink-muted'
         }`}>
           <p className="flex items-center gap-1.5 font-semibold mb-1">
-            <Tag className="w-3.5 h-3.5 text-amber-500" /> Nothing tagged yet
+            <Tag className="w-3.5 h-3.5 text-warn" /> Nothing tagged yet
           </p>
           <p>
             Highlight a prop, vehicle or effect in the script and press <strong>Tag element</strong>
@@ -145,7 +145,7 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
           <section key={group.category} className={`border rounded-xl overflow-hidden ${card}`}>
             <header
               className={`px-2.5 py-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider ${
-                isLight ? 'bg-slate-50 text-slate-600' : 'bg-slate-950/60 text-slate-300'
+                'bg-surface-sunken text-ink-soft'
               }`}
               style={{ borderLeft: `4px solid ${group.tint}` }}
             >
@@ -159,19 +159,19 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
                   <li
                     key={item.id}
                     className={`px-2.5 py-1.5 flex flex-wrap items-center gap-1.5 border-t ${
-                      isLight ? 'border-slate-100' : 'border-slate-800'
+                      'border-line'
                     }`}
                   >
                     <input
                       value={item.name}
                       onChange={(event) => patch(item.id, { name: event.target.value })}
-                      title="Element name"
+                      aria-label="Element name" title="Element name"
                       className={`flex-1 min-w-[8rem] font-semibold ${field}`}
                     />
                     <select
                       value={item.category}
                       onChange={(event) => patch(item.id, { category: event.target.value as BreakdownCategory })}
-                      title="Move this element to another department"
+                      aria-label="Move this element to another department" title="Move this element to another department"
                       className={field}
                     >
                       {BREAKDOWN_CATEGORIES.map((entry) => (
@@ -184,7 +184,7 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
                       value={item.notes ?? ''}
                       onChange={(event) => patch(item.id, { notes: event.target.value })}
                       placeholder="Notes"
-                      title="Notes for the department"
+                      aria-label="Notes for the department" title="Notes for the department"
                       className={`flex-1 min-w-[8rem] ${field}`}
                     />
                     <span

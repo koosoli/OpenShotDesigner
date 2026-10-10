@@ -12,6 +12,7 @@ import type { Character } from './types';
 import type { ScriptScene } from './types';
 import type { Location } from '../locations';
 import { createId } from '../ids';
+import { estimateScenePageEighths } from './pageCount';
 
 // ---------------------------------------------------------------------------
 // Character name normalization
@@ -249,6 +250,8 @@ export interface ScriptBreakdownLine {
   type?: string;
   sceneNumber?: string;
   omitted?: boolean;
+  /** Manual page length on a scene heading; wins over the estimate. */
+  pageEighthsOverride?: number;
 }
 
 export interface ScriptLocationBreakdown {
@@ -359,6 +362,12 @@ export const deriveScriptBreakdown = (
     const group = locationGroups.get(key);
     if (group) group.scenes.push(scene);
     else locationGroups.set(key, { key, name, locationId: scene.locationId, scenes: [scene] });
+  }
+
+  const eighths = estimateScenePageEighths(lines);
+  for (const scene of scenes) {
+    const measured = eighths.get(scene.id);
+    if (measured !== undefined) scene.pageLengthEighths = measured;
   }
 
   return { characters, scenes, locations: Array.from(locationGroups.values()) };

@@ -1,5 +1,96 @@
 @import "tailwindcss";
 
+/*
+ * The app's light/dark toggle sets `.dark` on <html>. Tailwind v4's default
+ * `dark:` variant follows the OS preference instead, so a light-themed app on
+ * a dark OS rendered every `dark:` style anyway. Tie it to the toggle.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantic colour tokens. Components say what a colour is for (a surface, a
+ * border, muted text, the accent) instead of carrying a light and a dark
+ * Tailwind class each; the theme switch swaps the values here.
+ */
+:root {
+  --osd-surface: var(--color-white);
+  --osd-surface-sunken: var(--color-slate-50);
+  --osd-surface-muted: var(--color-slate-100);
+  --osd-surface-hover: var(--color-slate-100);
+  /* Chips, inputs and cards that sit raised on a panel. */
+  --osd-raised: var(--color-white);
+  --osd-field: var(--color-white);
+  --osd-line: var(--color-slate-200);
+  --osd-line-strong: var(--color-slate-300);
+  --osd-ink: var(--color-slate-900);
+  --osd-ink-soft: var(--color-slate-700);
+  /* Muted and subtle text stay at 4.5:1 or better on every light surface (WCAG AA). */
+  --osd-ink-muted: var(--color-slate-600);
+  --osd-ink-subtle: var(--color-slate-500);
+  /* White text on the accent needs sky-700; sky-600 is only 4:1. */
+  --osd-accent: var(--color-sky-700);
+  --osd-accent-hover: var(--color-sky-800);
+  --osd-accent-soft: var(--color-sky-50);
+  --osd-accent-ink: var(--color-sky-700);
+  /* Status: text on any surface, and a tinted chip/banner background. */
+  --osd-ok: var(--color-emerald-700);
+  --osd-ok-soft: var(--color-emerald-50);
+  --osd-warn: var(--color-amber-800);
+  --osd-warn-soft: var(--color-amber-50);
+  --osd-danger: var(--color-rose-700);
+  --osd-danger-soft: var(--color-rose-50);
+}
+
+html.dark {
+  --osd-surface: var(--color-slate-900);
+  --osd-surface-sunken: var(--color-slate-950);
+  --osd-surface-muted: var(--color-slate-800);
+  --osd-surface-hover: var(--color-slate-800);
+  --osd-raised: var(--color-slate-800);
+  --osd-field: var(--color-slate-950);
+  --osd-line: var(--color-slate-800);
+  --osd-line-strong: var(--color-slate-700);
+  --osd-ink: var(--color-slate-100);
+  --osd-ink-soft: var(--color-slate-300);
+  --osd-ink-muted: var(--color-slate-400);
+  --osd-ink-subtle: var(--color-slate-400);
+  --osd-accent: var(--color-sky-700);
+  --osd-accent-hover: var(--color-sky-600);
+  --osd-accent-soft: color-mix(in oklab, var(--color-sky-500) 15%, transparent);
+  --osd-accent-ink: var(--color-sky-300);
+  --osd-ok: var(--color-emerald-400);
+  --osd-ok-soft: color-mix(in oklab, var(--color-emerald-500) 15%, transparent);
+  --osd-warn: var(--color-amber-300);
+  --osd-warn-soft: color-mix(in oklab, var(--color-amber-500) 15%, transparent);
+  --osd-danger: var(--color-rose-400);
+  --osd-danger-soft: color-mix(in oklab, var(--color-rose-500) 15%, transparent);
+}
+
+@theme inline {
+  --color-surface: var(--osd-surface);
+  --color-surface-sunken: var(--osd-surface-sunken);
+  --color-surface-muted: var(--osd-surface-muted);
+  --color-surface-hover: var(--osd-surface-hover);
+  --color-raised: var(--osd-raised);
+  --color-field: var(--osd-field);
+  --color-line: var(--osd-line);
+  --color-line-strong: var(--osd-line-strong);
+  --color-ink: var(--osd-ink);
+  --color-ink-soft: var(--osd-ink-soft);
+  --color-ink-muted: var(--osd-ink-muted);
+  --color-ink-subtle: var(--osd-ink-subtle);
+  --color-accent: var(--osd-accent);
+  --color-accent-hover: var(--osd-accent-hover);
+  --color-accent-soft: var(--osd-accent-soft);
+  --color-accent-ink: var(--osd-accent-ink);
+  --color-ok: var(--osd-ok);
+  --color-ok-soft: var(--osd-ok-soft);
+  --color-warn: var(--osd-warn);
+  --color-warn-soft: var(--osd-warn-soft);
+  --color-danger: var(--osd-danger);
+  --color-danger-soft: var(--osd-danger-soft);
+}
+
 #right-sidebar:not(.is-fullscreen) {
   width: var(--sidebar-width, 860px);
 }

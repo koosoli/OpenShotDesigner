@@ -1,4 +1,7 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { ShortcutSheet } from './components/common/ShortcutSheet';
+import { useDismiss } from './components/common/useDismiss';
+import { MODULE_PICKER_GROUPS } from './domain/workspace';
 import { FloorPlanProvider, useFloorPlan } from './context/FloorPlanContext';
 import { TopNavbar } from './components/toolbar/TopNavbar';
 import { LeftToolbar } from './components/toolbar/LeftToolbar';
@@ -80,7 +83,7 @@ import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
 import { ProductionReadiness } from './components/dashboard/ProductionReadiness';
 import { ReviewNotes } from './components/dashboard/ReviewNotes';
 import { useBreakpoint } from './utils/useMediaQuery';
-import { AlertTriangle, Zap, Package, ListOrdered, ClipboardList, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, KanbanSquare, Coins, MapPin, Maximize2, Minimize2, Users } from 'lucide-react';
+import { AlertTriangle, Zap, Package, ListOrdered, ClipboardList, Anchor, Film, FileText, Image as ImageIcon, Sliders, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Boxes, CalendarDays, Images, KanbanSquare, Coins, MapPin, Maximize2, Minimize2, Pin, PinOff, Users } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { deriveSceneEquipment } from './utils/equipmentList';
@@ -170,6 +173,8 @@ const MainLayout: React.FC = () => {
   // Bottom-sheet height on phones: peek (tabs only), half, or nearly full screen.
   const [sheetSize, setSheetSize] = useState<'peek' | 'half' | 'full'>('half');
   const [isProductionMenuOpen, setIsProductionMenuOpen] = useState(false);
+  const productionMenuRef = useRef<HTMLDivElement>(null);
+  useDismiss(isProductionMenuOpen, useCallback(() => setIsProductionMenuOpen(false), []), productionMenuRef);
 
   const isLight = theme === 'light';
   const sheetHeight = sheetSize === 'peek' ? '3.25rem' : sheetSize === 'full' ? '88vh' : 'min(52vh, 520px)';
@@ -254,9 +259,28 @@ const MainLayout: React.FC = () => {
     });
   };
 
-  const primaryModuleIds: WorkspaceModule[] = ['inspector', 'shots', 'storyboard', 'script', 'equipment'];
+  // Modules pinned from the Production menu join the main tab strip (per browser).
+  const [pinnedModules, setPinnedModules] = useState<WorkspaceModule[]>(() => {
+    try {
+      return (localStorage.getItem('openshotdesigner_ui_pinned_modules') ?? '').split(',').filter(Boolean) as WorkspaceModule[];
+    } catch {
+      return [];
+    }
+  });
+  const togglePinned = (id: WorkspaceModule) => {
+    setPinnedModules((current) => {
+      const next = current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id];
+      try {
+        localStorage.setItem('openshotdesigner_ui_pinned_modules', next.join(','));
+      } catch {
+        // Preference only.
+      }
+      return next;
+    });
+  };
+  const primaryModuleIds: WorkspaceModule[] = ['inspector', 'shots', 'storyboard', 'script', 'equipment', ...pinnedModules];
   const productionToolIds: WorkspaceModule[] = ['schedule', 'locations', 'moodboard', 'contacts', 'tasks', 'budget', 'logistics', 'run_of_show', 'continuity', 'power', 'rigging'];
-  const activeProductionTool = workspaceModules.find((module) => module.id === activeRightTab && productionToolIds.includes(module.id));
+  const activeProductionTool = workspaceModules.find((module) => module.id === activeRightTab && productionToolIds.includes(module.id) && !pinnedModules.includes(module.id));
   // The Production menu used to render unconditionally, so a workspace with
   // every production module hidden (Blank Floor Plan, Shot Planning) still
   // showed a button that opened an empty popover.
@@ -264,7 +288,7 @@ const MainLayout: React.FC = () => {
 
   return (
     <div id="app-root" className={`flex flex-col w-screen h-screen overflow-hidden font-sans select-none transition-colors ${
-      isLight ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'
+      'bg-surface-sunken text-ink'
     } ${isResizing ? 'cursor-col-resize' : ''}`}>
       {/*
         Keyboard escape hatch out of the chrome.
@@ -371,7 +395,7 @@ const MainLayout: React.FC = () => {
                     ...(isMobile ? { height: sheetHeight } : null),
                   } as React.CSSProperties)
             }
-            className={`${isSidebarFullscreen ? 'is-fullscreen absolute inset-0 z-40 w-full' : 'h-full relative z-20 flex-shrink-0'} flex flex-col border-l shadow-2xl transition-colors ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'}`}
+            className={`${isSidebarFullscreen ? 'is-fullscreen absolute inset-0 z-40 w-full' : 'h-full relative z-20 flex-shrink-0'} flex flex-col border-l shadow-2xl transition-colors bg-surface border-line`}
           >
             {/* Resizing left edge bar */}
             {(
@@ -395,20 +419,15 @@ const MainLayout: React.FC = () => {
                   {workspaceModules.filter((module) => primaryModuleIds.includes(module.id) && module.visible).map((module) => {
                     const Icon = module.icon;
                     const active = activeRightTab === module.id;
-                    return <button key={module.id} id={`tab-${module.id}`} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} title={module.label} className={`flex-1 min-w-0 h-8 px-2 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-colors ${active ? 'bg-sky-600 text-white shadow-sm' : isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{module.label}</span>{module.count !== undefined && <span className={`rounded px-1 font-mono text-[8px] ${active ? 'bg-white/20' : isLight ? 'bg-slate-200' : 'bg-slate-950'}`}>{module.count}</span>}{module.id === 'inspector' && selectedElementIds.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}</button>;
+                    return <button key={module.id} id={`tab-${module.id}`} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} title={module.label} aria-label={module.label} className={`flex-1 min-w-0 h-8 px-2 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-colors ${active ? 'bg-accent text-white shadow-sm' : 'text-ink-muted hover:bg-surface-muted hover:text-ink'}`}><Icon className="w-3.5 h-3.5 shrink-0" /><span className="hidden sm:inline truncate">{module.label}</span>{module.count !== undefined && <span className={`rounded px-1 font-mono text-[10px] ${active ? 'bg-white/20' : isLight ? 'bg-slate-200' : 'bg-slate-950'}`}>{module.count}</span>}{module.id === 'inspector' && selectedElementIds.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}</button>;
                   })}
-                  {hasProductionTools && <div className="relative flex-1 min-w-0">
-                    <button type="button" onClick={() => setIsProductionMenuOpen((open) => !open)} aria-expanded={isProductionMenuOpen} className={`w-full h-8 px-2 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-colors ${activeProductionTool ? 'bg-sky-600 text-white shadow-sm' : isLight ? 'text-slate-600 hover:bg-slate-200 hover:text-slate-950' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                  {hasProductionTools && <div className="relative flex-1 min-w-0" ref={productionMenuRef}>
+                    <button type="button" onClick={() => setIsProductionMenuOpen((open) => !open)} aria-expanded={isProductionMenuOpen} aria-haspopup="menu" title="Production modules" aria-label={`Production modules${activeProductionTool ? ` (${activeProductionTool.label})` : ''}`} className={`w-full h-8 px-2 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-semibold transition-colors ${activeProductionTool ? 'bg-accent text-white shadow-sm' : 'text-ink-muted hover:bg-surface-muted hover:text-ink'}`}>
                       {activeProductionTool ? React.createElement(activeProductionTool.icon, { className: 'w-3.5 h-3.5 shrink-0' }) : <CalendarDays className="w-3.5 h-3.5 shrink-0" />}
-                      <span className="truncate">{activeProductionTool?.label ?? 'Production'}</span><ChevronDown className="w-3 h-3 shrink-0" />
+                      <span className="hidden sm:inline truncate">{activeProductionTool?.label ?? 'Production'}</span><ChevronDown className="w-3 h-3 shrink-0" />
                     </button>
-                    {isProductionMenuOpen && <div className={`absolute top-10 right-0 z-50 w-64 rounded-xl border shadow-2xl p-2 ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700'}`}>
-                      {([
-                        ['Planning', ['schedule', 'locations', 'moodboard']],
-                        ['People & money', ['contacts', 'tasks', 'budget']],
-                        ['Operations', ['logistics', 'run_of_show', 'continuity']],
-                        ['Technical', ['power', 'rigging']],
-                      ] as Array<[string, WorkspaceModule[]]>).map(([label, ids]) => [label, ids.map((id) => workspaceModules.find((module) => module.id === id)).filter((module): module is NonNullable<typeof module> => Boolean(module?.visible))] as const).filter(([, modules]) => modules.length > 0).map(([label, modules]) => <section key={label} className="mb-2 last:mb-0"><div className={`px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{label}</div>{modules.map((module) => { const Icon = module.icon; return <button key={module.id} onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} className={`w-full h-9 px-2 rounded-lg flex items-center gap-2 text-[11px] font-semibold ${activeRightTab === module.id ? 'bg-sky-600 text-white' : isLight ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-200 hover:bg-slate-800'}`}><Icon className="w-4 h-4" />{module.label}</button>; })}</section>)}
+                    {isProductionMenuOpen && <div className={`absolute top-10 right-0 z-50 w-64 max-h-[70vh] overflow-y-auto max-sm:fixed max-sm:top-auto max-sm:bottom-2 max-sm:left-2 max-sm:right-2 max-sm:w-auto rounded-xl border shadow-2xl p-2 bg-surface border-line`}>
+                      {(MODULE_PICKER_GROUPS.slice(1).map((group) => [group.label, group.modules.map((entry) => entry.id as WorkspaceModule)]) as Array<[string, WorkspaceModule[]]>).map(([label, ids]) => [label, ids.map((id) => workspaceModules.find((module) => module.id === id)).filter((module): module is NonNullable<typeof module> => Boolean(module?.visible))] as const).filter(([, modules]) => modules.length > 0).map(([label, modules]) => <section key={label} className="mb-2 last:mb-0"><div className={`px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-ink-subtle`}>{label}</div>{modules.map((module) => { const Icon = module.icon; const pinned = pinnedModules.includes(module.id); return <div key={module.id} className="flex items-center gap-1"><button onClick={() => { setActiveRightTab(module.id); setIsProductionMenuOpen(false); }} className={`flex-1 h-9 px-2 rounded-lg flex items-center gap-2 text-[11px] font-semibold ${activeRightTab === module.id ? 'bg-accent text-white' : 'text-ink-soft hover:bg-surface-hover'}`}><Icon className="w-4 h-4" />{module.label}</button><button type="button" onClick={() => togglePinned(module.id)} aria-pressed={pinned} title={pinned ? `Unpin ${module.label} from the tab strip` : `Pin ${module.label} to the tab strip`} aria-label={pinned ? `Unpin ${module.label}` : `Pin ${module.label}`} className={`h-9 w-8 rounded-lg flex items-center justify-center ${pinned ? 'text-accent-ink' : 'text-ink-subtle hover:text-ink'} hover:bg-surface-hover`}>{pinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}</button></div>; })}</section>)}
                     </div>}
                   </div>}
               </nav>
@@ -422,8 +441,8 @@ const MainLayout: React.FC = () => {
                   aria-pressed={isSidebarFullscreen}
                   className={`p-1.5 rounded-lg transition-colors ${
                     isSidebarFullscreen
-                      ? 'bg-sky-600 text-white'
-                      : isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      ? 'bg-accent text-white'
+                      : 'text-ink-muted hover:text-ink hover:bg-surface-muted'
                   }`}
                 >
                   {isSidebarFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -435,7 +454,7 @@ const MainLayout: React.FC = () => {
                       title="Shrink panel"
                       aria-label="Shrink the side panel"
                       className={`p-1.5 rounded-lg transition-colors ${
-                        isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
+                        'text-ink-muted hover:bg-surface-muted'
                       }`}
                     >
                       <ChevronDown className="w-4 h-4" />
@@ -445,7 +464,7 @@ const MainLayout: React.FC = () => {
                       title="Enlarge panel"
                       aria-label="Enlarge the side panel"
                       className={`p-1.5 rounded-lg transition-colors ${
-                        isLight ? 'text-slate-500 hover:bg-slate-200' : 'text-slate-400 hover:bg-slate-800'
+                        'text-ink-muted hover:bg-surface-muted'
                       }`}
                     >
                       <ChevronUp className="w-4 h-4" />
@@ -457,7 +476,7 @@ const MainLayout: React.FC = () => {
                       onClick={toggleSidebarWidth}
                       title="Toggle Side Panel Width (Standard / Wide / Ultra-Wide)"
                       className={`p-1.5 rounded-lg text-xs font-bold transition-colors ${
-                        isLight ? 'text-slate-700 hover:text-slate-950 hover:bg-slate-200' : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                        'text-ink-soft hover:text-ink hover:bg-surface-muted'
                       }`}
                     >
                       <span className="text-[11px] font-mono font-black">{sidebarWidth > 900 ? '‹‹|››' : sidebarWidth > 650 ? '‹|›' : '›|‹'}</span>
@@ -474,7 +493,7 @@ const MainLayout: React.FC = () => {
                   title={isMobile ? 'Hide panel' : 'Collapse sidebar'}
                   aria-label={isMobile ? 'Hide the side panel' : 'Collapse the sidebar'}
                   className={`p-1.5 rounded-lg transition-colors ${
-                    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    'text-ink-muted hover:text-ink hover:bg-surface-muted'
                   }`}
                 >
                   {isMobile ? <X className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -538,7 +557,7 @@ const MainLayout: React.FC = () => {
             className={
               isMobile
                 ? `absolute bottom-3 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-full shadow-2xl border flex items-center gap-2 text-xs font-semibold ${
-                    isLight ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-900 border-slate-700 text-slate-200'
+                    'bg-surface border-line-strong text-ink-soft'
                   }`
                 : `absolute right-0 top-16 z-30 p-2 border-l border-t border-b rounded-l-xl shadow-xl flex items-center gap-1.5 transition-colors ${
                     isLight ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
@@ -553,6 +572,7 @@ const MainLayout: React.FC = () => {
       </div>
 
       {/* 3. Modals — gated so their chunks load on first open, not on boot. */}
+      <ShortcutSheet />
       {isViewfinderOpen && (
         <Suspense fallback={null}>
           <ViewfinderModal />

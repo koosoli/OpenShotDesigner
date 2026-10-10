@@ -70,15 +70,15 @@ interface TaskEditorProps {
 const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, onChecklistAdd, onChecklistToggle, onChecklistRemove, onMove, onDelete, onClose, isLight }) => {
   const [newItem, setNewItem] = useState('');
   const inputCls = `min-h-[32px] w-full rounded-md border px-2 py-1 text-xs outline-none ${
-    isLight ? 'border-slate-300 bg-white text-slate-800 focus:border-sky-400' : 'border-slate-700 bg-slate-950 text-slate-200 focus:border-sky-500'
+    'border-line-strong bg-field text-ink focus:border-accent'
   }`;
-  const labelCls = `text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`;
+  const labelCls = `text-[10px] font-bold uppercase tracking-wider text-ink-muted`;
   const progress = checklistProgress(task);
   return (
     <div className={`rounded-xl border p-3 space-y-2.5 ${isLight ? 'border-sky-200 bg-sky-50/60' : 'border-sky-900/60 bg-sky-950/20'}`}>
       <div className="flex items-start gap-2">
         <input value={task.title} onChange={(e) => onChange({ title: e.target.value })} className={`${inputCls} font-semibold text-sm`} placeholder="Task title" />
-        <button onClick={onClose} className={`p-1.5 rounded-md ${isLight ? 'hover:bg-slate-200' : 'hover:bg-slate-800'}`} title="Close" aria-label="Close"><X className="w-4 h-4" /></button>
+        <button onClick={onClose} className={`p-1.5 rounded-md hover:bg-surface-muted`} title="Close" aria-label="Close"><X className="w-4 h-4" /></button>
       </div>
       <textarea value={task.description ?? ''} onChange={(e) => onChange({ description: e.target.value || undefined })} rows={2} className={`${inputCls} resize-y`} placeholder="Details, links, what “done” means…" />
       <div className="grid grid-cols-2 gap-2">
@@ -113,7 +113,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
           Assignees{task.assigneeIds.length > 0 && ` · ${task.assigneeIds.length} assigned`}
         </span>
         {people.length === 0 ? (
-          <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          <p className={`text-[11px] text-ink-muted`}>
             Add crew on the Crew tab to assign tasks to them.
           </p>
         ) : (
@@ -122,7 +122,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
           <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
             {groupPeopleByDepartment(people).map((group) => (
               <div key={group.department} className="space-y-1">
-                <span className={`text-[9px] font-black uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                <span className={`text-[10px] font-black uppercase tracking-wider text-ink-subtle`}>
                   {group.department}
                 </span>
                 <div className="flex flex-wrap gap-1">
@@ -135,7 +135,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
                         title={person.role ? `${person.displayName} — ${person.role}` : person.displayName}
                         onClick={() => onChange({ assigneeIds: on ? task.assigneeIds.filter((id) => id !== person.id) : [...task.assigneeIds, person.id] })}
                         className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${
-                          on ? 'bg-sky-600 text-white border-sky-500' : isLight ? 'border-slate-300 text-slate-600 hover:bg-slate-100' : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                          on ? 'bg-accent text-white border-sky-500' : 'border-line-strong text-ink-soft hover:bg-surface-hover'
                         }`}
                       >
                         {person.displayName}
@@ -178,7 +178,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
           <button
             type="submit"
             disabled={!newItem.trim()}
-            className="px-2 min-h-[32px] rounded-md bg-sky-600 text-white text-xs font-bold disabled:opacity-40"
+            className="px-2 min-h-[32px] rounded-md bg-accent text-white text-xs font-bold disabled:opacity-40"
             title="Add checklist item"
             aria-label="Add checklist item"
           >
@@ -187,7 +187,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
         </form>
       </div>
       <div className="flex items-center justify-between pt-1">
-        <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+        <span className={`text-[10px] text-ink-muted`}>
           Created {task.createdAt.slice(0, 10)}{task.completedAt ? ` · done ${task.completedAt.slice(0, 10)}` : ''}
         </span>
         <button onClick={onDelete} className="px-2.5 py-1 rounded-lg border border-rose-500/40 text-rose-500 text-[11px] font-bold flex items-center gap-1 hover:bg-rose-500/10">
@@ -303,7 +303,7 @@ export const TaskBoardPanel: React.FC = () => {
     if (taskId) move(taskId, columnId, index);
   };
 
-  const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';
+  const mutedCls = 'text-ink-muted';
   const inputCls = `min-h-[34px] rounded-md border px-2 py-1 text-xs outline-none ${
     isLight ? 'border-slate-200 bg-white text-slate-800 focus:border-sky-400' : 'border-slate-700 bg-slate-950/60 text-slate-200 focus:border-sky-500'
   }`;
@@ -313,12 +313,12 @@ export const TaskBoardPanel: React.FC = () => {
 
   if (!board) {
     return (
-      <div className={`h-full grid place-items-center p-8 ${isLight ? 'bg-white' : 'bg-slate-900'}`}>
+      <div className={`h-full grid place-items-center p-8 bg-surface`}>
         <div className="max-w-sm text-center">
-          <KanbanSquare className="w-10 h-10 mx-auto mb-3 text-sky-500" />
+          <KanbanSquare className="w-10 h-10 mx-auto mb-3 text-accent-ink" />
           <h3 className="font-semibold">No task board yet</h3>
           <p className={`text-sm mt-1 ${mutedCls}`}>Track prep, shoot and post to-dos with due dates, assignees and checklists — drag cards across columns as work moves.</p>
-          <button onClick={createBoard} className="mt-4 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold">Create a board</button>
+          <button onClick={createBoard} className="mt-4 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-bold">Create a board</button>
         </div>
       </div>
     );
@@ -327,22 +327,22 @@ export const TaskBoardPanel: React.FC = () => {
   const columns = sortedColumns(board);
 
   return (
-    <div className={`h-full flex flex-col ${isLight ? 'bg-white' : 'bg-slate-900'}`}>
-      <div className={`p-3 space-y-2 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+    <div className={`h-full flex flex-col bg-surface`}>
+      <div className={`p-3 space-y-2 border-b border-line`}>
         <div className="flex items-center gap-1.5 flex-wrap">
-          <KanbanSquare className="w-4 h-4 text-sky-500" />
-          <select value={board.id} onChange={(e) => setActiveBoardId(e.target.value)} className={`${inputCls} font-semibold`} title="Select board">
+          <KanbanSquare className="w-4 h-4 text-accent-ink" />
+          <select value={board.id} onChange={(e) => setActiveBoardId(e.target.value)} className={`${inputCls} font-semibold`} aria-label="Select board" title="Select board">
             {boards.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.title}</option>)}
           </select>
-          <input value={board.title} onChange={(e) => renameBoard(e.target.value)} className={`${inputCls} w-44`} title="Board name" />
+          <input value={board.title} onChange={(e) => renameBoard(e.target.value)} className={`${inputCls} w-44`} aria-label="Board name" title="Board name" />
           <button onClick={createBoard} className={btnCls}><Plus className="w-3.5 h-3.5" /> New board</button>
-          <button onClick={deleteBoard} className={`min-h-[34px] min-w-[34px] grid place-items-center rounded-md ${isLight ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-red-950/40 hover:text-red-400'}`} title="Delete board" aria-label="Delete board"><Trash2 className="w-4 h-4" /></button>
-          <PdfExportButton onClick={() => { void exportPdf(); }} title="Sichtbare Aufgaben als PDF exportieren" />
+          <button onClick={deleteBoard} className={`min-h-[34px] min-w-[34px] grid place-items-center rounded-md text-ink-muted hover:bg-danger-soft hover:text-danger`} title="Delete board" aria-label="Delete board"><Trash2 className="w-4 h-4" /></button>
+          <PdfExportButton onClick={() => { void exportPdf(); }} title="Download the visible tasks as a PDF" />
           {summary && (
             <span className={`ml-auto text-[10px] font-mono flex items-center gap-2 ${mutedCls}`}>
               <span>{summary.done}/{summary.total} done</span>
               {summary.overdue > 0 && <span className="text-rose-500 font-bold flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{summary.overdue} overdue</span>}
-              {summary.dueSoon > 0 && <span className="text-amber-500 font-bold">{summary.dueSoon} due soon</span>}
+              {summary.dueSoon > 0 && <span className="text-warn font-bold">{summary.dueSoon} due soon</span>}
             </span>
           )}
         </div>
@@ -351,12 +351,12 @@ export const TaskBoardPanel: React.FC = () => {
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks…" className={`${inputCls} w-full !pl-7`} />
           </div>
-          <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className={inputCls}>
+          <select aria-label="Filter by assignee" value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} className={inputCls}>
             <option value="all">Everyone</option>
             <option value="unassigned">Unassigned</option>
             {people.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
           </select>
-          <select value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)} className={inputCls}>
+          <select aria-label="Filter by label" value={labelFilter} onChange={(e) => setLabelFilter(e.target.value)} className={inputCls}>
             <option value="all">All labels</option>
             {labels.map((label) => <option key={label} value={label}>{label}</option>)}
           </select>
@@ -400,15 +400,15 @@ export const TaskBoardPanel: React.FC = () => {
                 onDragLeave={() => setDragOverColumn((current) => (current === column.id ? null : current))}
                 onDrop={(e) => handleDrop(e, column.id, Number.MAX_SAFE_INTEGER)}
                 className={`w-64 flex-shrink-0 flex flex-col rounded-xl border transition-colors ${
-                  isOver ? 'border-sky-400 ring-2 ring-sky-400/30' : isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/40'
+                  isOver ? 'border-sky-400 ring-2 ring-sky-400/30' : 'border-line bg-surface-sunken'
                 }`}
               >
                 <summary className="px-2.5 pt-2.5 pb-1.5 flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                   <span className="text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                    {column.isDone && <CheckSquare className="w-3.5 h-3.5 text-emerald-500" />}
+                    {column.isDone && <CheckSquare className="w-3.5 h-3.5 text-ok" />}
                     {column.title}
                   </span>
-                  <span className={`text-[10px] font-mono px-1.5 rounded-full ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'}`}>{cards.length}</span>
+                  <span className={`text-[10px] font-mono px-1.5 rounded-full bg-surface-muted text-ink-muted`}>{cards.length}</span>
                 </summary>
                 <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 space-y-1.5">
                   {cards.map((task, index) => {
@@ -432,7 +432,7 @@ export const TaskBoardPanel: React.FC = () => {
                         onDrop={(e) => handleDrop(e, column.id, index)}
                         onClick={() => setEditingTaskId(task.id)}
                         className={`rounded-lg border p-2 cursor-grab active:cursor-grabbing space-y-1.5 ${
-                          editingTaskId === task.id ? 'border-sky-500 ring-1 ring-sky-500/40' : isLight ? 'border-slate-200 bg-white hover:border-slate-300' : 'border-slate-800 bg-slate-900 hover:border-slate-600'
+                          editingTaskId === task.id ? 'border-sky-500 ring-1 ring-sky-500/40' : 'border-line bg-surface hover:border-line-strong'
                         } ${task.completedAt ? 'opacity-70' : ''}`}
                       >
                         <div className="flex items-start gap-1.5">
@@ -442,24 +442,24 @@ export const TaskBoardPanel: React.FC = () => {
                         {(task.dueDate || progress.total > 0 || task.labels.length > 0 || assignees.length > 0) && (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {task.dueDate && (
-                              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                                overdue ? 'bg-rose-500/15 text-rose-500' : dueSoon ? 'bg-amber-500/15 text-amber-500' : isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-400'
+                              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                                overdue ? 'bg-rose-500/15 text-rose-500' : dueSoon ? 'bg-amber-500/15 text-warn' : 'bg-surface-muted text-ink-muted'
                               }`}>
                                 <CalendarDays className="w-3 h-3" />{task.dueDate.slice(5)}
                               </span>
                             )}
                             {progress.total > 0 && (
-                              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded flex items-center gap-1 ${progress.done === progress.total ? 'bg-emerald-500/15 text-emerald-500' : isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-400'}`}>
+                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded flex items-center gap-1 ${progress.done === progress.total ? 'bg-emerald-500/15 text-ok' : 'bg-surface-muted text-ink-muted'}`}>
                                 <CheckSquare className="w-3 h-3" />{progress.done}/{progress.total}
                               </span>
                             )}
                             {task.labels.map((label) => (
-                              <span key={label} className="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-500 flex items-center gap-0.5"><Tag className="w-2.5 h-2.5" />{label}</span>
+                              <span key={label} className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-700 dark:text-violet-300 flex items-center gap-0.5"><Tag className="w-2.5 h-2.5" />{label}</span>
                             ))}
                             {assignees.length > 0 && (
                               <span className="ml-auto flex -space-x-1">
                                 {assignees.slice(0, 3).map((person) => (
-                                  <span key={person.id} title={person.displayName} className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-500 text-[8px] font-black grid place-items-center border border-white dark:border-slate-900">
+                                  <span key={person.id} title={person.displayName} className="w-5 h-5 rounded-full bg-sky-500/20 text-accent-ink text-[10px] font-black grid place-items-center border border-white dark:border-slate-900">
                                     {personInitials(person)}
                                   </span>
                                 ))}
@@ -510,7 +510,7 @@ export const TaskBoardPanel: React.FC = () => {
                     placeholder="Add a task…"
                     className={`${inputCls} flex-1 min-w-0 !min-h-[30px]`}
                   />
-                  <button type="submit" disabled={!(drafts[column.id] ?? '').trim()} className="min-h-[30px] px-2 rounded-md bg-sky-600 text-white disabled:opacity-40" title="Add task" aria-label="Add task">
+                  <button type="submit" disabled={!(drafts[column.id] ?? '').trim()} className="min-h-[30px] px-2 rounded-md bg-accent text-white disabled:opacity-40" title="Add task" aria-label="Add task">
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </form>

@@ -1,18 +1,20 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, CalendarDays, Clapperboard, MapPin, Tag, UserRound, Users } from 'lucide-react';
-
-const DOOD_CELL: Record<DoodWorkStatus, { label: string; className: string; title: string }> = {
-  start: { label: 'SW', className: 'bg-emerald-500 text-white', title: 'Start work' },
-  work: { label: 'W', className: 'bg-emerald-500/70 text-white', title: 'Work' },
-  finish: { label: 'WF', className: 'bg-emerald-600 text-white', title: 'Work finish' },
-  hold: { label: 'H', className: 'bg-amber-400/80 text-black', title: 'Hold' },
-  off: { label: '', className: '', title: 'Off' },
-};
+import { requestScheduleView } from '../../utils/uiPrefs';
+import { cachedScriptBreakdown } from '../../domain/script/breakdownCache';
+import { PanelTitle } from '../common/PanelHeader';
+import { ArrowRight, Clapperboard, ListOrdered, MapPin, Package, Users } from 'lucide-react';
 import type { ScriptLine, SceneSetup } from '../../types';
 import type { ScriptScene } from '../../domain/script';
-import { deriveCharacterReport, deriveDood } from '../../domain/reports';
-import type { DoodWorkStatus } from '../../domain/reports';
-import { deriveScriptBreakdown, parseSceneHeading } from '../../domain/script/logic';
+import { characterColor } from '../../domain/script';
+import { deriveCharacterReport, formatPageEighths } from '../../domain/reports';
+import { parseSceneHeading } from '../../domain/script/logic';
+import { BreakdownSheetsReport } from './BreakdownSheetsReport';
+import { BreakdownIcon, DoodIcon } from '../icons/ProductionIcons';
+import { PdfExportButton } from '../common/PdfExportButton';
+import { setCharacterColorCommand } from '../../domain/commands';
+import { SceneListReport } from './SceneListReport';
+import { PropsReport } from './PropsReport';
+import { SCOUT_STATUS } from '../locations/LocationScoutSection';
 import { emptySetup } from '../../utils/projectLibrary';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { SetLocationLink } from '../locations/SetLocationLink';
@@ -31,27 +33,34 @@ const setupTimeOfDay = (scene: ScriptScene): SceneSetup['timeOfDay'] => {
 };
 
 export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, isLight }) => {
-  const { project, updateProjectMeta, setActiveSetupId } = useFloorPlan();
+  const { project, updateProjectMeta, runCommand, setActiveSetupId, activeSetup, allShots, avScriptRows } = useFloorPlan();
+  const [exporting, setExporting] = useState(false);
+
+  /** Download just the report on screen (scene list, characters, locations or elements). */
+  const exportCurrentReport = async () => {
+    if (report !== 'scenes' && report !== 'characters' && report !== 'locations' && report !== 'elements') return;
+    setExporting(true);
+    try {
+      const { downloadSectionPdf } = await import('../../utils/pdf/exportStudio');
+      await downloadSectionPdf('scriptreports', {
+        project,
+        activeSetup,
+        scriptLines: lines,
+        avScriptRows,
+        allShots,
+        scriptReportSections: { scenes: false, characters: false, locations: false, elements: false, dood: false, [report]: true },
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
   const { setActiveRightTab } = useWorkspaceUI();
-  const [report, setReport] = useState<'characters' | 'locations' | 'elements' | 'dood'>('characters');
+  const [report, setReport] = useState<'scenes' | 'sheets' | 'characters' | 'locations' | 'elements' | 'props'>('scenes');
 
   const breakdown = useMemo(
-    () => deriveScriptBreakdown(lines, project.characters || [], project.locations || []),
+    () => cachedScriptBreakdown(lines, project.characters, project.locations),
     [lines, project.characters, project.locations],
   );
-
-  // Day-out-of-days: which characters work on which scheduled day.
-  const dood = useMemo(() => {
-    const sceneCharacters = new Map(breakdown.scenes.map((scene) => [scene.id, scene.characterIds] as const));
-    return deriveDood({
-      days: project.productionDays ?? [],
-      blocks: project.scheduleBlocks ?? [],
-      characters: breakdown.characters,
-      castAssignments: project.castAssignments,
-      people: project.people,
-      getSceneCharacterIds: (sceneId) => sceneCharacters.get(sceneId),
-    });
-  }, [breakdown, project.productionDays, project.scheduleBlocks, project.castAssignments, project.people]);
 
   const characterReports = useMemo(
     () => breakdown.characters
@@ -67,10 +76,18 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
     [breakdown, project.people, project.castAssignments],
   );
 
+  const setCharacterColor = (characterId: string, color: string) => {
+    runCommand(setCharacterColorCommand, { characterId, color, fallbackCharacters: breakdown.characters }, { domain: 'script' });
+  };
+
+  const totalEighths = breakdown.scenes
+    .filter((scene) => !scene.omitted)
+    .reduce((sum, scene) => sum + (scene.pageLengthEighths ?? 0), 0);
+
   const card = isLight
     ? 'border-slate-200 bg-white shadow-sm'
     : 'border-slate-800 bg-slate-900/80';
-  const muted = isLight ? 'text-slate-500' : 'text-slate-400';
+  const muted = 'text-ink-muted';
 
   const matchingSetup = (scene: ScriptScene): SceneSetup | undefined =>
     project.setups.find((setup) =>
@@ -115,7 +132,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
 
   if (breakdown.scenes.length === 0) {
     return (
-      <div className={`flex-1 grid place-items-center p-8 ${isLight ? 'bg-slate-50' : 'bg-slate-950'}`}>
+      <div className={`flex-1 grid place-items-center p-8 bg-surface-sunken`}>
         <div className="max-w-md text-center">
           <Clapperboard className="w-10 h-10 mx-auto mb-3 text-violet-400" />
           <h3 className="font-semibold">No scene breakdown yet</h3>
@@ -126,79 +143,52 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
   }
 
   return (
-    <div className={`flex-1 overflow-auto p-4 sm:p-6 ${isLight ? 'bg-slate-50' : 'bg-slate-950'}`}>
+    <div className={`flex-1 overflow-auto p-4 sm:p-6 bg-surface-sunken`}>
       <div className="max-w-6xl mx-auto space-y-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${muted}`}>Live script intelligence</p>
-            <h2 className="text-xl font-semibold mt-1">Breakdown reports</h2>
-            <p className={`text-xs mt-1 ${muted}`}>{breakdown.scenes.length} scenes · {characterReports.length} speaking characters · {breakdown.locations.length} locations</p>
+            <PanelTitle
+              icon={<BreakdownIcon />}
+              title="Breakdown reports"
+              subtitle={`${breakdown.scenes.length} scenes · ${formatPageEighths(totalEighths)} pages · ${characterReports.length} speaking characters · ${breakdown.locations.length} locations`}
+            />
           </div>
-          <div className={`flex p-1 rounded-xl border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900'}`}>
-            <button onClick={() => setReport('characters')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'characters' ? 'bg-violet-600 text-white' : muted}`}>
+          <div className="flex items-center gap-2 flex-wrap">
+          {(report === 'scenes' || report === 'characters' || report === 'locations' || report === 'elements') && (
+            <PdfExportButton onClick={() => { void exportCurrentReport(); }} disabled={exporting} title="Download only this report as a PDF" />
+          )}
+          <div className={`flex flex-wrap p-1 rounded-xl border border-line bg-surface`}>
+            <button onClick={() => setReport('scenes')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'scenes' ? 'bg-accent text-white' : muted}`} title="Every scene with its length in eighths of a page">
+              <ListOrdered className="w-3.5 h-3.5" /> Scenes
+            </button>
+            <button onClick={() => setReport('sheets')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'sheets' ? 'bg-accent text-white' : muted}`} title="One breakdown sheet per scene, coloured like its strip">
+              <BreakdownIcon className="w-3.5 h-3.5" /> Sheets
+            </button>
+            <button onClick={() => setReport('characters')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'characters' ? 'bg-accent text-white' : muted}`}>
               <Users className="w-3.5 h-3.5" /> Characters
             </button>
-            <button onClick={() => setReport('locations')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'locations' ? 'bg-violet-600 text-white' : muted}`}>
+            <button onClick={() => setReport('locations')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'locations' ? 'bg-accent text-white' : muted}`}>
               <MapPin className="w-3.5 h-3.5" /> Locations
             </button>
-            <button onClick={() => setReport('elements')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'elements' ? 'bg-violet-600 text-white' : muted}`} title="Props, wardrobe, vehicles and effects tagged in the script">
-              <Tag className="w-3.5 h-3.5" /> Elements
+            <button onClick={() => setReport('elements')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'elements' ? 'bg-accent text-white' : muted}`} title="Props, wardrobe, vehicles and effects tagged in the script">
+              <BreakdownIcon className="w-3.5 h-3.5" /> Elements
             </button>
-            <button onClick={() => setReport('dood')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'dood' ? 'bg-violet-600 text-white' : muted}`} title="Day out of days: which cast works on which shooting day">
-              <CalendarDays className="w-3.5 h-3.5" /> DOOD
+            <button onClick={() => setReport('props')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${report === 'props' ? 'bg-accent text-white' : muted}`} title="Props (or any department) with scenes, shoot days and characters">
+              <Package className="w-3.5 h-3.5" /> Props
             </button>
+            <button onClick={() => { requestScheduleView('dood'); setActiveRightTab('schedule'); }} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex gap-1.5 items-center ${muted}`} title="Day out of days — part of the Schedule, since it is worked out from the shooting days">
+              <DoodIcon className="w-3.5 h-3.5" /> DOOD <ArrowRight className="w-3 h-3 opacity-60" aria-hidden />
+            </button>
+          </div>
           </div>
         </div>
 
-        {report === 'dood' ? (
-          <div className={`rounded-2xl border p-4 ${card}`}>
-            <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
-              <div>
-                <h3 className="text-sm font-bold">Day out of days</h3>
-                <p className={`text-[11px] ${muted}`}>Derived from scene strips on each shooting day. SW = start work, W = work, H = hold, WF = finish.</p>
-              </div>
-              <span className={`text-[10px] ${muted}`}>{dood.columns.length} day{dood.columns.length === 1 ? '' : 's'} · {dood.rows.length} character{dood.rows.length === 1 ? '' : 's'}</span>
-            </div>
-            {dood.columns.length === 0 ? (
-              <p className={`text-xs ${muted}`}>No shooting days yet — add days and scene strips in the Schedule module to populate the DOOD.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="text-[11px] border-collapse">
-                  <thead>
-                    <tr>
-                      <th className={`text-left px-2 py-1 sticky left-0 ${isLight ? 'bg-white' : 'bg-slate-900'}`}>Character / performer</th>
-                      {dood.columns.map((column) => (
-                        <th key={column.dayId} className="px-1.5 py-1 text-center font-mono font-bold whitespace-nowrap" title={column.date ?? 'undated'}>
-                          <div>{column.dayName}</div>
-                          <div className={`font-normal ${muted}`}>{column.date ? column.date.slice(5) : '—'}</div>
-                        </th>
-                      ))}
-                      <th className="px-2 py-1 text-right">Days</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dood.rows.map((row) => {
-                      const working = row.cells.filter((cell) => cell.status !== 'off' && cell.status !== 'hold').length;
-                      return (
-                        <tr key={row.characterId} className={`border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-                          <td className={`px-2 py-1 font-semibold whitespace-nowrap sticky left-0 ${isLight ? 'bg-white' : 'bg-slate-900'}`}>{row.displayName}</td>
-                          {row.cells.map((cell) => {
-                            const meta = DOOD_CELL[cell.status];
-                            return (
-                              <td key={cell.dayId} className="px-1 py-1 text-center">
-                                {meta.label && <span title={meta.title} className={`inline-block min-w-[26px] px-1 rounded font-mono font-bold ${meta.className}`}>{meta.label}</span>}
-                              </td>
-                            );
-                          })}
-                          <td className="px-2 py-1 text-right font-mono">{working}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        {report === 'sheets' ? (
+          <BreakdownSheetsReport lines={lines} scenes={breakdown.scenes} characters={breakdown.characters} isLight={isLight} />
+        ) : report === 'scenes' ? (
+          <SceneListReport lines={lines} scenes={breakdown.scenes} characters={breakdown.characters} isLight={isLight} />
+        ) : report === 'props' ? (
+          <PropsReport lines={lines} scenes={breakdown.scenes} characters={breakdown.characters} isLight={isLight} />
         ) : report === 'elements' ? (
           <BreakdownElementsPanel lines={lines} scenes={breakdown.scenes} isLight={isLight} />
         ) : report === 'characters' ? (
@@ -207,7 +197,22 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
               <article key={entry.character?.id} className={`rounded-2xl border p-4 ${card}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 grid place-items-center"><UserRound className="w-4 h-4" /></div>
+                    {entry.character && (
+                      <label
+                        className="relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer shrink-0 text-white font-bold text-sm"
+                        style={{ backgroundColor: characterColor(entry.character.id, breakdown.characters) }}
+                        title="Highlighter colour on the script page — click to change"
+                      >
+                        {entry.character.canonicalName.slice(0, 1)}
+                        <input
+                          type="color"
+                          aria-label={`Highlighter colour for ${entry.character.canonicalName}`}
+                          value={characterColor(entry.character.id, breakdown.characters)}
+                          onChange={(event) => setCharacterColor(entry.character!.id, event.target.value)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                      </label>
+                    )}
                     <div>
                       <h3 className="text-sm font-bold">{entry.character?.canonicalName}</h3>
                       <p className={`text-[11px] ${muted}`}>{entry.castPerson?.displayName || 'Cast not assigned'}</p>
@@ -217,7 +222,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {entry.scenes.map((scene) => (
-                    <span key={scene.id} title={scene.omitted ? `${scene.heading} (omitted)` : scene.heading} className={`px-2 py-1 rounded-md border text-[10px] font-mono ${scene.omitted ? 'line-through opacity-50' : ''} ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-950'}`}>
+                    <span key={scene.id} title={scene.omitted ? `${scene.heading} (omitted)` : scene.heading} className={`px-2 py-1 rounded-md border text-[10px] font-mono ${scene.omitted ? 'line-through opacity-50' : ''} border-line-strong bg-surface-sunken`}>
                       SC {scene.sceneNumber}
                     </span>
                   ))}
@@ -241,20 +246,43 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-bold">{location.name}</h3>
-                          <span className={`text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${location.locationId ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                          <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${location.locationId ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
                             {location.locationId ? 'Project location' : 'Script only'}
                           </span>
                         </div>
                         <p className={`text-[11px] mt-0.5 ${muted}`}>{location.scenes.length} scenes · {intCount} INT · {extCount} EXT</p>
+                        {(() => {
+                          // Places scouted for this set, with where they stand.
+                          const names = new Set([location.name, ...parsedScenes.map(({ parsed }) => parsed.location ?? '')].map((name) => name.trim().toLowerCase()).filter(Boolean));
+                          const candidates = (project.locations ?? []).filter((candidate) =>
+                            candidate.scout?.candidateFor && names.has(candidate.scout.candidateFor.trim().toLowerCase()));
+                          if (candidates.length === 0) return null;
+                          return (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                              <span className={`text-[10px] ${muted}`}>Candidates:</span>
+                              {candidates.map((candidate) => (
+                                <button
+                                  key={candidate.id}
+                                  type="button"
+                                  onClick={() => setActiveRightTab('locations')}
+                                  title={`${candidate.scout?.status ?? 'unscouted'}${candidate.scout?.rating ? ` · ${candidate.scout.rating}/5` : ''} — open in Locations`}
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${candidate.scout?.status ? SCOUT_STATUS[candidate.scout.status].className : 'bg-surface-muted text-ink-soft'}`}
+                                >
+                                  {candidate.name}{candidate.scout?.rating ? ` ${'★'.repeat(candidate.scout.rating)}` : ''}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="flex gap-2 flex-wrap">
                       <SetLocationLink setName={location.name} isLight={isLight} />
                       {location.locationId && (
-                        <button onClick={() => setActiveRightTab('locations')} className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>Open location</button>
+                        <button onClick={() => setActiveRightTab('locations')} className={`px-3 py-1.5 rounded-lg border text-xs font-semibold border-line-strong`}>Open location</button>
                       )}
                       {missingCount > 0 && (
-                        <button onClick={() => createMissingSetups(location.scenes, location.locationId)} className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold flex items-center gap-1.5">
+                        <button onClick={() => createMissingSetups(location.scenes, location.locationId)} className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold flex items-center gap-1.5">
                           <Clapperboard className="w-3.5 h-3.5" /> Create {missingCount} scene{missingCount === 1 ? '' : 's'}
                         </button>
                       )}
@@ -269,10 +297,10 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
                             <span className="text-[10px] font-bold text-violet-400 mr-2">SC {scene.sceneNumber}</span>
                             <span className={`text-xs font-medium truncate ${scene.omitted ? 'line-through opacity-50' : ''}`}>{scene.heading}</span>
                             {scene.omitted && (
-                              <span className="ml-2 text-[9px] font-bold uppercase tracking-wider text-rose-400">Omitted</span>
+                              <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-rose-400">Omitted</span>
                             )}
                           </div>
-                          <button onClick={() => createOrOpenSetup(scene, location.locationId)} className={`shrink-0 px-2.5 py-1 rounded-lg border text-[10px] font-semibold flex items-center gap-1 ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
+                          <button onClick={() => createOrOpenSetup(scene, location.locationId)} className={`shrink-0 px-2.5 py-1 rounded-lg border text-[10px] font-semibold flex items-center gap-1 border-line-strong`}>
                             {existing ? 'Open scene' : 'Create scene'} <ArrowRight className="w-3 h-3" />
                           </button>
                         </div>

@@ -37,6 +37,60 @@ export interface Location {
   contactIds?: string[];
   notes?: string;
   masterPlanId?: string;
-  /** References to asset-library entries, never embedded media. */
+  /**
+   * References to asset-library entries, never embedded media. Scout photos
+   * live here; their captions and EXIF data are in `scout.photos`.
+   */
   referenceAssetIds: string[];
+  /** v34: location scouting report. */
+  scout?: LocationScout;
+}
+
+export type LocationScoutStatus = 'candidate' | 'shortlisted' | 'approved' | 'rejected';
+
+/** What one scout photo shows, keyed by its asset id in `referenceAssetIds`. */
+export interface LocationScoutPhoto {
+  caption?: string;
+  /** From EXIF: local capture time, "2026-05-04T14:22:10". */
+  takenAt?: string;
+  lat?: number;
+  lng?: number;
+  /** Compass direction the camera faced, degrees. */
+  heading?: number;
+}
+
+/**
+ * A scouting report: the practical questions a location manager answers on a
+ * recce, so the department heads are not each asking them again.
+ */
+export interface LocationScout {
+  status?: LocationScoutStatus;
+  /**
+   * The script set this place is being scouted for ("LIVING ROOM"), so several
+   * candidates for one set can be compared side by side. Free text matched
+   * case-insensitively against slugline locations.
+   */
+  candidateFor?: string;
+  /** ISO date of the scout. */
+  scoutedOn?: string;
+  scoutedBy?: string;
+  /** 1–5. */
+  rating?: number;
+  power?: string;
+  parking?: string;
+  restrooms?: string;
+  /** Holding, base camp, green room. */
+  holding?: string;
+  /** Load-in, lifts, stairs, door widths. */
+  access?: string;
+  /** Traffic, flight paths, neighbours, HVAC. */
+  sound?: string;
+  /** Window directions, sun path, practicals. */
+  light?: string;
+  cellSignal?: string;
+  permits?: string;
+  /** Location fee / terms. */
+  fee?: string;
+  /** Per-photo details keyed by asset id. */
+  photos?: Record<string, LocationScoutPhoto>;
 }

@@ -22,15 +22,15 @@ const DAY_KIND_LABEL = { shoot: 'Shoot', rehearsal: 'Rehearsal', scout: 'Scout',
  * for gear, a column per production day. The production manager's morning
  * question, answered from the schedule rather than from memory.
  */
-export const DayNeedsView: React.FC<DayNeedsViewProps> = ({ isLight }) => {
+export const DayNeedsView: React.FC<DayNeedsViewProps> = ({ isLight: _isLight }) => {
   const { project } = useFloorPlan();
   const { setActiveRightTab } = useWorkspaceUI();
   const { needs, shootDays } = useProductionNeeds();
   const people = useMemo(() => project.people ?? [], [project.people]);
-  const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';
-  const cardCls = `rounded-xl border overflow-hidden ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900/60'}`;
-  const headCls = `sticky top-0 z-10 text-[9px] uppercase font-bold ${isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-950 text-slate-400'}`;
-  const rowBorder = isLight ? 'border-slate-100' : 'border-slate-800';
+  const mutedCls = 'text-ink-muted';
+  const cardCls = `rounded-xl border overflow-hidden border-line bg-surface`;
+  const headCls = `sticky top-0 z-10 text-[10px] uppercase font-bold bg-surface-sunken text-ink-muted`;
+  const rowBorder = 'border-line';
 
   const cast = people.filter((person) => person.kind === 'cast' || person.kind === 'talent');
   const crewGroups = groupPeopleByDepartment(people.filter((person) => person.kind === 'crew'));
@@ -56,7 +56,7 @@ export const DayNeedsView: React.FC<DayNeedsViewProps> = ({ isLight }) => {
         <div className="max-w-sm space-y-2">
           <p className="text-sm font-bold">No production days yet</p>
           <p className={`text-xs ${mutedCls}`}>Add shooting days on the Schedule tab and drop scenes, setups or shots on them; this page then lists who and what each day needs.</p>
-          <button onClick={() => setActiveRightTab('schedule')} className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold">Open schedule</button>
+          <button onClick={() => setActiveRightTab('schedule')} className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-500 text-white text-xs font-bold">Open schedule</button>
         </div>
       </div>
     );
@@ -76,7 +76,7 @@ export const DayNeedsView: React.FC<DayNeedsViewProps> = ({ isLight }) => {
   );
   const dot = (key: string, on: boolean, label?: string) => (
     <td key={key} className={`px-1.5 py-1 text-center ${on ? '' : 'opacity-20'}`} aria-label={on ? 'needed' : 'not needed'}>
-      {on ? <span className="inline-block min-w-[18px] px-1 rounded bg-emerald-500 text-white text-[9px] font-black">{label ?? '●'}</span> : '·'}
+      {on ? <span className="inline-block min-w-[18px] px-1 rounded bg-emerald-500 text-white text-[10px] font-black">{label ?? '●'}</span> : '·'}
     </td>
   );
 
@@ -108,7 +108,7 @@ export const DayNeedsView: React.FC<DayNeedsViewProps> = ({ isLight }) => {
           <table className="w-full text-xs border-collapse">
             <thead>{dayHeader}</thead>
             <tbody>
-              {cast.length > 0 && <tr><td colSpan={needs.length + 1} className={`px-2 py-1 text-[9px] font-black uppercase ${isLight ? 'bg-amber-50 text-amber-800' : 'bg-amber-950/30 text-amber-300'}`}>Cast</td></tr>}
+              {cast.length > 0 && <tr><td colSpan={needs.length + 1} className={`px-2 py-1 text-[10px] font-black uppercase bg-warn-soft text-warn`}>Cast</td></tr>}
               {cast.map((person) => (
                 <tr key={person.id} className={`border-t ${rowBorder}`}>
                   <td className="px-2 py-1 truncate"><b>{person.displayName}</b>{person.role && <span className={`ml-1 ${mutedCls}`}>{person.role}</span>}</td>
@@ -117,7 +117,7 @@ export const DayNeedsView: React.FC<DayNeedsViewProps> = ({ isLight }) => {
               ))}
               {crewGroups.map((group) => (
                 <React.Fragment key={group.department}>
-                  <tr><td colSpan={needs.length + 1} className={`px-2 py-1 text-[9px] font-black uppercase ${isLight ? 'bg-slate-50 text-slate-600' : 'bg-slate-950/60 text-slate-400'}`}>{group.department}</td></tr>
+                  <tr><td colSpan={needs.length + 1} className={`px-2 py-1 text-[10px] font-black uppercase bg-surface-sunken text-ink-muted`}>{group.department}</td></tr>
                   {group.people.map((person) => (
                     <tr key={person.id} className={`border-t ${rowBorder}`}>
                       <td className="px-2 py-1 truncate"><b>{person.displayName}</b>{person.role && <span className={`ml-1 ${mutedCls}`}>{person.role}</span>}</td>

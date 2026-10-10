@@ -30,7 +30,7 @@ interface AnnotationInspectorProps {
 export const AnnotationInspector: React.FC<AnnotationInspectorProps> = ({ ann, isLight }) => {
   const fieldId = useId();
   const { activeSetup, updateElement, selectElement } = useFloorPlan();
-  const inputClass = `w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`;
+  const inputClass = `w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`;
   const target = activeSetup.elements.find((el) => el.id === ann.targetElementId);
   const lineWidth = ann.lineWidth ?? 1;
   const lineOpacity = ann.lineOpacity ?? 0.25;
@@ -38,7 +38,7 @@ export const AnnotationInspector: React.FC<AnnotationInspectorProps> = ({ ann, i
   const optionBtn = (active: boolean) =>
     `py-1.5 text-[10px] font-semibold rounded border capitalize ${
       active
-        ? 'bg-sky-600 text-white border-sky-500'
+        ? 'bg-accent text-white border-sky-500'
         : isLight
         ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
         : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'
@@ -48,7 +48,7 @@ export const AnnotationInspector: React.FC<AnnotationInspectorProps> = ({ ann, i
     <div className="space-y-3 pt-1">
       <RubricSection
         title="Linked Element"
-        icon={<MoveUpRight className="w-3.5 h-3.5 text-sky-500" />}
+        icon={<MoveUpRight className="w-3.5 h-3.5 text-accent-ink" />}
         defaultOpen={true}
         isLight={isLight}
       >
@@ -57,14 +57,14 @@ export const AnnotationInspector: React.FC<AnnotationInspectorProps> = ({ ann, i
             onClick={() => selectElement(target.id, false, true)}
             title="Select the element this callout points at"
             className={`w-full text-left border rounded-lg p-2 transition-colors ${
-              isLight ? 'bg-slate-50 border-slate-200 hover:bg-slate-100' : 'bg-slate-950 border-slate-800 hover:bg-slate-800'
+              'bg-surface-sunken border-line hover:bg-surface-hover'
             }`}
           >
             <span className="block text-[10px] uppercase tracking-wider opacity-60">{target.type}</span>
             <span className="block text-xs font-bold truncate">{target.name || target.id}</span>
           </button>
         ) : (
-          <p className="text-[11px] text-amber-500 font-semibold">
+          <p className="text-[11px] text-warn font-semibold">
             Detached — its target element is gone. The text stays where it was; delete this callout or leave it as a free note.
           </p>
         )}
@@ -298,10 +298,10 @@ export const ElementAnnotationsSection: React.FC<{ elementId: string; isLight: b
   return (
     <RubricSection
       title="Annotations"
-      icon={<MessageSquarePlus className="w-3.5 h-3.5 text-amber-500" />}
+      icon={<MessageSquarePlus className="w-3.5 h-3.5 text-warn" />}
       badge={
         notes.length > 0 ? (
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 opacity-75">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 opacity-75">
             {notes.length}
           </span>
         ) : undefined
@@ -315,7 +315,7 @@ export const ElementAnnotationsSection: React.FC<{ elementId: string; isLight: b
             <li
               key={note.id}
               className={`flex items-center gap-1.5 border rounded-lg p-1.5 ${
-                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+                'bg-surface-sunken border-line'
               }`}
             >
               <button
@@ -324,7 +324,7 @@ export const ElementAnnotationsSection: React.FC<{ elementId: string; isLight: b
                 className="flex-1 min-w-0 text-left"
               >
                 <span className="block text-[11px] font-semibold truncate">{note.text || 'Note'}</span>
-                <span className="block text-[9px] font-mono opacity-50">
+                <span className="block text-[10px] font-mono opacity-50">
                   X:{Math.round(note.x)} Y:{Math.round(note.y)}
                 </span>
               </button>

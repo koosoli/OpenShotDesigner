@@ -70,7 +70,7 @@ const useAssetObjectUrl = (assetId?: string): string | null => {
   return url;
 };
 
-const CardThumb: React.FC<{ card: MoodBoardCard; isLight: boolean }> = ({ card, isLight }) => {
+const CardThumb: React.FC<{ card: MoodBoardCard; isLight: boolean }> = ({ card, isLight: _isLight }) => {
   const objectUrl = useAssetObjectUrl(card.assetId);
   const src = objectUrl ?? (card.sourceUrl ? card.sourceUrl : null);
   if (src) {
@@ -86,7 +86,7 @@ const CardThumb: React.FC<{ card: MoodBoardCard; isLight: boolean }> = ({ card, 
   return (
     <div
       className={`w-full h-28 rounded-md flex flex-col items-center justify-center gap-1 text-[10px] ${
-        isLight ? 'bg-slate-100 text-slate-400' : 'bg-slate-800/60 text-slate-500'
+        'bg-surface-muted text-ink-muted'
       }`}
     >
       <ImageOff className="w-5 h-5" />
@@ -161,7 +161,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
         <select
           value={card.sectionId}
           onChange={(e) => onMove(card.id, e.target.value)}
-          title="Move to section"
+          aria-label="Move to section" title="Move to section"
           className={`min-h-[36px] flex-1 rounded-md border px-1.5 py-1 text-xs outline-none ${
             isLight
               ? 'border-slate-200 bg-white text-slate-700'
@@ -179,7 +179,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
           title="Delete card"
           aria-label="Delete card"
           className={`min-h-[36px] min-w-[36px] flex items-center justify-center rounded-md transition-colors ${
-            isLight ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-red-950/40 hover:text-red-400'
+            'text-ink-muted hover:bg-danger-soft hover:text-danger'
           }`}
         >
           <Trash2 className="w-4 h-4" />
@@ -224,12 +224,12 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
             onChange={(e) => onUpdate(card.id, { notes: e.target.value })}
             className={`${inputCls} resize-y`}
           />
-          <div className={`flex items-center gap-1 pt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          <div className={`flex items-center gap-1 pt-1 text-ink-muted`}>
             <Link2 className="w-3.5 h-3.5 flex-shrink-0" />
             <select
               value={linkKind}
               onChange={(e) => commitLink(e.target.value as LinkKind | '', linkId)}
-              title="Linked entity kind"
+              aria-label="Linked entity kind" title="Linked entity kind"
               className={`min-h-[36px] rounded-md border px-1 py-1 text-xs outline-none flex-shrink-0 ${
                 isLight
                   ? 'border-slate-200 bg-white text-slate-700'
@@ -263,7 +263,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
             )}
           </div>
           {card.sourceUrl && (
-            <p className={`truncate text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`} title={card.sourceUrl}>
+            <p className={`truncate text-[10px] text-ink-subtle`} title={card.sourceUrl}>
               Source: {card.sourceUrl}
             </p>
           )}
@@ -556,7 +556,7 @@ export const MoodBoardPanel: React.FC = () => {
       ? 'bg-slate-200/80 text-slate-700 hover:bg-slate-300/80'
       : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
   }`;
-  const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';
+  const mutedCls = 'text-ink-muted';
 
   return (
     // The panel is focusable so a paste anywhere in it lands on the board.
@@ -567,7 +567,7 @@ export const MoodBoardPanel: React.FC = () => {
       aria-label="Mood board"
       tabIndex={0}
       onPaste={handleContainerPaste}
-      className={`h-full overflow-y-auto p-3 space-y-3 outline-none ${isLight ? 'bg-white' : 'bg-slate-900'}`}
+      className={`h-full overflow-y-auto p-3 space-y-3 outline-none bg-surface`}
     >
       <input
         ref={fileInputRef}
@@ -583,7 +583,7 @@ export const MoodBoardPanel: React.FC = () => {
         <select
           value={activeBoard?.id ?? ''}
           onChange={(e) => setActiveBoardId(e.target.value || null)}
-          title="Select mood board"
+          aria-label="Select mood board" title="Select mood board"
           className={`min-h-[36px] rounded-md border px-2 py-1.5 text-xs font-semibold outline-none ${
             isLight
               ? 'border-slate-200 bg-white text-slate-800'
@@ -605,16 +605,16 @@ export const MoodBoardPanel: React.FC = () => {
             <input
               value={activeBoard.title}
               onChange={(e) => handleRenameBoard(e.target.value)}
-              title="Board name"
+              aria-label="Board name" title="Board name"
               className={`${inputCls} w-40`}
             />
-            <div className={`flex p-0.5 rounded-md border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-950/60'}`}>
+            <div className={`flex p-0.5 rounded-md border border-line-strong bg-field`}>
               <button
                 onClick={() => setView('sections')}
                 aria-pressed={view === 'sections'}
                 title="Sections board view"
                 className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
-                  view === 'sections' ? (isLight ? 'bg-sky-600 text-white' : 'bg-sky-600 text-white') : mutedCls
+                  view === 'sections' ? ('bg-accent text-white') : mutedCls
                 }`}
               >
                 <Rows3 className="w-3 h-3" /> Sections
@@ -624,19 +624,19 @@ export const MoodBoardPanel: React.FC = () => {
                 aria-pressed={view === 'collage'}
                 title="Collage of all images"
                 className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
-                  view === 'collage' ? 'bg-sky-600 text-white' : mutedCls
+                  view === 'collage' ? 'bg-accent text-white' : mutedCls
                 }`}
               >
                 <LayoutGrid className="w-3 h-3" /> Collage
               </button>
             </div>
-            <PdfExportButton onClick={() => openExportModal('moodboard')} title="Moodboard als PDF exportieren" />
+            <PdfExportButton onClick={() => openExportModal('moodboard')} title="Download the moodboard as a PDF" />
             <button
               onClick={handleDeleteBoard}
               title="Delete this board"
               aria-label="Delete this board"
               className={`min-h-[36px] min-w-[36px] flex items-center justify-center rounded-md transition-colors ${
-                isLight ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 hover:bg-red-950/40 hover:text-red-400'
+                'text-ink-muted hover:bg-danger-soft hover:text-danger'
               }`}
             >
               <Trash2 className="w-4 h-4" />
@@ -654,8 +654,8 @@ export const MoodBoardPanel: React.FC = () => {
           {/* Collage controls — persisted on the board so print/export match */}
           <div className="flex items-end gap-2 flex-wrap">
             <div className="flex flex-col gap-1">
-              <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Layout</span>
-              <div className={`flex p-0.5 rounded-md border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-950/60'}`}>
+              <span className={`text-[10px] font-bold uppercase ${mutedCls}`}>Layout</span>
+              <div className={`flex p-0.5 rounded-md border border-line-strong bg-field`}>
                 {(['grid', 'free'] as const).map((mode) => {
                   const active = (activeBoard.collage?.mode ?? 'grid') === mode;
                   return (
@@ -663,7 +663,7 @@ export const MoodBoardPanel: React.FC = () => {
                       key={mode}
                       onClick={() => updateCollage({ mode })}
                       title={mode === 'grid' ? 'Flow images in columns' : 'Free drag-and-drop placement (drag to move, corner to resize)'}
-                      className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${active ? 'bg-sky-600 text-white' : mutedCls}`}
+                      className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${active ? 'bg-accent text-white' : mutedCls}`}
                     >
                       {mode === 'grid' ? 'Grid' : 'Free'}
                     </button>
@@ -674,7 +674,7 @@ export const MoodBoardPanel: React.FC = () => {
             {(activeBoard.collage?.mode ?? 'grid') === 'grid' ? (
               <>
                 <label className="flex flex-col gap-1">
-                  <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Columns</span>
+                  <span className={`text-[10px] font-bold uppercase ${mutedCls}`}>Columns</span>
                   <input
                     type="range" min={1} max={6} step={1}
                     value={activeBoard.collage?.columns ?? 3}
@@ -683,7 +683,7 @@ export const MoodBoardPanel: React.FC = () => {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Gap</span>
+                  <span className={`text-[10px] font-bold uppercase ${mutedCls}`}>Gap</span>
                   <input
                     type="range" min={0} max={24} step={1}
                     value={activeBoard.collage?.gap ?? 8}
@@ -695,7 +695,7 @@ export const MoodBoardPanel: React.FC = () => {
             ) : (
               <>
                 <label className="flex flex-col gap-1">
-                  <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Canvas height</span>
+                  <span className={`text-[10px] font-bold uppercase ${mutedCls}`}>Canvas height</span>
                   <input
                     type="range" min={300} max={2000} step={50}
                     value={collageCanvasHeight(activeBoard)}
@@ -713,7 +713,7 @@ export const MoodBoardPanel: React.FC = () => {
               </>
             )}
             <label className="flex flex-col gap-1">
-              <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Background</span>
+              <span className={`text-[10px] font-bold uppercase ${mutedCls}`}>Background</span>
               <input
                 type="color"
                 value={activeBoard.collage?.background || '#ffffff'}
@@ -742,7 +742,7 @@ export const MoodBoardPanel: React.FC = () => {
 
           {(activeBoard.palette?.length ?? 0) > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-[9px] font-bold uppercase ${mutedCls}`}>Dominant colors</span>
+              <span className={`text-[10px] font-bold uppercase ${mutedCls}`}>Dominant colors</span>
               {activeBoard.palette!.map((hex) => (
                 <button
                   key={hex}
@@ -848,7 +848,7 @@ export const MoodBoardPanel: React.FC = () => {
                         {section.title}
                       </span>
                       <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                        isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'
+                        'bg-surface-muted text-ink-muted'
                       }`}>
                         {cards.length}
                       </span>

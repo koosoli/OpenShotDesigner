@@ -6,6 +6,9 @@
  * master plan. Jumping switches to that setup; copying master elements is a
  * detach-style snapshot (§13.1) offered from the Inspector, not here.
  */
+import { PanelHeader } from '../common/PanelHeader';
+import { EmptyState } from '../common/EmptyState';
+import { ScoutIcon } from '../icons/ProductionIcons';
 import React, { useMemo, useState } from 'react';
 import { ExternalLink, MapPin, Navigation, Plus, Trash2, Crosshair, X } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
@@ -26,8 +29,12 @@ import { OsmMiniMap } from './OsmMiniMap';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
 import { buildPdfFilename, createLocationReportPdf } from '../../utils/pdf';
+import { resolvePdfRasterBytes } from '../../utils/pdf/imageBytes';
 import { downloadBlob } from '../../utils/download';
 import { removeLocationCommand, setLocationsCommand } from '../../domain/commands';
+import type { Location } from '../../domain/locations';
+import { parseSceneHeading } from '../../domain/script/logic';
+import { LocationScoutSection, SCOUT_FIELDS, SCOUT_STATUS } from './LocationScoutSection';
 
 const LOCATION_TYPES: LocationType[] = ['location', 'studio', 'stage', 'venue', 'arena', 'outdoor', 'other'];
 
@@ -59,6 +66,11 @@ export const LocationsPanel: React.FC = () => {
   const locations = useMemo(() => project.locations ?? [], [project.locations]);
   const people = useMemo(() => project.people ?? [], [project.people]);
   const usageIndex = useMemo(() => buildUsageIndex(project), [project]);
+  // Slugline locations, offered when marking a place as a candidate for a set.
+  const setNames = useMemo(
+    () => [...new Set((project.scriptScenes ?? []).map((scene) => parseSceneHeading(scene.heading).location?.trim()).filter((name): name is string => !!name))].sort(),
+    [project.scriptScenes],
+  );
 
   /** Link / unlink a contact to a location (people stay canonical, rule 37). */
   const toggleContact = (loc: { id: string; contactIds?: string[] }, personId: string) => {
@@ -136,6 +148,18 @@ export const LocationsPanel: React.FC = () => {
     );
   };
 
+  /** Replace one location from its latest state (scouting edits). */
+  const updateLocationWith = (id: string, update: (location: Location) => Location) => {
+    runCommand(
+      setLocationsCommand,
+      {
+        update: (previous) => previous.map((l) => (l.id === id ? update(l) : l)),
+        description: 'Edit location scout',
+      },
+      { domain: 'project' },
+    );
+  };
+
   /** Resolve the location's address (or name) into a map pin via OSM Nominatim. */
   const locateOnMap = async (loc: { id: string; name: string; address?: string }) => {
     if (geocodingId) return;
@@ -199,6 +223,42 @@ export const LocationsPanel: React.FC = () => {
     setActiveRightTab('shots');
   };
 
+  /** A page per location that has been scouted or photographed. */
+  const scoutPdfPages = async () => {
+    const pages = [];
+    for (const location of locations) {
+      const scout = location.scout ?? {};
+      const fields = SCOUT_FIELDS.flatMap((field) => {
+        const value = scout[field.key];
+        return typeof value === 'string' && value ? [[field.label, value] as [string, string]] : [];
+      });
+      if (scout.scoutedOn || scout.scoutedBy) fields.unshift(['Scouted', [scout.scoutedOn, scout.scoutedBy].filter(Boolean).join(' · ')]);
+      if (location.address) fields.unshift(['Address', location.address]);
+      const photoIds = location.referenceAssetIds ?? [];
+      if (!scout.status && fields.length <= 1 && photoIds.length === 0) continue;
+      const photos = [];
+      for (const assetId of photoIds) {
+        const resolved = await resolvePdfRasterBytes(assetId);
+        const meta = scout.photos?.[assetId];
+        photos.push({
+          ...(resolved ? { imageBytes: resolved.bytes, mimeType: resolved.mimeType } : {}),
+          caption: [meta?.caption, meta?.takenAt?.replace('T', ' ').slice(0, 16), meta?.heading !== undefined ? `facing ${meta.heading}°` : undefined].filter(Boolean).join(' · '),
+        });
+      }
+      pages.push({
+        name: location.name,
+        summary: [
+          scout.status ? SCOUT_STATUS[scout.status].label : undefined,
+          scout.rating ? `${scout.rating}/5` : undefined,
+          scout.candidateFor ? `candidate for ${scout.candidateFor}` : undefined,
+        ].filter(Boolean).join(' · ') || undefined,
+        fields,
+        photos,
+      });
+    }
+    return pages;
+  };
+
   const exportPdf = async () => {
     const personById = new Map(people.map((person) => [person.id, person.displayName] as const));
     const bytes = await createLocationReportPdf({
@@ -211,27 +271,31 @@ export const LocationsPanel: React.FC = () => {
         contacts: (location.contactIds ?? []).map((id) => personById.get(id)).filter(Boolean).join(', ') || '—',
         scenes: String(setupsUsingLocation.get(location.id) ?? 0),
         mapPin: location.lat !== undefined && location.lng !== undefined ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}` : '—',
-        notes: location.notes ?? '',
+        notes: [
+          location.notes,
+          location.scout?.status ? `Scout: ${SCOUT_STATUS[location.scout.status].label}${location.scout.rating ? ` (${location.scout.rating}/5)` : ''}` : undefined,
+        ].filter(Boolean).join(' · '),
       })),
+      scoutPages: await scoutPdfPages(),
     });
     downloadBlob(new Blob([bytes], { type: 'application/pdf' }), buildPdfFilename({ production: project.title, document: 'locations' }));
   };
 
   // --- Shared styles (LogisticsPanel/PowerPanel conventions) ---
-  const cardClass = isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700';
-  const subCardClass = isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800';
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
-  const headingText = isLight ? 'text-slate-700' : 'text-slate-300';
+  const cardClass = 'bg-surface border-line';
+  const subCardClass = 'bg-surface-sunken border-line';
+  const mutedText = 'text-ink-muted';
+  const headingText = 'text-ink-soft';
   const inputClass = `min-h-[36px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${
     isLight
       ? 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
       : 'bg-slate-950 border-slate-700 text-slate-100 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
   }`;
   const iconBtnClass = `flex items-center justify-center min-w-[36px] min-h-[36px] rounded-lg transition-colors flex-shrink-0 ${
-    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+    'text-ink-muted hover:text-ink hover:bg-surface-hover'
   }`;
   const primaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors flex-shrink-0 disabled:opacity-40 ${
-    isLight ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-600 text-white hover:bg-sky-500'
+    'bg-accent text-white hover:bg-accent-hover'
   }`;
   const secondaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 disabled:opacity-40 ${
     isLight
@@ -239,19 +303,18 @@ export const LocationsPanel: React.FC = () => {
       : 'border-slate-700 text-slate-300 hover:bg-slate-800'
   }`;
   const chipClass = `px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
-    isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-300'
+    'bg-surface-muted text-ink-soft'
   }`;
 
   return (
-    <div className={`h-full overflow-y-auto p-3 space-y-3 select-none ${isLight ? 'bg-white' : 'bg-slate-900'}`}>
-      <div className={`flex items-center justify-between pb-2 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-        <h2 className={`text-sm font-bold flex items-center gap-1.5 ${headingText}`}>
-          <MapPin className="w-4 h-4 text-sky-500" />
-          Locations
-          <span className={chipClass}>{locations.length}</span>
-        </h2>
-        <PdfExportButton onClick={() => { void exportPdf(); }} title="Locations als PDF exportieren" />
-      </div>
+    <div className={`h-full overflow-y-auto p-3 space-y-3 select-none bg-surface`}>
+      <PanelHeader
+        icon={<MapPin />}
+        title="Locations"
+        count={locations.length}
+        subtitle="Places, map pins, site contacts and scouting reports"
+        actions={<PdfExportButton onClick={() => { void exportPdf(); }} title="Download the location report as a PDF" />}
+      />
 
       {/* New location */}
       <div className="flex items-center gap-1.5 flex-wrap">
@@ -282,9 +345,13 @@ export const LocationsPanel: React.FC = () => {
       </div>
 
       {locations.length === 0 && (
-        <p className={`text-[11px] italic ${mutedText}`}>
-          No locations yet. Add practical locations, studios, stages or venues — a screenplay is never required.
-        </p>
+        <EmptyState
+          icon={<ScoutIcon className="w-5 h-5" />}
+          title="No locations yet"
+          action={{ label: 'Add a location', onClick: addLocation, icon: <Plus className="w-3.5 h-3.5" /> }}
+        >
+          Practical locations, studios and stages, with map pins, site contacts and scouting reports with photos. A screenplay is never required.
+        </EmptyState>
       )}
 
       <ul className="space-y-2">
@@ -295,15 +362,23 @@ export const LocationsPanel: React.FC = () => {
             <li key={loc.id}>
               <details className={`group rounded-xl border ${cardClass}`}>
                 <summary className="min-h-11 px-3 flex items-center gap-2 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
-                  <MapPin className="w-3.5 h-3.5 text-sky-500" />
+                  <MapPin className="w-3.5 h-3.5 text-accent-ink" />
                   <span className="flex-1 min-w-0 text-xs font-bold truncate">{loc.name}</span>
+                  {loc.scout?.status && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${SCOUT_STATUS[loc.scout.status].className}`}>
+                      {SCOUT_STATUS[loc.scout.status].label}
+                    </span>
+                  )}
                   <span className={chipClass}>{TYPE_LABELS[loc.type]}</span>
+                  {(loc.referenceAssetIds ?? []).length > 0 && (
+                    <span className={`text-[10px] ${mutedText}`} title="Scout photos">{loc.referenceAssetIds.length} photo{loc.referenceAssetIds.length === 1 ? '' : 's'}</span>
+                  )}
                   <span className={`text-[10px] ${mutedText}`}>{usageCount} scene{usageCount === 1 ? '' : 's'}</span>
                   <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
                 </summary>
-                <div className={`p-2.5 pt-2 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
+                <div className={`p-2.5 pt-2 border-t space-y-2 border-line-strong`}>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
+                <MapPin className={`w-3.5 h-3.5 flex-shrink-0 text-ink-subtle`} />
                 <input
                   value={loc.name}
                   onChange={(e) => updateLocation(loc.id, { name: e.target.value })}
@@ -397,7 +472,7 @@ export const LocationsPanel: React.FC = () => {
                 return (
                   <div className={`rounded-lg border p-2 space-y-2 ${subCardClass}`}>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <Navigation className={`w-3 h-3 flex-shrink-0 ${point ? 'text-emerald-500' : 'text-slate-400'}`} />
+                      <Navigation className={`w-3 h-3 flex-shrink-0 ${point ? 'text-ok' : 'text-slate-400'}`} />
                       <span className={`text-[10px] font-medium flex-1 min-w-0 ${mutedText}`}>
                         {point ? `Pinned at ${loc.lat?.toFixed(5)}, ${loc.lng?.toFixed(5)}` : 'No map pin yet'}
                       </span>
@@ -428,7 +503,7 @@ export const LocationsPanel: React.FC = () => {
                             rel="noreferrer"
                             title="Open in OpenStreetMap"
                             aria-label={`Open ${loc.name} in OpenStreetMap`}
-                            className={`${iconBtnClass} !min-w-[28px] !min-h-[28px] !w-7 !h-7 font-mono !text-[9px] font-bold`}
+                            className={`${iconBtnClass} !min-w-[28px] !min-h-[28px] !w-7 !h-7 font-mono !text-[10px] font-bold`}
                           >
                             OSM
                           </a>
@@ -451,11 +526,11 @@ export const LocationsPanel: React.FC = () => {
                           onPick={(picked) => void pickPin(loc, picked)}
                         />
                         <div className="flex items-center justify-between gap-2">
-                          <p className={`text-[9px] ${mutedText}`}>Drag to pan · click to move the pin · buttons zoom.</p>
+                          <p className={`text-[10px] ${mutedText}`}>Drag to pan · click to move the pin · buttons zoom.</p>
                           <button
                             onClick={() => void pickPin(loc, point, true)}
                             disabled={geocodingId === loc.id}
-                            className={`${secondaryBtnClass} !min-h-[24px] !px-2 !text-[9px] disabled:opacity-50`}
+                            className={`${secondaryBtnClass} !min-h-[24px] !px-2 !text-[10px] disabled:opacity-50`}
                             title="Replace the address field with the pin's postal address"
                           >
                             Address from pin
@@ -465,16 +540,16 @@ export const LocationsPanel: React.FC = () => {
                     ) : (
                       <>
                         <OsmMiniMap point={null} height={160} onPick={(picked) => void pickPin(loc, picked)} />
-                        <p className={`text-[9px] leading-snug ${mutedText}`}>
+                        <p className={`text-[10px] leading-snug ${mutedText}`}>
                           Click the map to drop a pin — the address fills in automatically — or enter an address above and use “Find on map”. The pin follows the location into the scheduler and call sheets.
                         </p>
                       </>
                     )}
                     {geocodeMessage?.id === loc.id && (
-                      <p className="text-[9px] italic text-sky-600 dark:text-sky-300">{geocodeMessage.text}</p>
+                      <p className="text-[10px] italic text-sky-600 dark:text-sky-300">{geocodeMessage.text}</p>
                     )}
                     {point && (
-                      <p className="text-[8px] text-slate-400">
+                      <p className="text-[10px] text-slate-400">
                         Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline">OpenStreetMap</a> contributors
                       </p>
                     )}
@@ -501,7 +576,7 @@ export const LocationsPanel: React.FC = () => {
                           title={[person.role, person.phone, person.email].filter(Boolean).join(' · ') || person.displayName}
                           className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${
                             linked
-                              ? 'bg-sky-600 text-white border-sky-500'
+                              ? 'bg-accent text-white border-sky-500'
                               : isLight
                                 ? 'border-slate-300 text-slate-600 hover:bg-slate-100'
                                 : 'border-slate-700 text-slate-300 hover:bg-slate-800'
@@ -514,7 +589,7 @@ export const LocationsPanel: React.FC = () => {
                   </div>
                 )}
                 {(loc.contactIds ?? []).length > 0 && (
-                  <p className={`text-[9px] ${mutedText}`}>
+                  <p className={`text-[10px] ${mutedText}`}>
                     {(loc.contactIds ?? [])
                       .map((id) => people.find((person) => person.id === id))
                       .filter((person): person is NonNullable<typeof person> => !!person)
@@ -536,12 +611,23 @@ export const LocationsPanel: React.FC = () => {
                 />
               </label>
 
+              <LocationScoutSection
+                location={loc}
+                onUpdate={(update) => updateLocationWith(loc.id, update)}
+                onSetPin={(point) => updateLocation(loc.id, point)}
+                isLight={isLight}
+                inputClass={inputClass}
+                mutedText={mutedText}
+                subCardClass={subCardClass}
+                setNames={setNames}
+              />
+
               {/* Master plan indicator (plan §13) */}
               <div className={`rounded-lg border px-2 py-1.5 flex items-center gap-2 flex-wrap ${subCardClass}`}>
                 {master ? (
                   <>
                     <span className={`text-[11px] flex items-center gap-1 min-w-0 ${headingText}`}>
-                      <Crosshair className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                      <Crosshair className="w-3 h-3 text-ok flex-shrink-0" />
                       Master plan:
                       <span className="truncate max-w-[160px]" title={master.name}>{master.name}</span>
                     </span>

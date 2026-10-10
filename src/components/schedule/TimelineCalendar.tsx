@@ -59,7 +59,7 @@ interface TimelineCalendarProps {
 export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
   events,
   days,
-  isLight,
+  isLight: _isLight,
   onUpdateEvent,
   onDeleteEvent,
   onUpdateDay,
@@ -185,20 +185,20 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
   const showTodayMarker =
     todayIsoNumber !== null && todayIsoNumber >= bounds.start && todayIsoNumber <= bounds.end;
 
-  const cardClass = isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700';
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
-  const laneBg = isLight ? 'bg-slate-50' : 'bg-slate-950';
+  const cardClass = 'bg-surface border-line';
+  const mutedText = 'text-ink-muted';
+  const laneBg = 'bg-surface-sunken';
 
   const renderLaneHeader = () => (
     <div className="grid grid-cols-[170px_1fr] bg-slate-900 text-white h-9 items-center">
-      <div className="px-3 text-[9px] font-black uppercase tracking-wider">Production timeline</div>
+      <div className="px-3 text-[10px] font-black uppercase tracking-wider">Production timeline</div>
       <div ref={laneRef} className="relative h-full overflow-hidden">
         {Array.from({ length: bounds.days }, (_, index) => {
           const date = new Date((bounds.start + index) * MS_PER_DAY);
           return (
             <span
               key={index}
-              className="absolute inset-y-0 border-l border-slate-700 px-1 pt-2 text-[8px] font-mono text-slate-400"
+              className="absolute inset-y-0 border-l border-slate-700 px-1 pt-2 text-[10px] font-mono text-slate-400"
               style={{ left: `${index * pctPerDay}%` }}
             >
               {index === 0 || date.getUTCDate() === 1
@@ -212,7 +212,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
   );
 
   const renderRowFrame = (key: React.Key, label: React.ReactNode, lane: React.ReactNode) => (
-    <div key={key} className={`grid grid-cols-[170px_1fr] min-h-11 items-center border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+    <div key={key} className={`grid grid-cols-[170px_1fr] min-h-11 items-center border-b border-line`}>
       <div className="px-3 flex items-center gap-2 min-w-0">{label}</div>
       <div className={`relative h-7 overflow-hidden ${laneBg}`}>
         {showTodayMarker && (
@@ -248,8 +248,8 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
             <>
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
               <div className="min-w-0 flex-1">
-                <div className="text-[9px] font-black truncate">{event.title}</div>
-                <div className={`text-[8px] uppercase ${mutedText}`}>
+                <div className="text-[10px] font-black truncate">{event.title}</div>
+                <div className={`text-[10px] uppercase ${mutedText}`}>
                   {event.startDate}{event.endDate !== event.startDate ? ` → ${event.endDate}` : ''}
                 </div>
               </div>
@@ -275,7 +275,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
                   if (e.key === 'ArrowLeft') onUpdateEvent(event.id, shiftClipSpan(event, e.shiftKey ? -7 : -1, 'move'));
                   if (e.key === 'ArrowRight') onUpdateEvent(event.id, shiftClipSpan(event, e.shiftKey ? 7 : 1, 'move'));
                 }}
-                className={`absolute top-1 bottom-1 rounded text-white text-[8px] font-black flex items-center justify-between select-none ${
+                className={`absolute top-1 bottom-1 rounded text-white text-[10px] font-black flex items-center justify-between select-none ${
                   dragging ? 'ring-2 ring-cyan-300 opacity-90' : ''
                 }`}
                 style={{ ...clipStyle(span), backgroundColor: color }}
@@ -296,7 +296,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
           );
         })}
         {!effectiveEvents.length && effectiveDays.length > 0 && (
-          <div className={`px-3 py-2 text-[8px] uppercase tracking-wider border-b ${mutedText} ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className={`px-3 py-2 text-[10px] uppercase tracking-wider border-b ${mutedText} border-line`}>
             No milestone lines yet — phases you add appear above the shoot days.
           </div>
         )}
@@ -313,8 +313,8 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
                 <span className="text-[10px] font-black">{index + 1}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[9px] font-black truncate">{day.name}</div>
-                <div className={`text-[8px] uppercase ${mutedText}`}>{day.date ?? 'undated'}</div>
+                <div className="text-[10px] font-black truncate">{day.name}</div>
+                <div className={`text-[10px] uppercase ${mutedText}`}>{day.date ?? 'undated'}</div>
               </div>
             </>,
             span && (
@@ -328,7 +328,7 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
                   if (e.key === 'ArrowLeft') onUpdateDay(day.id, { date: dayNumberToIso((isoDayNumber(day.date) as number) - (e.shiftKey ? 7 : 1)) });
                   if (e.key === 'ArrowRight') onUpdateDay(day.id, { date: dayNumberToIso((isoDayNumber(day.date) as number) + (e.shiftKey ? 7 : 1)) });
                 }}
-                className={`absolute top-1 bottom-1 rounded bg-cyan-600 text-white text-[8px] font-black flex items-center justify-center select-none cursor-grab active:cursor-grabbing ${
+                className={`absolute top-1 bottom-1 rounded bg-cyan-700 text-white text-[10px] font-black flex items-center justify-center select-none cursor-grab active:cursor-grabbing ${
                   dragging ? 'ring-2 ring-cyan-300 opacity-90' : ''
                 }`}
                 style={clipStyle(span)}

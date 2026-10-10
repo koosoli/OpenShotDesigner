@@ -9,8 +9,8 @@
  * - Location report: location, scene count, scene numbers, linked flag.
  * - Element breakdown: department, element, scenes, notes (scene links are
  *   read back off the scenes so the two sections can never disagree).
- * - Day out of days: one column per shooting day (SW/W/WF/H grid) plus a
- *   working-days total, mirroring the print view's labels.
+ * - Day out of days: one column per shooting day (SW/W/WF/H/WD/PW/T… grid)
+ *   plus work / hold / travel / total columns, mirroring the print view.
  *
  * Row mappers take structural equivalents of the domain shapes
  * (`ScriptScene`, `CharacterReport`, `ScriptLocationBreakdown`, DOOD matrix)
@@ -66,8 +66,20 @@ export interface ScriptReportPdfElement {
   notes: string;
 }
 
-/** Day-out-of-days cell labels, mirroring the print view (`SW/W/WF/H`). */
-export type DoodPdfStatus = 'start' | 'work' | 'finish' | 'hold' | 'off';
+/** Day-out-of-days statuses, mirroring `DoodWorkStatus` structurally. */
+export type DoodPdfStatus =
+  | 'start'
+  | 'work'
+  | 'finish'
+  | 'start_finish'
+  | 'drop'
+  | 'pickup'
+  | 'hold'
+  | 'travel'
+  | 'rehearsal'
+  | 'fitting'
+  | 'holiday'
+  | 'off';
 
 export interface DoodPdfColumn {
   dayName: string;
@@ -76,9 +88,15 @@ export interface DoodPdfColumn {
 
 export interface DoodPdfRow {
   displayName: string;
-  /** One label per column: 'SW', 'W', 'WF', 'H' or '' for off. */
+  /** Cast number, when the role has one. */
+  castNumber?: number;
+  /** One code per column: 'SW', 'W', 'WF', 'H', 'WD', 'PW', 'T'… or '' for off. */
   cells: string[];
   workDays: number;
+  holdDays: number;
+  travelDays: number;
+  /** Paid days: work + hold + travel + holiday. */
+  totalDays: number;
 }
 
 export interface ScriptReportsPdfSections {
@@ -113,13 +131,15 @@ export interface ScriptReportsPdfInput {
 export interface ScriptReportsPdfFilenameInput {
   productionTitle: string;
   date?: string;
+  /** One report on its own ("dood", "scene-list"); absent = the whole breakdown. */
+  report?: string;
 }
 
 /** `my-film_script-breakdown.pdf`. */
 export const buildScriptReportsPdfFilename = (input: ScriptReportsPdfFilenameInput): string =>
   buildPdfFilename({
     production: input.productionTitle,
-    document: 'script-breakdown',
+    document: input.report ?? 'script-breakdown',
     ...(input.date === undefined ? {} : { date: input.date }),
   });
 
@@ -154,7 +174,21 @@ const ELEMENT_COLUMNS: PdfTableColumn[] = [
   { header: 'Notes', widthFrac: 28 },
 ];
 
-const DOOD_LABEL: Record<DoodPdfStatus, string> = { start: 'SW', work: 'W', finish: 'WF', hold: 'H', off: '' };
+const DOOD_LABEL: Record<DoodPdfStatus, string> = {
+  start: 'SW',
+  work: 'W',
+  finish: 'WF',
+  start_finish: 'SWF',
+  drop: 'WD',
+  pickup: 'PW',
+  hold: 'H',
+  travel: 'T',
+  rehearsal: 'R',
+  fitting: 'F',
+  holiday: 'HO',
+  off: '',
+};
+const DOOD_WORKING: ReadonlySet<DoodPdfStatus> = new Set(['start', 'work', 'finish', 'start_finish', 'drop', 'pickup', 'rehearsal']);
 const INT_EXT_LABEL: Record<string, string> = { INT: 'INT', EXT: 'EXT', INT_EXT: 'I/E', OTHER: 'EST' };
 
 /** Structural scene shape (mirrors `ScriptScene` fields the report reads). */
@@ -262,7 +296,7 @@ export const scriptReportElementsFromItems = (
 /** Structural DOOD shape (mirrors `deriveDood` output). */
 export interface DoodPdfSource {
   columns: readonly { dayName: string; date?: string }[];
-  rows: readonly { displayName: string; cells: readonly { status: DoodPdfStatus }[] }[];
+  rows: readonly { displayName: string; castNumber?: number; cells: readonly { status: DoodPdfStatus }[] }[];
 }
 
 /** Map the day-out-of-days matrix to printable labels plus working totals. */
@@ -271,11 +305,22 @@ export const doodPdfFromDood = (dood: DoodPdfSource): { columns: DoodPdfColumn[]
     dayName: column.dayName,
     ...(column.date === undefined ? {} : { date: column.date }),
   })),
-  rows: dood.rows.map((row) => ({
-    displayName: row.displayName,
-    cells: row.cells.map((cell) => DOOD_LABEL[cell.status] ?? ''),
-    workDays: row.cells.filter((cell) => cell.status !== 'off' && cell.status !== 'hold').length,
-  })),
+  rows: dood.rows.map((row) => {
+    const count = (match: (status: DoodPdfStatus) => boolean) => row.cells.filter((cell) => match(cell.status)).length;
+    const workDays = count((status) => DOOD_WORKING.has(status));
+    const holdDays = count((status) => status === 'hold');
+    const travelDays = count((status) => status === 'travel');
+    const holidayDays = count((status) => status === 'holiday');
+    return {
+      displayName: row.displayName,
+      ...(row.castNumber === undefined ? {} : { castNumber: row.castNumber }),
+      cells: row.cells.map((cell) => DOOD_LABEL[cell.status] ?? ''),
+      workDays,
+      holdDays,
+      travelDays,
+      totalDays: workDays + holdDays + travelDays + holidayDays,
+    };
+  }),
 });
 
 interface PageCursor {
@@ -346,19 +391,31 @@ const drawDood = (
 ): PageCursor => {
   let placed = drawSectionTitle(ctx, cursor, `Day Out of Days - ${columns.length} shooting days`);
   if (columns.length === 0) return drawPlaceholder(ctx, placed, 'No shooting days scheduled yet.');
-  const dayFrac = columns.length > 0 ? 64 / columns.length : 0;
+  const dayFrac = columns.length > 0 ? 58 / columns.length : 0;
   const doodColumns: PdfTableColumn[] = [
-    { header: 'Character / Performer', widthFrac: 28 },
+    { header: '#', widthFrac: 3, align: 'center' },
+    { header: 'Character / Performer', widthFrac: 19 },
     ...columns.map((column): PdfTableColumn => ({
       header: column.date ? `${column.dayName}\n${column.date.slice(5)}` : column.dayName,
       widthFrac: dayFrac,
       align: 'center',
     })),
-    { header: 'Days', widthFrac: 8, align: 'center' },
+    { header: 'Work', widthFrac: 5, align: 'center' },
+    { header: 'Hold', widthFrac: 5, align: 'center' },
+    { header: 'Trvl', widthFrac: 5, align: 'center' },
+    { header: 'Total', widthFrac: 5, align: 'center' },
   ];
-  const tableRows = rows.map((row) => [row.displayName, ...row.cells, String(row.workDays)]);
+  const tableRows = rows.map((row) => [
+    row.castNumber === undefined ? '' : String(row.castNumber),
+    row.displayName,
+    ...row.cells,
+    String(row.workDays),
+    String(row.holdDays),
+    String(row.travelDays),
+    String(row.totalDays),
+  ]);
   placed = drawTableBlock(ctx, placed, doodColumns, tableRows, 'No characters in the day out of days.');
-  const legend = 'SW = start work - W = work - H = hold - WF = work finish. Derived from scene strips on each shooting day.';
+  const legend = 'SW = start work - W = work - WF = work finish - SWF = start/work/finish - H = hold - WD = work, drop - PW = pick-up work - T = travel - R = rehearsal - F = fitting - HO = holiday. Derived from scene strips on each shooting day; T, F and HO are entered by hand.';
   const legendLines = wrapPdfCellText(ctx.regular, legend, ctx.contentWidth, 8);
   const legendPlaced = ensureSpace(ctx, placed, legendLines.length * 8 * 1.35);
   legendLines.forEach((line, index) => {

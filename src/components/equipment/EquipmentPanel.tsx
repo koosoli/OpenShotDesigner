@@ -1,4 +1,6 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { PanelTitle } from '../common/PanelHeader';
+import { useDismiss } from '../common/useDismiss';
 import { usePersistentUiState } from '../../utils/usePersistentUiState';
 import { createPortal } from 'react-dom';
 import {
@@ -251,6 +253,8 @@ export const EquipmentPanel: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<EquipmentCategory | 'all'>('all');
   const [isPresetDrawerOpen, setIsPresetDrawerOpen] = useState(false);
   const [isGearActionsOpen, setIsGearActionsOpen] = useState(false);
+  const gearActionsRef = useRef<HTMLDivElement>(null);
+  useDismiss(isGearActionsOpen, useCallback(() => setIsGearActionsOpen(false), []), gearActionsRef);
   const [editingItem, setEditingItem] = useState<EquipmentItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -745,39 +749,28 @@ export const EquipmentPanel: React.FC = () => {
     : 'w-full bg-transparent focus:bg-slate-800 rounded px-1.5 py-1 border border-transparent hover:border-slate-700 focus:border-sky-500 focus:outline-hidden transition-all text-slate-100 font-bold placeholder:text-slate-500 text-xs';
 
   return (
-    <div className={`h-full flex flex-col min-h-0 ${isLight ? 'bg-slate-100 text-slate-950' : 'bg-slate-900 text-slate-100'}`}>
+    <div className={`h-full flex flex-col min-h-0 bg-surface-muted text-ink`}>
       {/* 1. Header Toolbar */}
       <div className={`p-2.5 border-b flex flex-col gap-2 ${isLight ? 'border-slate-300 bg-white text-slate-950 shadow-2xs' : 'border-slate-800 bg-slate-950/40 text-slate-100'}`}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-lg ${isLight ? 'bg-sky-100 text-sky-800' : 'bg-sky-500/10 text-sky-500'}`}>
-              <Boxes className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 text-slate-950 dark:text-slate-100">
-                <span>Equipment Manifest</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${isLight ? 'bg-sky-100 text-sky-900 border border-sky-300' : 'bg-sky-500/15 text-sky-400'}`}>
-                  {totalItemCount} total units · {totalUniqueCount} gear items
-                </span>
-              </h2>
-              <p className={`text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                {scope === 'current'
-                  ? `Scene ${activeSetup.sceneNumber || '1'} (${activeSetup.name}) — Camera packages are expandable kits`
-                  : `Master production truck package across all ${project.setups?.length || 1} scenes`}
-              </p>
-            </div>
-          </div>
+          <PanelTitle
+            icon={<Boxes />}
+            title="Equipment manifest"
+            subtitle={`${totalItemCount} units · ${totalUniqueCount} items · ${scope === 'current'
+              ? `Scene ${activeSetup.sceneNumber || '1'} (${activeSetup.name})`
+              : `whole production, ${project.setups?.length || 1} scenes`}`}
+          />
 
           <div className="flex items-center gap-1.5">
             {/* View Mode Toggle: Spreadsheet (Default) vs Cards */}
-            <div className={`flex items-center rounded-lg border p-0.5 text-[11px] font-bold ${isLight ? 'border-slate-300 bg-slate-100' : 'border-slate-700 bg-slate-950'}`}>
+            <div className={`flex items-center rounded-lg border p-0.5 text-[11px] font-bold border-line-strong bg-surface-sunken`}>
               <button
                 onClick={() => setViewStyle('spreadsheet')}
                 title="Spreadsheet Data Grid view (Default)"
                 aria-pressed={viewStyle === 'spreadsheet'}
                 className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                   viewStyle === 'spreadsheet'
-                    ? 'bg-sky-600 text-white shadow-xs font-black'
+                    ? 'bg-accent text-white shadow-xs font-black'
                     : isLight
                       ? 'text-slate-800 hover:text-black hover:bg-slate-200'
                       : 'text-slate-400 hover:text-slate-200'
@@ -792,7 +785,7 @@ export const EquipmentPanel: React.FC = () => {
                 aria-pressed={viewStyle === 'cards'}
                 className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                   viewStyle === 'cards'
-                    ? 'bg-sky-600 text-white shadow-xs font-black'
+                    ? 'bg-accent text-white shadow-xs font-black'
                     : isLight
                       ? 'text-slate-800 hover:text-black hover:bg-slate-200'
                       : 'text-slate-400 hover:text-slate-200'
@@ -804,13 +797,13 @@ export const EquipmentPanel: React.FC = () => {
             </div>
 
             {/* Scope Selector: Current Scene vs All Scenes */}
-            <div className={`flex items-center rounded-lg border p-0.5 text-[11px] font-bold ${isLight ? 'border-slate-300 bg-slate-100' : 'border-slate-700 bg-slate-950'}`}>
+            <div className={`flex items-center rounded-lg border p-0.5 text-[11px] font-bold border-line-strong bg-surface-sunken`}>
               <button
                 onClick={() => setScope('current')}
                 aria-pressed={scope === 'current'}
                 className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                   scope === 'current'
-                    ? 'bg-sky-600 text-white shadow-xs font-black'
+                    ? 'bg-accent text-white shadow-xs font-black'
                     : isLight
                       ? 'text-slate-800 hover:text-black hover:bg-slate-200'
                       : 'text-slate-400 hover:text-slate-200'
@@ -824,7 +817,7 @@ export const EquipmentPanel: React.FC = () => {
                 aria-pressed={scope === 'all'}
                 className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                   scope === 'all'
-                    ? 'bg-violet-600 text-white shadow-xs font-black'
+                    ? 'bg-accent text-white shadow-xs font-black'
                     : isLight
                       ? 'text-slate-800 hover:text-black hover:bg-slate-200'
                       : 'text-slate-400 hover:text-slate-200'
@@ -887,7 +880,7 @@ export const EquipmentPanel: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`w-full pl-8 pr-7 py-1 text-xs rounded-lg border font-semibold focus:outline-hidden focus:ring-2 focus:ring-sky-500 ${
-                isLight ? 'bg-slate-50 border-slate-300 text-slate-950 placeholder:text-slate-500' : 'bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500'
+                'bg-surface-sunken border-line-strong text-ink placeholder:text-slate-500'
               }`}
             />
             {searchQuery && (
@@ -923,22 +916,22 @@ export const EquipmentPanel: React.FC = () => {
             <button
               onClick={() => openAddModal()}
               title="Add custom production item"
-              className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-black flex items-center gap-1 shadow-xs"
+              className="px-3 py-1 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-black flex items-center gap-1 shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Gear</span>
             </button>
           )}
 
-          <div className="relative">
-            <button type="button" onClick={() => setIsGearActionsOpen((open) => !open)} aria-expanded={isGearActionsOpen} title="More gear actions" aria-label="More gear actions" className={`h-8 w-8 rounded-lg border flex items-center justify-center ${isLight ? 'border-slate-300 bg-slate-100 hover:bg-slate-200' : 'border-slate-700 bg-slate-800 hover:bg-slate-700'}`}>
+          <div className="relative" ref={gearActionsRef}>
+            <button type="button" onClick={() => setIsGearActionsOpen((open) => !open)} aria-expanded={isGearActionsOpen} title="More gear actions" aria-label="More gear actions" className={`h-8 w-8 rounded-lg border flex items-center justify-center border-line-strong bg-surface-muted hover:bg-surface-hover`}>
               <MoreHorizontal className="w-4 h-4" />
             </button>
             {isGearActionsOpen && (
-              <div className={`absolute right-0 top-9 z-30 w-48 rounded-lg border p-1 shadow-xl ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-900'}`}>
-                <button onClick={() => { handleExportCsv(); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}><FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />CSV export</button>
-                <button onClick={() => { void handleDownloadPdf(); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}><FileText className="w-3.5 h-3.5 text-sky-600" />PDF export</button>
-                <button onClick={() => { openExportModal('equipment'); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}><Printer className="w-3.5 h-3.5 text-sky-600" />Print preview</button>
+              <div className={`absolute right-0 top-9 z-30 w-48 rounded-lg border p-1 shadow-xl border-line-strong bg-surface`}>
+                <button onClick={() => { handleExportCsv(); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 hover:bg-surface-hover`}><FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />CSV export</button>
+                <button onClick={() => { void handleDownloadPdf(); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 hover:bg-surface-hover`}><FileText className="w-3.5 h-3.5 text-sky-600" />PDF export</button>
+                <button onClick={() => { openExportModal('equipment'); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 hover:bg-surface-hover`}><Printer className="w-3.5 h-3.5 text-sky-600" />Print preview</button>
                 {scope === 'current' && (activeSetup.customEquipment || []).length > 0 && <button onClick={() => { void confirm({ title: 'Reset scene equipment?', message: 'Reset this scene’s equipment list to live floor plan elements?', confirmLabel: 'Reset', danger: true }).then((confirmed) => { if (confirmed) resetSceneEquipment(); }); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 text-rose-600 ${isLight ? 'hover:bg-rose-50' : 'hover:bg-rose-950/30'}`}><RotateCcw className="w-3.5 h-3.5" />Reset overrides</button>}
               </div>
             )}
@@ -1117,10 +1110,10 @@ export const EquipmentPanel: React.FC = () => {
               type="button"
               onClick={() => setTechnicalBandOpen((open) => !open)}
               aria-expanded={isTechnicalBandOpen}
-              className={`w-full px-3 py-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-left text-[11px] font-bold transition-colors ${isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-900'}`}
+              className={`w-full px-3 py-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-left text-[11px] font-bold transition-colors hover:bg-surface-sunken`}
             >
               <span className="flex items-center gap-1.5 uppercase tracking-wider">
-                <Zap className="w-3.5 h-3.5 text-amber-500" />
+                <Zap className="w-3.5 h-3.5 text-warn" />
                 Load &amp; patch
               </span>
               {powerSummary.totalWatts > 0 && (
@@ -1180,7 +1173,7 @@ export const EquipmentPanel: React.FC = () => {
                 aria-expanded={dmxPatchOpen}
               >
               <div className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[11px]">
-                <Zap className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                <Zap className="w-4 h-4 text-warn dark:text-amber-400" />
                 DMX Patch
               </div>
               <span className="font-mono font-bold">
@@ -1229,7 +1222,7 @@ export const EquipmentPanel: React.FC = () => {
                       min={1}
                       value={dmxPatchStart.universe}
                       onChange={(e) => setDmxPatchStart((s) => ({ ...s, universe: Math.max(1, Math.floor(Number(e.target.value) || 1)) }))}
-                      className={`w-16 border rounded px-1.5 py-1 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                      className={`w-16 border rounded px-1.5 py-1 font-mono text-xs bg-field text-ink border-line-strong`}
                     />
                   </div>
                   <div>
@@ -1240,7 +1233,7 @@ export const EquipmentPanel: React.FC = () => {
                       max={512}
                       value={dmxPatchStart.address}
                       onChange={(e) => setDmxPatchStart((s) => ({ ...s, address: Math.max(1, Math.min(512, Number(e.target.value) || 1)) }))}
-                      className={`w-20 border rounded px-1.5 py-1 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                      className={`w-20 border rounded px-1.5 py-1 font-mono text-xs bg-field text-ink border-line-strong`}
                     />
                   </div>
                   <button
@@ -1251,7 +1244,7 @@ export const EquipmentPanel: React.FC = () => {
                   </button>
                   <button
                     onClick={handleClearDmx}
-                    className={`px-3 py-1.5 rounded-lg border text-xs font-black ${isLight ? 'border-slate-300 text-slate-600 hover:bg-slate-100' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-black border-line-strong text-ink-soft hover:bg-surface-hover`}
                   >
                     Clear
                   </button>
@@ -1296,7 +1289,7 @@ export const EquipmentPanel: React.FC = () => {
       {/* 5. Equipment Main Content: Spreadsheet View (Default) vs Rubric Cards */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2.5">
         {filteredItems.length === 0 ? (
-          <div className={`m-4 p-8 text-center border-2 border-dashed rounded-2xl ${isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-900'}`}>
+          <div className={`m-4 p-8 text-center border-2 border-dashed rounded-2xl border-line-strong bg-surface`}>
             <Boxes className="w-12 h-12 mx-auto mb-2 opacity-40 text-sky-600 dark:text-sky-400" />
             <p className="text-sm font-black text-slate-950 dark:text-slate-100">No equipment found</p>
             <p className="text-xs opacity-80 mt-1 max-w-sm mx-auto text-slate-700 dark:text-slate-300">
@@ -1308,7 +1301,7 @@ export const EquipmentPanel: React.FC = () => {
               <div className="flex items-center justify-center gap-2 mt-4">
                 <button
                   onClick={() => openAddModal()}
-                  className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-black flex items-center gap-1 shadow-xs"
+                  className="px-3.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-black flex items-center gap-1 shadow-xs"
                 >
                   <Plus className="w-4 h-4" /> Add First Item
                 </button>
@@ -1409,6 +1402,7 @@ export const EquipmentPanel: React.FC = () => {
                           <td className="p-2.5 align-middle">
                             {isEditable ? (
                               <select
+                                aria-label="Category"
                                 value={item.category}
                                 onChange={(e) => {
                                   const newCat = e.target.value as EquipmentCategory;
@@ -1459,9 +1453,9 @@ export const EquipmentPanel: React.FC = () => {
                                   aria-expanded={isExpanded}
                                   className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 shadow-xs ${
                                     isExpanded
-                                      ? 'bg-sky-600 text-white ring-2 ring-sky-400'
+                                      ? 'bg-accent text-white ring-2 ring-sky-400'
                                       : isLight
-                                        ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs'
+                                        ? 'bg-accent hover:bg-accent-hover text-white shadow-xs'
                                         : 'bg-sky-500/20 hover:bg-sky-500/40 text-sky-300 border border-sky-500/30'
                                   }`}
                                 >
@@ -1479,7 +1473,7 @@ export const EquipmentPanel: React.FC = () => {
                                   title={`Add batteries, media cards, monitor, or custom gear directly to ${item.name}`}
                                   className={`px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition-all shadow-xs ${
                                     isLight
-                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                      ? 'bg-emerald-700 hover:bg-emerald-700 text-white'
                                       : 'bg-emerald-600/20 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 text-emerald-300'
                                   }`}
                                 >
@@ -1496,7 +1490,7 @@ export const EquipmentPanel: React.FC = () => {
                                     updateEquipmentItem(item.id, { name: e.target.value })
                                   }
                                   placeholder="Item name..."
-                                  title="Click to edit item name"
+                                  aria-label="Click to edit item name" title="Click to edit item name"
                                   className={`${inputClass} font-black text-xs`}
                                 />
                               ) : (
@@ -1504,11 +1498,11 @@ export const EquipmentPanel: React.FC = () => {
                               )}
 
                               {item.isCustom ? (
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-black border flex-shrink-0 ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-400 border-violet-500/30'}`}>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border flex-shrink-0 ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-400 border-violet-500/30'}`}>
                                   Custom
                                 </span>
                               ) : (
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-black border flex-shrink-0 ${isLight ? 'bg-sky-100 text-sky-950 border-sky-300' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'}`}>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border flex-shrink-0 ${isLight ? 'bg-sky-100 text-sky-950 border-sky-300' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'}`}>
                                   Canvas
                                 </span>
                               )}
@@ -1539,7 +1533,7 @@ export const EquipmentPanel: React.FC = () => {
                                   });
                                   syncFixtureLinkToElement(item, next?.profile, linked?.fixtureModeId);
                                 }}
-                                title="Select brand from the department catalog or fixture database"
+                                aria-label="Select brand from the department catalog or fixture database" title="Select brand from the department catalog or fixture database"
                                 className={`${inputClass} cursor-pointer`}
                               >
                                 {!item.brand && <option value="" disabled>Select brand…</option>}
@@ -1576,7 +1570,7 @@ export const EquipmentPanel: React.FC = () => {
                                   updateEquipmentItem(item.id, updates);
                                   syncFixtureLinkToElement(item, chosen?.profile, linked?.fixtureModeId);
                                 }}
-                                title="Select model for this brand — ◆ entries carry DMX modes and specs"
+                                aria-label="Select model for this brand — ◆ entries carry DMX modes and specs" title="Select model for this brand — ◆ entries carry DMX modes and specs"
                                 className={`${inputClass} font-mono text-[11px] cursor-pointer`}
                               >
                                 {!item.model && <option value="" disabled>Select model…</option>}
@@ -1591,7 +1585,7 @@ export const EquipmentPanel: React.FC = () => {
                               <div className="mt-0.5 flex flex-wrap items-center gap-1">
                                 <span
                                   title={`Linked to fixture database: ${rowProfile.manufacturer} ${rowProfile.model} · ${fixtureSpecsLine(rowProfile, item.fixtureModeId) || 'no measured data'}`}
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-black border ${
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-black border ${
                                     isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/30'
                                   }`}
                                 >
@@ -1612,7 +1606,7 @@ export const EquipmentPanel: React.FC = () => {
                                       placeFixtureOnPlan(item, rowProfile);
                                     }}
                                     title="Not on the floor plan, so the DMX patch cannot address it. Place it to make it patchable."
-                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black border ${
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black border ${
                                       isLight ? 'bg-amber-100 text-amber-950 border-amber-300 hover:bg-amber-200' : 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
                                     }`}
                                   >
@@ -1720,7 +1714,7 @@ export const EquipmentPanel: React.FC = () => {
                                 {masterItem.usedInSetups.map((s, sIdx) => (
                                   <span
                                     key={sIdx}
-                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/20'}`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/20'}`}
                                   >
                                     {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
                                   </span>
@@ -1818,7 +1812,7 @@ export const EquipmentPanel: React.FC = () => {
                                     <div className="flex items-center gap-1.5">
                                       <button
                                         onClick={() => openAddPackageItemModal(item.id)}
-                                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 shadow-md transition-all"
+                                        className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 shadow-md transition-all"
                                       >
                                         <Plus className="w-3.5 h-3.5" />
                                         <span>+ Add Custom Item to {item.name.split(' ')[0]}</span>
@@ -1889,13 +1883,13 @@ export const EquipmentPanel: React.FC = () => {
                                                 <div className="flex items-center gap-2 mt-2">
                                                   <button
                                                     onClick={() => handleAddPackagePreset(item.id, CAMERA_PACKAGE_PRESETS[0])}
-                                                    className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-black flex items-center gap-1 shadow-xs"
+                                                    className="px-3 py-1 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-black flex items-center gap-1 shadow-xs"
                                                   >
                                                     <Plus className="w-3.5 h-3.5" /> + Add Batteries
                                                   </button>
                                                   <button
                                                     onClick={() => handleAddPackagePreset(item.id, CAMERA_PACKAGE_PRESETS[2])}
-                                                    className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-black flex items-center gap-1 shadow-xs"
+                                                    className="px-3 py-1 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-black flex items-center gap-1 shadow-xs"
                                                   >
                                                     <Plus className="w-3.5 h-3.5" /> + Add Media Cards
                                                   </button>
@@ -1996,7 +1990,7 @@ export const EquipmentPanel: React.FC = () => {
                                                         model: models.length > 0 && !models.includes(subItem.model || '') ? models[0] : subItem.model,
                                                       });
                                                     }}
-                                                    title="Select brand from department catalog"
+                                                    aria-label="Select brand from department catalog" title="Select brand from department catalog"
                                                     className={`${inputClass} text-xs cursor-pointer`}
                                                   >
                                                     {!subItem.brand && <option value="" disabled>Select brand…</option>}
@@ -2019,7 +2013,7 @@ export const EquipmentPanel: React.FC = () => {
                                                     onChange={(e) =>
                                                       updatePackageItem(item.id, subItem.id, { model: e.target.value })
                                                     }
-                                                    title="Select model for this brand"
+                                                    aria-label="Select model for this brand" title="Select model for this brand"
                                                     className={`${inputClass} text-[11px] font-mono cursor-pointer`}
                                                   >
                                                     {!subItem.model && <option value="" disabled>Select model…</option>}
@@ -2180,7 +2174,7 @@ export const EquipmentPanel: React.FC = () => {
               {scope === 'current' && (
                 <button
                   onClick={() => openAddModal()}
-                  className="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-black flex items-center gap-1 shadow-xs"
+                  className="px-2.5 py-1 rounded bg-accent hover:bg-accent-hover text-white text-[11px] font-black flex items-center gap-1 shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add Row
                 </button>
@@ -2259,9 +2253,9 @@ export const EquipmentPanel: React.FC = () => {
                                     aria-expanded={isExpanded}
                                     className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${
                                       isExpanded
-                                        ? 'bg-sky-600 text-white'
+                                        ? 'bg-accent text-white'
                                         : isLight
-                                          ? 'bg-sky-600 text-white hover:bg-sky-700'
+                                          ? 'bg-accent hover:bg-accent-hover text-white'
                                           : 'bg-sky-500/20 text-sky-300'
                                     }`}
                                   >
@@ -2277,7 +2271,7 @@ export const EquipmentPanel: React.FC = () => {
                                     onClick={() => openAddPackageItemModal(item.id)}
                                     className={`px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 ${
                                       isLight
-                                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                        ? 'bg-emerald-700 text-white hover:bg-emerald-700'
                                         : 'bg-emerald-600/20 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 text-emerald-300'
                                     }`}
                                   >
@@ -2288,11 +2282,11 @@ export const EquipmentPanel: React.FC = () => {
 
                                 <span className="text-xs font-black leading-tight text-slate-950 dark:text-slate-100">{item.name}</span>
                                 {item.isCustom ? (
-                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-black border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-400 border-violet-500/30'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-400 border-violet-500/30'}`}>
                                     Custom
                                   </span>
                                 ) : (
-                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-black border ${isLight ? 'bg-sky-100 text-sky-950 border-sky-300' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border ${isLight ? 'bg-sky-100 text-sky-950 border-sky-300' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'}`}>
                                     Canvas
                                   </span>
                                 )}
@@ -2326,7 +2320,7 @@ export const EquipmentPanel: React.FC = () => {
                                   {masterItem.usedInSetups.map((s, sIdx) => (
                                     <span
                                       key={sIdx}
-                                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/20'}`}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/20'}`}
                                     >
                                       {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
                                     </span>
@@ -2430,7 +2424,7 @@ export const EquipmentPanel: React.FC = () => {
                                 {scope === 'current' && (
                                   <button
                                     onClick={() => openAddPackageItemModal(item.id)}
-                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black flex items-center gap-0.5 shadow-xs"
+                                    className="px-2.5 py-1 rounded bg-emerald-700 hover:bg-emerald-700 text-white text-[10px] font-black flex items-center gap-0.5 shadow-xs"
                                   >
                                     <Plus className="w-3 h-3" /> + Add Gear
                                   </button>
@@ -2488,7 +2482,7 @@ export const EquipmentPanel: React.FC = () => {
             aria-labelledby={`${fieldId}-add-equipment-title`}
             tabIndex={-1}
             className={`w-full max-w-lg rounded-2xl border p-5 shadow-2xl outline-hidden ${
-              isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-900 border-slate-700 text-slate-100'
+              'bg-surface border-line-strong text-ink'
             }`}
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
@@ -2586,7 +2580,7 @@ export const EquipmentPanel: React.FC = () => {
                     <span className="text-[11px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-300">
                       Brand Template
                     </span>
-                    <span className="text-[9px] font-bold opacity-70">Dropdown</span>
+                    <span className="text-[10px] font-bold opacity-70">Dropdown</span>
                   </div>
                   <select
                     aria-label="Brand Template"
@@ -2609,7 +2603,7 @@ export const EquipmentPanel: React.FC = () => {
                       });
                     }}
                     className={`w-full p-1.5 text-xs rounded-lg border font-bold ${
-                      isLight ? 'bg-white text-slate-950 border-slate-300' : 'bg-slate-800 text-slate-100 border-slate-700'
+                      'bg-raised text-ink border-line-strong'
                     }`}
                   >
                     <option value="" className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">-- Custom Brand --</option>
@@ -2622,7 +2616,7 @@ export const EquipmentPanel: React.FC = () => {
                     <span className="text-[11px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-300">
                       Model Template
                     </span>
-                    <span className="text-[9px] font-bold opacity-70">Dropdown</span>
+                    <span className="text-[10px] font-bold opacity-70">Dropdown</span>
                   </div>
                   <select
                     aria-label="Model Template"
@@ -2648,7 +2642,7 @@ export const EquipmentPanel: React.FC = () => {
                       });
                     }}
                     className={`w-full p-1.5 text-xs rounded-lg border font-mono text-[11px] font-bold ${
-                      isLight ? 'bg-white text-slate-950 border-slate-300' : 'bg-slate-800 text-slate-100 border-slate-700'
+                      'bg-raised text-ink border-line-strong'
                     }`}
                   >
                     <option value="" className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">-- Custom Model --</option>
@@ -2752,7 +2746,7 @@ export const EquipmentPanel: React.FC = () => {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border font-black focus:ring-2 focus:ring-sky-500 ${
-                      isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                      'bg-raised border-line-strong text-ink'
                     }`}
                   />
                 </div>
@@ -2768,7 +2762,7 @@ export const EquipmentPanel: React.FC = () => {
                       setFormData({ ...formData, quantity: Math.max(1, Number(e.target.value)) })
                     }
                     className={`w-full p-2 text-xs rounded-lg border font-mono font-black text-center focus:ring-2 focus:ring-sky-500 ${
-                      isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                      'bg-raised border-line-strong text-ink'
                     }`}
                   />
                 </div>
@@ -2786,7 +2780,7 @@ export const EquipmentPanel: React.FC = () => {
                     value={formData.brand}
                     onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border font-bold focus:ring-2 focus:ring-sky-500 ${
-                      isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                      'bg-raised border-line-strong text-ink'
                     }`}
                   />
                 </div>
@@ -2800,7 +2794,7 @@ export const EquipmentPanel: React.FC = () => {
                     value={formData.model}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border font-mono font-bold text-[11px] focus:ring-2 focus:ring-sky-500 ${
-                      isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                      'bg-raised border-line-strong text-ink'
                     }`}
                   />
                 </div>
@@ -2817,7 +2811,7 @@ export const EquipmentPanel: React.FC = () => {
                   value={formData.roleOrFunction}
                   onChange={(e) => setFormData({ ...formData, roleOrFunction: e.target.value })}
                   className={`w-full p-2 text-xs rounded-lg border font-bold focus:ring-2 focus:ring-sky-500 ${
-                    isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    'bg-raised border-line-strong text-ink'
                   }`}
                 />
               </div>
@@ -2833,7 +2827,7 @@ export const EquipmentPanel: React.FC = () => {
                   value={formData.specs}
                   onChange={(e) => setFormData({ ...formData, specs: e.target.value })}
                   className={`w-full p-2 text-xs rounded-lg border font-medium focus:ring-2 focus:ring-sky-500 custom-scrollbar ${
-                    isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    'bg-raised border-line-strong text-ink'
                   }`}
                 />
               </div>
@@ -2844,14 +2838,14 @@ export const EquipmentPanel: React.FC = () => {
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg border ${
-                    isLight ? 'border-slate-300 hover:bg-slate-100 text-slate-900' : 'border-slate-700 hover:bg-slate-800 text-slate-200'
+                    'border-line-strong hover:bg-surface-hover text-ink'
                   }`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs font-black rounded-lg bg-sky-600 hover:bg-sky-700 text-white shadow-md flex items-center gap-1"
+                  className="px-4 py-1.5 text-xs font-black rounded-lg bg-accent hover:bg-accent-hover text-white shadow-md flex items-center gap-1"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>{editingItem ? 'Save Changes' : formData.targetPackageId ? 'Attach to Package' : 'Add Item'}</span>
@@ -2872,7 +2866,7 @@ export const EquipmentPanel: React.FC = () => {
             aria-labelledby={`${fieldId}-add-package-item-title`}
             tabIndex={-1}
             className={`w-full max-w-md rounded-2xl border p-5 shadow-2xl outline-hidden ${
-              isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-900 border-slate-700 text-slate-100'
+              'bg-surface border-line-strong text-ink'
             }`}
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
@@ -2970,7 +2964,7 @@ export const EquipmentPanel: React.FC = () => {
                     value={packageFormData.name}
                     onChange={(e) => setPackageFormData({ ...packageFormData, name: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border font-black ${
-                      isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                      'bg-raised border-line-strong text-ink'
                     }`}
                   />
                 </div>
@@ -2986,7 +2980,7 @@ export const EquipmentPanel: React.FC = () => {
                       setPackageFormData({ ...packageFormData, quantity: Math.max(1, Number(e.target.value)) })
                     }
                     className={`w-full p-2 text-xs rounded-lg border font-mono font-black text-center ${
-                      isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                      'bg-raised border-line-strong text-ink'
                     }`}
                   />
                 </div>
@@ -3004,7 +2998,7 @@ export const EquipmentPanel: React.FC = () => {
                     value={packageFormData.brand}
                     onChange={(e) => setPackageFormData({ ...packageFormData, brand: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border font-bold ${
-                      isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                      'bg-raised border-line-strong text-ink'
                     }`}
                   />
                 </div>
@@ -3018,7 +3012,7 @@ export const EquipmentPanel: React.FC = () => {
                     value={packageFormData.model}
                     onChange={(e) => setPackageFormData({ ...packageFormData, model: e.target.value })}
                     className={`w-full p-2 text-xs rounded-lg border font-mono font-bold text-[11px] ${
-                      isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                      'bg-raised border-line-strong text-ink'
                     }`}
                   />
                 </div>
@@ -3035,7 +3029,7 @@ export const EquipmentPanel: React.FC = () => {
                   value={packageFormData.roleOrFunction}
                   onChange={(e) => setPackageFormData({ ...packageFormData, roleOrFunction: e.target.value })}
                   className={`w-full p-2 text-xs rounded-lg border font-bold ${
-                    isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    'bg-raised border-line-strong text-ink'
                   }`}
                 />
               </div>
@@ -3050,7 +3044,7 @@ export const EquipmentPanel: React.FC = () => {
                   value={packageFormData.specs}
                   onChange={(e) => setPackageFormData({ ...packageFormData, specs: e.target.value })}
                   className={`w-full p-2 text-xs rounded-lg border font-medium ${
-                    isLight ? 'bg-white border-slate-300 text-slate-950' : 'bg-slate-800 border-slate-700 text-slate-100'
+                    'bg-raised border-line-strong text-ink'
                   }`}
                 />
               </div>
@@ -3061,14 +3055,14 @@ export const EquipmentPanel: React.FC = () => {
                   type="button"
                   onClick={() => setIsAddPackageItemModalOpen(false)}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg border ${
-                    isLight ? 'border-slate-300 hover:bg-slate-100 text-slate-900' : 'border-slate-700 hover:bg-slate-800 text-slate-200'
+                    'border-line-strong hover:bg-surface-hover text-ink'
                   }`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs font-black rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1"
+                  className="px-4 py-1.5 text-xs font-black rounded-lg bg-emerald-700 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Attach to Package</span>

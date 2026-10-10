@@ -24,7 +24,7 @@ interface TextInspectorProps {
 export const TextInspector: React.FC<TextInspectorProps> = ({ txt, isLight }) => {
   const fieldId = useId();
   const { updateElement } = useFloorPlan();
-  const txtInputClass = `w-full border rounded p-1.5 font-mono text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`;
+  const txtInputClass = `w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong`;
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
@@ -112,7 +112,7 @@ export const TextInspector: React.FC<TextInspectorProps> = ({ txt, isLight }) =>
                 onClick={() => updateElement(txt.id, { textAlign: align })}
                 className={`py-1.5 text-[10px] font-semibold rounded border capitalize ${
                   (txt.textAlign || 'center') === align
-                    ? 'bg-sky-600 text-white border-sky-500'
+                    ? 'bg-accent text-white border-sky-500'
                     : isLight
                     ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
                     : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'

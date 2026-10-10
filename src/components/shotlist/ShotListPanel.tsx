@@ -1,4 +1,6 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { PanelTitle } from '../common/PanelHeader';
+import { useDismiss } from '../common/useDismiss';
 import { nextCameraLabel } from '../../domain/plan/cameraLabels';
 import { createPortal } from 'react-dom';
 import { useFloorPlan } from '../../context/FloorPlanContext';
@@ -15,6 +17,13 @@ import { buildPdfFilename, createShotListPdf, shotListRowsFromSetups } from '../
 import { downloadBlob } from '../../utils/download';
 import { ProjectImage } from '../common/ProjectImage';
 import { CoverageWarnings } from './CoverageWarnings';
+import { StoryboardLightbox } from './StoryboardLightbox';
+import { SHOT_LIST_BOARD_SIZES as BOARD_SIZES, readShotListBoardSize, readShotListBoardsShown, writeUiPref } from '../../utils/uiPrefs';
+import type { ShotListBoardSize as BoardSize } from '../../utils/uiPrefs';
+import { shotListStoryboards } from '../../utils/pdf/shotListBoards';
+/** Card thumbnail max height (px; undefined = full panel width) and table thumbnail width (px). */
+const BOARD_CARD_MAX_HEIGHT: Record<BoardSize, number | undefined> = { S: 110, M: 190, L: 340, XL: undefined };
+const BOARD_TABLE_WIDTH: Record<BoardSize, number> = { S: 40, M: 72, L: 128, XL: 200 };
 import {
   ArrowUpDown,
   Camera,
@@ -58,10 +67,11 @@ interface CamPickerProps {
  * present on the floor plan plus "No Camera". Changing the selection links the
  * shot to that camera; an occupied camera is copied to preserve its owner's path.
  */
-const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, nextLetter, onPick, compact }) => {
+const CamPicker: React.FC<CamPickerProps> = ({ value, isLight: _isLight, options, nextLetter, onPick, compact }) => {
   return (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
       <select
+        aria-label="Camera for this shot"
         value={value || ''}
         onChange={(e) => {
           onPick(e.target.value || null);
@@ -69,7 +79,7 @@ const CamPicker: React.FC<CamPickerProps> = ({ value, isLight, options, nextLett
         title="Link a camera to this shot — several shots can share the same camera"
         className={`appearance-none text-[11px] font-mono font-semibold py-0.5 pl-1.5 pr-6 rounded border cursor-pointer ${
           value
-            ? isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+            ? 'bg-surface-muted text-ink border-line-strong'
             : 'bg-amber-500/15 text-amber-600 border-amber-500/30'
         } ${compact ? 'w-24' : 'w-full'}`}
       >
@@ -149,6 +159,8 @@ export const ShotListPanel: React.FC = () => {
   const [showAllScenes, setShowAllScenes] = useState(false);
   const [expandedShotId, setExpandedShotId] = useState<string | null>(null);
   const [isRenumberMenuOpen, setIsRenumberMenuOpen] = useState(false);
+  const renumberMenuRef = useRef<HTMLDivElement>(null);
+  useDismiss(isRenumberMenuOpen, useCallback(() => setIsRenumberMenuOpen(false), []), renumberMenuRef);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   // Insertion gap the blue line marks: 0 = above the first shot … n = below
   // the last one. Unlike a row index this can express "place at the very end".
@@ -158,7 +170,18 @@ export const ShotListPanel: React.FC = () => {
   // when any shot in the current scope already carries a frame.
   const sceneShots = project.setups.find((s) => s.id === activeSetup.id)?.shots || [];
   const hasStoryboards = sceneShots.some((s) => !!s.storyboardImage);
-  const [showStoryboards, setShowStoryboards] = useState<boolean>(hasStoryboards);
+  const [showStoryboards, setShowStoryboardsState] = useState<boolean>(() => {
+    const chosen = readShotListBoardsShown();
+    return chosen === 'auto' ? hasStoryboards : chosen === 'on';
+  });
+  // A deliberate toggle is remembered, and the print/PDF exports follow it.
+  const setShowStoryboards = (next: boolean | ((current: boolean) => boolean)) => {
+    setShowStoryboardsState((current) => {
+      const value = typeof next === 'function' ? next(current) : next;
+      writeUiPref('shotlist_board_show', value ? 'on' : 'off');
+      return value;
+    });
+  };
   // Boards saved after mount (e.g. a frame captured in the viewfinder) must
   // become visible without a reload: flip the column on the first time this
   // scene goes from no boards to some. A manual toggle-off afterwards stays off.
@@ -170,9 +193,16 @@ export const ShotListPanel: React.FC = () => {
     }
     if (!storyboardsSeenRef.current) {
       storyboardsSeenRef.current = true;
-      setShowStoryboards(true);
+      // New boards appear on their own, unless the person switched them off.
+      if (readShotListBoardsShown() !== 'off') setShowStoryboardsState(true);
     }
   }, [hasStoryboards]);
+  const [boardSize, setBoardSizeState] = useState<BoardSize>(readShotListBoardSize);
+  const setBoardSize = (size: BoardSize) => {
+    setBoardSizeState(size);
+    writeUiPref('shotlist_board_size', size);
+  };
+  const [lightboxShotId, setLightboxShotId] = useState<string | null>(null);
   const shotListContainerRef = useRef<HTMLDivElement>(null);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
 
@@ -457,7 +487,7 @@ export const ShotListPanel: React.FC = () => {
       }}
       title="Insert a shot directly after this shot"
       aria-label="Insert a shot directly after this shot"
-      className="p-1 text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 rounded"
+      className="p-1 text-accent-ink hover:text-sky-600 hover:bg-sky-500/10 rounded"
     >
       <Plus className="w-3.5 h-3.5" />
     </button>
@@ -503,34 +533,36 @@ export const ShotListPanel: React.FC = () => {
       document.body
     );
 
+  const boardedShots = filteredShots.filter((shot) => !!storyboardImageFor(shot));
+  const lightboxIndex = lightboxShotId ? boardedShots.findIndex((shot) => shot.id === lightboxShotId) : -1;
+
   return (
     <div
       id="shot-list-panel"
       className={`flex flex-col h-full w-full select-none transition-colors ${
-        isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'
+        'bg-surface text-ink'
       }`}
     >
+      {lightboxIndex !== -1 && (
+        <StoryboardLightbox
+          shots={boardedShots}
+          index={lightboxIndex}
+          onIndexChange={(next) => setLightboxShotId(boardedShots[next]?.id ?? null)}
+          onClose={() => setLightboxShotId(null)}
+          aspectRatio={sceneAspectRatio}
+        />
+      )}
       {insertMenuOverlay}
 
       {/* 1. Header & Quick Actions */}
       <div className={`p-3 border-b space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-900/90'}`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-500 border border-sky-500/20">
-              <Film className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xs font-bold tracking-wide uppercase">
-                  Shot List
-                </h2>
-                <span className="px-1.5 py-0.2 text-[10px] font-mono rounded bg-sky-500/15 text-sky-600 font-bold border border-sky-500/30">
-                  {activeSetup.shots.length} shots
-                </span>
-              </div>
-              <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Scene {activeSetup.sceneNumber} • {formatTime(totalSeconds)}</p>
-            </div>
-          </div>
+          <PanelTitle
+            icon={<Film />}
+            title="Shot list"
+            count={activeSetup.shots.length}
+            subtitle={`Scene ${activeSetup.sceneNumber} · ${formatTime(totalSeconds)}`}
+          />
 
           <div className="flex items-center gap-1">
             {/* Add Camera + Shot Button */}
@@ -538,7 +570,7 @@ export const ShotListPanel: React.FC = () => {
               id="btn-add-camera-shot"
               onClick={() => createCameraAndShot()}
               title="Add a new Camera on Floor Plan & Shot in List"
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors shadow-sm"
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors shadow-sm"
             >
               <Camera className="w-3.5 h-3.5" />
               <span>+ Cam & Shot</span>
@@ -550,7 +582,7 @@ export const ShotListPanel: React.FC = () => {
               title="Export Shot List to Excel / CSV spreadsheet"
               aria-label="Export Shot List to Excel / CSV spreadsheet"
               className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                'bg-surface-muted hover:bg-surface-hover text-ink-soft border-line-strong'
               }`}
             >
               <Download className="w-3.5 h-3.5" />
@@ -564,6 +596,10 @@ export const ShotListPanel: React.FC = () => {
                     productionTitle: project.title,
                     subtitle: `Scene ${activeSetup.sceneNumber || ''} — ${activeSetup.name || ''}`.trim(),
                     rows: shotListRowsFromSetups([activeSetup]),
+                    // Boards print when the list shows them, at the size it shows them.
+                    ...(showStoryboards && hasStoryboards
+                      ? { storyboards: await shotListStoryboards([activeSetup], boardSize, sceneAspectRatio) }
+                      : {}),
                   });
                   downloadBlob(
                     new Blob([bytes], { type: 'application/pdf' }),
@@ -571,7 +607,7 @@ export const ShotListPanel: React.FC = () => {
                   );
                 })();
               }}
-              title="Shotliste als PDF exportieren"
+              title="Download the shot list as a PDF"
             />
           </div>
         </div>
@@ -583,9 +619,10 @@ export const ShotListPanel: React.FC = () => {
             <div className="flex items-center gap-1">
               <ArrowUpDown className="w-3 h-3 opacity-60 flex-shrink-0" />
               <select
+                aria-label="Sort shots"
                 onChange={(e) => sortShotsBy(parseOption(SHOT_SORT_VALUES, e.target.value, 'custom'))}
                 className={`text-[11px] border rounded px-1.5 py-0.5 focus:outline-none focus:border-sky-500 ${
-                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-800 text-slate-200 border-slate-700'
+                  'bg-raised text-ink-soft border-line-strong'
                 }`}
                 title="Sort Shots"
               >
@@ -598,7 +635,7 @@ export const ShotListPanel: React.FC = () => {
             </div>
 
             {/* Renumber Dropdown Menu */}
-            <div className="relative">
+            <div className="relative" ref={renumberMenuRef}>
               <button
                 onClick={() => setIsRenumberMenuOpen((prev) => !prev)}
                 title="Auto-Renumber All Shots in Scene"
@@ -607,7 +644,7 @@ export const ShotListPanel: React.FC = () => {
                   isLight ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                 }`}
               >
-                <Hash className="w-3 h-3 text-sky-500" />
+                <Hash className="w-3 h-3 text-accent-ink" />
                 <span>Renumber</span>
                 <ChevronDown className="w-2.5 h-2.5 opacity-60" />
               </button>
@@ -615,7 +652,7 @@ export const ShotListPanel: React.FC = () => {
               {isRenumberMenuOpen && (
                 <div
                   className={`absolute left-0 top-full mt-1 w-48 rounded-lg shadow-xl border z-50 p-1 text-[11px] space-y-0.5 ${
-                    isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-800 border-slate-700 text-slate-200'
+                    'bg-raised border-line text-ink-soft'
                   }`}
                   onClick={() => setIsRenumberMenuOpen(false)}
                 >
@@ -661,7 +698,7 @@ export const ShotListPanel: React.FC = () => {
             aria-pressed={showFilters}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
               showFilters || filterCamera !== 'all' || filterStatus !== 'all' || hiddenColumns.size > 0
-                ? 'bg-sky-600 text-white border-sky-500'
+                ? 'bg-accent text-white border-sky-500'
                 : isLight
                 ? 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900'
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
@@ -691,7 +728,7 @@ export const ShotListPanel: React.FC = () => {
             aria-pressed={showAllScenes}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
               showAllScenes
-                ? 'bg-violet-600 text-white border-violet-500'
+                ? 'bg-accent text-white border-violet-500'
                 : isLight
                 ? 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900'
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
@@ -715,21 +752,36 @@ export const ShotListPanel: React.FC = () => {
               aria-pressed={showStoryboards}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 showStoryboards
-                  ? 'bg-amber-500 text-white shadow-xs'
-                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               <Image className="w-3.5 h-3.5" />
               <span>Story</span>
             </button>
+            {showStoryboards && (
+              <select
+                value={boardSize}
+                onChange={(e) => setBoardSize(e.target.value as BoardSize)}
+                title="Storyboard thumbnail size"
+                aria-label="Storyboard thumbnail size"
+                className={`px-1 py-0.5 rounded text-xs font-semibold border-0 focus:outline-none focus:ring-1 focus:ring-amber-500 ${
+                  'bg-transparent text-ink-soft'
+                }`}
+              >
+                {BOARD_SIZES.map((size) => (
+                  <option key={size} value={size} className={isLight ? '' : 'bg-slate-900'}>{size}</option>
+                ))}
+              </select>
+            )}
             <button
               onClick={() => setViewMode('cards')}
               title="Storyboard / Coverage Cards View"
               aria-pressed={viewMode === 'cards'}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 viewMode === 'cards'
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                  ? 'bg-accent text-white shadow-xs'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -741,8 +793,8 @@ export const ShotListPanel: React.FC = () => {
               aria-pressed={viewMode === 'table'}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 viewMode === 'table'
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                  ? 'bg-accent text-white shadow-xs'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               <Table className="w-3.5 h-3.5" />
@@ -755,19 +807,19 @@ export const ShotListPanel: React.FC = () => {
               {showFilters && (
           <div
             className={`mx-3 mb-2 rounded-xl border p-3 space-y-2.5 text-xs ${
-              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/60 border-slate-800'
+              'bg-surface-sunken border-line'
             }`}
           >
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="space-y-1 block">
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider text-ink-muted`}>
                   Camera
                 </span>
                 <select
                   value={filterCamera}
                   onChange={(e) => setFilterCamera(e.target.value)}
                   className={`w-full rounded-lg border px-2 py-1.5 ${
-                    isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-200'
+                    'bg-surface border-line-strong text-ink'
                   }`}
                 >
                   <option value="all">Every camera</option>
@@ -779,14 +831,14 @@ export const ShotListPanel: React.FC = () => {
                 </select>
               </label>
               <label className="space-y-1 block">
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider text-ink-muted`}>
                   Status
                 </span>
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className={`w-full rounded-lg border px-2 py-1.5 ${
-                    isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-200'
+                    'bg-surface border-line-strong text-ink'
                   }`}
                 >
                   <option value="all">Any status</option>
@@ -798,7 +850,7 @@ export const ShotListPanel: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              <span className={`text-[10px] font-bold uppercase tracking-wider text-ink-muted`}>
                 Columns
               </span>
               <div className="flex flex-wrap gap-1">
@@ -809,7 +861,7 @@ export const ShotListPanel: React.FC = () => {
                     aria-pressed={shows(column.key)}
                     className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${
                       shows(column.key)
-                        ? 'bg-sky-600 text-white border-sky-500'
+                        ? 'bg-accent text-white border-sky-500'
                         : isLight
                         ? 'bg-white text-slate-400 border-slate-300 line-through'
                         : 'bg-slate-900 text-slate-500 border-slate-700 line-through'
@@ -819,7 +871,7 @@ export const ShotListPanel: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              <p className={`text-[10px] text-ink-muted`}>
                 Shot number and name always show. Column choices are remembered on this device only.
               </p>
             </div>
@@ -837,7 +889,7 @@ export const ShotListPanel: React.FC = () => {
                   }
                 }}
                 className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold ${
-                  isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+                  'border-line-strong hover:bg-surface-hover'
                 }`}
               >
                 Reset filters &amp; columns
@@ -858,15 +910,15 @@ export const ShotListPanel: React.FC = () => {
             panel for. */}
         <CoverageWarnings scope={showAllScenes ? 'project' : 'scene'} isLight={isLight} />
         {filteredShots.length === 0 ? (
-          <div className={`p-8 text-center border border-dashed rounded-xl my-4 ${isLight ? 'border-slate-300' : 'border-slate-800'}`}>
+          <div className={`p-8 text-center border border-dashed rounded-xl my-4 border-line-strong`}>
             <Video className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-            <p className={`text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>No shots planned yet</p>
-            <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            <p className={`text-xs font-semibold text-ink-soft`}>No shots planned yet</p>
+            <p className={`text-[11px] mt-1 text-ink-muted`}>
               Click "+ Cam & Shot" above to drop a camera on the floor plan and create its shot.
             </p>
             <button
               onClick={() => createCameraAndShot()}
-              className="mt-3 px-3 py-1.5 text-xs font-semibold bg-sky-600 text-white rounded-lg hover:bg-sky-500 shadow-sm"
+              className="mt-3 px-3 py-1.5 text-xs font-semibold bg-accent text-white rounded-lg hover:bg-sky-500 shadow-sm"
             >
               + Create First Camera & Shot
             </button>
@@ -917,8 +969,17 @@ export const ShotListPanel: React.FC = () => {
                 {/* Storyboard thumbnail — larger in card view, like the print storyboard */}
                 {showStoryboards && storyboardImageFor(shot) && (
                   <div
-                    className="overflow-hidden rounded-lg border mb-2 bg-slate-100 dark:bg-slate-950"
-                    style={{ aspectRatio: `${sceneAspectRatio} / 1`, maxHeight: 190 }}
+                    className="overflow-hidden rounded-lg border mb-2 bg-slate-100 dark:bg-slate-950 cursor-zoom-in mx-auto"
+                    style={{
+                      aspectRatio: `${sceneAspectRatio} / 1`,
+                      maxHeight: BOARD_CARD_MAX_HEIGHT[boardSize],
+                      maxWidth: BOARD_CARD_MAX_HEIGHT[boardSize] === undefined ? undefined : BOARD_CARD_MAX_HEIGHT[boardSize]! * sceneAspectRatio,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightboxShotId(shot.id);
+                    }}
+                    title="Click to view large"
                   >
                     <ProjectImage
                       imageRef={storyboardImageFor(shot)}
@@ -928,7 +989,6 @@ export const ShotListPanel: React.FC = () => {
                         objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
                         objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
                       }}
-                      onClick={(e) => e.stopPropagation()}
                     />
                   </div>
                 )}
@@ -948,6 +1008,7 @@ export const ShotListPanel: React.FC = () => {
 
                     {/* Editable Shot Number Badge */}
                     <input
+                      aria-label="Shot number"
                       type="text"
                       value={shot.shotNumber || '1A'}
                       onChange={(e) => updateShot(shot.id, { shotNumber: e.target.value })}
@@ -972,6 +1033,7 @@ export const ShotListPanel: React.FC = () => {
 
                     {/* Shot Size Pill */}
                     <select
+                      aria-label="Shot size"
                       value={shot.shotSize}
                       onChange={(e) => updateShot(shot.id, { shotSize: e.target.value as ShotSize })}
                       onClick={(e) => e.stopPropagation()}
@@ -986,11 +1048,12 @@ export const ShotListPanel: React.FC = () => {
 
                     {/* Lens mm */}
                     <select
+                      aria-label="Lens"
                       value={shot.lensMm}
                       onChange={(e) => updateShot(shot.id, { lensMm: Number(e.target.value) })}
                       onClick={(e) => e.stopPropagation()}
                       className={`text-[10px] font-mono py-0.5 px-1.5 rounded border cursor-pointer ${
-                        isLight ? 'bg-slate-50 text-slate-700 border-slate-200' : 'bg-slate-900 text-slate-300 border-slate-700'
+                        'bg-surface-sunken text-ink-soft border-line-strong'
                       }`}
                     >
                       {[14, 18, 24, 28, 35, 50, 75, 85, 105, 135, 200].map((mm) => (
@@ -1004,6 +1067,7 @@ export const ShotListPanel: React.FC = () => {
                   {/* Right: Status Dropdown + Actions */}
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <select
+                      aria-label="Status"
                       value={shot.status}
                       onChange={(e) => updateShot(shot.id, { status: e.target.value as ShotStatus })}
                       onClick={(e) => e.stopPropagation()}
@@ -1011,8 +1075,8 @@ export const ShotListPanel: React.FC = () => {
                         shot.status === 'taken'
                           ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/40'
                           : shot.status === 'ready'
-                          ? 'bg-sky-500/15 text-sky-600 border-sky-500/40'
-                          : isLight ? 'bg-white text-slate-700 border-slate-300' : 'bg-slate-900 text-slate-300 border-slate-700'
+                          ? 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/40'
+                          : 'bg-surface text-ink-soft border-line-strong'
                       }`}
                     >
                       <option value="planned">Planned</option>
@@ -1075,7 +1139,7 @@ export const ShotListPanel: React.FC = () => {
                       aria-label={isExpanded ? 'Collapse shot details' : 'Expand shot details'}
                       aria-expanded={isExpanded}
                       className={`p-1 rounded transition-colors ${
-                        isLight ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                        'text-slate-400 hover:text-ink hover:bg-surface-hover'
                       }`}
                     >
                       {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -1086,6 +1150,7 @@ export const ShotListPanel: React.FC = () => {
                 {/* Editable Shot Name / Subject */}
                 <div className="mt-2">
                   <input
+                    aria-label="Shot name"
                     type="text"
                     value={shot.name}
                     onChange={(e) => updateShot(shot.id, { name: e.target.value })}
@@ -1104,11 +1169,12 @@ export const ShotListPanel: React.FC = () => {
                     <div className="flex items-center gap-1">
                       <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Move:</span>
                       <select
+                        aria-label="Camera movement"
                         value={effectiveMovement(shot, linkedCamera)}
                         onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
                         title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
                         className={`text-[10px] font-semibold py-0.5 px-1.5 rounded border cursor-pointer focus:outline-none focus:border-sky-500 ${
-                          isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+                          'bg-surface-sunken text-ink border-line-strong'
                         }`}
                       >
                         {CAMERA_MOVEMENTS.map((m) => (
@@ -1123,6 +1189,7 @@ export const ShotListPanel: React.FC = () => {
                     <div className="flex items-center gap-1">
                       <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Angle:</span>
                       <select
+                        aria-label="Camera angle"
                         value={shot.cameraAngle || 'Eye Level'}
                         onChange={(e) =>
                           updateShot(shot.id, {
@@ -1134,7 +1201,7 @@ export const ShotListPanel: React.FC = () => {
                           })
                         }
                         className={`text-[10px] font-semibold py-0.5 px-1.5 rounded border cursor-pointer focus:outline-none focus:border-sky-500 ${
-                          isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+                          'bg-surface-sunken text-ink border-line-strong'
                         }`}
                       >
                         {CAMERA_ANGLES.map((a) => (
@@ -1149,21 +1216,21 @@ export const ShotListPanel: React.FC = () => {
                   {/* Takes Counter */}
                   <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <span className="text-[10px] font-medium opacity-75">Takes:</span>
-                    <div className={`flex items-center border rounded-lg ${isLight ? 'border-slate-300 bg-slate-100' : 'border-slate-700 bg-slate-900'}`}>
+                    <div className={`flex items-center border rounded-lg border-line-strong bg-surface-muted`}>
                       <button
                         onClick={() => updateShot(shot.id, { takesCount: Math.max(0, (shot.takesCount || 0) - 1) })}
                         title="One fewer take"
                         aria-label={`One fewer take for shot ${shot.shotNumber}`}
-                        className={`px-2 py-0.5 text-xs font-bold ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-slate-800 text-slate-300'}`}
+                        className={`px-2 py-0.5 text-xs font-bold hover:bg-surface-muted text-ink-soft`}
                       >
                         -
                       </button>
-                      <span className="px-2 font-mono text-sky-500 font-bold text-xs">{shot.takesCount || 0}</span>
+                      <span className="px-2 font-mono text-accent-ink font-bold text-xs">{shot.takesCount || 0}</span>
                       <button
                         onClick={() => updateShot(shot.id, { takesCount: (shot.takesCount || 0) + 1 })}
                         title="One more take"
                         aria-label={`One more take for shot ${shot.shotNumber}`}
-                        className={`px-2 py-0.5 text-xs font-bold ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-slate-800 text-slate-300'}`}
+                        className={`px-2 py-0.5 text-xs font-bold hover:bg-surface-muted text-ink-soft`}
                       >
                         +
                       </button>
@@ -1174,17 +1241,17 @@ export const ShotListPanel: React.FC = () => {
                 {/* Expanded Full Coverage Inspector */}
                 {isExpanded && (
                   <div
-                    className={`mt-2.5 pt-2.5 border-t space-y-2 text-xs ${isLight ? 'border-slate-200 text-slate-700' : 'border-slate-700/60 text-slate-300'}`}
+                    className={`mt-2.5 pt-2.5 border-t space-y-2 text-xs border-line text-ink-soft`}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label htmlFor={`${fieldId}-movement`} className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">MOVEMENT</label>
+                        <label htmlFor={`${fieldId}-movement`} className="text-[10px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">MOVEMENT</label>
                         <select id={`${fieldId}-movement`}
                           value={effectiveMovement(shot, linkedCamera)}
                           onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
                           title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
-                          className={`w-full text-xs border rounded-lg p-1.5 ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'}`}
+                          className={`w-full text-xs border rounded-lg p-1.5 bg-surface text-ink border-line-strong`}
                         >
                           {CAMERA_MOVEMENTS.map((m) => (
                             <option key={m.value} value={m.value} disabled={m.value === 'Static' && hasCameraMove(linkedCamera)}>
@@ -1195,7 +1262,7 @@ export const ShotListPanel: React.FC = () => {
                       </div>
 
                       <div>
-                        <label htmlFor={`${fieldId}-camera-angle`} className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">CAMERA ANGLE</label>
+                        <label htmlFor={`${fieldId}-camera-angle`} className="text-[10px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">CAMERA ANGLE</label>
                         <select id={`${fieldId}-camera-angle`}
                           value={shot.cameraAngle}
                           onChange={(e) =>
@@ -1207,7 +1274,7 @@ export const ShotListPanel: React.FC = () => {
                             ),
                           })
                         }
-                          className={`w-full text-xs border rounded-lg p-1.5 ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'}`}
+                          className={`w-full text-xs border rounded-lg p-1.5 bg-surface text-ink border-line-strong`}
                         >
                           {CAMERA_ANGLES.map((a) => (
                             <option key={a} value={a}>
@@ -1220,13 +1287,13 @@ export const ShotListPanel: React.FC = () => {
 
                     {/* Framing & Action description */}
                     <div>
-                      <label htmlFor={`${fieldId}-framing-action-notes`} className="text-[9px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">FRAMING & ACTION NOTES</label>
+                      <label htmlFor={`${fieldId}-framing-action-notes`} className="text-[10px] font-bold tracking-wider uppercase opacity-60 block mb-0.5">FRAMING & ACTION NOTES</label>
                       <textarea id={`${fieldId}-framing-action-notes`}
                         value={shot.framingDescription}
                         onChange={(e) => updateShot(shot.id, { framingDescription: e.target.value })}
                         placeholder="e.g. OTS John looking at Sarah. Camera dollies left as John stands up..."
                         rows={2}
-                        className={`w-full text-xs border rounded-lg p-2 focus:border-sky-500 focus:outline-none ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+                        className={`w-full text-xs border rounded-lg p-2 focus:border-sky-500 focus:outline-none bg-field text-ink border-line-strong`}
                       />
                     </div>
 
@@ -1256,7 +1323,7 @@ export const ShotListPanel: React.FC = () => {
           /* ========================================================================= */
           /* TABLE LIST VIEW (PRODUCTION SPREADSHEET)                                  */
           /* ========================================================================= */
-          <div className={`overflow-x-auto rounded-xl border ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-900'}`}>
+          <div className={`overflow-x-auto rounded-xl border border-line bg-surface`}>
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className={`border-b text-[10px] uppercase tracking-wider font-bold ${
@@ -1310,7 +1377,7 @@ export const ShotListPanel: React.FC = () => {
                         {showAllScenes ? (
                           <span
                             title={`Scene ${sceneLabelBySetupId.get(setupIdByShotId.get(shot.id) || '') || ''}`}
-                            className={`text-[9px] font-mono font-bold px-1 py-0.5 rounded ${
+                            className={`text-[10px] font-mono font-bold px-1 py-0.5 rounded ${
                               foreign
                                 ? isLight ? 'bg-violet-100 text-violet-700' : 'bg-violet-500/20 text-violet-300'
                                 : isLight ? 'bg-sky-100 text-sky-700' : 'bg-sky-500/20 text-sky-300'
@@ -1333,9 +1400,13 @@ export const ShotListPanel: React.FC = () => {
                       {showStoryboards && (
                         <td className="py-1 px-2 align-middle" onClick={(e) => e.stopPropagation()}>
                           {storyboardImageFor(shot) ? (
-                            <div
-                              className="overflow-hidden rounded border bg-slate-100 dark:bg-slate-950"
-                              style={{ width: 40, aspectRatio: `${sceneAspectRatio} / 1` }}
+                            <button
+                              type="button"
+                              className="block overflow-hidden rounded border bg-slate-100 dark:bg-slate-950 cursor-zoom-in"
+                              style={{ width: BOARD_TABLE_WIDTH[boardSize], aspectRatio: `${sceneAspectRatio} / 1` }}
+                              onClick={() => setLightboxShotId(shot.id)}
+                              title="Click to view large"
+                              aria-label={`View storyboard ${shot.shotNumber} large`}
                             >
                               <ProjectImage
                                 imageRef={storyboardImageFor(shot)}
@@ -1346,11 +1417,11 @@ export const ShotListPanel: React.FC = () => {
                                   objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
                                 }}
                               />
-                            </div>
+                            </button>
                           ) : (
                             <div
-                              className="rounded border border-dashed flex items-center justify-center text-[9px] text-slate-400"
-                              style={{ width: 40, aspectRatio: `${sceneAspectRatio} / 1` }}
+                              className="rounded border border-dashed flex items-center justify-center text-[10px] text-slate-400"
+                              style={{ width: BOARD_TABLE_WIDTH[boardSize], aspectRatio: `${sceneAspectRatio} / 1` }}
                             >
                               —
                             </div>
@@ -1361,11 +1432,12 @@ export const ShotListPanel: React.FC = () => {
                       {/* Editable Shot Number */}
                       <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <input
+                          aria-label="Shot number"
                           type="text"
                           value={shot.shotNumber || `${activeSetup.sceneNumber || '1'}/${index + 1}`}
                           onChange={(e) => updateShot(shot.id, { shotNumber: e.target.value })}
                           className={`w-12 text-center text-xs font-mono font-bold py-0.5 px-1 rounded border focus:outline-none focus:border-sky-500 ${
-                            isLight ? 'bg-slate-50 text-sky-700 border-slate-300' : 'bg-slate-950 text-sky-400 border-slate-700'
+                            'bg-surface-sunken text-accent-ink border-line-strong'
                           }`}
                         />
                       </td>
@@ -1373,12 +1445,13 @@ export const ShotListPanel: React.FC = () => {
                       {/* Editable Shot Name */}
                       <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                         <input
+                          aria-label="Shot name"
                           type="text"
                           value={shot.name}
                           onChange={(e) => updateShot(shot.id, { name: e.target.value })}
                           placeholder="Shot description..."
                           className={`w-full text-xs py-0.5 px-1.5 rounded border border-transparent hover:border-slate-300 focus:border-sky-500 focus:outline-none ${
-                            isLight ? 'text-slate-800 bg-transparent focus:bg-white' : 'text-slate-200 bg-transparent focus:bg-slate-950'
+                            'text-ink bg-transparent focus:bg-field'
                           }`}
                         />
                       </td>
@@ -1400,10 +1473,11 @@ export const ShotListPanel: React.FC = () => {
                       {shows('size') && (
                         <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
+                        aria-label="Shot size"
                         value={shot.shotSize}
                         onChange={(e) => updateShot(shot.id, { shotSize: e.target.value as ShotSize })}
                         className={`w-full text-[10px] font-bold py-0.5 px-1 rounded border ${
-                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        'bg-field text-ink border-line-strong'
                         }`}
                         >
                         {SHOT_SIZES.map((sz) => (
@@ -1419,10 +1493,11 @@ export const ShotListPanel: React.FC = () => {
                       {shows('lens') && (
                         <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
+                        aria-label="Lens"
                         value={shot.lensMm}
                         onChange={(e) => updateShot(shot.id, { lensMm: Number(e.target.value) })}
                         className={`w-full text-[10px] font-mono py-0.5 px-1 rounded border ${
-                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        'bg-field text-ink border-line-strong'
                         }`}
                         >
                         {[14, 18, 24, 28, 35, 50, 75, 85, 105, 135, 200].map((mm) => (
@@ -1438,11 +1513,12 @@ export const ShotListPanel: React.FC = () => {
                       {shows('move') && (
                         <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
+                        aria-label="Camera movement"
                         value={effectiveMovement(shot, linkedCamera)}
                         onChange={(e) => updateShot(shot.id, { movement: e.target.value as CameraMovement })}
                         title={hasCameraMove(linkedCamera) ? 'This camera has a move path — it cannot be static' : undefined}
                         className={`w-full text-[10px] py-0.5 px-1 rounded border ${
-                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        'bg-field text-ink border-line-strong'
                         }`}
                         >
                         {CAMERA_MOVEMENTS.map((m) => (
@@ -1458,6 +1534,7 @@ export const ShotListPanel: React.FC = () => {
                       {shows('angle') && (
                         <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
+                        aria-label="Camera angle"
                         value={shot.cameraAngle || 'Eye Level'}
                         onChange={(e) =>
                           updateShot(shot.id, {
@@ -1469,7 +1546,7 @@ export const ShotListPanel: React.FC = () => {
                           })
                         }
                         className={`w-full text-[10px] py-0.5 px-1 rounded border ${
-                        isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                        'bg-field text-ink border-line-strong'
                         }`}
                         >
                         {CAMERA_ANGLES.map((a) => (
@@ -1484,7 +1561,7 @@ export const ShotListPanel: React.FC = () => {
                       {/* Takes */}
                       {shows('takes') && (
                         <td className="py-2 px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1 font-mono text-xs font-bold text-sky-500">
+                        <div className="flex items-center justify-center gap-1 font-mono text-xs font-bold text-accent-ink">
                         <button
                         onClick={() => updateShot(shot.id, { takesCount: Math.max(0, (shot.takesCount || 0) - 1) })}
                         title="One fewer take"
@@ -1510,14 +1587,15 @@ export const ShotListPanel: React.FC = () => {
                       {shows('status') && (
                         <td className="py-2 px-1.5" onClick={(e) => e.stopPropagation()}>
                         <select
+                        aria-label="Status"
                         value={shot.status}
                         onChange={(e) => updateShot(shot.id, { status: e.target.value as ShotStatus })}
                         className={`w-full text-[10px] font-bold py-0.5 px-1 rounded border ${
                         shot.status === 'taken'
                         ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/40'
                         : shot.status === 'ready'
-                        ? 'bg-sky-500/15 text-sky-600 border-sky-500/40'
-                        : isLight ? 'bg-white text-slate-700 border-slate-300' : 'bg-slate-950 text-slate-300 border-slate-700'
+                        ? 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/40'
+                        : 'bg-field text-ink-soft border-line-strong'
                         }`}
                         >
                         <option value="planned">Planned</option>
@@ -1610,12 +1688,12 @@ export const ShotListPanel: React.FC = () => {
         isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-slate-800 bg-slate-950/80 text-slate-400'
       }`}>
         <span className="flex items-center gap-1 font-mono">
-          <Layers className="w-3.5 h-3.5 text-sky-500" />
+          <Layers className="w-3.5 h-3.5 text-accent-ink" />
           Drag rows or cards to reorder
         </span>
         <button
           onClick={handleAddCameraAndShot}
-          className="text-sky-500 hover:text-sky-600 font-bold flex items-center gap-1"
+          className="text-accent-ink hover:text-sky-600 font-bold flex items-center gap-1"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Add Shot</span>

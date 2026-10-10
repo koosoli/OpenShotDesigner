@@ -236,3 +236,19 @@ export const setContinuityDayFilterCommand = (
     },
   };
 };
+
+export interface UpdateTakesInput {
+  /** Runs against the committed take list, so writes in one tick compose. */
+  update: (current: Take[]) => Take[];
+  /** Undo label, e.g. "Mark take 3 as circled". */
+  description?: string;
+}
+
+/** Whole-list take edits: reorder, bulk status changes, seeding the next take. */
+export const updateTakesCommand = (project: Project, input: UpdateTakesInput): CommandResult => {
+  if (typeof input.update !== 'function') throw new Error('updateTakes: update must be a function.');
+  return {
+    project: { ...project, takes: input.update(project.takes ?? []) },
+    meta: { type: 'updateTakes', timestamp: commandTimestamp(), description: input.description ?? 'Edit takes' },
+  };
+};

@@ -1,4 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { GettingStarted } from './GettingStarted';
+import { useDismiss } from '../common/useDismiss';
+import { LANGUAGE_SWITCHING_ENABLED } from '../../config/features';
+import { updateProductionDetailsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { CategoryOpacitySettings } from '../../context/FloorPlanContext';
 
@@ -56,7 +60,7 @@ import { SUPPORTED_LANGUAGES } from '../../i18n/dictionary';
 
 
 export const TopNavbar: React.FC = () => {
-  const { project, activeSetup, historyIndex, historyLength, undo, redo, setActiveSetupId, addSetup, duplicateCurrentSetup, deleteSetup, updateProjectMeta, saveRevision, loadTemplateScene, loadExampleProductionData, loadProjectFromJson, setGridSettings, openViewfinder, displaySettings, updateDisplaySettings, isModuleVisible, setModuleVisible } = useFloorPlan();
+  const { project, activeSetup, historyIndex, historyLength, undo, redo, setActiveSetupId, addSetup, duplicateCurrentSetup, deleteSetup, runCommand, saveRevision, loadTemplateScene, loadExampleProductionData, loadProjectFromJson, setGridSettings, openViewfinder, displaySettings, updateDisplaySettings, isModuleVisible, setModuleVisible } = useFloorPlan();
   const { theme, toggleTheme, openExportModal, openDashboard } = useWorkspaceUI();
   const { confirm, notice, prompt } = useDialogs();
   const { lang, setLang, t } = useLanguage();
@@ -67,6 +71,15 @@ export const TopNavbar: React.FC = () => {
   const [isSetupsOpen, setIsSetupsOpen] = useState(false);
   const [isViewingOptionsOpen, setIsViewingOptionsOpen] = useState(false);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
+  // Every dropdown closes on Escape or a click outside it (and arrows move inside).
+  const setupsMenuRef = useRef<HTMLDivElement>(null);
+  const templatesMenuRef = useRef<HTMLDivElement>(null);
+  const viewingMenuRef = useRef<HTMLDivElement>(null);
+  const overflowMenuRef = useRef<HTMLDivElement>(null);
+  useDismiss(isSetupsOpen, useCallback(() => setIsSetupsOpen(false), []), setupsMenuRef);
+  useDismiss(isTemplatesOpen, useCallback(() => setIsTemplatesOpen(false), []), templatesMenuRef);
+  useDismiss(isViewingOptionsOpen, useCallback(() => setIsViewingOptionsOpen(false), []), viewingMenuRef);
+  useDismiss(isOverflowOpen, useCallback(() => setIsOverflowOpen(false), []), overflowMenuRef);
   /** On-set / show-day mode overlay (plan §35) — local UI state, not persisted. */
   const [isOnSetMode, setIsOnSetMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +132,7 @@ export const TopNavbar: React.FC = () => {
   const [saveState, setSaveState] = useState<LibrarySaveState>('idle');
   useEffect(() => subscribeSaveState(setSaveState), []);
   const overflowItemClass = `w-full px-2.5 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
-    isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+    'hover:bg-surface-hover'
   }`;
 
   return (
@@ -127,11 +140,11 @@ export const TopNavbar: React.FC = () => {
       id="top-navbar"
       aria-label="Project and workspace actions"
       className={`${isCompact ? 'h-12 px-2 gap-1.5' : 'h-14 px-4 gap-3'} border-b flex items-center justify-between select-none z-30 transition-colors ${
-        isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'
+        'bg-surface border-line text-ink'
       }`}
     >
       {/* 1. App Logo & Project Title */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={openDashboard}
           title={t('nav.dashboard')}
@@ -142,15 +155,15 @@ export const TopNavbar: React.FC = () => {
         >
           <LayoutGrid className="w-4 h-4" />
         </button>
-<div className="flex items-center gap-2">
+<div className="hidden sm:flex items-center gap-2">
             <img
               src={brandIcon}
               alt={BRANDING.productName}
-              className="w-8 h-8 rounded-xl object-cover shadow-md shadow-sky-500/20 ring-1 ring-sky-500/30"
+              className="w-8 h-8 shrink-0 rounded-xl object-cover shadow-md shadow-sky-500/20 ring-1 ring-sky-500/30"
             />
-            <div>
+            <div className="hidden 2xl:block">
               <div className="flex items-center gap-1.5">
-                <span className={`text-xs font-black tracking-widest uppercase ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                <span className={`text-xs font-black tracking-widest uppercase text-ink whitespace-nowrap`}>
                   {BRANDING.productName}
                 </span>
               </div>
@@ -158,7 +171,7 @@ export const TopNavbar: React.FC = () => {
               <div className="flex items-center gap-1.5 -mt-0.5">
                 <span
                   title={`Open Shot Designer v${APP_VERSION}`}
-                  className={`text-[9px] font-mono leading-none ${isLight ? 'text-slate-400' : 'text-slate-500'}`}
+                  className={`text-[10px] font-mono leading-none text-ink-subtle`}
                 >
                   v{APP_VERSION}
                 </span>
@@ -166,31 +179,34 @@ export const TopNavbar: React.FC = () => {
             </div>
           </div>
 
-        <div className={`h-5 w-[1px] hidden sm:block ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`} />
+        <div className={`h-5 w-[1px] hidden sm:block bg-surface-muted`} />
 
         {/* Project Title Input */}
         <input
           type="text"
           value={project.title}
-          onChange={(e) => updateProjectMeta({ title: e.target.value })}
-          className={`text-xs font-semibold px-2 py-1 rounded-lg border border-transparent focus:border-sky-500 focus:outline-none transition-colors max-w-[180px] sm:max-w-xs truncate ${
-            isLight ? 'text-slate-800 hover:bg-slate-100 focus:bg-white' : 'text-slate-200 hover:bg-slate-800/60 focus:bg-slate-950'
+          onChange={(e) => runCommand(updateProductionDetailsCommand, { updates: { title: e.target.value } })}
+          className={`text-xs font-semibold px-2 py-1 rounded-lg border border-transparent focus:border-sky-500 focus:outline-none transition-colors hidden sm:block max-w-[180px] sm:max-w-xs truncate ${
+            'text-ink-soft hover:bg-surface-hover focus:bg-field'
           }`}
           title={t('nav.rename')}
+          aria-label="Project title"
         />
 
         {saveState === 'saving' && (
-          <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-amber-600 bg-amber-50' : 'text-amber-300 bg-amber-900/30'}`}>
+          <span className={`hidden md:inline whitespace-nowrap text-[10px] font-medium px-1.5 py-0.5 rounded text-warn bg-warn-soft`}>
             {t('save.saving')}
           </span>
         )}
         {saveState === 'saved' && (
-          <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-emerald-600 bg-emerald-50' : 'text-emerald-300 bg-emerald-900/30'}`}>
+          <span
+            title={getBoundProjectFileName(project.id) ? 'Saved in this browser' : 'Saved in this browser only — press Ctrl+S to also save a .osd file'}
+            className={`hidden md:inline whitespace-nowrap text-[10px] font-medium px-1.5 py-0.5 rounded text-ok bg-ok-soft`}>
             {t('save.saved')}
           </span>
         )}
         {saveState === 'error' && (
-          <span className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-red-600 bg-red-50' : 'text-red-300 bg-red-900/30'}`}>
+          <span className={`hidden md:inline whitespace-nowrap text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-red-600 bg-red-50' : 'text-red-300 bg-red-900/30'}`}>
             {t('save.error')}
           </span>
         )}
@@ -198,28 +214,23 @@ export const TopNavbar: React.FC = () => {
           // Bound native file state (plan §2.5): which file Ctrl+S writes to,
           // and whether the browser holds newer changes than that file.
           const boundFileName = getBoundProjectFileName(project.id);
-          if (!boundFileName) {
-            return (
-              <span title="Kept in this browser only — use Save to write a .osd file" className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-slate-500 bg-slate-100' : 'text-slate-400 bg-slate-800'}`}>
-                Browser only
-              </span>
-            );
-          }
+          // No file yet: the save chip's tooltip says so; a second chip only crowded the bar.
+          if (!boundFileName) return null;
           const lastSave = getLastNativeSaveAt(project.id);
           const dirty = !lastSave || (project.updatedAt ?? '') > lastSave;
           return (
-            <span title={dirty ? `${boundFileName} — unsaved changes in browser` : `${boundFileName} — all changes saved`} className={`hidden md:inline text-[10px] font-medium px-1.5 py-0.5 rounded ${dirty ? (isLight ? 'text-amber-600 bg-amber-50' : 'text-amber-300 bg-amber-900/30') : (isLight ? 'text-emerald-600 bg-emerald-50' : 'text-emerald-300 bg-emerald-900/30')}`}>
+            <span title={dirty ? `${boundFileName} — unsaved changes in browser` : `${boundFileName} — all changes saved`} className={`hidden lg:inline whitespace-nowrap max-w-[10rem] truncate text-[10px] font-medium px-1.5 py-0.5 rounded ${dirty ? ('text-warn bg-warn-soft') : ('text-ok bg-ok-soft')}`}>
               {dirty ? '● ' : ''}{boundFileName}
             </span>
           );
         })()}
-        <select
+        {LANGUAGE_SWITCHING_ENABLED && <select
           value={lang}
           onChange={(e) => setLang(e.target.value as typeof lang)}
           title={t('nav.language')}
           aria-label={t('nav.language')}
           className={`hidden md:inline text-[10px] font-bold px-1.5 py-0.5 rounded border bg-transparent cursor-pointer ${
-            isLight ? 'border-slate-300 text-slate-600' : 'border-slate-700 text-slate-300'
+            'border-line-strong text-ink-soft'
           }`}
         >
           {SUPPORTED_LANGUAGES.map((code) => (
@@ -227,12 +238,12 @@ export const TopNavbar: React.FC = () => {
               {code.toUpperCase()}
             </option>
           ))}
-        </select>
+        </select>}
       </div>
 
       {/* 2. Scene / Setup Switcher Dropdown */}
       <div className="flex items-center gap-2">
-        <div className="relative">
+        <div className="relative" ref={setupsMenuRef}>
           <button
             onClick={() => setIsSetupsOpen(!isSetupsOpen)}
             aria-expanded={isSetupsOpen}
@@ -241,15 +252,15 @@ export const TopNavbar: React.FC = () => {
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="font-mono text-sky-500 font-semibold">Scene {activeSetup.sceneNumber}:</span>
-            <span className="max-w-[140px] truncate">{activeSetup.name}</span>
+            <span className="font-mono text-accent-ink font-semibold">Scene {activeSetup.sceneNumber}:</span>
+            <span className="hidden sm:inline max-w-[140px] truncate">{activeSetup.name}</span>
             <ChevronDown className="w-3.5 h-3.5 opacity-60" />
           </button>
 
           {/* Setup Menu Dropdown */}
           {isSetupsOpen && (
             <div className={`absolute top-full left-0 mt-1.5 w-64 border rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-1 ${
-              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+              'bg-surface border-line text-ink'
             }`}>
               <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1">
                 Scene Setups ({project.setups.length})
@@ -260,8 +271,8 @@ export const TopNavbar: React.FC = () => {
                     key={setup.id}
                     className={`w-full px-2 py-1.5 rounded-lg text-xs flex items-center justify-between group transition-colors ${
                       setup.id === activeSetup.id
-                        ? 'bg-sky-600 text-white font-semibold'
-                        : isLight ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-300 hover:bg-slate-800'
+                        ? 'bg-accent text-white font-semibold'
+                        : 'text-ink-soft hover:bg-surface-hover'
                     }`}
                   >
                     <button
@@ -273,7 +284,7 @@ export const TopNavbar: React.FC = () => {
                     >
                       <span
                         className={`font-mono text-[10px] flex-shrink-0 ${
-                          setup.id === activeSetup.id ? 'text-white/80' : 'text-sky-500'
+                          setup.id === activeSetup.id ? 'text-white/80' : 'text-accent-ink'
                         }`}
                       >
                         S{setup.sceneNumber || project.setups.indexOf(setup) + 1}
@@ -281,7 +292,7 @@ export const TopNavbar: React.FC = () => {
                       <span className="truncate">{setup.name}</span>
                     </button>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span className="text-[10px] opacity-75 font-mono">
+                      <span className="text-[10px] opacity-90 font-mono">
                         {setup.shots.length} shots
                       </span>
                       {project.setups.length > 1 && (
@@ -309,13 +320,13 @@ export const TopNavbar: React.FC = () => {
                 ))}
               </div>
 
-              <div className={`pt-2 mt-2 border-t flex flex-col gap-1 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+              <div className={`pt-2 mt-2 border-t flex flex-col gap-1 border-line`}>
                 <button
                   onClick={() => {
                     addSetup();
                     setIsSetupsOpen(false);
                   }}
-                  className="w-full text-left px-2.5 py-1 text-xs text-sky-500 hover:bg-sky-50 dark:hover:bg-slate-800 rounded flex items-center gap-1.5 font-medium"
+                  className="w-full text-left px-2.5 py-1 text-xs text-accent-ink hover:bg-sky-50 dark:hover:bg-slate-800 rounded flex items-center gap-1.5 font-medium"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ New Scene Setup</span>
@@ -325,7 +336,7 @@ export const TopNavbar: React.FC = () => {
                     duplicateCurrentSetup();
                     setIsSetupsOpen(false);
                   }}
-                  className={`w-full text-left px-2.5 py-1 text-xs rounded ${isLight ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300 hover:bg-slate-800'}`}
+                  className={`w-full text-left px-2.5 py-1 text-xs rounded text-ink-soft hover:bg-surface-hover`}
                 >
                   Duplicate Current Setup
                 </button>
@@ -354,23 +365,27 @@ export const TopNavbar: React.FC = () => {
           )}
         </div>
 
+        <GettingStarted />
+
         {/* Templates Dropdown */}
-        <div className="relative">
+        <div className="relative" ref={templatesMenuRef}>
           <button
             onClick={() => setIsTemplatesOpen(!isTemplatesOpen)}
             aria-expanded={isTemplatesOpen}
+            aria-label="Templates"
+            title="Templates and example data"
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
               isLight ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-300 text-slate-800' : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden md:inline">Templates</span>
+            <Sparkles className="w-3.5 h-3.5 text-warn" />
+            <span className="hidden xl:inline whitespace-nowrap">Templates</span>
             <ChevronDown className="w-3 h-3 opacity-60" />
           </button>
 
           {isTemplatesOpen && (
             <div className={`absolute top-full left-0 mt-1.5 w-72 border rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-1 ${
-              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+              'bg-surface border-line text-ink'
             }`}>
               <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1">
                 Educational Presets
@@ -381,10 +396,10 @@ export const TopNavbar: React.FC = () => {
                   setIsTemplatesOpen(false);
                 }}
                 className={`w-full text-left p-2 rounded-lg text-xs transition-colors ${
-                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+                  'hover:bg-surface-hover'
                 }`}
               >
-                <div className="font-semibold text-sky-500">Classic 2-Person Dialogue</div>
+                <div className="font-semibold text-accent-ink">Classic 2-Person Dialogue</div>
                 <div className="text-[11px] opacity-70">
                   Shot-Reverse-Shot with Master wide, key/fill lighting, and sofa blocking.
                 </div>
@@ -395,16 +410,16 @@ export const TopNavbar: React.FC = () => {
                   setIsTemplatesOpen(false);
                 }}
                 className={`w-full text-left p-2 rounded-lg text-xs transition-colors ${
-                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+                  'hover:bg-surface-hover'
                 }`}
               >
-                <div className="font-semibold text-amber-500">Film Noir Interrogation</div>
+                <div className="font-semibold text-warn">Film Noir Interrogation</div>
                 <div className="text-[11px] opacity-70">
                   Dramatic single top light, hard rim light, low angle & Dutch angle coverage.
                 </div>
               </button>
 
-              <div className={`mt-1 pt-1 border-t ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
+              <div className={`mt-1 pt-1 border-t border-line-strong`}>
                 <div className="text-[10px] font-bold opacity-60 uppercase px-2 py-1">
                   Example production data
                 </div>
@@ -419,10 +434,10 @@ export const TopNavbar: React.FC = () => {
                     setIsTemplatesOpen(false);
                   }}
                   className={`w-full text-left p-2 rounded-lg text-xs transition-colors ${
-                    isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+                    'hover:bg-surface-hover'
                   }`}
                 >
-                  <div className="font-semibold text-emerald-500">Fill empty modules with examples</div>
+                  <div className="font-semibold text-ok">Fill empty modules with examples</div>
                   <div className="text-[11px] opacity-70">
                     Crew, shooting days &amp; call sheets, locations, task board, mood board, run of
                     show, logistics, rigging and power — only where this project is still empty.
@@ -451,7 +466,7 @@ export const TopNavbar: React.FC = () => {
       {/* 3. Undo / Redo & Viewport & Theme Controls */}
       <div className={`flex items-center ${isCompact ? 'gap-1' : 'gap-2'}`}>
         {/* Undo / Redo */}
-        <div className={`flex items-center rounded-lg border p-0.5 ${isLight ? 'bg-slate-100 border-slate-300' : 'bg-slate-800/80 border-slate-700'}`}>
+        <div className={`flex items-center rounded-lg border p-0.5 bg-surface-muted border-line-strong`}>
           <button
             onClick={undo}
             disabled={historyIndex <= 0}
@@ -483,8 +498,8 @@ export const TopNavbar: React.FC = () => {
               aria-label="Snap to grid"
               className={`p-2 rounded-lg border transition-colors ${
                 gridSettings.snap
-                  ? 'bg-sky-500/15 text-sky-500 border-sky-500/40 font-bold'
-                  : isLight ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-800/80 text-slate-400 border-slate-700'
+                  ? 'bg-sky-500/15 text-accent-ink border-sky-500/40 font-bold'
+                  : 'bg-surface-muted text-ink-muted border-line-strong'
               }`}
             >
               <Magnet className="w-3.5 h-3.5" />
@@ -504,10 +519,11 @@ export const TopNavbar: React.FC = () => {
             </button>
 
             {/* Viewing Options Popover */}
-            <div className="relative">
+            <div className="relative" ref={viewingMenuRef}>
               <button
                 onClick={() => setIsViewingOptionsOpen(!isViewingOptionsOpen)}
                 aria-expanded={isViewingOptionsOpen}
+                aria-label="Viewing Options"
                 title="Viewing options & category opacity"
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                   isLight
@@ -516,18 +532,18 @@ export const TopNavbar: React.FC = () => {
                 }`}
               >
                 <Eye className="w-3.5 h-3.5 text-sky-400" />
-                <span>Viewing Options</span>
+                <span className="hidden xl:inline whitespace-nowrap">Viewing Options</span>
                 <ChevronDown className="w-3 h-3 opacity-60" />
               </button>
 
               {isViewingOptionsOpen && (
                 <div
                   className={`absolute right-0 top-full mt-1.5 w-80 max-h-[calc(100vh-76px)] overflow-y-auto custom-scrollbar border rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-1 space-y-3.5 ${
-                    isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+                    'bg-surface border-line text-ink'
                   }`}
                 >
                   <div className="flex items-center justify-between border-b pb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-sky-500">
+                    <span className="text-xs font-bold uppercase tracking-wider text-accent-ink">
                       Viewing & Opacity Controls
                     </span>
                     <button
@@ -578,7 +594,7 @@ export const TopNavbar: React.FC = () => {
                         className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
                       />
                     </label>
-                    <p className={`text-[10px] -mt-1 mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <p className={`text-[10px] -mt-1 mb-1 text-ink-muted`}>
                       Coverage gaps on the shot list and schedule health on the stripboard.
                     </p>
 
@@ -591,7 +607,7 @@ export const TopNavbar: React.FC = () => {
                         className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
                       />
                     </label>
-                    <p className={`text-[10px] -mt-1 mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <p className={`text-[10px] -mt-1 mb-1 text-ink-muted`}>
                       Floating blocker and warning summary across production departments.
                     </p>
 
@@ -604,7 +620,7 @@ export const TopNavbar: React.FC = () => {
                         className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
                       />
                     </label>
-                    <p className={`text-[10px] -mt-1 mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <p className={`text-[10px] -mt-1 mb-1 text-ink-muted`}>
                       Floating review-threads button over the floor plan.
                     </p>
 
@@ -617,7 +633,7 @@ export const TopNavbar: React.FC = () => {
                         className="rounded accent-sky-500 w-4 h-4 cursor-pointer"
                       />
                     </label>
-                    <p className={`text-[10px] -mt-1 mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <p className={`text-[10px] -mt-1 mb-1 text-ink-muted`}>
                       Per-tab intro strips explaining what each panel is for.
                     </p>
 
@@ -708,7 +724,7 @@ export const TopNavbar: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => PICKABLE_MODULES.forEach((module) => setModuleVisible(module.id, true))}
-                        className="px-2 py-1 rounded-md bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold whitespace-nowrap"
+                        className="px-2 py-1 rounded-md bg-accent hover:bg-accent-hover text-white text-[10px] font-bold whitespace-nowrap"
                       >
                         Show all
                       </button>
@@ -716,7 +732,7 @@ export const TopNavbar: React.FC = () => {
                     <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                       {MODULE_PICKER_GROUPS.map((group) => (
                         <section key={group.label}>
-                          <div className="text-[9px] font-black uppercase tracking-[0.14em] opacity-40 mb-1">
+                          <div className="text-[10px] font-black uppercase tracking-[0.14em] opacity-40 mb-1">
                             {group.label}
                           </div>
                           {group.modules.map((module) => (
@@ -783,7 +799,7 @@ export const TopNavbar: React.FC = () => {
                 isLight ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-sky-700' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-sky-300'
               }`}
             >
-              <Eye className="w-3.5 h-3.5 text-sky-500" />
+              <Eye className="w-3.5 h-3.5 text-accent-ink" />
               <span className="hidden lg:inline">Viewfinder</span>
             </button>
           </>
@@ -795,7 +811,7 @@ export const TopNavbar: React.FC = () => {
           onClick={() => openExportModal()}
           title="Export & Print Studio"
           aria-label="Open the export and print studio"
-          className="h-8 w-8 inline-flex items-center justify-center bg-sky-600 hover:bg-sky-500 text-white rounded-md transition-colors shadow-sm"
+          className="h-8 w-8 inline-flex items-center justify-center bg-accent hover:bg-accent-hover text-white rounded-md transition-colors shadow-sm"
         >
           <FileDown className="w-3.5 h-3.5" />
         </button>
@@ -876,7 +892,7 @@ export const TopNavbar: React.FC = () => {
               title="Buy me a coffee"
               aria-label="Buy me a coffee"
               className={`p-2 rounded-lg border transition-colors ${
-                isLight ? 'bg-slate-100 text-amber-500 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-amber-400 border-slate-700 hover:bg-slate-700'
+                isLight ? 'bg-slate-100 text-warn border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-amber-400 border-slate-700 hover:bg-slate-700'
               }`}
             >
               <Coffee className="w-3.5 h-3.5" />
@@ -886,14 +902,14 @@ export const TopNavbar: React.FC = () => {
 
         {/* Overflow menu for narrow screens */}
         {isCompact && (
-          <div className="relative">
+          <div className="relative" ref={overflowMenuRef}>
             <button
               onClick={() => setIsOverflowOpen((open) => !open)}
               title="More controls"
               aria-expanded={isOverflowOpen}
               aria-label="More controls"
               className={`p-2 rounded-lg border transition-colors ${
-                isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800/80 text-slate-300 border-slate-700'
+                'bg-surface-muted text-ink-soft border-line-strong'
               }`}
             >
               <MoreHorizontal className="w-4 h-4" />
@@ -903,7 +919,7 @@ export const TopNavbar: React.FC = () => {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setIsOverflowOpen(false)} />
                 <div className={`absolute right-0 top-full mt-1.5 w-52 border rounded-xl shadow-2xl p-1.5 z-50 space-y-0.5 ${
-                  isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+                  'bg-surface border-line text-ink'
                 }`}>
                   <button
                     onClick={() => {
@@ -982,7 +998,7 @@ export const TopNavbar: React.FC = () => {
                     }}
                     className={overflowItemClass}
                   >
-                    <span className="flex items-center gap-2"><Clapperboard className="w-3.5 h-3.5 text-emerald-500" /> Live shot tracker</span>
+                    <span className="flex items-center gap-2"><Clapperboard className="w-3.5 h-3.5 text-ok" /> Live shot tracker</span>
                   </button>
                   <button
                     onClick={() => {
@@ -991,7 +1007,7 @@ export const TopNavbar: React.FC = () => {
                     }}
                     className={overflowItemClass}
                   >
-                    <span className="flex items-center gap-2"><Eye className="w-3.5 h-3.5 text-sky-500" /> Viewfinder</span>
+                    <span className="flex items-center gap-2"><Eye className="w-3.5 h-3.5 text-accent-ink" /> Viewfinder</span>
                   </button>
                   <button
                     onClick={() => {
@@ -1027,7 +1043,7 @@ export const TopNavbar: React.FC = () => {
                     onClick={() => setIsOverflowOpen(false)}
                     className={overflowItemClass}
                   >
-                    <span className="flex items-center gap-2"><Coffee className="w-3.5 h-3.5 text-amber-500" /> Buy me a coffee</span>
+                    <span className="flex items-center gap-2"><Coffee className="w-3.5 h-3.5 text-warn" /> Buy me a coffee</span>
                   </a>
                 </div>
               </>

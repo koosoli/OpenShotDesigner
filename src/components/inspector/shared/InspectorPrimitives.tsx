@@ -39,7 +39,7 @@ export const PillToggle: React.FC<{
     className={`py-1.5 text-[10px] font-semibold rounded-lg border flex items-center justify-center gap-1 transition-colors ${
       on
         ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
-        : isLight ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-900 text-slate-500 border-slate-800'
+        : 'bg-surface-muted text-slate-500 border-line-strong'
     }`}
   >
     {label}
@@ -105,7 +105,7 @@ export const StoryboardField: React.FC<{
         className="hidden"
       />
       {value ? (
-        <div className={`rounded-lg overflow-hidden border ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
+        <div className={`rounded-lg overflow-hidden border border-line-strong`}>
           {/* Aspect-ratio framed preview */}
           <div
             className="w-full bg-slate-100 overflow-hidden"
@@ -117,7 +117,7 @@ export const StoryboardField: React.FC<{
                 <span className="text-[10px] font-semibold text-slate-500">
                   Storyboard image could not be loaded.
                 </span>
-                <span className="text-[9px] text-slate-400">
+                <span className="text-[10px] text-slate-400">
                   The file may have moved. Re-link or upload it again.
                 </span>
               </div>
@@ -143,8 +143,8 @@ export const StoryboardField: React.FC<{
                 onClick={() => onFitChange?.('cover')}
                 className={`flex-1 py-1 text-[10px] font-semibold rounded border transition-colors ${
                   curFit === 'cover'
-                    ? 'bg-violet-600 text-white border-violet-500'
-                    : isLight ? 'bg-slate-50 text-slate-600 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
+                    ? 'bg-accent text-white border-violet-500'
+                    : 'bg-surface-sunken text-ink-muted border-line-strong'
                 }`}
               >
                 Crop to frame
@@ -153,8 +153,8 @@ export const StoryboardField: React.FC<{
                 onClick={() => onFitChange?.('contain')}
                 className={`flex-1 py-1 text-[10px] font-semibold rounded border transition-colors ${
                   curFit === 'contain'
-                    ? 'bg-violet-600 text-white border-violet-500'
-                    : isLight ? 'bg-slate-50 text-slate-600 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
+                    ? 'bg-accent text-white border-violet-500'
+                    : 'bg-surface-sunken text-ink-muted border-line-strong'
                 }`}
               >
                 Fit whole image
@@ -179,7 +179,7 @@ export const StoryboardField: React.FC<{
             )}
 
             {/* Storage note */}
-            <p className={`text-[9px] leading-snug ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+            <p className={`text-[10px] leading-snug text-ink-subtle`}>
               {isEmbedded
                 ? 'Embedded in the project file — saves and loads everywhere with the project.'
                 : 'Linked by URL — only loads when this address is reachable.'}
@@ -208,7 +208,7 @@ export const StoryboardField: React.FC<{
               <button
                 onClick={() => onChange(null)}
                 className={`flex-1 py-1.5 text-[10px] font-semibold border-t border-l ${
-                  isLight ? 'text-red-600 border-slate-200 hover:bg-red-50' : 'text-red-400 border-slate-700 hover:bg-red-950/40'
+                  'text-danger border-line hover:bg-danger-soft'
                 }`}
               >
                 Remove
@@ -224,12 +224,12 @@ export const StoryboardField: React.FC<{
                   onKeyDown={(e) => e.key === 'Enter' && applyLink()}
                   placeholder="https://…/frame.jpg or relative/path.jpg"
                   className={`flex-1 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 ${
-                    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                    'bg-field text-ink border-line-strong'
                   }`}
                 />
                 <button
                   onClick={applyLink}
-                  className="px-2.5 py-1.5 text-[10px] font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-lg"
+                  className="px-2.5 py-1.5 text-[10px] font-semibold bg-accent hover:bg-accent-hover text-white rounded-lg"
                 >
                   Apply
                 </button>
@@ -242,7 +242,7 @@ export const StoryboardField: React.FC<{
           <button
             onClick={() => inputRef.current?.click()}
             className={`w-full py-3 rounded-lg border border-dashed text-[11px] font-semibold transition-colors ${
-              isLight ? 'text-slate-500 border-slate-300 hover:bg-slate-50' : 'text-slate-400 border-slate-700 hover:bg-slate-800'
+              'text-ink-muted border-line-strong hover:bg-surface-hover'
             }`}
           >
             + Attach Storyboard Image
@@ -265,18 +265,18 @@ export const StoryboardField: React.FC<{
                 onKeyDown={(e) => e.key === 'Enter' && applyLink()}
                 placeholder="https://…/frame.jpg or relative/path.jpg"
                 className={`flex-1 text-[11px] border rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 ${
-                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+                  'bg-field text-ink border-line-strong'
                 }`}
               />
               <button
                 onClick={applyLink}
-                className="px-2.5 py-1.5 text-[10px] font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-lg"
+                className="px-2.5 py-1.5 text-[10px] font-semibold bg-accent hover:bg-accent-hover text-white rounded-lg"
               >
                 Apply
               </button>
             </div>
           )}
-          <p className={`text-[9px] leading-snug ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`text-[10px] leading-snug text-ink-subtle`}>
             Uploading embeds the image in the project file (self-contained). Linking stores only the
             URL — the image must stay reachable for it to display later.
           </p>
@@ -336,7 +336,7 @@ export const RubricSection: React.FC<{
           section instead of doing what the inner button said. */}
       <div
         className={`w-full px-3 py-2.5 flex items-center justify-between gap-2 transition-colors select-none ${
-          isLight ? 'text-slate-800' : 'text-slate-200'
+          'text-ink'
         }`}
       >
         <button
@@ -347,7 +347,7 @@ export const RubricSection: React.FC<{
             isLight ? 'hover:bg-slate-100/70' : 'hover:bg-slate-800/50'
           }`}
         >
-          {icon && <span className="text-sky-500 flex-shrink-0">{icon}</span>}
+          {icon && <span className="text-accent-ink flex-shrink-0">{icon}</span>}
           <span className="text-[11px] font-bold tracking-wider uppercase truncate opacity-90">
             {title}
           </span>
@@ -398,14 +398,14 @@ export const ColorField: React.FC<{
             onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
             className="w-full h-1.5 accent-amber-500 rounded-lg cursor-pointer appearance-none bg-slate-200 dark:bg-slate-700"
           />
-          <span className="text-[9px] font-mono font-bold text-amber-500 w-6 text-right select-none">
+          <span className="text-[10px] font-mono font-bold text-warn w-6 text-right select-none">
             {Math.round(opacity * 100)}%
           </span>
         </div>
       )}
       <label
         className={`relative w-6 h-6 rounded-md border cursor-pointer overflow-hidden flex-shrink-0 ${
-          isLight ? 'border-slate-300' : 'border-slate-700'
+          'border-line-strong'
         }`}
         title={`Pick a color for ${label.toLowerCase()}`}
       >
@@ -425,7 +425,7 @@ export const ColorField: React.FC<{
       <button
         onClick={() => onChange(null)}
         title="Reset to element's default color"
-        className={`flex items-center gap-0.5 px-1.5 py-1 rounded text-[9px] font-semibold border transition-colors flex-shrink-0 ${
+        className={`flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-semibold border transition-colors flex-shrink-0 ${
           isLight
             ? 'border-slate-300 text-slate-500 hover:bg-slate-200'
             : 'border-slate-700 text-slate-400 hover:bg-slate-800'
@@ -450,7 +450,7 @@ export const WaypointListEditor: React.FC<{
   isLight: boolean;
   /** Cameras only: the shot whose storyboard this camera's beats belong to. */
   boardShot?: Shot | null;
-}> = ({ elementId, path, baseRotation, accentClass, isLight, boardShot }) => {
+}> = ({ elementId, path, baseRotation, accentClass, isLight: _isLight, boardShot }) => {
   const { updateElement, updateShot } = useFloorPlan();
   const { notice } = useDialogs();
   const beatInputRef = React.useRef<HTMLInputElement>(null);
@@ -476,7 +476,7 @@ export const WaypointListEditor: React.FC<{
           <div
             key={wp.id}
             className={`flex items-center gap-1.5 p-1.5 rounded-lg border ${
-              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+              'bg-surface-sunken border-line'
             }`}
           >
             <span className={`text-[10px] font-mono font-bold px-1 ${accentClass}`}>B{wp.beat}</span>
@@ -484,10 +484,10 @@ export const WaypointListEditor: React.FC<{
               type="number"
               min={2}
               value={wp.beat}
-              title="Beat number"
+              aria-label="Beat number" title="Beat number"
               onChange={(e) => updateWaypoint(wp.id, { beat: Math.max(2, Number(e.target.value) || 2) })}
               className={`w-10 border rounded px-1 py-0.5 text-[11px] font-mono ${
-                isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+                'bg-surface text-ink border-line-strong'
               }`}
             />
             <input
@@ -495,13 +495,13 @@ export const WaypointListEditor: React.FC<{
               min={0}
               max={359}
               value={wpRot}
-              title="Facing rotation (degrees) at this waypoint"
+              aria-label="Facing rotation (degrees) at this waypoint" title="Facing rotation (degrees) at this waypoint"
               onChange={(e) => updateWaypoint(wp.id, { rotation: ((Number(e.target.value) % 360) + 360) % 360 })}
               className={`w-14 border rounded px-1 py-0.5 text-[11px] font-mono text-center ${
-                isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+                'bg-surface text-ink border-line-strong'
               }`}
             />
-            <span className={`text-[9px] font-mono opacity-50 ${accentClass}`}>°</span>
+            <span className={`text-[10px] font-mono opacity-50 ${accentClass}`}>°</span>
             <div className="relative flex-1 min-w-0 flex items-center">
               <input
                 type="text"
@@ -512,7 +512,7 @@ export const WaypointListEditor: React.FC<{
                 className={`w-full border rounded px-1.5 py-0.5 pr-6 text-[11px] ${
                   wp.hideCue ? 'line-through opacity-50' : ''
                 } ${
-                  isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
+                  'bg-surface text-ink border-line-strong'
                 }`}
               />
               {wp.dialogueCue && (
@@ -522,7 +522,7 @@ export const WaypointListEditor: React.FC<{
                   title={wp.hideCue ? "Show cue on floorplan" : "Hide cue on floorplan"}
                   className={`absolute right-1 p-0.5 rounded transition-colors ${
                     wp.hideCue
-                      ? 'text-amber-500 hover:text-amber-400 bg-amber-500/15'
+                      ? 'text-warn hover:text-amber-400 bg-amber-500/15'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/30'
                   }`}
                 >
@@ -581,7 +581,7 @@ export const WaypointListEditor: React.FC<{
           }}
         />
       )}
-      <p className={`text-[10px] italic ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+      <p className={`text-[10px] italic text-ink-subtle`}>
         Tip: drag a numbered marker to reposition it, or drag its small circle handle to rotate its facing.
         {boardShot ? ' The picture button boards that beat.' : ''}
       </p>
@@ -596,7 +596,7 @@ export const WaypointListEditor: React.FC<{
  * split out of it, at which point four of them needed the same string. One
  * definition rather than four that drift apart.
  */
-export const inspectorSelectClass = (isLight: boolean): string =>
+export const inspectorSelectClass = (_isLight: boolean): string =>
   `w-full border rounded px-1.5 py-1 text-[11px] ${
-    isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+    'bg-field text-ink border-line-strong'
   }`;

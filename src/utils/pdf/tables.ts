@@ -17,7 +17,7 @@
  */
 
 import { rgb } from 'pdf-lib';
-import type { PDFFont, PDFPage } from 'pdf-lib';
+import type { PDFFont, PDFImage, PDFPage } from 'pdf-lib';
 import { addPdfPage } from './document';
 import type { PdfDocumentContext } from './document';
 import { sanitizePdfText } from './text';
@@ -36,7 +36,23 @@ export interface PdfTableStyle {
   lineHeightFactor?: number;
   cellPaddingX?: number;
   cellPaddingY?: number;
+  /**
+   * Per-row colours (index = row index), as hex "#rrggbb". A filled row
+   * replaces the zebra stripe, so a colour-coded sheet prints its colours.
+   */
+  rowColors?: ReadonlyArray<{ fill?: string; ink?: string } | undefined>;
+  /**
+   * One column that holds a picture per row (a storyboard frame). Rows grow to
+   * `height`; the image is fitted inside the cell, centred.
+   */
+  imageColumn?: { index: number; height: number; images: ReadonlyArray<PDFImage | undefined> };
 }
+
+/** "#rrggbb" -> pdf-lib colour; undefined for anything else. */
+export const hexToPdfRgb = (hex: string | undefined) => {
+  const match = hex?.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  return match ? rgb(parseInt(match[1], 16) / 255, parseInt(match[2], 16) / 255, parseInt(match[3], 16) / 255) : undefined;
+};
 
 export interface PdfTableResult {
   /** Page the table ended on. */
@@ -196,8 +212,12 @@ export const drawPdfTable = (
       wrapPdfCellText(ctx.regular, row[index] ?? '', widths[index] - resolved.cellPaddingX * 2, resolved.fontSize),
     ),
   );
-  const rowHeights = bodyLines.map(
-    (cells) => Math.max(...cells.map((lines) => lines.length)) * resolved.lineHeight + resolved.cellPaddingY * 2,
+  const imageColumn = style?.imageColumn;
+  const rowHeights = bodyLines.map((cells) =>
+    Math.max(
+      Math.max(...cells.map((lines) => lines.length)) * resolved.lineHeight + resolved.cellPaddingY * 2,
+      imageColumn ? imageColumn.height + resolved.cellPaddingY * 2 : 0,
+    ),
   );
 
   const contentHeight = cursorY - ctx.margins.bottom;
@@ -257,13 +277,36 @@ export const drawPdfTable = (
     // Data rows.
     plan.forEach((rowIndex, position) => {
       const height = rowHeights[rowIndex];
-      if (position % 2 === 1) {
+      const rowFill = hexToPdfRgb(style?.rowColors?.[rowIndex]?.fill);
+      const rowInk = hexToPdfRgb(style?.rowColors?.[rowIndex]?.ink) ?? ink;
+      if (rowFill) {
+        page.drawRectangle({
+          x: ctx.margins.left,
+          y: rowTop - height,
+          width: ctx.contentWidth,
+          height,
+          color: rowFill,
+        });
+      } else if (position % 2 === 1) {
         page.drawRectangle({
           x: ctx.margins.left,
           y: rowTop - height,
           width: ctx.contentWidth,
           height,
           color: altFill,
+        });
+      }
+      const picture = imageColumn?.images[rowIndex];
+      if (imageColumn && picture) {
+        const cellWidth = widths[imageColumn.index] - resolved.cellPaddingX * 2;
+        const scale = Math.min(cellWidth / picture.width, imageColumn.height / picture.height);
+        const w = picture.width * scale;
+        const h = picture.height * scale;
+        page.drawImage(picture, {
+          x: columnX[imageColumn.index] + resolved.cellPaddingX + (cellWidth - w) / 2,
+          y: rowTop - resolved.cellPaddingY - imageColumn.height + (imageColumn.height - h) / 2,
+          width: w,
+          height: h,
         });
       }
       columns.forEach((column, columnIndex) => {
@@ -282,7 +325,7 @@ export const drawPdfTable = (
             y: rowTop - resolved.cellPaddingY - resolved.lineHeight * (lineIndex + 1) + 2,
             size: resolved.fontSize,
             font: ctx.regular,
-            color: ink,
+            color: rowInk,
           });
         });
       });

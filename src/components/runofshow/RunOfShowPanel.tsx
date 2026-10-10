@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { EmptyState } from '../common/EmptyState';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -236,14 +237,14 @@ export const RunOfShowPanel: React.FC = () => {
   const cardClass = isLight
     ? 'bg-white border-slate-200'
     : 'bg-slate-900 border-slate-700';
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
+  const mutedText = 'text-ink-muted';
   const inputClass = `min-h-[36px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${
     isLight
       ? 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
       : 'bg-slate-950 border-slate-700 text-slate-100 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
   }`;
   const iconBtnClass = `flex items-center justify-center min-w-[36px] min-h-[36px] rounded-lg transition-colors ${
-    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+    'text-ink-muted hover:text-ink hover:bg-surface-hover'
   }`;
 
   const renderCueRow = (cue: RunOfShowCue, index: number) => {
@@ -385,7 +386,7 @@ export const RunOfShowPanel: React.FC = () => {
         {expanded && (
           <div
             className={`grid grid-cols-1 sm:grid-cols-2 gap-2 px-2 pb-2 pt-1 mx-2 mb-2 rounded-lg border-t ${
-              isLight ? 'border-slate-100 bg-slate-50' : 'border-slate-800 bg-slate-950/40'
+              'border-line bg-surface-sunken'
             }`}
           >
             {CUE_NOTE_FIELDS.map(({ key, label }) => (
@@ -416,14 +417,14 @@ export const RunOfShowPanel: React.FC = () => {
       <div className={`rounded-xl border p-2.5 flex flex-wrap items-center gap-2 ${surfaceClass}`}>
         <h3
           className={`text-xs font-bold flex items-center gap-1.5 mr-auto ${
-            isLight ? 'text-slate-700' : 'text-slate-300'
+            'text-ink-soft'
           }`}
         >
           <ListOrdered className="w-3.5 h-3.5" />
           Run of Show
           <span
             className={`px-1.5 py-0.5 text-[10px] font-mono rounded-full ${
-              isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-300'
+              'bg-surface-muted text-ink-soft'
             }`}
           >
             {sorted.length}
@@ -444,14 +445,14 @@ export const RunOfShowPanel: React.FC = () => {
         </label>
         {/* The show caller works from paper, and the printed sheet uses the
             same show start typed above. */}
-        <PdfExportButton onClick={() => openExportModal('runofshow')} title="Run of Show als PDF exportieren" />
+        <PdfExportButton onClick={() => openExportModal('runofshow')} title="Download the run of show as a PDF" />
         <button
           onClick={addCue}
           title="Add cue"
           className={`flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors flex-shrink-0 ${
             isLight
-              ? 'bg-sky-600 text-white hover:bg-sky-700'
-              : 'bg-sky-600 text-white hover:bg-sky-500'
+              ? 'bg-accent hover:bg-accent-hover text-white'
+              : 'bg-accent hover:bg-accent-hover text-white'
           }`}
         >
           <Plus className="w-3.5 h-3.5" />
@@ -463,7 +464,7 @@ export const RunOfShowPanel: React.FC = () => {
       <div className={`rounded-xl border p-2.5 flex flex-col gap-2 ${surfaceClass}`}>
         <div
           className={`relative h-10 rounded-lg overflow-hidden border ${
-            isLight ? 'border-slate-300 bg-white' : 'border-slate-700 bg-slate-900'
+            'border-line-strong bg-surface'
           }`}
           role="img"
           aria-label="Cue timeline"
@@ -483,7 +484,7 @@ export const RunOfShowPanel: React.FC = () => {
                   duration !== null
                     ? isLight
                       ? 'bg-sky-500/85 text-white'
-                      : 'bg-sky-600 text-white'
+                      : 'bg-accent text-white'
                     : isLight
                     ? 'bg-sky-200 text-sky-900 border border-dashed border-sky-400'
                     : 'bg-sky-900/70 text-sky-200 border border-dashed border-sky-600'
@@ -528,13 +529,14 @@ export const RunOfShowPanel: React.FC = () => {
       {sorted.length > 0 ? (
         <ul className="flex flex-col gap-1.5">{sorted.map(renderCueRow)}</ul>
       ) : (
-        <div
-          className={`min-h-[120px] rounded-xl border border-dashed flex flex-col items-center justify-center gap-2 p-6 text-center ${mutedText} ${
-            isLight ? 'border-slate-300' : 'border-slate-700'
-          }`}
-        >
-          <ListOrdered className="w-6 h-6" />
-          <p className="text-xs">No cues yet — add one to build the running order.</p>
+        <div>
+          <EmptyState
+            icon={<ListOrdered className="w-5 h-5" />}
+            title="No cues yet"
+            action={{ label: 'Add the first cue', onClick: addCue, icon: <Plus className="w-3.5 h-3.5" /> }}
+          >
+            Build the running order of a live show or event: timings, plus camera, audio, lighting and stage notes per cue.
+          </EmptyState>
         </div>
       )}
 
@@ -545,12 +547,12 @@ export const RunOfShowPanel: React.FC = () => {
           {totalRuntime === null ? (
             <span
               title="some cues lack durations"
-              className={`font-bold ${isLight ? 'text-amber-600' : 'text-amber-400'}`}
+              className={`font-bold text-warn`}
             >
               —
             </span>
           ) : (
-            <span className={`font-bold ${isLight ? 'text-slate-800' : 'text-slate-100'}`}>
+            <span className={`font-bold text-ink`}>
               {formatDuration(totalRuntime)}
             </span>
           )}
@@ -572,7 +574,7 @@ export const RunOfShowPanel: React.FC = () => {
               >
                 <AlertTriangle
                   className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${
-                    issue.severity === 'error' ? 'text-red-500' : 'text-amber-500'
+                    issue.severity === 'error' ? 'text-red-500' : 'text-warn'
                   }`}
                 />
                 <span>
@@ -587,7 +589,7 @@ export const RunOfShowPanel: React.FC = () => {
         ) : (
           <p
             className={`text-xs flex items-center gap-1.5 ${
-              isLight ? 'text-emerald-600' : 'text-emerald-400'
+              'text-ok'
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />

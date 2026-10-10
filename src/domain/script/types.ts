@@ -9,6 +9,11 @@ export interface Character {
   id: string;
   canonicalName: string;
   aliases: string[];
+  /**
+   * v34: highlighter colour for this character on the script page (hex).
+   * Absent = a stable colour picked from the palette by catalog position.
+   */
+  color?: string;
 }
 
 export interface ScriptScene {

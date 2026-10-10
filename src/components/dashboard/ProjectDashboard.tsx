@@ -257,29 +257,29 @@ export const ProjectDashboard: React.FC = () => {
     }
   };
 
-  const panel = isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100';
+  const panel = 'bg-surface border-line text-ink';
   const field = `w-full rounded-lg border px-2.5 py-2 text-sm ${
-    isLight ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'
+    'bg-field border-line-strong'
   }`;
   const ghostButton = `px-2 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition-colors ${
-    isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+    'border-line-strong hover:bg-surface-hover'
   }`;
 
   return (
     <div
       id="project-dashboard"
-      className={`fixed inset-0 z-[70] overflow-y-auto ${isLight ? 'bg-slate-100' : 'bg-slate-950'}`}
+      className={`fixed inset-0 z-[70] overflow-y-auto bg-surface-sunken`}
     >
       <div className="max-w-5xl mx-auto px-4 py-6 sm:px-6 sm:py-10">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-sky-500/15 text-sky-500 border border-sky-500/30">
+            <div className="p-2.5 rounded-2xl bg-sky-500/15 text-accent-ink border border-sky-500/30">
               <Clapperboard className="w-6 h-6" />
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-black tracking-tight uppercase">Your productions</h1>
-              <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              <p className={`text-xs text-ink-muted`}>
                 Start a new project, or pick up where you left off. Everything is saved in this browser.
               </p>
             </div>
@@ -289,7 +289,7 @@ export const ProjectDashboard: React.FC = () => {
             <button
               onClick={openStorage}
               title="Inspect browser media storage"
-              className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
+              className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 border-line-strong hover:bg-surface-muted`}
             >
               <HardDrive className="w-4 h-4" /> Storage
             </button>
@@ -298,7 +298,7 @@ export const ProjectDashboard: React.FC = () => {
                 onClick={closeDashboard}
                 title="Back to the workspace"
                 aria-label="Back to the workspace"
-                className={`p-2 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
+                className={`p-2 rounded-lg border border-line-strong hover:bg-surface-muted`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -309,7 +309,7 @@ export const ProjectDashboard: React.FC = () => {
         {/* New project */}
         <div className={`border rounded-2xl p-4 mb-6 shadow-sm ${panel}`}>
           <h2 className="text-xs font-bold uppercase tracking-wide mb-3 flex items-center gap-2">
-            <Plus className="w-4 h-4 text-sky-500" /> New project
+            <Plus className="w-4 h-4 text-accent-ink" /> New project
           </h2>
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <input
@@ -323,7 +323,7 @@ export const ProjectDashboard: React.FC = () => {
             />
             <button
               onClick={handleCreate}
-              className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+              className="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-semibold flex items-center justify-center gap-1.5"
             >
               <Plus className="w-4 h-4" /> Create
             </button>
@@ -363,7 +363,7 @@ export const ProjectDashboard: React.FC = () => {
               onChange={(event) => setStartWithSamples(event.target.checked)}
               className="accent-sky-600"
             />
-            <span className={isLight ? 'text-slate-600' : 'text-slate-300'}>
+            <span className="text-ink-soft">
               Start with the example scenes (dialogue coverage + noir interrogation) instead of an empty stage
             </span>
           </label>
@@ -381,7 +381,7 @@ export const ProjectDashboard: React.FC = () => {
                   title={preset.description}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
                     presetId === preset.id
-                      ? 'bg-sky-600 border-sky-500 text-white'
+                      ? 'bg-sky-700 border-sky-500 text-white'
                       : isLight
                         ? 'border-slate-300 text-slate-600 hover:bg-slate-100'
                         : 'border-slate-700 text-slate-300 hover:bg-slate-800'
@@ -394,7 +394,7 @@ export const ProjectDashboard: React.FC = () => {
             {presetId === 'custom' && (
               <div
                 className={`mt-2.5 rounded-lg border p-2.5 ${
-                  isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700 bg-slate-900/60'
+                  'border-line bg-surface-sunken'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -406,7 +406,7 @@ export const ProjectDashboard: React.FC = () => {
                       type="button"
                       onClick={() => setCustomModules(PICKABLE_MODULES.map((module) => module.id))}
                       className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                        isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-600 hover:bg-slate-800'
+                        'border-line-strong hover:bg-surface-muted'
                       }`}
                     >
                       All
@@ -415,7 +415,7 @@ export const ProjectDashboard: React.FC = () => {
                       type="button"
                       onClick={() => setCustomModules([])}
                       className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                        isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-600 hover:bg-slate-800'
+                        'border-line-strong hover:bg-surface-muted'
                       }`}
                     >
                       None
@@ -425,7 +425,7 @@ export const ProjectDashboard: React.FC = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2">
                   {MODULE_PICKER_GROUPS.map((group) => (
                     <section key={group.label}>
-                      <div className="text-[9px] font-black uppercase tracking-[0.14em] opacity-40 mb-1">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] opacity-40 mb-1">
                         {group.label}
                       </div>
                       {group.modules.map((module) => (
@@ -445,12 +445,12 @@ export const ProjectDashboard: React.FC = () => {
                     </section>
                   ))}
                 </div>
-                <p className={`mt-2 text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                <p className={`mt-2 text-[10px] text-ink-subtle`}>
                   The floor plan and Inspector are always available.
                 </p>
               </div>
             )}
-            <p className={`mt-2 text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+            <p className={`mt-2 text-[10px] text-ink-subtle`}>
               {getPreset(presetId).description} Presets only change which tools are shown — you can enable or hide modules at any time.
             </p>
           </div>
@@ -546,13 +546,13 @@ export const ProjectDashboard: React.FC = () => {
                       </button>
                     )}
                     {isActive && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-500 text-[9px] font-bold uppercase flex-shrink-0">
+                      <span className="px-1.5 py-0.5 rounded-full bg-sky-500/15 text-accent-ink text-[10px] font-bold uppercase flex-shrink-0">
                         Open
                       </span>
                     )}
                   </div>
 
-                  <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-muted`}>
                     <span className="flex items-center gap-1">
                       <Layers className="w-3 h-3" /> {entry.setupCount} scene{entry.setupCount === 1 ? '' : 's'}
                     </span>
@@ -565,14 +565,14 @@ export const ProjectDashboard: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <p className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <p className={`text-[10px] text-ink-subtle`}>
                     {entry.director ? `${entry.director} · ` : ''}saved {formatUpdated(entry.updatedAt)}
                   </p>
 
                   <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-1">
                     <button
                       onClick={() => openProjectById(entry.id)}
-                      className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold"
+                      className="px-2.5 py-1 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold"
                     >
                       {isActive ? 'Continue' : 'Open'}
                     </button>
@@ -651,7 +651,7 @@ export const ProjectDashboard: React.FC = () => {
         {/* Release footer: version, licence, discrete support links. */}
         <footer
           className={`mt-8 pt-4 border-t flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] ${
-            isLight ? 'border-slate-200 text-slate-400' : 'border-slate-800 text-slate-500'
+            'border-line text-ink-subtle'
           }`}
         >
           <span className="font-mono">Open Shot Designer v{APP_VERSION}</span>
@@ -694,9 +694,9 @@ export const ProjectDashboard: React.FC = () => {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 id="dashboard-storage-title" className="text-sm font-bold flex items-center gap-1.5">
-                    <HardDrive className="w-4 h-4 text-sky-500" /> Browser media storage
+                    <HardDrive className="w-4 h-4 text-accent-ink" /> Browser media storage
                   </h3>
-                  <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <p className={`text-[11px] mt-1 text-ink-muted`}>
                     Checks attached media against every saved project. Cleanup never removes a file still referenced by a project.
                   </p>
                 </div>
@@ -715,13 +715,13 @@ export const ProjectDashboard: React.FC = () => {
                       ['In projects', formatBytes(storageInspection.referencedBytes)],
                       ['Orphaned', formatBytes(storageInspection.orphanedBytes)],
                     ].map(([label, value]) => (
-                      <div key={label} className={`rounded-xl border p-2.5 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/50'}`}>
-                        <div className="text-[9px] font-bold uppercase opacity-50">{label}</div>
+                      <div key={label} className={`rounded-xl border p-2.5 border-line bg-surface-sunken`}>
+                        <div className="text-[10px] font-bold uppercase opacity-50">{label}</div>
                         <div className="text-sm font-mono font-bold mt-0.5">{value}</div>
                       </div>
                     ))}
                   </div>
-                  <div className={`rounded-xl border p-3 text-xs ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                  <div className={`rounded-xl border p-3 text-xs border-line`}>
                     <div className="flex justify-between gap-3"><span>Stored files</span><strong>{storageInspection.assets.length}</strong></div>
                     <div className="flex justify-between gap-3 mt-1"><span>Unreferenced files</span><strong>{storageInspection.orphanedIds.length}</strong></div>
                     <div className={`flex justify-between gap-3 mt-1 ${storageInspection.missingIds.length ? 'text-rose-500' : ''}`}>
@@ -780,9 +780,9 @@ export const ProjectDashboard: React.FC = () => {
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <h3 id="dashboard-revisions-title" className="text-sm font-bold flex items-center gap-1.5">
-                    <History className="w-4 h-4 text-sky-500" /> Revisions — {revisionsProject.title}
+                    <History className="w-4 h-4 text-accent-ink" /> Revisions — {revisionsProject.title}
                   </h3>
-                  <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <p className={`text-[11px] mt-0.5 text-ink-muted`}>
                     Named milestones of this production. Restoring keeps the revision history — a safety revision is saved first.
                   </p>
                 </div>
@@ -793,14 +793,14 @@ export const ProjectDashboard: React.FC = () => {
                   }}
                   title="Close"
                   aria-label="Close"
-                  className={`p-1.5 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+                  className={`p-1.5 rounded-lg border border-line-strong hover:bg-surface-hover`}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               {revisionsList.length === 0 ? (
-                <p className={`text-xs py-6 text-center ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                <p className={`text-xs py-6 text-center text-ink-subtle`}>
                   No revisions saved yet. Use “Save revision…” in the top bar to mark one.
                 </p>
               ) : (
@@ -809,12 +809,12 @@ export const ProjectDashboard: React.FC = () => {
                     <li
                       key={revision.id}
                       className={`border rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${
-                        isLight ? 'border-slate-200' : 'border-slate-800'
+                        'border-line'
                       }`}
                     >
                       <div className="min-w-0">
                         <div className="text-xs font-semibold truncate">{revision.name}</div>
-                        <div className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <div className={`text-[10px] text-ink-subtle`}>
                           {new Date(revision.createdAt).toLocaleString()}
                           {revision.note ? ` · ${revision.note}` : ''}
                         </div>
@@ -823,7 +823,7 @@ export const ProjectDashboard: React.FC = () => {
                         <span className="flex items-center gap-1 flex-shrink-0">
                           <button
                             onClick={() => handleRestore(revision.id)}
-                            className="px-2 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold"
+                            className="px-2 py-1 rounded-lg bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold"
                           >
                             Confirm
                           </button>

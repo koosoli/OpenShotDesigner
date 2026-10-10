@@ -69,7 +69,9 @@ import {
   deleteTakeCommand,
   logTakeCommand,
   setContinuityDayFilterCommand,
+  updateProductionDetailsCommand,
   updateTakeCommand,
+  updateTakesCommand,
 } from '../../domain/commands';
 
 /** Parse a number input; empty string → undefined (unknown, never 0 — rule 13). */
@@ -94,7 +96,7 @@ const numberLabel = (sceneNumber: string | undefined, shotNumber: string | undef
 };
 
 export const ContinuityPanel: React.FC = () => {
-  const { project, updateProjectMeta, runCommand } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
 
@@ -191,13 +193,13 @@ export const ContinuityPanel: React.FC = () => {
     return index;
   }, [setups]);
 
-  // --- Mutations (all immutable via updateProjectMeta) ---
+  // --- Mutations (commands over the committed project) ---
 
   // Functional form throughout: two take mutations can land in one tick (add
   // an unplanned shot, then log its first take), and reading `project.takes`
   // off this render would silently drop the first of them.
-  const mutateTakes = (fn: (prev: Take[]) => Take[]) =>
-    updateProjectMeta((prev) => ({ takes: fn(prev.takes ?? []) }));
+  const mutateTakes = (fn: (prev: Take[]) => Take[], description?: string) =>
+    runCommand(updateTakesCommand, { update: fn, description }, { domain: 'shots' });
 
   const updateTake = (id: string, patch: Partial<Take>) =>
     runCommand(updateTakeCommand, { takeId: id, patch }, { domain: 'shots' });
@@ -316,9 +318,9 @@ export const ContinuityPanel: React.FC = () => {
   const surfaceClass = isLight
     ? 'bg-slate-50 border-slate-200'
     : 'bg-slate-950/60 border-slate-800';
-  const cardClass = isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700';
-  const mutedText = isLight ? 'text-slate-500' : 'text-slate-400';
-  const headingText = isLight ? 'text-slate-700' : 'text-slate-300';
+  const cardClass = 'bg-surface border-line';
+  const mutedText = 'text-ink-muted';
+  const headingText = 'text-ink-soft';
   const inputClass = `min-h-[36px] px-2 py-1 rounded-lg border text-xs w-full transition-colors ${
     isLight
       ? 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500'
@@ -330,7 +332,7 @@ export const ContinuityPanel: React.FC = () => {
       : 'text-slate-400 hover:text-white hover:bg-slate-800'
   }`;
   const primaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors flex-shrink-0 disabled:opacity-40 ${
-    isLight ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-600 text-white hover:bg-sky-500'
+    'bg-accent text-white hover:bg-accent-hover'
   }`;
   const secondaryBtnClass = `flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 disabled:opacity-40 ${
     isLight
@@ -338,10 +340,10 @@ export const ContinuityPanel: React.FC = () => {
       : 'border-slate-700 text-slate-300 hover:bg-slate-800'
   }`;
   const chipClass = `px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
-    isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-300'
+    'bg-surface-muted text-ink-soft'
   }`;
   const unplannedChipClass = `px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-    isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-950/60 text-amber-300'
+    'bg-warn-soft text-warn'
   }`;
 
   const sectionHeading = (icon: React.ReactNode, title: string, count?: number) => (
@@ -364,9 +366,9 @@ export const ContinuityPanel: React.FC = () => {
       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border ${cardClass}`}
     >
       {entry.covered ? (
-        <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+        <CheckCircle2 className="w-4 h-4 text-ok flex-shrink-0" />
       ) : (
-        <Circle className={`w-4 h-4 flex-shrink-0 ${entry.takeCount > 0 ? 'text-amber-500' : mutedText}`} />
+        <Circle className={`w-4 h-4 flex-shrink-0 ${entry.takeCount > 0 ? 'text-warn' : mutedText}`} />
       )}
       <span className={`font-mono text-xs ${headingText}`}>
         {numberLabel(entry.sceneNumber, entry.shotNumber)}
@@ -447,7 +449,7 @@ export const ContinuityPanel: React.FC = () => {
           <FileDown className="w-3.5 h-3.5" /> Avid ALE
         </button>
         {/* The checklist is worked from paper at wrap. */}
-        <PdfExportButton onClick={() => openExportModal('continuity')} title="Continuity-Report als PDF exportieren" />
+        <PdfExportButton onClick={() => openExportModal('continuity')} title="Download the continuity report as a PDF" />
       </div>
 
       {/*
@@ -466,7 +468,7 @@ export const ContinuityPanel: React.FC = () => {
             onClick={() => setView(value)}
             className={`px-3 min-h-[32px] rounded-lg text-xs font-semibold transition-colors ${
               view === value
-                ? 'bg-sky-600 text-white'
+                ? 'bg-accent text-white'
                 : isLight
                   ? 'bg-slate-100 text-slate-600 hover:text-slate-900'
                   : 'bg-slate-800 text-slate-300 hover:text-white'
@@ -497,7 +499,7 @@ export const ContinuityPanel: React.FC = () => {
             <input
               value={project.productionCompany ?? ''}
               onChange={(event) =>
-                updateProjectMeta({ productionCompany: event.target.value || undefined })
+                runCommand(updateProductionDetailsCommand, { updates: { productionCompany: event.target.value || undefined } })
               }
               placeholder="Not set"
               className={`${inputClass} mt-0.5`}
@@ -507,7 +509,7 @@ export const ContinuityPanel: React.FC = () => {
             Production name
             <input
               value={project.title}
-              onChange={(event) => updateProjectMeta({ title: event.target.value })}
+              onChange={(event) => runCommand(updateProductionDetailsCommand, { updates: { title: event.target.value } })}
               placeholder="Not set"
               className={`${inputClass} mt-0.5`}
             />
@@ -526,13 +528,13 @@ export const ContinuityPanel: React.FC = () => {
                   <input
                     value={holder.displayName}
                     readOnly
-                    title="Assigned on the crew list; change it there"
+                    aria-label="Assigned on the crew list; change it there" title="Assigned on the crew list; change it there"
                     className={`${inputClass} mt-0.5 opacity-70`}
                   />
                 ) : (
                   <input
                     value={project[field] ?? ''}
-                    onChange={(event) => updateProjectMeta({ [field]: event.target.value })}
+                    onChange={(event) => runCommand(updateProductionDetailsCommand, { updates: { [field]: event.target.value } })}
                     placeholder="Nobody on the crew list; type a name"
                     className={`${inputClass} mt-0.5`}
                   />
@@ -554,19 +556,14 @@ export const ContinuityPanel: React.FC = () => {
                   <input
                     value={holder.displayName}
                     readOnly
-                    title="Assigned on the crew list; change it there"
+                    aria-label="Assigned on the crew list; change it there" title="Assigned on the crew list; change it there"
                     className={`${inputClass} mt-0.5 opacity-70`}
                   />
                 ) : (
                   <input
                     value={project.continuityCrew?.[field] ?? ''}
                     onChange={(event) =>
-                      updateProjectMeta((prev) => ({
-                        continuityCrew: {
-                          ...prev.continuityCrew,
-                          [field]: event.target.value || undefined,
-                        },
-                      }))
+                      runCommand(updateProductionDetailsCommand, { updates: { continuityCrew: { [field]: event.target.value || undefined } } })
                     }
                     placeholder="Nobody on the crew list; type a name"
                     className={`${inputClass} mt-0.5`}
@@ -597,7 +594,7 @@ export const ContinuityPanel: React.FC = () => {
           )}
 
           {checklist && (checklist.notShot.length > 0 || checklist.noGoodTake.length > 0) && (
-            <div className="text-[11px] text-amber-500 flex items-start gap-1.5">
+            <div className="text-[11px] text-warn flex items-start gap-1.5">
               <TriangleAlert className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
               <span>
                 {checklist.notShot.length > 0 && (
@@ -711,7 +708,7 @@ export const ContinuityPanel: React.FC = () => {
                       title="Mark as a good take"
                       className={iconBtnClass}
                     >
-                      <CheckCircle2 className={`w-4 h-4 ${take.isGoodTake === true ? 'text-emerald-500' : ''}`} />
+                      <CheckCircle2 className={`w-4 h-4 ${take.isGoodTake === true ? 'text-ok' : ''}`} />
                     </button>
                     <button
                       onClick={() =>
@@ -762,7 +759,7 @@ export const ContinuityPanel: React.FC = () => {
                         })
                       }
                       placeholder="Keywords, comma separated"
-                      title="Comma separated, e.g. Laptop, John, Gimbal"
+                      aria-label="Comma separated, e.g. Laptop, John, Gimbal" title="Comma separated, e.g. Laptop, John, Gimbal"
                       className={`${inputClass} !w-40`}
                     />
                   </div>
@@ -1011,7 +1008,7 @@ export const ContinuityPanel: React.FC = () => {
           value={reconcileText}
           onChange={(event) => setReconcileText(event.target.value)}
           rows={4}
-          placeholder={'A001C001_230815_R1AB.mov\nA001C002_230815_R1AB.mov'}
+          placeholder="A001C001_230815_R1AB.mov\nA001C002_230815_R1AB.mov"
           className={`${inputClass} font-mono !min-h-[80px]`}
         />
         <div className="flex flex-wrap items-center gap-2">
@@ -1028,7 +1025,7 @@ export const ContinuityPanel: React.FC = () => {
                 {reconcilePreview.matchedCount} matched
               </span>
               {reconcilePreview.hasDrift && (
-                <span className="text-[11px] text-amber-500 flex items-center gap-1">
+                <span className="text-[11px] text-warn flex items-center gap-1">
                   <TriangleAlert className="w-3.5 h-3.5" />
                   {
                     reconcilePreview.entries.filter((entry) => entry.status === 'take-without-file')
@@ -1043,7 +1040,7 @@ export const ContinuityPanel: React.FC = () => {
                 </span>
               )}
               {reconcilePreview.entries.some((entry) => entry.replaces) && (
-                <span className="text-[11px] text-amber-500">
+                <span className="text-[11px] text-warn">
                   {reconcilePreview.entries.filter((entry) => entry.replaces).length} existing name(s)
                   would be replaced
                 </span>
@@ -1061,7 +1058,7 @@ export const ContinuityPanel: React.FC = () => {
         Surfaced rather than dropped: the footage exists on a card somewhere.
       */}
       {orphans.length > 0 && (
-        <div className={`flex items-start gap-1.5 p-2 rounded-xl border text-[11px] text-amber-500 ${surfaceClass}`}>
+        <div className={`flex items-start gap-1.5 p-2 rounded-xl border text-[11px] text-warn ${surfaceClass}`}>
           <TriangleAlert className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
           <span>
             {orphans.length} take{orphans.length === 1 ? '' : 's'} point at a shot that no longer

@@ -185,3 +185,25 @@ describe('buildPrintableCoverageRows', () => {
     expect(buildPrintableCoverageRows({})).toEqual([]);
   });
 });
+
+describe('strip colours', () => {
+  it('colours strips by INT/EXT and day/night, banners by type', async () => {
+    const { stripColorKey } = await import('../scheduling/stripboardPrint');
+    const scene = { id: 'b', kind: 'scene', scriptSceneId: 's' } as const;
+    expect(stripColorKey(scene, 'INT DAY')).toBe('int_day');
+    expect(stripColorKey(scene, 'EXT DAY')).toBe('ext_day');
+    expect(stripColorKey(scene, 'INT NIGHT')).toBe('int_night');
+    expect(stripColorKey(scene, 'EXT NIGHT')).toBe('ext_night');
+    expect(stripColorKey({ id: 'm', kind: 'manual', manualType: 'meal', label: 'Lunch' }, '')).toBe('meal');
+  });
+
+  it('carries the colour into the printable board', async () => {
+    const { buildPrintableStripboardDays } = await import('../scheduling/stripboardPrint');
+    const days = buildPrintableStripboardDays({
+      scriptScenes: [{ id: 's1', sceneNumber: '1', heading: 'EXT. ROAD - NIGHT', intExt: 'EXT', timeOfDay: 'NIGHT' }],
+      productionDays: [{ id: 'd1', name: '1', scheduleBlockIds: ['b1'] }],
+      scheduleBlocks: [{ id: 'b1', kind: 'scene', scriptSceneId: 's1' }],
+    });
+    expect(days[0].items[0].colorKey).toBe('ext_night');
+  });
+});

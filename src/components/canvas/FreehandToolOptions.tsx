@@ -41,14 +41,14 @@ export const FreehandToolOptions: React.FC<FreehandToolOptionsProps> = ({ settin
       }`}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div className={`flex rounded-lg p-0.5 ${isLight ? 'bg-slate-100' : 'bg-slate-800'}`}>
+        <div className={`flex rounded-lg p-0.5 bg-surface-muted`}>
           <button
             type="button"
             aria-pressed={settings.toolStyle === 'pen'}
             onClick={() => setStyle('pen')}
             className={`h-8 px-2.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
               settings.toolStyle === 'pen'
-                ? 'bg-sky-600 text-white shadow-sm'
+                ? 'bg-accent text-white shadow-sm'
                 : isLight ? 'text-slate-600 hover:bg-white' : 'text-slate-300 hover:bg-slate-700'
             }`}
           >
@@ -88,7 +88,7 @@ export const FreehandToolOptions: React.FC<FreehandToolOptionsProps> = ({ settin
           <label
             title="Custom drawing color"
             className={`relative w-7 h-7 rounded-lg border cursor-pointer overflow-hidden ${
-              isLight ? 'border-slate-300' : 'border-slate-600'
+              'border-line-strong'
             }`}
           >
             <input

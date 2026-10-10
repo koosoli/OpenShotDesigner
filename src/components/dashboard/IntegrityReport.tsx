@@ -14,7 +14,7 @@ const IssueRow: React.FC<{
   issue: ValidationIssue;
   isLight: boolean;
   onSelectIssue?: (issue: ValidationIssue) => void;
-}> = ({ issue, isLight, onSelectIssue }) => {
+}> = ({ issue, isLight: _isLight, onSelectIssue }) => {
   const body = (
     <>
       <span className="block text-[10px] font-mono font-bold opacity-60">{issue.code}</span>
@@ -22,10 +22,10 @@ const IssueRow: React.FC<{
     </>
   );
   const style = `w-full rounded-xl border p-3 text-left ${
-    isLight ? 'border-slate-200' : 'border-slate-800'
+    'border-line'
   }`;
   return onSelectIssue ? (
-    <button type="button" onClick={() => onSelectIssue(issue)} className={`${style} ${isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800'}`}>
+    <button type="button" onClick={() => onSelectIssue(issue)} className={`${style} hover:bg-surface-hover`}>
       {body}
     </button>
   ) : (
@@ -46,15 +46,15 @@ export const IntegrityReport: React.FC<IntegrityReportProps> = ({ report, onClos
   return (
     <section
       aria-label="Project integrity"
-      className={`rounded-2xl border p-4 ${isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'}`}
+      className={`rounded-2xl border p-4 bg-surface border-line text-ink`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-black flex items-center gap-2">
             {hasIssues ? (
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <AlertTriangle className="w-5 h-5 text-warn" />
             ) : (
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              <CheckCircle2 className="w-5 h-5 text-ok" />
             )}
             Project integrity
           </h2>
@@ -72,7 +72,7 @@ export const IntegrityReport: React.FC<IntegrityReportProps> = ({ report, onClos
 
       {!hasIssues && (
         <div className="py-6 text-center">
-          <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+          <CheckCircle2 className="w-10 h-10 text-ok mx-auto" />
           <div className="mt-2 text-sm font-bold">No broken references</div>
           <p className="text-xs opacity-60 mt-1">Every checked reference resolves.</p>
         </div>
@@ -94,7 +94,7 @@ export const IntegrityReport: React.FC<IntegrityReportProps> = ({ report, onClos
       {report.warnings.length > 0 && (
         <div className="mt-4">
           <h3 className="text-xs font-bold flex items-center gap-1.5">
-            <AlertTriangle className="w-4 h-4 text-amber-500" /> Warnings · {report.warnings.length}
+            <AlertTriangle className="w-4 h-4 text-warn" /> Warnings · {report.warnings.length}
           </h3>
           <div className="mt-2 space-y-1.5">
             {report.warnings.map((issue, index) => (
@@ -109,7 +109,7 @@ export const IntegrityReport: React.FC<IntegrityReportProps> = ({ report, onClos
           <h3 className="text-xs font-bold flex items-center gap-1.5">
             <Database className="w-4 h-4 opacity-60" /> Unreachable assets · {report.unreachableAssets.length}
           </h3>
-          <ul className={`mt-2 rounded-xl border p-3 space-y-1 text-[11px] font-mono ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <ul className={`mt-2 rounded-xl border p-3 space-y-1 text-[11px] font-mono border-line`}>
             {report.unreachableAssets.map((id) => (
               <li key={id} className="opacity-80">{id}</li>
             ))}

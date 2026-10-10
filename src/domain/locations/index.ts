@@ -1,4 +1,4 @@
-export type { Location, LocationType } from './types';
+export type { Location, LocationScout, LocationScoutPhoto, LocationScoutStatus, LocationType } from './types';
 export type { GeoPoint, GeocodeResult, ReverseGeocodeResult } from './map';
 export {
   locationPoint,

@@ -36,7 +36,7 @@ export const LocationMapCapture: React.FC<LocationMapCaptureProps> = ({
   day,
   locations,
   patchCallSheet,
-  isLight,
+  isLight: _isLight,
 }) => {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export const LocationMapCapture: React.FC<LocationMapCaptureProps> = ({
   };
 
   const button = `text-[10px] font-semibold px-2 py-1 rounded-lg border ${
-    isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'
+    'border-line-strong hover:bg-surface-hover'
   }`;
 
   // A map captured for a place no longer on the day is still listed, so it can
@@ -90,7 +90,7 @@ export const LocationMapCapture: React.FC<LocationMapCaptureProps> = ({
 
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase text-slate-500">
+      <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-500">
         <input
           type="checkbox"
           checked={enabled}
@@ -118,7 +118,7 @@ export const LocationMapCapture: React.FC<LocationMapCaptureProps> = ({
             );
           })}
           {unpinned.map((location) => (
-            <p key={location.name} className="text-[9px] text-amber-600">
+            <p key={location.name} className="text-[10px] text-amber-600">
               <b>{location.name}</b> has no pin yet — {location.address ? 'on the Locations page, geocode its address or drop a pin' : 'link it to a project location, then pin it on the Locations page'}.
             </p>
           ))}
@@ -134,8 +134,8 @@ export const LocationMapCapture: React.FC<LocationMapCaptureProps> = ({
             />
           ))}
 
-          {error && <p className="text-[9px] text-rose-500">{error}</p>}
-          <p className="text-[9px] text-slate-500">
+          {error && <p className="text-[10px] text-rose-500">{error}</p>}
+          <p className="text-[10px] text-slate-500">
             {maps.length ? 'Stored with the project — prints and travels offline.' : 'Fetched once from OpenStreetMap; the place name and attribution are part of the picture.'}
           </p>
         </>

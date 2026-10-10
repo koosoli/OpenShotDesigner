@@ -49,7 +49,7 @@ export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }
   const optionBtn = (active: boolean) =>
     `py-1.5 text-[10px] font-semibold rounded border capitalize ${
       active
-        ? 'bg-sky-600 text-white border-sky-500'
+        ? 'bg-accent text-white border-sky-500'
         : isLight
         ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
         : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'
@@ -62,7 +62,7 @@ export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }
         title="Shape Geometry & Styling"
         icon={<Circle className="w-3.5 h-3.5 text-cyan-500" />}
         badge={
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-500 font-bold capitalize">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-500 font-bold capitalize">
             {shape.shapeType}
           </span>
         }
@@ -91,7 +91,7 @@ export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }
             title={shape.visible === false ? 'Hidden shapes stay on the canvas as a faint dashed ghost' : 'Hide this shape (it becomes a faint ghost you can click to re-show)'}
             className={`px-3 py-1 text-[10px] font-bold rounded border ${
               shape.visible !== false
-                ? 'bg-sky-600 text-white border-sky-500'
+                ? 'bg-accent text-white border-sky-500'
                 : isLight
                 ? 'bg-slate-50 text-slate-500 border-slate-300'
                 : 'bg-slate-950 text-slate-500 border-slate-700'
@@ -108,7 +108,7 @@ export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }
             value={shape.label || ''}
             onChange={(e) => updateElement(shape.id, { label: e.target.value })}
             placeholder="e.g. Hot zone, carpet, shadow…"
-            className={`w-full border rounded p-1.5 text-xs ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'}`}
+            className={`w-full border rounded p-1.5 text-xs bg-field text-ink border-line-strong`}
           />
         </div>
 
@@ -216,7 +216,7 @@ export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }
                   onClick={() => updateElement(shape.id, { filled: !filled })}
                   className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                     filled
-                      ? 'bg-sky-600 text-white border-sky-500'
+                      ? 'bg-accent text-white border-sky-500'
                       : isLight
                       ? 'bg-slate-100 text-slate-500 border-slate-300'
                       : 'bg-slate-950 text-slate-400 border-slate-700'

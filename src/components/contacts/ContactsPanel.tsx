@@ -1,4 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { cachedScriptBreakdown } from '../../domain/script/breakdownCache';
+import { PanelTitle } from '../common/PanelHeader';
 import {
   Download,
   Mail,
@@ -36,7 +38,6 @@ import {
   peopleToCsv,
   usesProductionPhone,
 } from '../../domain/people';
-import { deriveScriptBreakdown } from '../../domain/script/logic';
 import { buildUsageIndex, usagesFor } from '../../domain/usage';
 import { UsageList } from '../common/UsageList';
 import { PersonAvatar } from './PersonAvatar';
@@ -49,9 +50,9 @@ import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
 
 const KIND_TINT: Record<PersonKind, string> = {
-  crew: 'bg-sky-500/15 text-sky-500',
-  cast: 'bg-emerald-500/15 text-emerald-500',
-  talent: 'bg-emerald-500/15 text-emerald-500',
+  crew: 'bg-sky-500/15 text-accent-ink',
+  cast: 'bg-emerald-500/15 text-ok',
+  talent: 'bg-emerald-500/15 text-ok',
   contact: 'bg-slate-500/15 text-slate-500',
   client: 'bg-violet-500/15 text-violet-500',
   artist: 'bg-pink-500/15 text-pink-500',
@@ -73,9 +74,9 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
   const { project } = useFloorPlan();
   const budgetSettings = project.budget?.settings ?? DEFAULT_BUDGET_SETTINGS;
   const inputCls = `min-h-[34px] w-full rounded-md border px-2 py-1 text-xs outline-none ${
-    isLight ? 'border-slate-300 bg-white text-slate-800 focus:border-sky-400' : 'border-slate-700 bg-slate-950 text-slate-200 focus:border-sky-500'
+    'border-line-strong bg-field text-ink focus:border-accent'
   }`;
-  const labelCls = `text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`;
+  const labelCls = `text-[10px] font-bold uppercase tracking-wider text-ink-muted`;
   const field = (key: keyof Person, label: string, placeholder?: string, type = 'text') => (
     <label className="block space-y-1">
       <span className={labelCls}>{label}</span>
@@ -225,7 +226,7 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
                   })
                 }
                 aria-label="Remove these unavailable dates"
-                className={`p-1.5 rounded-lg border ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'} hover:!text-red-500`}
+                className={`p-1.5 rounded-lg border border-line-strong hover:bg-surface-hover hover:!text-red-500`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -242,7 +243,7 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
                 unavailableRanges: [...kept, { id: createId('unavail'), from: '', to: '' }],
               });
             }}
-            className={`px-2 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+            className={`px-2 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 border-line-strong hover:bg-surface-hover`}
           >
             <Plus className="w-3 h-3" /> Add dates away
           </button>
@@ -259,10 +260,10 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
         />
       </label>
       <div className="flex items-center gap-2 pt-1">
-        <button type="submit" disabled={!draft.displayName.trim()} className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold disabled:opacity-40">
+        <button type="submit" disabled={!draft.displayName.trim()} className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-bold disabled:opacity-40">
           Save
         </button>
-        <button type="button" onClick={onCancel} className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}>
+        <button type="button" onClick={onCancel} className={`px-3 py-1.5 rounded-lg border text-xs font-semibold border-line-strong hover:bg-surface-hover`}>
           Cancel
         </button>
         {onDelete && (
@@ -309,7 +310,7 @@ export const ContactsPanel: React.FC = () => {
 
   // Characters: persisted catalog merged with cues discovered in the script.
   const breakdown = useMemo(
-    () => deriveScriptBreakdown(scriptLines, project.characters ?? [], project.locations ?? []),
+    () => cachedScriptBreakdown(scriptLines, project.characters, project.locations),
     [scriptLines, project.characters, project.locations],
   );
   // Any person can play a character (assignCast accepts every id); order the
@@ -418,7 +419,7 @@ export const ContactsPanel: React.FC = () => {
     reader.readAsText(file);
   };
 
-  const mutedCls = isLight ? 'text-slate-500' : 'text-slate-400';
+  const mutedCls = 'text-ink-muted';
   const inputCls = `min-h-[34px] rounded-md border px-2 py-1 text-xs outline-none ${
     isLight ? 'border-slate-200 bg-white text-slate-800 focus:border-sky-400' : 'border-slate-700 bg-slate-950/60 text-slate-200 focus:border-sky-500'
   }`;
@@ -427,7 +428,7 @@ export const ContactsPanel: React.FC = () => {
   }`;
 
   return (
-    <div className={`h-full overflow-y-auto custom-scrollbar p-3 space-y-3 ${isLight ? 'bg-white' : 'bg-slate-900'}`}>
+    <div className={`h-full overflow-y-auto custom-scrollbar p-3 space-y-3 bg-surface`}>
       <input
         ref={fileInputRef}
         type="file"
@@ -442,12 +443,9 @@ export const ContactsPanel: React.FC = () => {
 
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${mutedCls}`}>Production contacts</p>
-          <h2 className="text-lg font-semibold mt-0.5 flex items-center gap-2">
-            <Users className="w-4 h-4 text-sky-500" /> Crew, cast &amp; contacts
-          </h2>
-          <p className={`text-[11px] ${mutedCls}`}>
-            {people.length} people · {castAssignments.length} cast assignment{castAssignments.length === 1 ? '' : 's'} · used by call sheets, DOOD and crew lists
+          <PanelTitle icon={<Users />} title="Crew, cast & contacts" count={people.length} />
+          <p className={`text-[11px] mt-0.5 ${mutedCls}`}>
+            {castAssignments.length} cast assignment{castAssignments.length === 1 ? '' : 's'} · used by call sheets, DOOD and crew lists
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -456,7 +454,7 @@ export const ContactsPanel: React.FC = () => {
               setEditing(EMPTY_DRAFT());
               setIsNew(true);
             }}
-            className="min-h-[34px] flex items-center gap-1.5 rounded-md px-3 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold"
+            className="min-h-[34px] flex items-center gap-1.5 rounded-md px-3 bg-accent hover:bg-accent-hover text-white text-xs font-bold"
           >
             <Plus className="w-3.5 h-3.5" /> Add person
           </button>
@@ -466,7 +464,7 @@ export const ContactsPanel: React.FC = () => {
           <button onClick={exportCsv} disabled={people.length === 0} className={`${btnCls} disabled:opacity-40`}>
             <Download className="w-3.5 h-3.5" /> Export CSV
           </button>
-          <PdfExportButton onClick={() => openExportModal('crew')} disabled={people.length === 0} title="Kontaktliste als PDF exportieren" />
+          <PdfExportButton onClick={() => openExportModal('crew')} disabled={people.length === 0} title="Download the contact list as a PDF" />
         </div>
       </div>
 
@@ -534,21 +532,21 @@ export const ContactsPanel: React.FC = () => {
       <div className="flex items-center gap-1.5 flex-wrap">
         <div className="relative flex-1 min-w-[160px]">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, role, company…" className={`${inputCls} w-full !pl-7`} />
+          <input aria-label="Search people" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, role, company…" className={`${inputCls} w-full !pl-7`} />
         </div>
-        <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as PersonKind | 'all')} className={inputCls}>
+        <select aria-label="Filter by type" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as PersonKind | 'all')} className={inputCls}>
           <option value="all">All types</option>
           {PERSON_KINDS.map((kind) => <option key={kind} value={kind}>{PERSON_KIND_LABELS[kind]}</option>)}
         </select>
-        <select value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} className={inputCls}>
+        <select aria-label="Filter by department" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} className={inputCls}>
           <option value="all">All departments</option>
           {departments.map((department) => <option key={department} value={department}>{department}</option>)}
         </select>
       </div>
 
       {people.length === 0 ? (
-        <div className={`rounded-xl border border-dashed p-8 text-center ${isLight ? 'border-slate-300' : 'border-slate-700'}`}>
-          <UserRound className="w-8 h-8 mx-auto mb-2 text-sky-500" />
+        <div className={`rounded-xl border border-dashed p-8 text-center border-line-strong`}>
+          <UserRound className="w-8 h-8 mx-auto mb-2 text-accent-ink" />
           <p className="text-sm font-semibold">No contacts yet</p>
           <p className={`text-xs mt-1 ${mutedCls}`}>Add crew, cast and vendors here. They flow into call sheets, the crew list and the day-out-of-days automatically.</p>
         </div>
@@ -559,7 +557,7 @@ export const ContactsPanel: React.FC = () => {
           <details key={group.department} className={`group rounded-xl border px-3 py-2 ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-950/40'}`}>
             <summary className={`cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${mutedCls}`}>
               {group.department}
-              <span className={`font-mono text-[9px] px-1.5 rounded-full ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'}`}>{group.people.length}</span>
+              <span className={`font-mono text-[10px] px-1.5 rounded-full bg-surface-muted text-ink-muted`}>{group.people.length}</span>
               <span className="ml-auto transition-transform group-open:rotate-90">›</span>
             </summary>
             <div className="space-y-1.5 pt-2">
@@ -597,7 +595,7 @@ export const ContactsPanel: React.FC = () => {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
                       <span className="text-sm font-semibold truncate">{person.displayName}</span>
-                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${KIND_TINT[person.kind ?? 'other']}`}>
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${KIND_TINT[person.kind ?? 'other']}`}>
                         {PERSON_KIND_LABELS[person.kind ?? 'other']}
                       </span>
                     </span>
@@ -617,16 +615,16 @@ export const ContactsPanel: React.FC = () => {
                             ? `${callSheetPhone(person)} — production number, used on call sheets`
                             : callSheetPhone(person)
                         }
-                        className={`p-1.5 rounded-md ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}
+                        className={`p-1.5 rounded-md hover:bg-surface-hover`}
                       >
                         <Phone
-                          className={`w-3.5 h-3.5 ${usesProductionPhone(person) ? 'text-amber-500' : 'text-emerald-500'}`}
+                          className={`w-3.5 h-3.5 ${usesProductionPhone(person) ? 'text-warn' : 'text-ok'}`}
                         />
                       </a>
                     )}
                     {person.email && (
-                      <a href={`mailto:${person.email}`} onClick={(e) => e.stopPropagation()} title={person.email} className={`p-1.5 rounded-md ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
-                        <Mail className="w-3.5 h-3.5 text-sky-500" />
+                      <a href={`mailto:${person.email}`} onClick={(e) => e.stopPropagation()} title={person.email} className={`p-1.5 rounded-md hover:bg-surface-hover`}>
+                        <Mail className="w-3.5 h-3.5 text-accent-ink" />
                       </a>
                     )}
                   </span>
@@ -639,9 +637,9 @@ export const ContactsPanel: React.FC = () => {
       )}
 
       {breakdown.characters.length > 0 && (
-        <section className={`rounded-xl border p-3 space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-950/40'}`}>
+        <section className={`rounded-xl border p-3 space-y-2 border-line bg-surface-sunken`}>
           <h3 className="text-xs font-bold flex items-center gap-2">
-            <UserRound className="w-3.5 h-3.5 text-emerald-500" /> Cast assignments &amp; production numbers
+            <UserRound className="w-3.5 h-3.5 text-ok" /> Cast assignments &amp; production numbers
           </h3>
           <p className={`text-[10px] ${mutedCls}`}>
             Choose a performer for each character. A cast number is assigned automatically; edit the # field to use your production's numbering. Choosing an occupied number swaps the two roles safely.
@@ -650,7 +648,7 @@ export const ContactsPanel: React.FC = () => {
             <p className={`text-[11px] ${mutedCls}`}>Any person in the directory can be assigned to a character; cast and talent are listed first. Add people to get started.</p>
           )}
           <div className="grid gap-1.5 sm:grid-cols-2">
-            <div className={`hidden sm:grid sm:col-span-2 grid-cols-[minmax(0,1fr)_56px_160px] gap-2 px-0.5 text-[9px] font-black uppercase tracking-wider ${mutedCls}`}>
+            <div className={`hidden sm:grid sm:col-span-2 grid-cols-[minmax(0,1fr)_56px_160px] gap-2 px-0.5 text-[10px] font-black uppercase tracking-wider ${mutedCls}`}>
               <span>Character</span><span className="text-center">Cast #</span><span>Performer</span>
             </div>
             {breakdown.characters.map((character) => {
