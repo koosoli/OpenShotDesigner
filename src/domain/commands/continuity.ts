@@ -15,7 +15,8 @@
  */
 import type { Project, SceneSetup, Shot } from '../../types';
 import type { Take } from '../continuity';
-import { seedNextTake, taggedShotNumber } from '../continuity';
+import { recordOnSetTake, seedNextTake, taggedShotNumber } from '../continuity';
+import type { OnSetTakeInput } from '../continuity';
 import { createId } from '../ids';
 import { insertedShotNumber, nextShotNumberAfter, takenShotNumbers } from '../shots/numbering';
 import type { CommandResult } from './types';
@@ -250,5 +251,29 @@ export const updateTakesCommand = (project: Project, input: UpdateTakesInput): C
   return {
     project: { ...project, takes: input.update(project.takes ?? []) },
     meta: { type: 'updateTakes', timestamp: commandTimestamp(), description: input.description ?? 'Edit takes' },
+  };
+};
+
+/**
+ * One button press in on-set mode: TAKE + logs a new take; GOOD / NG judges
+ * the shot's latest unjudged take on that day (or logs a judged one). The id
+ * and timestamp come from the caller so the command stays pure — `runCommand`
+ * runs it twice.
+ */
+export const recordOnSetTakeCommand = (project: Project, input: OnSetTakeInput): CommandResult => {
+  const shot = project.setups.flatMap((setup) => setup.shots).find((candidate) => candidate.id === input.shotId);
+  if (!shot) throw new Error(`recordOnSetTake: unknown shot id "${input.shotId}".`);
+  const label = input.judgement === true ? 'GOOD' : input.judgement === false ? 'NG' : 'new take';
+  return {
+    project: {
+      ...project,
+      takes: recordOnSetTake(project.takes ?? [], input),
+      // The legacy shot status follows along; coverage itself comes from GOOD takes.
+      setups: project.setups.map((setup) => ({
+        ...setup,
+        shots: setup.shots.map((candidate) => (candidate.id === input.shotId ? { ...candidate, status: 'taken' as const } : candidate)),
+      })),
+    },
+    meta: { type: 'recordOnSetTake', entityId: input.shotId, timestamp: commandTimestamp(), description: `Shot ${shot.shotNumber}: ${label}` },
   };
 };

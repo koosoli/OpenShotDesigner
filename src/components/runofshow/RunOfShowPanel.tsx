@@ -11,6 +11,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
+import { setRunOfShowCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import {
@@ -64,7 +65,7 @@ const formatDuration = (seconds: number): string => {
 };
 
 export const RunOfShowPanel: React.FC = () => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
 
@@ -106,7 +107,7 @@ export const RunOfShowPanel: React.FC = () => {
   // --- Mutations ---
 
   const setCues = (next: RunOfShowCue[]) => {
-    updateProjectMeta({ runOfShowCues: next });
+    runCommand(setRunOfShowCommand, { cues: next });
   };
 
   const addCue = () => {
@@ -142,11 +143,12 @@ export const RunOfShowPanel: React.FC = () => {
       { runOfShowCues: cues, coverageMatrix: project.coverageMatrix },
       cueId,
     );
-    updateProjectMeta({
+    runCommand(setRunOfShowCommand, {
       // The filtered project array is in storage order, not running order, so
       // it has to be sorted before the gap the deleted cue left is closed up.
-      runOfShowCues: sortAndRenumberCues(next.runOfShowCues as RunOfShowCue[]),
+      cues: sortAndRenumberCues(next.runOfShowCues as RunOfShowCue[]),
       ...(next.coverageMatrix ? { coverageMatrix: next.coverageMatrix } : {}),
+      description: 'Delete cue',
     });
     setExpandedCueIds((prev) => {
       if (!prev.has(cueId)) return prev;
@@ -361,7 +363,7 @@ export const RunOfShowPanel: React.FC = () => {
               title={expanded ? 'Hide department notes' : 'Show department notes'}
               aria-label={`${expanded ? 'Hide' : 'Show'} department notes for cue ${index + 1}`}
               aria-expanded={expanded}
-              className={`${iconBtnClass} ${expanded ? (isLight ? 'text-sky-600' : 'text-sky-400') : ''}`}
+              className={`${iconBtnClass} ${expanded ? ('text-sky-600 dark:text-sky-400') : ''}`}
             >
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>

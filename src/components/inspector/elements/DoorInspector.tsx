@@ -57,7 +57,7 @@ export const DoorInspector: React.FC<DoorInspectorProps> = ({ door, isLight }) =
                 className={`py-1.5 text-xs font-mono rounded border ${
                   (door.swingAngle || 90) === deg
                     ? 'bg-amber-600 text-white border-amber-500 font-bold'
-                    : isLight ? 'bg-slate-50 text-slate-700 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'
+                    : 'bg-surface-sunken text-slate-700 dark:text-slate-400 border-line-strong'
                 }`}
               >
                 {deg}°

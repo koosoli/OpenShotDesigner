@@ -206,7 +206,7 @@ export const CableInspector: React.FC<CableInspectorProps> = ({ cable, isLight }
         {/* Per-cable label visibility (on top of the global label toggle) */}
         <div
           className={`flex items-center justify-between rounded-lg px-2.5 py-2 border ${
-            isLight ? 'bg-white border-slate-300' : 'bg-slate-900/40 border-slate-800'
+            'bg-white dark:bg-slate-900/40 border-line-strong'
           }`}
         >
           <span className="text-[11px] opacity-70">Show label on plan</span>
@@ -217,7 +217,7 @@ export const CableInspector: React.FC<CableInspectorProps> = ({ cable, isLight }
             aria-checked={cable.showLabel !== false}
             onClick={() => updateElement(cable.id, { showLabel: cable.showLabel === false })}
             className={`w-9 h-5 rounded-full transition-colors relative ${
-              cable.showLabel !== false ? 'bg-teal-500' : isLight ? 'bg-slate-300' : 'bg-slate-700'
+              cable.showLabel !== false ? 'bg-teal-500' : 'bg-slate-300 dark:bg-slate-700'
             }`}
           >
             <span

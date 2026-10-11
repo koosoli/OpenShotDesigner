@@ -80,3 +80,5 @@ export { layoutPages, lockPages, pageLabels } from './pageLock';
 export type { PageLabels, PageLine, PageLock } from './pageLock';
 export { serializeToFdx } from './fdxExport';
 export type { FdxLine } from './fdxExport';
+export { fdxTagLineIds, parseFdxTags } from './fdxTags';
+export type { FdxTaggedElement } from './fdxTags';

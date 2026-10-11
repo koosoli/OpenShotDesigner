@@ -94,7 +94,7 @@ export const PanelIntro: React.FC<PanelIntroProps> = ({ moduleId, isLight }) => 
         title="Got it — hide this"
         aria-label="Hide the explanation for this panel"
         className={`p-1 rounded shrink-0 transition-colors ${
-          isLight ? 'hover:bg-sky-200/60' : 'hover:bg-sky-900/60'
+          'hover:bg-sky-200/60 dark:hover:bg-sky-900/60'
         }`}
       >
         <X className="w-3.5 h-3.5" />

@@ -321,7 +321,7 @@ export const ActorInspector: React.FC<ActorInspectorProps> = ({ actor, isLight }
                     e.stopPropagation();
                   }}
                   className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
-                    isLight ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' : 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border-slate-700'
+                    'bg-emerald-50 dark:bg-slate-800 text-ok border-emerald-300 dark:border-slate-700 hover:bg-emerald-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   + Add Actor Waypoint (Beat {nextBeat})

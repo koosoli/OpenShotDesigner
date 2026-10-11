@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { PanelTitle } from '../common/PanelHeader';
 import { Clapperboard, Plus, Trash2, Users } from 'lucide-react';
+import { setCoverageMatrixCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   addCustomCoverageRow,
@@ -21,7 +22,7 @@ import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
  * without a screenplay or cue sheet (plan rule 1).
  */
 export const CoverageMatrixEditor: React.FC = () => {
-  const { project, updateProjectMeta, activeSetup } = useFloorPlan();
+  const { project, runCommand, activeSetup } = useFloorPlan();
   const { theme } = useWorkspaceUI();
   const isLight = theme === 'light';
 
@@ -74,7 +75,7 @@ export const CoverageMatrixEditor: React.FC = () => {
     return [...shotRows, ...cueRows, ...manualRows];
   }, [cues, shots, matrix.rowKeys, matrix.rowLabels]);
 
-  const update = (next: CoverageMatrix) => updateProjectMeta({ coverageMatrix: next });
+  const update = (next: CoverageMatrix) => runCommand(setCoverageMatrixCommand, { matrix: next }, { domain: 'schedule' });
 
   const addCamera = () => {
     const id = newCamera.trim();

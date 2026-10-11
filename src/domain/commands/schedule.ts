@@ -125,3 +125,19 @@ export const removeCalendarEventCommand = (project: Project, input: { eventId: s
     meta: meta('removeCalendarEvent', `Remove “${event?.title ?? 'calendar line'}”`, input.eventId),
   };
 };
+
+/** Append days and strips imported from another tool's schedule (CSV). */
+export const importScheduleCommand = (
+  project: Project,
+  input: { days: ProductionDay[]; blocks: ScheduleBlock[]; source?: string },
+): CommandResult => {
+  if (input.days.length === 0) throw new Error('importSchedule: nothing to import.');
+  return {
+    project: {
+      ...project,
+      productionDays: [...daysOf(project), ...input.days],
+      scheduleBlocks: [...(project.scheduleBlocks ?? []), ...input.blocks],
+    },
+    meta: meta('importSchedule', `Import ${input.days.length} shooting day${input.days.length === 1 ? '' : 's'}${input.source ? ` from ${input.source}` : ''}`),
+  };
+};

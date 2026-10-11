@@ -71,7 +71,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
     'border-line-strong bg-field'
   }`;
   const labelCls = `text-[10px] font-semibold text-ink-muted`;
-  const cardCls = `rounded-xl border p-3 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800/60 bg-slate-900/40'}`;
+  const cardCls = `rounded-xl border p-3 border-slate-200 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900/40`;
 
   const patchActuals = (next: BudgetActual[]) =>
     onPatch({ actuals: next.length > 0 ? next : undefined });
@@ -148,7 +148,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
       </div>
 
       {exactActualLines.length > 0 && (
-        <div className={`mb-3 rounded-lg border overflow-hidden ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700 bg-slate-950/40'}`}>
+        <div className={`mb-3 rounded-lg border overflow-hidden border-line bg-white dark:bg-slate-950/40`}>
           <div className={`px-3 py-2 border-b ${isLight ? 'border-slate-200 bg-white' : 'border-slate-700'}`}>
             <div className="text-[11px] font-black">Set the exact actual cost</div>
             <p className={`text-[10px] ${labelCls}`}>
@@ -213,7 +213,7 @@ export const ActualsSection: React.FC<ActualsSectionProps> = ({
         </div>
       )}
 
-      <details className={`rounded-lg border p-2 ${isLight ? 'border-slate-200 bg-white/70' : 'border-slate-700 bg-slate-950/30'}`}>
+      <details className={`rounded-lg border p-2 border-line bg-white/70 dark:bg-slate-950/30`}>
         <summary className="cursor-pointer text-[10px] font-black uppercase tracking-wider">
           Additional receipts, unplanned costs &amp; reports
         </summary>

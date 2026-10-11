@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Tag, Trash2 } from 'lucide-react';
+import { removeBreakdownItemCommand, updateBreakdownItemsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import {
@@ -10,7 +11,6 @@ import {
   tagBreakdownItem,
   updateBreakdownItem,
 } from '../../domain/script';
-import { removeBreakdownItemReferences } from '../../domain/integrity';
 import type { BreakdownCategory, BreakdownItem, ScriptScene } from '../../domain/script';
 import type { ScriptLine } from '../../types';
 
@@ -33,9 +33,9 @@ interface BreakdownElementsPanelProps {
 export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
   lines,
   scenes,
-  isLight,
+  isLight: _isLight,
 }) => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const { confirm } = useDialogs();
   const [newCategory, setNewCategory] = useState<BreakdownCategory>('prop');
   const [newName, setNewName] = useState('');
@@ -47,9 +47,7 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
     scenesForBreakdownItem(item, lines, scenes).map((scene) => scene.sceneNumber);
 
   const patch = (itemId: string, updates: Partial<Omit<BreakdownItem, 'id'>>) =>
-    updateProjectMeta((prev) => ({
-      breakdownItems: updateBreakdownItem(prev.breakdownItems ?? [], itemId, updates),
-    }));
+    runCommand(updateBreakdownItemsCommand, { update: (current) => updateBreakdownItem(current, itemId, updates), description: 'Edit breakdown element' }, { domain: 'script' });
 
   // Deleting goes through the integrity helper rather than filtering the list,
   // so the scenes that cached this element's id lose it too instead of
@@ -62,21 +60,14 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
       danger: true,
     }).then((confirmed) => {
       if (!confirmed) return;
-      updateProjectMeta((prev) =>
-        removeBreakdownItemReferences(
-          { breakdownItems: prev.breakdownItems ?? [], scriptScenes: prev.scriptScenes },
-          item.id,
-        ),
-      );
+      runCommand(removeBreakdownItemCommand, { itemId: item.id }, { domain: 'script' });
     });
   };
 
   const add = () => {
     const name = newName.trim();
     if (!name) return;
-    updateProjectMeta((prev) => ({
-      breakdownItems: tagBreakdownItem(prev.breakdownItems ?? [], { category: newCategory, name }),
-    }));
+    runCommand(updateBreakdownItemsCommand, { update: (current) => tagBreakdownItem(current, { category: newCategory, name }), description: `Add ${name} to the breakdown` }, { domain: 'script' });
     setNewName('');
   };
 
@@ -190,7 +181,7 @@ export const BreakdownElementsPanel: React.FC<BreakdownElementsPanelProps> = ({
                     <span
                       className={`text-[10px] font-mono px-1.5 py-1 rounded ${
                         sceneNumbers.length > 0
-                          ? isLight ? 'bg-violet-500/10 text-violet-600' : 'bg-violet-500/15 text-violet-300'
+                          ? 'bg-violet-500/10 dark:bg-violet-500/15 text-violet-600 dark:text-violet-300'
                           : muted
                       }`}
                       title={

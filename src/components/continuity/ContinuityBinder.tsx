@@ -1,5 +1,6 @@
 import React from 'react';
 import { Camera, Plus, Trash2, X } from 'lucide-react';
+import { updateContinuityNotesCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   CONTINUITY_DEPARTMENTS,
@@ -40,7 +41,7 @@ const DEPARTMENT_TINT: Record<ContinuityDepartment, string> = {
 };
 
 export const ContinuityBinder: React.FC<ContinuityBinderProps> = ({ isLight }) => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const fieldId = React.useId();
 
   const notes = React.useMemo(() => project.continuityNotes ?? [], [project.continuityNotes]);
@@ -75,7 +76,7 @@ export const ContinuityBinder: React.FC<ContinuityBinderProps> = ({ isLight }) =
    * the first; that exact bug has shipped in this codebase before.
    */
   const mutate = (fn: (previous: ContinuityNote[]) => ContinuityNote[]) =>
-    updateProjectMeta((previous) => ({ continuityNotes: fn(previous.continuityNotes ?? []) }));
+    runCommand(updateContinuityNotesCommand, { update: fn }, { domain: 'shots' });
 
   const updateNote = (id: string, patch: Partial<ContinuityNote>) =>
     mutate((previous) =>

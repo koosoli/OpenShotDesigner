@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   WebdavError,
   downloadWebdavPackage,
+  isWebdavConflict,
   isWebdavUnauthorized,
   listWebdavPackages,
   uploadWebdavPackage,
@@ -135,5 +136,37 @@ describe('downloadWebdavPackage', () => {
     );
     expect(failure).toBeInstanceOf(WebdavError);
     expect((failure as WebdavError).status).toBe(404);
+  });
+});
+
+describe('save-back preconditions', () => {
+  it('sends If-Match with the version we opened and returns the new ETag', async () => {
+    const { impl, seen } = scriptedFetch([
+      new Response(PROPFIND_XML, { status: 207 }),
+      new Response(null, { status: 204, headers: { ETag: '"v2"' } }),
+    ]);
+    const saved = await uploadWebdavPackage(CONFIG, 'my-film.osd', new Blob(['x']), impl, { ifMatch: '"v1"' });
+    expect(seen[1].headers['If-Match']).toBe('"v1"');
+    expect(saved).toEqual({ etag: '"v2"' });
+  });
+
+  it('sends If-None-Match for a first save and reports 412 as a conflict', async () => {
+    const { impl, seen } = scriptedFetch([
+      new Response(PROPFIND_XML, { status: 207 }),
+      new Response('precondition failed', { status: 412 }),
+    ]);
+    const failure = await uploadWebdavPackage(CONFIG, 'my-film.osd', new Blob(['x']), impl, { ifNoneMatch: true }).then(() => null, (error: unknown) => error);
+    expect(seen[1].headers['If-None-Match']).toBe('*');
+    expect(isWebdavConflict(failure)).toBe(true);
+  });
+
+  it('reads ETag and last-modified from the listing', async () => {
+    const xml = PROPFIND_XML.replace(
+      '<d:getcontentlength>12345</d:getcontentlength>',
+      '<d:getcontentlength>12345</d:getcontentlength><d:getetag>"abc"</d:getetag><d:getlastmodified>Sat, 10 Oct 2026 10:00:00 GMT</d:getlastmodified>',
+    );
+    const { impl } = scriptedFetch([new Response(xml, { status: 207 }), new Response(xml, { status: 207 })]);
+    const [file] = await listWebdavPackages(CONFIG, impl);
+    expect(file).toEqual({ name: 'my-film.osd', href: 'my-film.osd', size: 12345, etag: '"abc"', modified: 'Sat, 10 Oct 2026 10:00:00 GMT' });
   });
 });

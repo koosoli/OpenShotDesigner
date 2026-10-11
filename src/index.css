@@ -375,3 +375,11 @@ html:not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     width: 100% !important;
   }
 }
+
+/* Horizontal strips that may scroll on narrow panels, without a scrollbar. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

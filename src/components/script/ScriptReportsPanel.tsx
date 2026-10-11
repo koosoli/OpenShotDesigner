@@ -11,7 +11,10 @@ import { parseSceneHeading } from '../../domain/script/logic';
 import { BreakdownSheetsReport } from './BreakdownSheetsReport';
 import { BreakdownIcon, DoodIcon } from '../icons/ProductionIcons';
 import { PdfExportButton } from '../common/PdfExportButton';
-import { setCharacterColorCommand } from '../../domain/commands';
+import {
+  addSetupsCommand,
+  setCharacterColorCommand,
+} from '../../domain/commands';
 import { SceneListReport } from './SceneListReport';
 import { PropsReport } from './PropsReport';
 import { SCOUT_STATUS } from '../locations/LocationScoutSection';
@@ -33,7 +36,7 @@ const setupTimeOfDay = (scene: ScriptScene): SceneSetup['timeOfDay'] => {
 };
 
 export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, isLight }) => {
-  const { project, updateProjectMeta, runCommand, setActiveSetupId, activeSetup, allShots, avScriptRows } = useFloorPlan();
+  const { project, runCommand, setActiveSetupId, activeSetup, allShots, avScriptRows } = useFloorPlan();
   const [exporting, setExporting] = useState(false);
 
   /** Download just the report on screen (scene list, characters, locations or elements). */
@@ -114,7 +117,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
       return;
     }
     const setup = buildSetup(scene, locationId);
-    updateProjectMeta((prev) => ({ setups: [...prev.setups, setup], activeSetupId: setup.id }));
+    runCommand(addSetupsCommand, { setups: [setup] });
     setActiveRightTab('shots');
   };
 
@@ -123,10 +126,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
       .filter((scene) => !matchingSetup(scene))
       .map((scene) => buildSetup(scene, locationId));
     if (additions.length === 0) return;
-    updateProjectMeta((prev) => ({
-      setups: [...prev.setups, ...additions],
-      activeSetupId: additions[0].id,
-    }));
+    runCommand(addSetupsCommand, { setups: additions });
     setActiveRightTab('shots');
   };
 

@@ -34,8 +34,8 @@ export const readShotListBoardsShown = (): 'on' | 'off' | 'auto' =>
   readUiPref<'on' | 'off' | 'auto'>('shotlist_board_show', ['on', 'off', 'auto'], 'auto');
 
 /** Schedule module views, remembered per browser; other modules can ask for one. */
-export type ScheduleView = 'stripboard' | 'oneliner' | 'dood' | 'calendar' | 'callsheets' | 'coverage' | 'timereport';
-export const SCHEDULE_VIEWS: readonly ScheduleView[] = ['stripboard', 'oneliner', 'dood', 'calendar', 'callsheets', 'coverage', 'timereport'];
+export type ScheduleView = 'stripboard' | 'oneliner' | 'dood' | 'calendar' | 'callsheets' | 'coverage' | 'timereport' | 'dpr';
+export const SCHEDULE_VIEWS: readonly ScheduleView[] = ['stripboard', 'oneliner', 'dood', 'calendar', 'callsheets', 'coverage', 'timereport', 'dpr'];
 export const readScheduleView = (): ScheduleView => readUiPref<ScheduleView>('schedule_view', SCHEDULE_VIEWS, 'stripboard');
 /** Open the Schedule module on `view` next time it mounts (e.g. a "Day out of days" link). */
 export const requestScheduleView = (view: ScheduleView): void => writeUiPref('schedule_view', view);

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { updateTrussElementsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   elementLength,
@@ -118,7 +119,7 @@ const EMPTY_ELEMENTS: FloorPlanElement[] = [];
 const ATTACHABLE_DEVICE_TYPES: ReadonlyArray<FloorPlanElement['type']> = ['camera', 'light', 'actor', 'prop'];
 
 export const FloorPlanCanvas: React.FC = () => {
-  const { activeSetup, project, selectedElementIds, selectedShotId, highlightedElementId, activeTool, activeShapeType, activeCableType, playback, selectElement, selectElements, clearSelection, addElement, updateElement, updateShot, updateSetupMeta, updateMultipleElements, deleteSelectedElements, updateBackgroundImage, removeBackgroundImage, updateProjectMeta, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, calibratingBackgroundId, cancelBackgroundCalibration, undo, redo, setTool, setCanvasOffset, setCanvasTransform, zoomIn, zoomOut, resetZoom, openViewfinder, displaySettings, updateDisplaySettings, setGridSettings, duplicateSelected, copySelectedElements, pasteElements, commitCurrentState, setCanvasViewport } = useFloorPlan();
+  const { activeSetup, project, selectedElementIds, selectedShotId, highlightedElementId, activeTool, activeShapeType, activeCableType, playback, selectElement, selectElements, clearSelection, addElement, updateElement, updateShot, updateSetupMeta, updateMultipleElements, deleteSelectedElements, updateBackgroundImage, removeBackgroundImage, runCommand, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, calibratingBackgroundId, cancelBackgroundCalibration, undo, redo, setTool, setCanvasOffset, setCanvasTransform, zoomIn, zoomOut, resetZoom, openViewfinder, displaySettings, updateDisplaySettings, setGridSettings, duplicateSelected, copySelectedElements, pasteElements, commitCurrentState, setCanvasViewport } = useFloorPlan();
   const { theme, setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -751,30 +752,24 @@ export const FloorPlanCanvas: React.FC = () => {
    */
   const moveTrussRun = useCallback(
     (id: string, position: { x: number; y: number }, record: boolean) => {
-      updateProjectMeta(
-        (prev) => ({
-          trussElements: (prev.trussElements ?? []).map((run) =>
-            run.id === id ? { ...run, ...position } : run,
-          ),
-        }),
-        record,
+      runCommand(
+        updateTrussElementsCommand,
+        { update: (runs) => runs.map((run) => (run.id === id ? { ...run, ...position } : run)), description: 'Move truss' },
+        { domain: 'project', record },
       );
     },
-    [updateProjectMeta],
+    [runCommand],
   );
 
   const rotateTrussRun = useCallback(
     (id: string, rotation: number, record: boolean) => {
-      updateProjectMeta(
-        (prev) => ({
-          trussElements: (prev.trussElements ?? []).map((run) =>
-            run.id === id ? { ...run, rotation } : run,
-          ),
-        }),
-        record,
+      runCommand(
+        updateTrussElementsCommand,
+        { update: (runs) => runs.map((run) => (run.id === id ? { ...run, rotation } : run)), description: 'Rotate truss' },
+        { domain: 'project', record },
       );
     },
-    [updateProjectMeta],
+    [runCommand],
   );
 
   const [selectedTrussId, setSelectedTrussId] = useState<string | null>(null);

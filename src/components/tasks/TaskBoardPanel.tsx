@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { updateTaskBoardsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import { createId } from '../../domain/ids';
@@ -67,7 +68,7 @@ interface TaskEditorProps {
   isLight: boolean;
 }
 
-const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, onChecklistAdd, onChecklistToggle, onChecklistRemove, onMove, onDelete, onClose, isLight }) => {
+const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, onChecklistAdd, onChecklistToggle, onChecklistRemove, onMove, onDelete, onClose, isLight: _isLight }) => {
   const [newItem, setNewItem] = useState('');
   const inputCls = `min-h-[32px] w-full rounded-md border px-2 py-1 text-xs outline-none ${
     'border-line-strong bg-field text-ink focus:border-accent'
@@ -75,7 +76,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
   const labelCls = `text-[10px] font-bold uppercase tracking-wider text-ink-muted`;
   const progress = checklistProgress(task);
   return (
-    <div className={`rounded-xl border p-3 space-y-2.5 ${isLight ? 'border-sky-200 bg-sky-50/60' : 'border-sky-900/60 bg-sky-950/20'}`}>
+    <div className={`rounded-xl border p-3 space-y-2.5 border-sky-200 dark:border-sky-900/60 bg-accent-soft`}>
       <div className="flex items-start gap-2">
         <input value={task.title} onChange={(e) => onChange({ title: e.target.value })} className={`${inputCls} font-semibold text-sm`} placeholder="Task title" />
         <button onClick={onClose} className={`p-1.5 rounded-md hover:bg-surface-muted`} title="Close" aria-label="Close"><X className="w-4 h-4" /></button>
@@ -204,7 +205,7 @@ const TaskEditor: React.FC<TaskEditorProps> = ({ task, board, people, onChange, 
  * mutations go through the pure `domain/tasks` logic.
  */
 export const TaskBoardPanel: React.FC = () => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const { theme } = useWorkspaceUI();
   const { confirm } = useDialogs();
   const isLight = theme === 'light';
@@ -245,21 +246,20 @@ export const TaskBoardPanel: React.FC = () => {
     );
   };
 
-  const setTasks = (tasks: Task[]) => updateProjectMeta({ tasks });
+  const setTasks = (tasks: Task[]) => runCommand(updateTaskBoardsCommand, { tasks: () => tasks, description: 'Edit tasks' });
 
   const createBoard = () => {
     const next = createTaskBoard(createId('board'), boards.length === 0 ? 'Production tasks' : `Board ${boards.length + 1}`);
-    updateProjectMeta((prev) => ({ taskBoards: [...(prev.taskBoards ?? []), next] }));
+    runCommand(updateTaskBoardsCommand, { boards: (current) => [...current, next], description: `Add task board ${next.title}` });
     setActiveBoardId(next.id);
   };
 
   const renameBoard = (title: string) => {
     if (!board) return;
-    updateProjectMeta((prev) => ({
-      taskBoards: (prev.taskBoards ?? []).map((candidate) =>
-        candidate.id === board.id ? { ...candidate, title } : candidate,
-      ),
-    }));
+    runCommand(updateTaskBoardsCommand, {
+      boards: (current) => current.map((candidate) => (candidate.id === board.id ? { ...candidate, title } : candidate)),
+      description: 'Rename task board',
+    });
   };
 
   const deleteBoard = () => {
@@ -273,10 +273,11 @@ export const TaskBoardPanel: React.FC = () => {
       danger: true,
     }).then((confirmed) => {
       if (!confirmed) return;
-      updateProjectMeta((prev) => ({
-        taskBoards: (prev.taskBoards ?? []).filter((candidate) => candidate.id !== target.id),
-        tasks: (prev.tasks ?? []).filter((task) => task.boardId !== target.id),
-      }));
+      runCommand(updateTaskBoardsCommand, {
+        boards: (current) => current.filter((candidate) => candidate.id !== target.id),
+        tasks: (current) => current.filter((task) => task.boardId !== target.id),
+        description: `Delete task board ${target.title}`,
+      });
       setActiveBoardId(null);
     });
   };
@@ -305,10 +306,10 @@ export const TaskBoardPanel: React.FC = () => {
 
   const mutedCls = 'text-ink-muted';
   const inputCls = `min-h-[34px] rounded-md border px-2 py-1 text-xs outline-none ${
-    isLight ? 'border-slate-200 bg-white text-slate-800 focus:border-sky-400' : 'border-slate-700 bg-slate-950/60 text-slate-200 focus:border-sky-500'
+    'border-line bg-white dark:bg-slate-950/60 text-ink-soft focus:border-sky-400 dark:focus:border-sky-500'
   }`;
   const btnCls = `min-h-[34px] flex items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors ${
-    isLight ? 'bg-slate-200/80 text-slate-700 hover:bg-slate-300/80' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+    'bg-slate-200/80 dark:bg-slate-800 text-ink-soft hover:bg-slate-300/80 dark:hover:bg-slate-700'
   }`;
 
   if (!board) {

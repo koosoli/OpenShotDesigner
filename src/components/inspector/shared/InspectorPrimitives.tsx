@@ -33,12 +33,12 @@ export const PillToggle: React.FC<{
   onClick: () => void;
   label: string;
   isLight: boolean;
-}> = ({ on, onClick, label, isLight }) => (
+}> = ({ on, onClick, label, isLight: _isLight }) => (
   <button
     onClick={onClick}
     className={`py-1.5 text-[10px] font-semibold rounded-lg border flex items-center justify-center gap-1 transition-colors ${
       on
-        ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
+        ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-800'
         : 'bg-surface-muted text-slate-500 border-line-strong'
     }`}
   >
@@ -60,7 +60,7 @@ export const StoryboardField: React.FC<{
   onFitChange?: (fit: 'cover' | 'contain') => void;
   onPositionChange?: (pos: { x: number; y: number }) => void;
   isLight: boolean;
-}> = ({ label, value, onChange, aspectRatio, fit, position, onFitChange, onPositionChange, isLight }) => {
+}> = ({ label, value, onChange, aspectRatio, fit, position, onFitChange, onPositionChange, isLight: _isLight }) => {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkDraft, setLinkDraft] = useState('');
@@ -189,7 +189,7 @@ export const StoryboardField: React.FC<{
               <button
                 onClick={() => inputRef.current?.click()}
                 className={`flex-1 py-1.5 text-[10px] font-semibold border-t ${
-                  isLight ? 'text-sky-700 border-slate-200 hover:bg-sky-50' : 'text-sky-300 border-slate-700 hover:bg-slate-800'
+                  'text-accent-ink border-line hover:bg-sky-50 dark:hover:bg-slate-800'
                 }`}
               >
                 Replace
@@ -200,7 +200,7 @@ export const StoryboardField: React.FC<{
                 className={`flex-1 py-1.5 text-[10px] font-semibold border-t border-l ${
                   showLinkInput
                     ? 'text-violet-600 dark:text-violet-300'
-                    : isLight ? 'text-violet-700 border-slate-200 hover:bg-violet-50' : 'text-violet-300 border-slate-700 hover:bg-slate-800'
+                    : 'text-violet-700 dark:text-violet-300 border-line hover:bg-violet-50 dark:hover:bg-slate-800'
                 }`}
               >
                 {showLinkInput ? 'Cancel' : 'Link URL'}
@@ -251,7 +251,7 @@ export const StoryboardField: React.FC<{
             onClick={() => setShowLinkInput((v) => !v)}
             aria-expanded={showLinkInput}
             className={`w-full py-2 rounded-lg border border-dashed text-[10px] font-semibold transition-colors ${
-              isLight ? 'text-violet-600 border-violet-300 hover:bg-violet-50' : 'text-violet-300 border-violet-800 hover:bg-slate-800'
+              'text-violet-600 dark:text-violet-300 border-violet-300 dark:border-violet-800 hover:bg-violet-50 dark:hover:bg-slate-800'
             }`}
           >
             {showLinkInput ? 'Cancel linking' : 'or Link Image by URL…'}
@@ -285,6 +285,25 @@ export const StoryboardField: React.FC<{
     </div>
   );
 };
+/**
+ * Section titles are written in capitals across the inspector ("SUN & TIME
+ * OF DAY"); they read calmer in sentence case. Acronyms and units stay as
+ * written ("DMX", "HUD", "(m)").
+ */
+const KEEP_UPPER = new Set(['DMX', 'HUD', 'FOV', 'AV', 'A/V', 'LED', 'RGB', 'CCT', 'DOP', 'DP', 'GDTF', 'MVR', 'ID', 'PDF', 'CSV', 'OSM', 'II', 'III']);
+export const sentenceCase = (title: string): string => {
+  if (title !== title.toUpperCase()) return title;
+  return title
+    .toLowerCase()
+    .split(/(\s+)/)
+    .map((word, index) => {
+      const upper = word.toUpperCase();
+      if (KEEP_UPPER.has(upper.replace(/[^A-Z/]/g, ''))) return upper;
+      return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+    })
+    .join('');
+};
+
 export const RubricSection: React.FC<{
   title: string;
   icon?: React.ReactNode;
@@ -313,7 +332,7 @@ export const RubricSection: React.FC<{
   badge,
   defaultOpen = true,
   persistKey,
-  isLight,
+  isLight: _isLight,
   children,
   headerRight,
   className = '',
@@ -325,9 +344,7 @@ export const RubricSection: React.FC<{
 
   return (
     <div
-      className={`rounded-xl border transition-all overflow-hidden ${
-        isLight ? 'bg-slate-50/70 border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.04)]' : 'bg-slate-950/40 border-slate-800'
-      } ${className}`}
+      className={`rounded-xl border transition-all overflow-hidden bg-surface border-line ${className}`}
     >
       {/* The badge and headerRight slots are frequently buttons themselves
           ("Add waypoint", "Add beat"), so they must sit OUTSIDE the collapse
@@ -344,12 +361,12 @@ export const RubricSection: React.FC<{
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}
           className={`flex-1 min-w-0 flex items-center gap-2 text-left rounded -mx-1 px-1 py-0.5 transition-colors ${
-            isLight ? 'hover:bg-slate-100/70' : 'hover:bg-slate-800/50'
+            'hover:bg-slate-100/70 dark:hover:bg-slate-800/50'
           }`}
         >
-          {icon && <span className="text-accent-ink flex-shrink-0">{icon}</span>}
-          <span className="text-[11px] font-bold tracking-wider uppercase truncate opacity-90">
-            {title}
+          {icon && <span className="text-ink-muted flex-shrink-0">{icon}</span>}
+          <span className="text-xs font-semibold truncate">
+            {sentenceCase(title)}
           </span>
           <span className="opacity-50 flex-shrink-0">
             {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -365,7 +382,7 @@ export const RubricSection: React.FC<{
       {isOpen && (
         <div
           className={`px-3 pb-3 pt-2.5 border-t space-y-3 ${
-            isLight ? 'border-slate-200/80 bg-white' : 'border-slate-800/80 bg-slate-900/40'
+            'border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/40'
           }`}
         >
           {children}

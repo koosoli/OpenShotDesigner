@@ -10,7 +10,7 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
-import { setContinuityDayFilterCommand } from '../../domain/commands';
+import { recordOnSetTakeCommand, setContinuityDayFilterCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { Shot, ShotStatus } from '../../types';
 import {
@@ -22,7 +22,6 @@ import {
 import {
   dayChecklist,
   isGoodCoverageTake,
-  recordOnSetTake,
   takesCountFor,
 } from '../../domain/continuity';
 import { createId } from '../../domain/ids';
@@ -81,7 +80,6 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
   const {
     project,
     activeSetup,
-    updateProjectMeta,
     runCommand,
     updateShot,
     selectShot,
@@ -219,9 +217,9 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
     if (!currentShot) return;
     const shotId = currentShot.id;
     const note = takeNote.trim() || undefined;
-    updateProjectMeta((prev) => {
-      const takes = prev.takes ?? [];
-      const nextTakes = recordOnSetTake(takes, {
+    runCommand(
+      recordOnSetTakeCommand,
+      {
         id: createId('take'),
         shotId,
         productionDayId: selectedDay?.id,
@@ -229,20 +227,9 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
         judgement,
         comments: note,
         mos: nextTakeMos,
-      });
-
-      return {
-        takes: nextTakes,
-        // Keep the legacy workflow/status compatible while coverage itself is
-        // derived exclusively from GOOD takes.
-        setups: prev.setups.map((setup) => ({
-          ...setup,
-          shots: setup.shots.map((shot) =>
-            shot.id === shotId ? { ...shot, status: 'taken' as const } : shot,
-          ),
-        })),
-      };
-    });
+      },
+      { domain: 'shots' },
+    );
     setTakeNote('');
     setNextTakeMos(false);
 
@@ -464,7 +451,7 @@ export const OnSetModeOverlay: React.FC<OnSetModeOverlayProps> = ({ onClose }) =
               </div>
               <span
                 className={`font-mono text-xs font-bold px-2 py-1 rounded-lg border flex-shrink-0 ${
-                  isLight ? 'bg-slate-100 border-slate-300 text-sky-700' : 'bg-slate-950 border-sky-500/40 text-sky-400'
+                  'bg-surface-sunken border-slate-300 dark:border-sky-500/40 text-accent-ink'
                 }`}
                 title="Camera"
               >

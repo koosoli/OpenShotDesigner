@@ -10,6 +10,7 @@ import {
   exhibitGTotals,
   exhibitGWarnings,
   formatMinutes,
+  resolveDayLocations,
   resolveExhibitGLimits,
   seedExhibitGEntries,
 } from '../../domain/reports';
@@ -62,7 +63,7 @@ const isoDayNumber = (date?: string): number | undefined =>
  * shooting day. Rows are seeded from the day-out-of-days and the call sheet's
  * individual calls; everything after that is what the 2nd AD records on set.
  */
-export const PerformerTimeReportView: React.FC<PerformerTimeReportViewProps> = ({ days, isLight }) => {
+export const PerformerTimeReportView: React.FC<PerformerTimeReportViewProps> = ({ days, isLight: _isLight }) => {
   const { project, runCommand } = useFloorPlan();
   const [dayId, setDayId] = useState<string | null>(days[0]?.id ?? null);
   const day = days.find((candidate) => candidate.id === dayId) ?? days[0];
@@ -133,47 +134,26 @@ export const PerformerTimeReportView: React.FC<PerformerTimeReportViewProps> = (
 
   const exportPdf = async (mode: 'download' | 'print' = 'download') => {
     if (!day || !report) return;
-    const [{ createTableReportPdf }, { buildPdfFilename }] = await Promise.all([
-      import('../../utils/pdf/tableReportPdf'),
+    const [{ createExhibitGFormPdf }, { buildPdfFilename }] = await Promise.all([
+      import('../../utils/pdf/exhibitGFormPdf'),
       import('../../utils/pdf/filenames'),
     ]);
-    const short: Record<string, string> = {
-      reportMakeup: 'Rpt MU', reportOnSet: 'Rpt set', meal1Out: 'M1 out', meal1In: 'M1 in', meal2Out: 'M2 out', meal2In: 'M2 in',
-      dismissOnSet: 'Dis set', dismissMakeup: 'Dis MU', travelOutLeave: 'Tr lv', travelOutArrive: 'Tr arr', travelBackLeave: 'Ret lv', travelBackArrive: 'Ret arr',
-    };
-    const bytes = await createTableReportPdf({
+    const dayIndex = days.findIndex((candidate) => candidate.id === day.id);
+    const dayLocation = resolveDayLocations(day.scheduleBlockIds, project.scheduleBlocks ?? [], {
+      locations: project.locations,
+      scriptScenes: project.scriptScenes,
+      setups: project.setups,
+    }).map((location) => location.name).filter(Boolean).join(' / ');
+    const bytes = await createExhibitGFormPdf({
       productionTitle: project.title || 'Production',
-      documentTitle: 'Performers Production Time Report',
-      subtitle: [day.name, day.date, report.preparedBy ? `Prepared by ${report.preparedBy}` : undefined].filter(Boolean).join(' · '),
-      fontSize: 7,
-      columns: [
-        { header: '#', widthFrac: 3, align: 'center' },
-        { header: 'Performer', widthFrac: 13 },
-        { header: 'Status', widthFrac: 4, align: 'center' },
-        ...TIME_COLUMNS.map((column) => ({ header: short[column.key] ?? column.label, widthFrac: 5, align: 'center' as const })),
-        { header: 'Worked', widthFrac: 5, align: 'center' },
-        { header: 'MP', widthFrac: 3, align: 'center' },
-        { header: 'Outfits', widthFrac: 4, align: 'center' },
-        { header: 'Adj.', widthFrac: 6 },
-        { header: 'Initials', widthFrac: 5, align: 'center' },
-      ],
-      sections: [{
-        rows: report.entries.map((entry) => {
-          const totals = exhibitGTotals(entry, report.limits);
-          return [
-            entry.castNumber === undefined ? '' : String(entry.castNumber),
-            [entry.name, entry.role ? `(${entry.role})` : '', entry.minor ? 'minor' : '', entry.stunt ? 'stunt' : ''].filter(Boolean).join(' '),
-            entry.status ?? '',
-            ...TIME_COLUMNS.map((column) => (entry[column.key] as string | undefined) ?? ''),
-            formatMinutes(totals.workedMinutes),
-            totals.mealPenalties ? String(totals.mealPenalties) : '',
-            entry.outfits === undefined ? '' : String(entry.outfits),
-            entry.adjustment ?? '',
-            entry.initials ?? '',
-          ];
-        }),
-      }],
-      footnote: `${report.notes ? `${report.notes}. ` : ''}MP = meal penalty periods (computed with simplified day-performer rules). Production representative signature: ______________________   Date: __________. Working copy for payroll; submit the signed union form where your agreement requires it.`,
+      ...(project.productionCompany ? { productionCompany: project.productionCompany } : {}),
+      dayName: day.name,
+      ...(day.date ? { date: day.date } : {}),
+      dayOfTotal: `Day ${dayIndex + 1} of ${days.length}`,
+      ...(day.crewCall ? { crewCall: day.crewCall } : {}),
+      ...(dayLocation ? { location: dayLocation } : {}),
+      report,
+      ...(previous ? { previous } : {}),
     });
     if (mode === 'print') {
       printPdfBytes(bytes);
@@ -339,7 +319,7 @@ export const PerformerTimeReportView: React.FC<PerformerTimeReportViewProps> = (
       )}
 
       {warnings.length > 0 && (
-        <ul className={`rounded-xl border p-3 space-y-1 text-[11px] ${isLight ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-amber-800/60 bg-amber-950/30 text-amber-200'}`}>
+        <ul className={`rounded-xl border p-3 space-y-1 text-[11px] border-amber-200 dark:border-amber-800/60 bg-warn-soft text-warn`}>
           {warnings.map((warning, index) => (
             <li key={`${warning.entryId}-${index}`} className="flex items-start gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" /> {warning.message}

@@ -95,7 +95,7 @@ const PersonForm: React.FC<PersonFormProps> = ({ draft, onChange, onSave, onCanc
         e.preventDefault();
         onSave();
       }}
-      className={`rounded-xl border p-3 space-y-2 ${isLight ? 'border-sky-200 bg-sky-50/60' : 'border-sky-900/60 bg-sky-950/20'}`}
+      className={`rounded-xl border p-3 space-y-2 border-sky-200 dark:border-sky-900/60 bg-accent-soft`}
     >
       <div className="grid grid-cols-2 gap-2">
         <label className="block space-y-1 col-span-2 sm:col-span-1">
@@ -421,10 +421,10 @@ export const ContactsPanel: React.FC = () => {
 
   const mutedCls = 'text-ink-muted';
   const inputCls = `min-h-[34px] rounded-md border px-2 py-1 text-xs outline-none ${
-    isLight ? 'border-slate-200 bg-white text-slate-800 focus:border-sky-400' : 'border-slate-700 bg-slate-950/60 text-slate-200 focus:border-sky-500'
+    'border-line bg-white dark:bg-slate-950/60 text-ink-soft focus:border-sky-400 dark:focus:border-sky-500'
   }`;
   const btnCls = `min-h-[34px] flex items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors ${
-    isLight ? 'bg-slate-200/80 text-slate-700 hover:bg-slate-300/80' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+    'bg-slate-200/80 dark:bg-slate-800 text-ink-soft hover:bg-slate-300/80 dark:hover:bg-slate-700'
   }`;
 
   return (
@@ -489,7 +489,7 @@ export const ContactsPanel: React.FC = () => {
       {/* Key crew: the named heads paperwork refers to by role. Assignments are
           stored as the person's role title (single source of truth), and the
           two legacy project fields the exports read are mirrored on change. */}
-      <section className={`rounded-xl border p-3 space-y-2 ${isLight ? 'border-slate-200 bg-slate-50/70' : 'border-slate-800 bg-slate-950/40'}`}>
+      <section className={`rounded-xl border p-3 space-y-2 border-line bg-slate-50/70 dark:bg-slate-950/40`}>
         <div className="flex items-baseline justify-between gap-2 flex-wrap">
           <h3 className={`text-[10px] font-black uppercase tracking-wider ${mutedCls}`}>Key crew</h3>
           <p className={`text-[10px] ${mutedCls}`}>
@@ -554,7 +554,7 @@ export const ContactsPanel: React.FC = () => {
         <p className={`text-xs ${mutedCls}`}>No contacts match the current filter.</p>
       ) : (
         groups.map((group) => (
-          <details key={group.department} className={`group rounded-xl border px-3 py-2 ${isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-950/40'}`}>
+          <details key={group.department} className={`group rounded-xl border px-3 py-2 border-line bg-white dark:bg-slate-950/40`}>
             <summary className={`cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[10px] font-black uppercase tracking-wider flex items-center gap-2 ${mutedCls}`}>
               {group.department}
               <span className={`font-mono text-[10px] px-1.5 rounded-full bg-surface-muted text-ink-muted`}>{group.people.length}</span>
@@ -584,7 +584,7 @@ export const ContactsPanel: React.FC = () => {
                     setIsNew(false);
                   }}
                   className={`w-full text-left rounded-xl border px-3 py-2 flex items-center gap-3 transition-colors ${
-                    isLight ? 'border-slate-200 bg-white hover:border-sky-300' : 'border-slate-800 bg-slate-950/40 hover:border-sky-700'
+                    'border-line bg-white dark:bg-slate-950/40 hover:border-sky-300 dark:hover:border-sky-700'
                   }`}
                 >
                   <PersonAvatar

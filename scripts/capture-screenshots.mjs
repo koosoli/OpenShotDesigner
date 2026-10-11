@@ -151,7 +151,7 @@ const SHOTS = [
     slug: 'floor-plan',
     title: 'Floor plan & blocking',
     prepare: `(async () => {
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Shot list');
+      const tab = document.getElementById('tab-shots');
       tab && tab.click();
       await new Promise(r => setTimeout(r, 400));
       return 'ok';
@@ -161,7 +161,7 @@ const SHOTS = [
     slug: 'lined-script',
     title: 'Lined script',
     prepare: `(async () => {
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Script');
+      const tab = document.getElementById('tab-script');
       tab && tab.click();
       await new Promise(r => setTimeout(r, 600));
       return 'ok';
@@ -171,7 +171,7 @@ const SHOTS = [
     slug: 'storyboard',
     title: 'Storyboard',
     prepare: `(async () => {
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Storyboard');
+      const tab = document.getElementById('tab-storyboard');
       tab && tab.click();
       await new Promise(r => setTimeout(r, 600));
       return 'ok';
@@ -181,7 +181,7 @@ const SHOTS = [
     slug: 'equipment',
     title: 'Equipment manifest',
     prepare: `(async () => {
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim().startsWith('Gear'));
+      const tab = document.getElementById('tab-equipment');
       tab && tab.click();
       await new Promise(r => setTimeout(r, 600));
       return 'ok';
@@ -191,10 +191,10 @@ const SHOTS = [
     slug: 'schedule',
     title: 'Stripboard scheduling',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      const tab = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Schedule' || b.getAttribute('aria-label') === 'Schedule'));
       tab && tab.click();
       await new Promise(r => setTimeout(r, 700));
       return 'ok';
@@ -204,13 +204,13 @@ const SHOTS = [
     slug: 'call-sheet',
     title: 'Call sheets',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      const tab = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Schedule' || b.getAttribute('aria-label') === 'Schedule'));
       tab && tab.click();
       await new Promise(r => setTimeout(r, 600));
-      const sheets = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Call sheets');
+      const sheets = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Call sheets' || b.getAttribute('aria-label') === 'Call sheets'));
       sheets && sheets.click();
       await new Promise(r => setTimeout(r, 700));
       return 'ok';
@@ -220,10 +220,10 @@ const SHOTS = [
     slug: 'one-liner',
     title: 'One-liner schedule',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      const tab = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Schedule' || b.getAttribute('aria-label') === 'Schedule'));
       tab && tab.click();
       await new Promise(r => setTimeout(r, 600));
       const view = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'One-liner');
@@ -236,10 +236,10 @@ const SHOTS = [
     slug: 'dood',
     title: 'Day out of days',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      const tab = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Schedule' || b.getAttribute('aria-label') === 'Schedule'));
       tab && tab.click();
       await new Promise(r => setTimeout(r, 600));
       const view = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'DOOD');
@@ -252,10 +252,10 @@ const SHOTS = [
     slug: 'time-report',
     title: 'Performers time report (Exhibit G)',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      const tab = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Schedule' || b.getAttribute('aria-label') === 'Schedule'));
       tab && tab.click();
       await new Promise(r => setTimeout(r, 600));
       const view = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'Time report');
@@ -268,7 +268,7 @@ const SHOTS = [
     slug: 'script-reports',
     title: 'Script reports: page counts, breakdown sheets, props',
     prepare: `(async () => {
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Script');
+      const tab = document.getElementById('tab-script');
       tab && tab.click();
       await new Promise(r => setTimeout(r, 600));
       const reports = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Reports');
@@ -281,7 +281,7 @@ const SHOTS = [
     slug: 'crew',
     title: 'Crew, cast & key roles',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
       const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Crew');
@@ -294,7 +294,7 @@ const SHOTS = [
     slug: 'power',
     title: 'Power: per-truss load & phase balance',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
       const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Power');
@@ -307,7 +307,7 @@ const SHOTS = [
     slug: 'locations',
     title: 'Locations with a map pin',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
       const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Locations');
@@ -320,7 +320,7 @@ const SHOTS = [
     slug: 'moodboard',
     title: 'Mood boards',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
       const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Moodboard');
@@ -333,7 +333,7 @@ const SHOTS = [
     slug: 'tasks',
     title: 'Task board',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
       const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Tasks');
@@ -346,7 +346,7 @@ const SHOTS = [
     slug: 'budget',
     title: 'Budget: rates, VAT and totals',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
       const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Budget');
@@ -359,13 +359,13 @@ const SHOTS = [
     slug: 'day-needs',
     title: 'Who and what each shooting day needs',
     prepare: `(async () => {
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       menu && menu.click();
       await new Promise(r => setTimeout(r, 250));
       const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Budget');
       tab && tab.click();
       await new Promise(r => setTimeout(r, 700));
-      const needs = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Day needs');
+      const needs = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Day needs' || b.getAttribute('aria-label') === 'Day needs'));
       needs && needs.click();
       await new Promise(r => setTimeout(r, 700));
       return 'ok';
@@ -375,7 +375,7 @@ const SHOTS = [
     slug: 'sun',
     title: 'Sun & time of day on the plan',
     prepare: `(async () => {
-      const inspector = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Inspector');
+      const inspector = document.getElementById('tab-inspector');
       if (inspector) inspector.click();
       await new Promise(r => setTimeout(r, 500));
 
@@ -420,13 +420,13 @@ const SHOTS = [
       // and window.print() would too. Both are stubbed for the capture only.
       window.confirm = () => true;
       window.print = () => {};
-      const menu = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Production');
+      const menu = document.querySelector('button[aria-label^="Production modules"]');
       if (menu) menu.click();
       await new Promise(r => setTimeout(r, 300));
-      const tab = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Schedule');
+      const tab = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Schedule' || b.getAttribute('aria-label') === 'Schedule'));
       if (tab) tab.click();
       await new Promise(r => setTimeout(r, 700));
-      const sheets = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Call sheets');
+      const sheets = [...document.querySelectorAll('button')].find(b => (b.innerText.trim() === 'Call sheets' || b.getAttribute('aria-label') === 'Call sheets'));
       if (sheets) sheets.click();
       await new Promise(r => setTimeout(r, 900));
       return 'ok';

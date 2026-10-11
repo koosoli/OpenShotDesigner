@@ -182,7 +182,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
     if (node.kind === 'label') {
       return {
         text: 'Endpoint',
-        className: isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-400',
+        className: 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400',
       };
     }
     return {
@@ -204,7 +204,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
         {/* Header */}
         <div className={`flex items-center justify-between gap-2 px-4 py-3 border-b border-line bg-surface-sunken`}>
           <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-lg ${isLight ? 'bg-emerald-100 text-emerald-900' : 'bg-emerald-500/15 text-emerald-400'}`}>
+            <div className={`p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 text-emerald-900 dark:text-emerald-400`}>
               <Workflow className="w-4 h-4" />
             </div>
             <div>
@@ -260,7 +260,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
                   >
                     <span
                       className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[10px] font-black shrink-0 ${
-                        checked ? 'bg-white/25 border-white/60' : isLight ? 'border-slate-400' : 'border-slate-500'
+                        checked ? 'bg-white/25 border-white/60' : 'border-slate-400 dark:border-slate-500'
                       }`}
                     >
                       {checked ? '✓' : ''}
@@ -287,7 +287,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
             {/* Cycle warning banner */}
             {cycleLabels.length > 0 && (
               <div className={`mx-4 mt-3 rounded-lg border p-2.5 flex items-start gap-2 text-[11px] font-bold ${
-                isLight ? 'bg-amber-50 border-amber-300 text-amber-950' : 'bg-amber-950/30 border-amber-800/60 text-amber-100'
+                'bg-warn-soft border-amber-300 dark:border-amber-800/60 text-amber-950 dark:text-amber-100'
               }`}>
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-warn" />
                 <div className="flex flex-col gap-1">
@@ -366,7 +366,7 @@ export const SignalFlowView: React.FC<SignalFlowViewProps> = ({ onClose }) => {
               {/* Unreachable nodes */}
               {unreachableNodes.length > 0 && (
                 <div className={`mt-4 rounded-xl border p-3 flex flex-col gap-2 ${
-                  isLight ? 'bg-slate-50 border-slate-300' : 'bg-slate-950/60 border-slate-800'
+                  'bg-slate-50 dark:bg-slate-950/60 border-line-strong'
                 }`}>
                   <span className={`text-[10px] font-black uppercase tracking-wider ${subtleText}`}>
                     Not reachable from selected sources ({unreachableNodes.length})

@@ -3,6 +3,8 @@ import { useProjectHistory } from './useProjectHistory';
 import { usePlayback } from './usePlayback';
 import { useScreenplay } from './useScreenplay';
 import { useAvScript } from './useAvScript';
+import { useEquipmentList } from './useEquipmentList';
+import { useElementClipboard } from './useElementClipboard';
 import { useDisplaySettings } from './useDisplaySettings';
 import { LEGACY_STORAGE_KEYS, STORAGE_KEYS, migrateStorageKey } from './displaySettings';
 import type { DisplaySettings } from './displaySettings';
@@ -45,8 +47,8 @@ import { createId } from '../domain/ids';
 import { applyProjectCommand } from '../domain/project';
 import type { ProjectChange, ProjectCommandDomain, ProjectCommandMetadata } from '../domain/project';
 import type { CommandResult } from '../domain/commands';
-import { deleteShotCommand } from '../domain/commands';
-import { remapAnnotationTargets, stripAnnotationsTargeting } from '../domain/plan/annotations';
+import { applyMergedProjectCommand, deleteShotCommand } from '../domain/commands';
+import { stripAnnotationsTargeting } from '../domain/plan/annotations';
 import { nextActorLetter, nextCameraLabel } from '../domain/plan/cameraLabels';
 import { endpointsOf, hasEndpoints, hasSize } from '../domain/plan/elementGuards';
 import { buildShotForSetup } from '../domain/shots/createShot';
@@ -93,7 +95,6 @@ import {
   writeProject,
 } from '../utils/projectLibrary';
 import { useAutosave } from './useAutosave';
-import { deriveSceneEquipment } from '../utils/equipmentList';
 import { migrateProject } from '../domain/migrations';
 import { cloneSetupWithNewIds } from '../domain/clone';
 import { validateProject } from '../domain/validation';
@@ -349,6 +350,8 @@ interface FloorPlanContextType {
   activeProjectId: string;
   createNewProject: (options?: NewProjectOptions) => void;
   openProjectById: (id: string) => void;
+  /** Store a cloud merge result for a project; the open one changes as one undo step. */
+  applyMergedProject: (projectId: string, merged: Project, description: string) => void;
   duplicateProject: (id: string) => void;
   renameProject: (id: string, title: string) => void;
   deleteProjectById: (id: string) => void;
@@ -1379,147 +1382,13 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  const duplicateSelected = () => {
-    if (selectedElementIds.length === 0) return;
-    const newElements: FloorPlanElement[] = [];
-    const newSelectedIds: string[] = [];
-    const duplicateIdMap = new Map<string, string>();
-
-    selectedElementIds.forEach((id) => {
-      const el = activeSetup.elements.find((e) => e.id === id);
-      if (!el) return;
-
-      const newId = createId(`el-${el.type}`);
-      duplicateIdMap.set(id, newId);
-      const duplicated: FloorPlanElement = {
-        ...el,
-        id: newId,
-        name: `${el.name} (Copy)`,
-        x: el.x + 30,
-        y: el.y + 30,
-      };
-
-      if (duplicated.type === 'camera') {
-        const cam = duplicated as CameraElement;
-        const shotId = createId('shot');
-        cam.associatedShotId = shotId;
-      }
-
-      newElements.push(duplicated);
-      newSelectedIds.push(newId);
-    });
-
-    // Duplicating a whole group duplicates the group itself, with childIds
-    // remapped to the cloned element ids (plan §6.4).
-    const duplicatedGroups: PlanGroup[] = (activeSetup.groups || [])
-      .filter((g) => g.childIds.length > 0 && g.childIds.every((cid) => duplicateIdMap.has(cid)))
-      .map((g) => ({
-        id: createId('group'),
-        name: g.name,
-        childIds: g.childIds.map((cid) => duplicateIdMap.get(cid)!),
-      }));
-
-    // An annotation duplicated together with its target points at the copy;
-    // one duplicated on its own keeps pointing at the original element.
-    const remappedNewElements = remapAnnotationTargets(newElements, duplicateIdMap);
-
-    commitSetupUpdate((prevSetup) => ({
-      ...prevSetup,
-      elements: [...prevSetup.elements, ...remappedNewElements],
-      groups:
-        duplicatedGroups.length > 0
-          ? [...(prevSetup.groups || []), ...duplicatedGroups]
-          : prevSetup.groups,
-    }));
-    setSelectedElementIds(newSelectedIds);
-  };
-
-  // Clipboard for Ctrl+C / Ctrl+V copy & paste of selected assets.
-  const clipboardRef = useRef<FloorPlanElement[]>([]);
-  const pasteOffsetRef = useRef(30);
-
-  const copySelectedElements = () => {
-    if (selectedElementIds.length === 0) return;
-    clipboardRef.current = selectedElementIds
-      .map((id) => activeSetup.elements.find((e) => e.id === id))
-      .filter((el): el is FloorPlanElement => !!el)
-      .map((el) => JSON.parse(JSON.stringify(el)) as FloorPlanElement);
-    pasteOffsetRef.current = 30;
-  };
-
-  const pasteElements = () => {
-    if (clipboardRef.current.length === 0) return;
-    const newElements: FloorPlanElement[] = [];
-    const newSelectedIds: string[] = [];
-    // The shots the paste adds, in paste order. Their `order` and shot number
-    // depend on how many shots the scene already has, which is only known
-    // against the committed setup — so they are numbered inside the updater
-    // below rather than here.
-    const pastedShots: Shot[] = [];
-    const pasteIdMap = new Map<string, string>();
-
-    clipboardRef.current.forEach((el) => {
-      // `Date.now()` plus four random characters collides when two elements are
-      // pasted inside the same millisecond, which breaks React keys and drag
-      // targeting alike (rule 16).
-      const newId = createId(`el-${el.type}`);
-      pasteIdMap.set(el.id, newId);
-      const pasted: FloorPlanElement = {
-        ...el,
-        id: newId,
-        name: `${el.name} (Copy)`,
-        x: el.x + pasteOffsetRef.current,
-        y: el.y + pasteOffsetRef.current,
-      };
-
-      // Camera copies also carry a copy of their linked shot so the pasted
-      // camera isn't orphaned in the shot list.
-      if (pasted.type === 'camera') {
-        const cam = pasted as CameraElement;
-        const linkedShot = activeSetup.shots.find((s) => s.id === (el as CameraElement).associatedShotId);
-        const copiedShotId = newShotId();
-        cam.associatedShotId = copiedShotId;
-        if (linkedShot) {
-          pastedShots.push({
-            ...linkedShot,
-            id: copiedShotId,
-            cameraId: newId,
-            cameraLabel: cam.cameraLabel,
-            name: `${linkedShot.name} (Copy)`,
-            // Placeholders; numbered against the committed setup below.
-            shotNumber: linkedShot.shotNumber,
-            order: linkedShot.order,
-          });
-        }
-      }
-
-      newElements.push(pasted);
-      newSelectedIds.push(newId);
-    });
-
-    // A pasted annotation follows its pasted target; one pasted on its own
-    // keeps pointing at the original element.
-    const remappedPasted = remapAnnotationTargets(newElements, pasteIdMap);
-
-    pasteOffsetRef.current += 30;
-
-    // Built against the committed setup, not the render-time one: the shot
-    // list used to be rebuilt from a snapshot taken before the paste, so two
-    // pastes in the same render kept only the second one's shots — and the
-    // copies were numbered from a shot count that was already out of date.
-    commitSetupUpdate((prevSetup) => ({
-      ...prevSetup,
-      elements: [...prevSetup.elements, ...remappedPasted],
-      shots: [
-        ...prevSetup.shots,
-        ...pastedShots.map((shot, index) => {
-          const order = prevSetup.shots.length + index + 1;
-          return { ...shot, order, shotNumber: `${prevSetup.sceneNumber || '1'}/${order}` };
-        }),
-      ],
-    }));
-    setSelectedElementIds(newSelectedIds);
-  };
+  // Duplicate, copy and paste of plan elements (context/useElementClipboard).
+  const { duplicateSelected, copySelectedElements, pasteElements } = useElementClipboard({
+    activeSetup,
+    selectedElementIds,
+    setSelectedElementIds,
+    commitSetupUpdate,
+  });
 
   // Push the current live canvas state into history. Drags update the project
   // live (recordHistory=false) and call this ONCE on release, so a single
@@ -2970,6 +2839,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (next) loadProjectIntoWorkspace(next);
   };
 
+  const applyMergedProject = (projectId: string, merged: Project, description: string) => {
+    if (projectId === project.id) {
+      runCommand(applyMergedProjectCommand, { merged, description }, { domain: 'project' });
+      return;
+    }
+    writeProject({ ...merged, id: projectId });
+    setProjects(loadLibrary());
+  };
+
   const duplicateProject = (id: string) => {
     const source = id === project.id ? project : readProject(id);
     if (!source) return;
@@ -3328,104 +3206,16 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
 
-  // Equipment Management
-  const addCustomEquipmentItem = (item: Omit<EquipmentItem, 'id'>) => {
-    const newItem: EquipmentItem = {
-      ...item,
-      id: createId('equip'),
-      isCustom: true,
-    };
-    const current = activeSetup.customEquipment || [];
-    updateSetupMeta({ customEquipment: [...current, newItem] });
-  };
-
-  const updateEquipmentItem = (id: string, updates: Partial<EquipmentItem>) => {
-    const current = activeSetup.customEquipment || [];
-    const existingIndex = current.findIndex((c) => c.id === id || c.elementId === id);
-    if (existingIndex >= 0) {
-      const next = [...current];
-      next[existingIndex] = { ...next[existingIndex], ...updates };
-      updateSetupMeta({ customEquipment: next });
-    } else {
-      // Find the base item in derived equipment to preserve all auto attributes
-      const allDerived = deriveSceneEquipment(activeSetup);
-      const baseItem = allDerived.find((d) => d.id === id || d.elementId === id);
-      const newItem: EquipmentItem = {
-        id,
-        elementId: id.startsWith('auto-') ? id.replace(/^auto-[a-z]+-/, '') : undefined,
-        category: updates.category || baseItem?.category || 'other',
-        name: updates.name !== undefined ? updates.name : (baseItem?.name || 'Equipment Item'),
-        brand: updates.brand !== undefined ? updates.brand : baseItem?.brand,
-        model: updates.model !== undefined ? updates.model : baseItem?.model,
-        quantity: updates.quantity !== undefined ? updates.quantity : (baseItem?.quantity || 1),
-        roleOrFunction: updates.roleOrFunction !== undefined ? updates.roleOrFunction : baseItem?.roleOrFunction,
-        specs: updates.specs !== undefined ? updates.specs : baseItem?.specs,
-        notes: updates.notes !== undefined ? updates.notes : baseItem?.notes,
-        isCustom: false,
-        ...updates,
-      };
-      updateSetupMeta({ customEquipment: [...current, newItem] });
-    }
-  };
-
-  const deleteEquipmentItem = (id: string) => {
-    const current = activeSetup.customEquipment || [];
-    const next = current.filter((c) => c.id !== id && c.elementId !== id);
-    updateSetupMeta({ customEquipment: next });
-  };
-
-  const resetSceneEquipment = () => {
-    updateSetupMeta({ customEquipment: [] });
-  };
-
-  const addPackageItem = (packageId: string, item: Omit<EquipmentPackageItem, 'id'>) => {
-    const allDerived = deriveSceneEquipment(activeSetup);
-    const baseItem = allDerived.find((d) => d.id === packageId || d.elementId === packageId);
-    const existingCustom = (activeSetup.customEquipment || []).find((c) => c.id === packageId || c.elementId === packageId);
-
-    const existingPackageItems = existingCustom?.packageItems || baseItem?.packageItems || [];
-    const newSubItem: EquipmentPackageItem = {
-      ...item,
-      id: createId('pkg-item'),
-    };
-
-    updateEquipmentItem(packageId, {
-      isPackage: true,
-      packageItems: [...existingPackageItems, newSubItem],
-    });
-  };
-
-  const updatePackageItem = (
-    packageId: string,
-    itemId: string,
-    updates: Partial<EquipmentPackageItem>
-  ) => {
-    const allDerived = deriveSceneEquipment(activeSetup);
-    const baseItem = allDerived.find((d) => d.id === packageId || d.elementId === packageId);
-    const existingCustom = (activeSetup.customEquipment || []).find((c) => c.id === packageId || c.elementId === packageId);
-
-    const existingPackageItems = existingCustom?.packageItems || baseItem?.packageItems || [];
-    const nextPackageItems = existingPackageItems.map((p) => (p.id === itemId ? { ...p, ...updates } : p));
-
-    updateEquipmentItem(packageId, {
-      isPackage: true,
-      packageItems: nextPackageItems,
-    });
-  };
-
-  const deletePackageItem = (packageId: string, itemId: string) => {
-    const allDerived = deriveSceneEquipment(activeSetup);
-    const baseItem = allDerived.find((d) => d.id === packageId || d.elementId === packageId);
-    const existingCustom = (activeSetup.customEquipment || []).find((c) => c.id === packageId || c.elementId === packageId);
-
-    const existingPackageItems = existingCustom?.packageItems || baseItem?.packageItems || [];
-    const nextPackageItems = existingPackageItems.filter((p) => p.id !== itemId);
-
-    updateEquipmentItem(packageId, {
-      isPackage: true,
-      packageItems: nextPackageItems,
-    });
-  };
+  // Equipment list edits on the active setup (context/useEquipmentList).
+  const {
+    addCustomEquipmentItem,
+    updateEquipmentItem,
+    deleteEquipmentItem,
+    resetSceneEquipment,
+    addPackageItem,
+    updatePackageItem,
+    deletePackageItem,
+  } = useEquipmentList({ activeSetup, updateSetupMeta });
 
   // Grouped, and memoised, because the context value is compared field by
   // field: a fresh object here would change identity on every render and
@@ -3568,6 +3358,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         activeProjectId: project.id,
         createNewProject,
         openProjectById,
+        applyMergedProject,
         duplicateProject,
         renameProject,
         deleteProjectById,

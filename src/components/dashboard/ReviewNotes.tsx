@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, MessageSquareText, Plus, Reply, Trash2, X } from 'lucide-react';
+import { updateReviewCommentsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { createId } from '../../domain/ids';
 import type { ReviewComment, ReviewTargetKind } from '../../domain/comments';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
@@ -9,15 +9,13 @@ import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 interface TargetOption { kind: ReviewTargetKind; id: string; label: string }
 
 export const ReviewNotes: React.FC = () => {
-  const { project, updateProjectMeta, displaySettings } = useFloorPlan();
-  const { theme } = useWorkspaceUI();
+  const { project, runCommand, displaySettings } = useFloorPlan();
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
   const [targetKey, setTargetKey] = useState(() => `project:${project.id}`);
   const [priority, setPriority] = useState<ReviewComment['priority']>('normal');
   const [replyFor, setReplyFor] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState('');
-  const isLight = theme === 'light';
   const comments = project.reviewComments ?? [];
   const dialogRef = useDialogFocusTrap(open);
 
@@ -43,10 +41,8 @@ export const ReviewNotes: React.FC = () => {
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [open]);
 
-  const mutate = (change: (current: ReviewComment[]) => ReviewComment[]) => updateProjectMeta((previous) => {
-    const next = change(previous.reviewComments ?? []);
-    return { reviewComments: next.length ? next : undefined };
-  });
+  const mutate = (change: (current: ReviewComment[]) => ReviewComment[]) =>
+    runCommand(updateReviewCommentsCommand, { update: change });
   const addComment = () => {
     const target = targets.find((candidate) => `${candidate.kind}:${candidate.id}` === targetKey) ?? targets[0];
     if (!target || !body.trim()) return;
@@ -62,7 +58,7 @@ export const ReviewNotes: React.FC = () => {
   if (displaySettings.showReviewNotes !== true) return null;
   return (
     <>
-      <button onClick={() => setOpen(true)} className={`absolute top-14 right-3 z-30 h-9 px-3 rounded-xl border shadow-lg backdrop-blur flex items-center gap-2 text-[11px] font-bold ${isLight ? 'bg-white/90 border-slate-300' : 'bg-slate-900/90 border-slate-700'}`}>
+      <button onClick={() => setOpen(true)} className={`absolute top-14 right-3 z-30 h-9 px-3 rounded-xl border shadow-lg backdrop-blur flex items-center gap-2 text-[11px] font-bold bg-white/90 dark:bg-slate-900/90 border-line-strong`}>
         <MessageSquareText className="w-4 h-4 text-violet-500" /> Review · {unresolved}
       </button>
       {open && (

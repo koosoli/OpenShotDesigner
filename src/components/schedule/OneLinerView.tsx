@@ -41,7 +41,8 @@ export const OneLinerView: React.FC<{ isLight: boolean }> = ({ isLight: _isLight
     castAssignments: project.castAssignments,
     breakdownItems: project.breakdownItems,
     withElements,
-  }), [project.productionDays, project.scheduleBlocks, project.scriptScenes, project.scriptLines, project.breakdownItems, project.setups, project.castAssignments, withElements]);
+    ...(withElements ? { characters: project.characters ?? [] } : {}),
+  }), [project.productionDays, project.scheduleBlocks, project.scriptScenes, project.scriptLines, project.breakdownItems, project.setups, project.castAssignments, project.characters, withElements]);
 
   const totalEighths = days.reduce((sum, day) => sum + day.pageEighths, 0);
   const title = withElements ? 'Shooting schedule' : 'One-liner';
@@ -57,6 +58,24 @@ export const OneLinerView: React.FC<{ isLight: boolean }> = ({ isLight: _isLight
   ];
 
   const exportPdf = async (mode: 'download' | 'print' = 'download') => {
+    if (withElements) {
+      // The shooting schedule has a layout of its own: a block per scene.
+      const [{ createShootingSchedulePdf }, { buildPdfFilename }] = await Promise.all([
+        import('../../utils/pdf/shootingSchedulePdf'),
+        import('../../utils/pdf/filenames'),
+      ]);
+      const bytes = await createShootingSchedulePdf({
+        productionTitle: project.title || 'Production',
+        days,
+        categoryLabel: (category) => breakdownCategoryLabel(category as BreakdownCategory),
+      });
+      if (mode === 'print') {
+        printPdfBytes(bytes);
+        return;
+      }
+      downloadBlob(bytesToBlob(bytes, 'application/pdf'), buildPdfFilename({ production: project.title, document: 'shooting-schedule' }));
+      return;
+    }
     const [{ createTableReportPdf }, { buildPdfFilename }] = await Promise.all([
       import('../../utils/pdf/tableReportPdf'),
       import('../../utils/pdf/filenames'),

@@ -8,7 +8,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DriveError,
+  downloadDrivePackage,
+  isDriveConflict,
   isDriveUnauthorized,
+  listDrivePackages,
   requestDriveAccessToken,
   uploadProjectToDrive,
 } from '../googleDrive';
@@ -156,5 +159,62 @@ describe('requestDriveAccessToken', () => {
       },
     };
     await expect(requestDriveAccessToken('cid', { loadScript: loader })).resolves.toBe('tok-1');
+  });
+});
+
+describe('save-back version check', () => {
+  const versioned = (modifiedTime: string) => jsonResponse({ files: [{ id: 'file-7', modifiedTime }] });
+
+  it('updates when the Drive copy is still the version we opened', async () => {
+    const { impl, seen } = scriptedFetch([
+      FOLDER_SEARCH_HIT(),
+      versioned('2026-10-10T10:00:00.000Z'),
+      jsonResponse({ id: 'file-7', name: 'my-film.osd', modifiedTime: '2026-10-11T09:00:00.000Z' }),
+    ]);
+    const ref = await uploadProjectToDrive({
+      accessToken: 'tok', fileName: 'my-film.osd', packageBlob: packageBlob(), fetchImpl: impl,
+      expectedModifiedTime: '2026-10-10T10:00:00.000Z',
+    });
+    expect(seen[2].method).toBe('PATCH');
+    expect(ref.modifiedTime).toBe('2026-10-11T09:00:00.000Z');
+  });
+
+  it('refuses to overwrite a copy someone saved since, without uploading', async () => {
+    const { impl, seen } = scriptedFetch([FOLDER_SEARCH_HIT(), versioned('2026-10-11T08:00:00.000Z')]);
+    const failure = await uploadProjectToDrive({
+      accessToken: 'tok', fileName: 'my-film.osd', packageBlob: packageBlob(), fetchImpl: impl,
+      expectedModifiedTime: '2026-10-10T10:00:00.000Z',
+    }).then(() => null, (error: unknown) => error);
+    expect(isDriveConflict(failure)).toBe(true);
+    expect(seen).toHaveLength(2);
+  });
+
+  it('treats an existing file as a conflict when none was expected', async () => {
+    const { impl } = scriptedFetch([FOLDER_SEARCH_HIT(), versioned('2026-10-11T08:00:00.000Z')]);
+    const failure = await uploadProjectToDrive({
+      accessToken: 'tok', fileName: 'my-film.osd', packageBlob: packageBlob(), fetchImpl: impl, expectedModifiedTime: null,
+    }).then(() => null, (error: unknown) => error);
+    expect(isDriveConflict(failure)).toBe(true);
+  });
+});
+
+describe('listDrivePackages / downloadDrivePackage', () => {
+  it('lists only .osd packages with their versions', async () => {
+    const { impl } = scriptedFetch([
+      FOLDER_SEARCH_HIT(),
+      jsonResponse({ files: [
+        { id: 'a', name: 'my-film.osd', modifiedTime: '2026-10-11T08:00:00.000Z', size: '2048' },
+        { id: 'b', name: 'notes.txt' },
+      ] }),
+    ]);
+    expect(await listDrivePackages('tok', impl)).toEqual([{ id: 'a', name: 'my-film.osd', modifiedTime: '2026-10-11T08:00:00.000Z', size: 2048 }]);
+  });
+
+  it('downloads by id with auth', async () => {
+    const { impl, seen } = scriptedFetch([new Response('zip-bytes', { status: 200 })]);
+    const blob = await downloadDrivePackage('tok', 'a', impl);
+    expect(await blob.text()).toBe('zip-bytes');
+    expect(seen[0].url).toContain('/files/a?alt=media');
+    expect(seen[0].auth).toBe('Bearer tok');
   });
 });

@@ -25,9 +25,11 @@ import { join, relative } from 'node:path';
  * 83 once SchedulePanel's block placement went through moveScheduleBlockCommand;
  * 78 after the rigging domain followed; 76 after continuity; 72 after locations;
  * 48 after schedule and paperwork commands; 33 after production details,
- * takes, logistics and the day filters.
+ * takes, logistics and the day filters; 32 after on-set take logging; 0 on
+ * 2026-10-11, once the planning modules and the script breakdown followed.
+ * Every project write in a component is now a named command.
  */
-const CEILING = 33;
+const CEILING = 0;
 
 const ROOT = join(process.cwd(), 'src', 'components');
 const CALL = /\bupdateProjectMeta\s*\(/g;

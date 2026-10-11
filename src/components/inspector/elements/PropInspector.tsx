@@ -234,7 +234,7 @@ export const PropInspector: React.FC<PropInspectorProps> = ({ prop, isLight }) =
                 e.stopPropagation();
               }}
               className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
-                isLight ? 'bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100' : 'bg-slate-800 hover:bg-slate-700 text-purple-300 border-slate-700'
+                'bg-purple-50 dark:bg-slate-800 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-slate-700 hover:bg-purple-100 dark:hover:bg-slate-700'
               }`}
             >
               + Add Prop Waypoint (Beat {nextBeat})

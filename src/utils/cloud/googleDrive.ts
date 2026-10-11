@@ -60,6 +60,18 @@ export class DriveError extends Error {
 export const isDriveUnauthorized = (error: unknown): boolean =>
   error instanceof DriveError && error.status === 401;
 
+/** Someone saved the Drive copy since we opened it (or a file of that name already exists). */
+export class DriveConflictError extends DriveError {
+  readonly remoteModifiedTime?: string;
+  constructor(message: string, remoteModifiedTime?: string) {
+    super(message, 412);
+    this.name = 'DriveConflictError';
+    this.remoteModifiedTime = remoteModifiedTime;
+  }
+}
+
+export const isDriveConflict = (error: unknown): error is DriveConflictError => error instanceof DriveConflictError;
+
 /** Injectable seam: the default appends the real GIS `<script>`. */
 export type ScriptLoader = (src: string) => Promise<void>;
 
@@ -129,10 +141,13 @@ export const revokeDriveAccessToken = async (token: string): Promise<void> => {
 
 type FetchImpl = typeof fetch;
 
-interface DriveFileRef {
+export interface DriveFileRef {
   id: string;
   name: string;
   webViewLink?: string;
+  /** RFC 3339; the version check for save-back compares this. */
+  modifiedTime?: string;
+  size?: number;
 }
 
 const authHeaders = (token: string): Record<string, string> => ({
@@ -188,16 +203,20 @@ const findNamedFile = async (
   folderId: string,
   fileName: string,
   fetchImpl: FetchImpl,
-): Promise<string | undefined> => {
+): Promise<{ id: string; modifiedTime?: string } | undefined> => {
   const query = `'${folderId}' in parents and name='${fileName.replace(/'/g, "\\'")}' and trashed=false`;
   const response = await fetchImpl(
-    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&spaces=drive`,
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,modifiedTime)&spaces=drive`,
     { headers: authHeaders(token) },
   );
   if (!response.ok) await throwForStatus(response, 'looking for a previous export');
   const files = (await readJsonObject(response))['files'];
   if (!Array.isArray(files) || files.length === 0) return undefined;
-  return stringField(files[0] as Record<string, unknown>, 'id');
+  const first = files[0] as Record<string, unknown>;
+  const id = stringField(first, 'id');
+  if (!id) return undefined;
+  const modifiedTime = stringField(first, 'modifiedTime');
+  return modifiedTime ? { id, modifiedTime } : { id };
 };
 
 const multipartBody = (metadata: Record<string, unknown>, media: Blob): FormData => {
@@ -214,7 +233,8 @@ const readFileRef = async (response: Response, action: string): Promise<DriveFil
   const name = stringField(body, 'name') ?? '';
   if (!id) throw new DriveError(`Google Drive: ${action} came back without a file id.`);
   const link = stringField(body, 'webViewLink');
-  return link ? { id, name, webViewLink: link } : { id, name };
+  const modifiedTime = stringField(body, 'modifiedTime');
+  return { id, name, ...(link ? { webViewLink: link } : {}), ...(modifiedTime ? { modifiedTime } : {}) };
 };
 
 export interface DriveUploadInput {
@@ -223,6 +243,13 @@ export interface DriveUploadInput {
   /** The `.osd` package bytes, exactly as the file download produces them. */
   packageBlob: Blob;
   fetchImpl?: FetchImpl;
+  /**
+   * Save-back check. A string: the Drive copy's `modifiedTime` when this
+   * project was opened or last saved — a different one on Drive now means
+   * someone else saved, and the upload is refused (`DriveConflictError`).
+   * `null`: there should be no file of this name yet. Absent: overwrite.
+   */
+  expectedModifiedTime?: string | null;
 }
 
 /**
@@ -232,8 +259,17 @@ export interface DriveUploadInput {
 export const uploadProjectToDrive = async (input: DriveUploadInput): Promise<DriveFileRef> => {
   const fetchImpl = input.fetchImpl ?? fetch;
   const folderId = await ensureFolder(input.accessToken, fetchImpl);
-  const existingId = await findNamedFile(input.accessToken, folderId, input.fileName, fetchImpl);
-  const fields = 'fields=id,name,webViewLink';
+  const existing = await findNamedFile(input.accessToken, folderId, input.fileName, fetchImpl);
+  const existingId = existing?.id;
+  if (existing && input.expectedModifiedTime !== undefined && existing.modifiedTime !== input.expectedModifiedTime) {
+    throw new DriveConflictError(
+      input.expectedModifiedTime === null
+        ? `Google Drive: ${input.fileName} already exists in the OpenShotDesigner folder.`
+        : `Google Drive: ${input.fileName} was saved by someone else since you opened it.`,
+      existing.modifiedTime,
+    );
+  }
+  const fields = 'fields=id,name,webViewLink,modifiedTime';
   if (existingId) {
     const updated = await fetchImpl(
       `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(existingId)}?uploadType=multipart&${fields}`,
@@ -251,4 +287,35 @@ export const uploadProjectToDrive = async (input: DriveUploadInput): Promise<Dri
     body: multipartBody({ name: input.fileName, parents: [folderId] }, input.packageBlob),
   });
   return readFileRef(created, 'uploading the export');
+};
+
+/** The `.osd` packages in the app folder, newest first. */
+export const listDrivePackages = async (accessToken: string, fetchImpl: FetchImpl = fetch): Promise<DriveFileRef[]> => {
+  const folderId = await ensureFolder(accessToken, fetchImpl);
+  const query = `'${folderId}' in parents and trashed=false`;
+  const response = await fetchImpl(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime%20desc&spaces=drive&pageSize=100`,
+    { headers: authHeaders(accessToken) },
+  );
+  if (!response.ok) await throwForStatus(response, 'listing your projects');
+  const files = (await readJsonObject(response))['files'];
+  if (!Array.isArray(files)) return [];
+  return files.flatMap((raw) => {
+    const record = raw as Record<string, unknown>;
+    const id = stringField(record, 'id');
+    const name = stringField(record, 'name');
+    if (!id || !name || !name.toLowerCase().endsWith('.osd')) return [];
+    const modifiedTime = stringField(record, 'modifiedTime');
+    const size = Number(stringField(record, 'size'));
+    return [{ id, name, ...(modifiedTime ? { modifiedTime } : {}), ...(Number.isFinite(size) ? { size } : {}) }];
+  });
+};
+
+/** Download one package by id, for opening. */
+export const downloadDrivePackage = async (accessToken: string, fileId: string, fetchImpl: FetchImpl = fetch): Promise<Blob> => {
+  const response = await fetchImpl(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!response.ok) await throwForStatus(response, 'downloading the project');
+  return response.blob();
 };

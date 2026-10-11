@@ -57,7 +57,7 @@ export const GettingStarted: React.FC = () => {
         aria-expanded={open}
         title="Getting started: the production workflow, step by step"
         aria-label={`Getting started, ${done} of ${steps.length} done`}
-        className="h-8 px-2.5 rounded-lg border border-line-strong text-[11px] font-semibold flex items-center gap-1.5 text-ink-soft hover:bg-surface-hover whitespace-nowrap"
+        className="h-8 px-2.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 text-ink-soft hover:bg-surface-hover whitespace-nowrap"
       >
         <Rocket className="w-3.5 h-3.5 text-accent-ink" />
         <span className="hidden 2xl:inline">Getting started</span>

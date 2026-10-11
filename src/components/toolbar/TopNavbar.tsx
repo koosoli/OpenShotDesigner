@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { GettingStarted } from './GettingStarted';
 import { useDismiss } from '../common/useDismiss';
 import { LANGUAGE_SWITCHING_ENABLED } from '../../config/features';
@@ -30,7 +30,6 @@ import {
   getLastNativeSaveAt,
   parseProjectFileBytes,
 } from '../../utils/nativeProjectFile';
-import { OnSetModeOverlay } from '../onset/OnSetModeOverlay';
 import { MODULE_PICKER_GROUPS, PICKABLE_MODULES } from '../../domain/workspace';
 import {
   ChevronDown,
@@ -60,6 +59,9 @@ import { recordBackup } from '../../utils/cloud/backupHistory';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { SUPPORTED_LANGUAGES } from '../../i18n/dictionary';
+
+/** On-set mode is a full-screen tool opened on the day; it loads on demand. */
+const OnSetModeOverlay = lazy(() => import('../onset/OnSetModeOverlay').then((m) => ({ default: m.OnSetModeOverlay })));
 
 
 export const TopNavbar: React.FC = () => {
@@ -178,9 +180,7 @@ export const TopNavbar: React.FC = () => {
           onClick={openDashboard}
           title={t('nav.dashboard')}
           aria-label={t('nav.dashboard')}
-          className={`p-2 rounded-lg border transition-colors flex-shrink-0 ${
-            isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
-          }`}
+          className="p-2 rounded-lg border border-transparent transition-colors text-ink-muted hover:text-ink hover:bg-surface-hover flex-shrink-0"
         >
           <LayoutGrid className="w-4 h-4" />
         </button>
@@ -235,7 +235,7 @@ export const TopNavbar: React.FC = () => {
           </span>
         )}
         {saveState === 'error' && (
-          <span className={`hidden md:inline whitespace-nowrap text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? 'text-red-600 bg-red-50' : 'text-red-300 bg-red-900/30'}`}>
+          <span className={`hidden md:inline whitespace-nowrap text-[10px] font-medium px-1.5 py-0.5 rounded text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-900/30`}>
             {t('save.error')}
           </span>
         )}
@@ -277,11 +277,11 @@ export const TopNavbar: React.FC = () => {
             onClick={() => setIsSetupsOpen(!isSetupsOpen)}
             aria-expanded={isSetupsOpen}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-              isLight ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-300 text-slate-800' : 'bg-slate-800 hover:bg-slate-700/80 border-slate-700 text-slate-100'
+              'bg-surface-sunken hover:bg-surface-hover border-line text-ink'
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="font-mono text-accent-ink font-semibold">Scene {activeSetup.sceneNumber}:</span>
+            <span className="font-mono text-accent-ink font-semibold whitespace-nowrap">Sc {activeSetup.sceneNumber}</span>
             <span className="hidden sm:inline max-w-[140px] truncate">{activeSetup.name}</span>
             <ChevronDown className="w-3.5 h-3.5 opacity-60" />
           </button>
@@ -404,10 +404,10 @@ export const TopNavbar: React.FC = () => {
             aria-label="Templates"
             title="Templates and example data"
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
-              isLight ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-300 text-slate-800' : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200'
+              'border-transparent hover:bg-surface-hover text-ink-soft'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-warn" />
+            <Sparkles className="w-3.5 h-3.5 text-ink-muted" />
             <span className="hidden xl:inline whitespace-nowrap">Templates</span>
             <ChevronDown className="w-3 h-3 opacity-60" />
           </button>
@@ -482,7 +482,7 @@ export const TopNavbar: React.FC = () => {
             <button
               onClick={() => setExampleFillMessage(null)}
               className={`absolute top-full left-0 mt-1.5 w-72 text-left border rounded-xl shadow-2xl p-2.5 z-50 text-[11px] ${
-                isLight ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-emerald-950 border-emerald-800 text-emerald-100'
+                'bg-emerald-50 dark:bg-emerald-950 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100'
               }`}
             >
               {exampleFillMessage}
@@ -495,13 +495,13 @@ export const TopNavbar: React.FC = () => {
       {/* 3. Undo / Redo & Viewport & Theme Controls */}
       <div className={`flex items-center ${isCompact ? 'gap-1' : 'gap-2'}`}>
         {/* Undo / Redo */}
-        <div className={`flex items-center rounded-lg border p-0.5 bg-surface-muted border-line-strong`}>
+        <div className="flex items-center">
           <button
             onClick={undo}
             disabled={historyIndex <= 0}
             title="Undo (Ctrl+Z)"
             aria-label="Undo (Ctrl+Z)"
-            className="p-1.5 opacity-80 hover:opacity-100 disabled:opacity-30 rounded hover:bg-black/10 dark:hover:bg-slate-700 transition-colors"
+            className="p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-hover disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <Undo2 className="w-3.5 h-3.5" />
           </button>
@@ -510,7 +510,7 @@ export const TopNavbar: React.FC = () => {
             disabled={historyIndex >= historyLength - 1}
             title="Redo (Ctrl+Y)"
             aria-label="Redo (Ctrl+Y)"
-            className="p-1.5 opacity-80 hover:opacity-100 disabled:opacity-30 rounded hover:bg-black/10 dark:hover:bg-slate-700 transition-colors"
+            className="p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-hover disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <Redo2 className="w-3.5 h-3.5" />
           </button>
@@ -527,8 +527,8 @@ export const TopNavbar: React.FC = () => {
               aria-label="Snap to grid"
               className={`p-2 rounded-lg border transition-colors ${
                 gridSettings.snap
-                  ? 'bg-sky-500/15 text-accent-ink border-sky-500/40 font-bold'
-                  : 'bg-surface-muted text-ink-muted border-line-strong'
+                  ? 'bg-accent-soft text-accent-ink border-transparent'
+                  : 'border-transparent text-ink-muted hover:text-ink hover:bg-surface-hover'
               }`}
             >
               <Magnet className="w-3.5 h-3.5" />
@@ -541,7 +541,7 @@ export const TopNavbar: React.FC = () => {
               title={`Switch to ${isLight ? 'Dark' : 'Light'} Mode`}
               aria-label={`Switch to ${isLight ? 'dark' : 'light'} mode`}
               className={`p-2 rounded-lg border transition-colors ${
-                isLight ? 'bg-slate-100 text-amber-600 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-sky-400 border-slate-700 hover:bg-slate-700'
+                'border-transparent text-ink-muted hover:text-ink hover:bg-surface-hover'
               }`}
             >
               {isLight ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
@@ -555,9 +555,7 @@ export const TopNavbar: React.FC = () => {
                 aria-label="Viewing Options"
                 title="Viewing options & category opacity"
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-                  isLight
-                    ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100'
+                  'border-transparent hover:bg-surface-hover text-ink-soft'
                 }`}
               >
                 <Eye className="w-3.5 h-3.5 text-sky-400" />
@@ -825,10 +823,10 @@ export const TopNavbar: React.FC = () => {
               onClick={() => openViewfinder()}
               title="Simulate Camera Viewfinder"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-                isLight ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-sky-700' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-sky-300'
+                'border-transparent hover:bg-surface-hover text-ink-soft'
               }`}
             >
-              <Eye className="w-3.5 h-3.5 text-accent-ink" />
+              <Eye className="w-3.5 h-3.5 text-ink-muted" />
               <span className="hidden lg:inline">Viewfinder</span>
             </button>
           </>
@@ -857,9 +855,7 @@ export const TopNavbar: React.FC = () => {
                 aria-expanded={isSaveMenuOpen}
                 title="Save project file (.osd recommended)"
                 aria-label="Save project file"
-                className={`p-2 rounded-lg border transition-colors ${
-                  isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
-                }`}
+                className="p-2 rounded-lg border border-transparent transition-colors text-ink-muted hover:text-ink hover:bg-surface-hover"
               >
                 <Save className="w-3.5 h-3.5" />
               </button>
@@ -871,10 +867,10 @@ export const TopNavbar: React.FC = () => {
                     role="dialog"
                     aria-label="Save project file format"
                     className={`absolute right-0 top-full mt-1.5 w-60 border rounded-xl shadow-2xl p-2.5 z-50 space-y-1 text-left ${
-                      isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+                      'bg-surface border-line text-slate-800 dark:text-slate-100'
                     }`}
                   >
-                    <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                    <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs hover:bg-surface-hover`}>
                       <input
                         type="radio"
                         name="topbar-save-format"
@@ -884,12 +880,12 @@ export const TopNavbar: React.FC = () => {
                       />
                       <span>
                         <strong>.osd package</strong>
-                        <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <span className={`block text-[10px] text-ink-muted`}>
                           Project + all images. The backup to take.
                         </span>
                       </span>
                     </label>
-                    <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                    <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs hover:bg-surface-hover`}>
                       <input
                         type="radio"
                         name="topbar-save-format"
@@ -899,7 +895,7 @@ export const TopNavbar: React.FC = () => {
                       />
                       <span>
                         <strong>JSON</strong>
-                        <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <span className={`block text-[10px] text-ink-muted`}>
                           Project only, no media. For experts.
                         </span>
                       </span>
@@ -913,7 +909,7 @@ export const TopNavbar: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setIsSaveMenuOpen(false)}
-                        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${isLight ? 'border-slate-300 hover:bg-slate-100' : 'border-slate-700 hover:bg-slate-800'}`}
+                        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold border-line-strong hover:bg-surface-hover`}
                       >
                         Cancel
                       </button>
@@ -927,9 +923,7 @@ export const TopNavbar: React.FC = () => {
               onClick={() => fileInputRef.current?.click()}
               title="Open / Import Project JSON"
               aria-label="Open / Import Project JSON"
-              className={`p-2 rounded-lg border transition-colors ${
-                isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300' : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 border-slate-700'
-              }`}
+              className="p-2 rounded-lg border border-transparent transition-colors text-ink-muted hover:text-ink hover:bg-surface-hover"
             >
               <FolderOpen className="w-3.5 h-3.5" />
             </button>
@@ -954,9 +948,7 @@ export const TopNavbar: React.FC = () => {
             title="Live shot tracker — on-set mode (plan §35)"
             aria-label="Open live shot tracker"
             className={`p-2 rounded-lg border transition-colors ${
-              isLight
-                ? 'bg-slate-100 text-emerald-600 hover:bg-slate-200 border-slate-300'
-                : 'bg-slate-800/80 text-emerald-400 hover:bg-slate-700 border-slate-700'
+              'border-transparent text-ink-muted hover:text-ink hover:bg-surface-hover'
             }`}
           >
             <Clapperboard className="w-4 h-4" />
@@ -966,6 +958,7 @@ export const TopNavbar: React.FC = () => {
         {/* Support the project — far right, past the live shot tracker */}
         {!isCompact && (
           <>
+            <span className="h-5 w-px bg-line mx-0.5" aria-hidden="true" />
             <a
               href={SPONSOR_LINKS.github}
               target="_blank"
@@ -973,7 +966,7 @@ export const TopNavbar: React.FC = () => {
               title="Sponsor on GitHub"
               aria-label="Sponsor on GitHub"
               className={`p-2 rounded-lg border transition-colors ${
-                isLight ? 'bg-slate-100 text-pink-500 border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-pink-400 border-slate-700 hover:bg-slate-700'
+                'border-transparent text-ink-subtle hover:text-pink-500 hover:bg-surface-hover'
               }`}
             >
               <Heart className="w-3.5 h-3.5" />
@@ -985,7 +978,7 @@ export const TopNavbar: React.FC = () => {
               title="Buy me a coffee"
               aria-label="Buy me a coffee"
               className={`p-2 rounded-lg border transition-colors ${
-                isLight ? 'bg-slate-100 text-warn border-slate-300 hover:bg-slate-200' : 'bg-slate-800/80 text-amber-400 border-slate-700 hover:bg-slate-700'
+                'border-transparent text-ink-subtle hover:text-warn hover:bg-surface-hover'
               }`}
             >
               <Coffee className="w-3.5 h-3.5" />
@@ -1002,7 +995,7 @@ export const TopNavbar: React.FC = () => {
               aria-expanded={isOverflowOpen}
               aria-label="More controls"
               className={`p-2 rounded-lg border transition-colors ${
-                'bg-surface-muted text-ink-soft border-line-strong'
+                'border-transparent text-ink-muted hover:text-ink hover:bg-surface-hover'
               }`}
             >
               <MoreHorizontal className="w-4 h-4" />
@@ -1100,7 +1093,7 @@ export const TopNavbar: React.FC = () => {
                     }}
                     className={overflowItemClass}
                   >
-                    <span className="flex items-center gap-2"><Eye className="w-3.5 h-3.5 text-accent-ink" /> Viewfinder</span>
+                    <span className="flex items-center gap-2"><Eye className="w-3.5 h-3.5 text-ink-muted" /> Viewfinder</span>
                   </button>
                   <button
                     onClick={() => {
@@ -1154,7 +1147,7 @@ export const TopNavbar: React.FC = () => {
         )}
       </div>
 
-      {isOnSetMode && <OnSetModeOverlay onClose={() => setIsOnSetMode(false)} />}
+      {isOnSetMode && <Suspense fallback={null}><OnSetModeOverlay onClose={() => setIsOnSetMode(false)} /></Suspense>}
     </header>
   );
 };

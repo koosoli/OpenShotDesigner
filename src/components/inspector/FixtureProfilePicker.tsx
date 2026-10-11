@@ -199,7 +199,7 @@ export const FixtureProfilePicker: React.FC<FixtureProfilePickerProps> = ({ ligh
                 <button
                   onClick={() => applyProfile(candidate)}
                   className={`w-full text-left px-2 py-1 rounded text-[11px] flex items-center justify-between gap-2 ${
-                    isLight ? 'hover:bg-sky-50' : 'hover:bg-sky-500/10'
+                    'hover:bg-sky-50 dark:hover:bg-sky-500/10'
                   }`}
                 >
                   <span className="truncate">{candidate.model}</span>

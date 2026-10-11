@@ -61,8 +61,18 @@ export interface PromptOptions {
   requireValue?: boolean;
 }
 
+/** A question with two ways forward and a way out — "Replace / Save as copy / Cancel". */
+export interface ChooseOptions extends ConfirmOptions {
+  /** Label for the second action, shown between Cancel and the confirm action. */
+  alternativeLabel: string;
+}
+
+export type ChooseResult = 'confirm' | 'alternative' | 'cancel';
+
 /** Promise-based replacement for the blocking native dialogs. */
 export interface Dialogs {
+  /** Opens a three-way question; Escape and Cancel resolve 'cancel'. */
+  choose: (options: ChooseOptions) => Promise<ChooseResult>;
   /** Opens a question; resolves true only when the user picks the confirm action. */
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   /** Opens an acknowledgement; resolves once it is dismissed. */
@@ -79,6 +89,7 @@ export interface Dialogs {
  * action aborts, exactly as a dismissed native confirm would.
  */
 const fallbackDialogs: Dialogs = {
+  choose: () => Promise.resolve('cancel'),
   confirm: () => Promise.resolve(false),
   notice: () => Promise.resolve(),
   prompt: () => Promise.resolve(null),
@@ -102,6 +113,7 @@ type ActiveDialog =
       confirmLabel: string;
       cancelLabel: string;
       danger: boolean;
+      alternativeLabel?: string;
     }
   | { kind: 'notice'; title: string; message: string; buttonLabel: string }
   | {
@@ -128,7 +140,8 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // One settlement channel for all three kinds: `false` is the cancelled /
   // dismissed direction, `true` the affirmative one, and a prompt maps the
   // draft text on top of that in `dismiss`.
-  const resolveRef = useRef<((confirmed: boolean) => void) | null>(null);
+  // A three-way question settles 'alternative' through the same channel.
+  const resolveRef = useRef<((confirmed: boolean | 'alternative') => void) | null>(null);
   // Live field value for the prompt kind, held twice on purpose: the state
   // copy re-renders the disabled state of the confirm button as the field
   // empties, the ref lets `dismiss` — which is created once — read the value
@@ -144,7 +157,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // button, which is deliberately the safe action (Cancel / OK).
   const dialogRef = useDialogFocusTrap(active !== null);
 
-  const dismiss = useCallback((confirmed: boolean) => {
+  const dismiss = useCallback((confirmed: boolean | 'alternative') => {
     const resolve = resolveRef.current;
     resolveRef.current = null;
     setActive(null);
@@ -155,7 +168,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     (options: ConfirmOptions): Promise<boolean> =>
       new Promise<boolean>((resolve) => {
         resolveRef.current?.(false);
-        resolveRef.current = resolve;
+        resolveRef.current = (result) => resolve(result === true);
         setActive({
           kind: 'confirm',
           title: options.title,
@@ -190,7 +203,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         writeDraft(options.defaultValue ?? '');
         // Read through the ref so the resolved value is whatever the field
         // holds when the user commits, not what it held when it opened.
-        resolveRef.current = (confirmed: boolean) => resolve(confirmed ? draftRef.current : null);
+        resolveRef.current = (confirmed) => resolve(confirmed === true ? draftRef.current : null);
         setActive({
           kind: 'prompt',
           title: options.title,
@@ -203,6 +216,24 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       }),
     [writeDraft],
+  );
+
+  const choose = useCallback(
+    (options: ChooseOptions): Promise<ChooseResult> =>
+      new Promise<ChooseResult>((resolve) => {
+        resolveRef.current?.(false);
+        resolveRef.current = (result) => resolve(result === true ? 'confirm' : result === 'alternative' ? 'alternative' : 'cancel');
+        setActive({
+          kind: 'confirm',
+          title: options.title,
+          message: options.message,
+          confirmLabel: options.confirmLabel ?? 'Confirm',
+          cancelLabel: options.cancelLabel ?? 'Cancel',
+          danger: options.danger ?? false,
+          alternativeLabel: options.alternativeLabel,
+        });
+      }),
+    [],
   );
 
   // Escape settles on the safe side: a question cancels, a notice acknowledges,
@@ -218,7 +249,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [active, dismiss]);
 
-  const value = useMemo<Dialogs>(() => ({ confirm, notice, prompt }), [confirm, notice, prompt]);
+  const value = useMemo<Dialogs>(() => ({ choose, confirm, notice, prompt }), [choose, confirm, notice, prompt]);
 
   const promptIsBlocked = active?.kind === 'prompt' && active.requireValue && draft.trim() === '';
 
@@ -306,6 +337,16 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   >
                     {active.cancelLabel}
                   </button>
+                  {active.alternativeLabel && (
+                    <button
+                      type="button"
+                      data-testid="dialog-alternative"
+                      onClick={() => dismiss('alternative')}
+                      className="min-h-[36px] px-3.5 rounded-lg border border-sky-700 text-sky-200 hover:bg-slate-800 text-xs font-bold transition-colors"
+                    >
+                      {active.alternativeLabel}
+                    </button>
+                  )}
                   <button
                     type="button"
                     data-testid="dialog-confirm"

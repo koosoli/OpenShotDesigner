@@ -50,6 +50,7 @@ import {
   setSuspendedLoadsCommand,
   setTrussProfilesCommand,
   upsertTrussElementCommand,
+  setRiggingAssumptionsCommand,
 } from '../../domain/commands';
 
 const GEOMETRY_ORDER = ['box', 'triangle', 'ladder', 'other'] as const;
@@ -147,7 +148,7 @@ const makeStarterProfiles = (): TrussProfile[] => [
 ];
 
 export const RiggingPanel: React.FC = () => {
-  const { project, updateProjectMeta, runCommand, activeSetup } = useFloorPlan();
+  const { project, runCommand, activeSetup } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   // The bundled fixture snapshot arrives asynchronously and an online refresh
   // can replace it; both change the weights resolved below, so the panel has
@@ -187,9 +188,10 @@ export const RiggingPanel: React.FC = () => {
   // collection has never existed. An explicitly emptied list is respected.
   useEffect(() => {
     if (project.trussProfiles === undefined) {
-      updateProjectMeta({ trussProfiles: makeStarterProfiles() });
+      // Seeding is not an edit: kept out of undo history.
+      runCommand(setTrussProfilesCommand, { update: () => makeStarterProfiles(), description: 'Add starter truss profiles' }, { record: false });
     }
-  }, [project.trussProfiles, updateProjectMeta]);
+  }, [project.trussProfiles, runCommand]);
 
   /**
    * Hardware weight assumptions, stored on the project.
@@ -210,9 +212,7 @@ export const RiggingPanel: React.FC = () => {
    * after the operator changes only the cable allowance.
    */
   const setAssumption = (field: keyof RiggingAssumptions, raw: string) => {
-    updateProjectMeta({
-      riggingAssumptions: { ...loadOptions, [field]: parseOptionalNumber(raw) },
-    });
+    runCommand(setRiggingAssumptionsCommand, { assumptions: { ...loadOptions, [field]: parseOptionalNumber(raw) } });
   };
 
   // New-element form state
@@ -428,7 +428,7 @@ export const RiggingPanel: React.FC = () => {
       {/* Global safety disclaimer (rule 15) — rendered once here and under every load card */}
       <div
         className={`rounded-xl border px-3 py-2.5 text-[11px] leading-relaxed flex items-start gap-2 ${
-          isLight ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-amber-950/40 border-amber-800 text-amber-200'
+          'bg-warn-soft border-amber-200 dark:border-amber-800 text-warn'
         }`}
       >
         <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
@@ -1091,9 +1091,9 @@ export const RiggingPanel: React.FC = () => {
                   <div
                     className={`text-[10px] font-semibold rounded px-2 py-1 ${
                       capacity.verdict === 'over'
-                        ? isLight ? 'bg-red-100 text-red-800' : 'bg-red-950/60 text-red-300'
+                        ? 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300'
                         : capacity.verdict === 'within'
-                          ? isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-950/60 text-emerald-300'
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
                           : 'bg-warn-soft text-warn'
                     }`}
                   >

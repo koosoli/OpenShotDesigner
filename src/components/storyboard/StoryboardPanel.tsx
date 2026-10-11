@@ -99,7 +99,7 @@ export const StoryboardPanel: React.FC = () => {
     setDragOverIndex(null);
   };
 
-  const card = isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-800/60 border-slate-700 text-slate-100';
+  const card = 'bg-white dark:bg-slate-800/60 border-line text-ink';
   const control = `rounded-lg border px-2 py-1 text-[11px] ${
     'bg-field border-line-strong text-ink'
   }`;
@@ -118,7 +118,7 @@ export const StoryboardPanel: React.FC = () => {
     return (
       <div
         key={slot.key}
-        className={`relative w-full ${isLight ? 'bg-slate-200' : 'bg-slate-950'}`}
+        className={`relative w-full bg-slate-200 dark:bg-slate-950`}
         style={{ aspectRatio: String(ratio) }}
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
@@ -470,7 +470,7 @@ export const StoryboardPanel: React.FC = () => {
                     {hiddenWaypointCount > 0 && (
                       <div
                         className={`px-2 py-1 flex items-center justify-between text-[10px] border-b ${
-                          isLight ? 'bg-slate-100/90 border-slate-200 text-slate-600' : 'bg-slate-950/80 border-slate-800 text-slate-300'
+                          'bg-slate-100/90 dark:bg-slate-950/80 border-line text-ink-soft'
                         }`}
                       >
                         <span className="font-mono flex items-center gap-1">
@@ -607,7 +607,7 @@ export const StoryboardPanel: React.FC = () => {
                       <p
                         title={shot.actionScriptNotes}
                         className={`text-[10px] leading-snug rounded-lg px-1.5 py-1 line-clamp-3 ${
-                          isLight ? 'bg-violet-50 text-violet-900' : 'bg-violet-500/10 text-violet-200'
+                          'bg-violet-50 dark:bg-violet-500/10 text-violet-900 dark:text-violet-200'
                         }`}
                       >
                         <span className="font-bold uppercase tracking-wide opacity-70">From script · </span>

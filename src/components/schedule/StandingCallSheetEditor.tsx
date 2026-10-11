@@ -1,5 +1,6 @@
 import React from 'react';
 import { Radio } from 'lucide-react';
+import { patchStandingCallSheetCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { StandingCallSheet, StandingCallSheetField } from '../../domain/reports';
 
@@ -36,13 +37,11 @@ const FIELDS: Array<{
  * Here, changing a value changes every sheet that has not overridden it.
  */
 export const StandingCallSheetEditor: React.FC<StandingCallSheetEditorProps> = ({ fieldClass }) => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const standing = project.standingCallSheet ?? {};
 
   const patch = (updates: Partial<StandingCallSheet>) =>
-    updateProjectMeta((prev) => ({
-      standingCallSheet: { ...(prev.standingCallSheet ?? {}), ...updates },
-    }));
+    runCommand(patchStandingCallSheetCommand, { updates }, { domain: 'schedule' });
 
   return (
     <div className="space-y-2">

@@ -89,6 +89,8 @@ describe('app document structure', () => {
     const { container } = await mountApp();
     // First run opens on the dashboard. It owns the h1 while it is the visible
     // surface — two at once is what this guards, and is what shipped before.
+    // The dashboard is lazy-loaded, so wait for its chunk.
+    await waitFor(() => expect(container.querySelector('h1')).toBeTruthy());
     const headings = container.querySelectorAll('h1');
     expect(headings).toHaveLength(1);
     expect((headings[0].textContent ?? '').trim().length).toBeGreaterThan(0);

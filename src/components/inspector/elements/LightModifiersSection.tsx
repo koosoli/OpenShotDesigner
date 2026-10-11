@@ -234,7 +234,7 @@ export const LightModifiersSection: React.FC<LightModifiersSectionProps> = ({ li
           <input type="url" value={reference?.sourceUrl ?? ''} placeholder="Optional" onChange={(event) => patchReference({ sourceUrl: event.target.value || undefined })} className={fieldClass} />
         </label>
 
-        <div className={`rounded-lg border p-2.5 space-y-1 ${isLight ? 'border-cyan-200 bg-cyan-50' : 'border-cyan-900 bg-cyan-950/30'}`}>
+        <div className={`rounded-lg border p-2.5 space-y-1 border-cyan-200 dark:border-cyan-900 bg-cyan-50 dark:bg-cyan-950/30`}>
           <div className="flex items-end gap-2">
             <label className="text-[10px] opacity-70 flex-1">
               Calculate at ({planUnit})

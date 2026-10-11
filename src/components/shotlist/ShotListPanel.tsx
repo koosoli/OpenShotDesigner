@@ -500,7 +500,7 @@ export const ShotListPanel: React.FC = () => {
         <div className="fixed inset-0 z-[90]" onClick={() => setInsertMenu(null)} />
         <div
           className={`fixed z-[91] w-64 max-w-[calc(100vw-1rem)] rounded-xl border shadow-2xl p-1.5 text-left ${
-            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-800 border-slate-700 text-slate-100'
+            'bg-raised border-line text-slate-800 dark:text-slate-100'
           }`}
           style={{
             // Keep the menu on screen when the row sits near an edge
@@ -555,7 +555,7 @@ export const ShotListPanel: React.FC = () => {
       {insertMenuOverlay}
 
       {/* 1. Header & Quick Actions */}
-      <div className={`p-3 border-b space-y-2 ${isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-800 bg-slate-900/90'}`}>
+      <div className={`p-3 border-b space-y-2 border-line bg-slate-50 dark:bg-slate-900/90`}>
         <div className="flex items-center justify-between">
           <PanelTitle
             icon={<Film />}
@@ -613,8 +613,8 @@ export const ShotListPanel: React.FC = () => {
         </div>
 
         {/* 2. Controls Toolbar (View Toggle, Sorting, Renumbering) */}
-        <div className="flex items-center justify-between gap-1.5 pt-1 text-[11px]">
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1.5">
             {/* Sort Dropdown */}
             <div className="flex items-center gap-1">
               <ArrowUpDown className="w-3 h-3 opacity-60 flex-shrink-0" />
@@ -641,7 +641,7 @@ export const ShotListPanel: React.FC = () => {
                 title="Auto-Renumber All Shots in Scene"
                 aria-expanded={isRenumberMenuOpen}
                 className={`flex items-center gap-1 px-1.5 py-0.5 border rounded text-[11px] font-medium transition-colors ${
-                  isLight ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  'bg-raised hover:bg-slate-100 dark:hover:bg-slate-700 text-ink-soft border-line-strong'
                 }`}
               >
                 <Hash className="w-3 h-3 text-accent-ink" />
@@ -698,10 +698,8 @@ export const ShotListPanel: React.FC = () => {
             aria-pressed={showFilters}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
               showFilters || filterCamera !== 'all' || filterStatus !== 'all' || hiddenColumns.size > 0
-                ? 'bg-accent text-white border-sky-500'
-                : isLight
-                ? 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                ? 'bg-accent-soft text-accent-ink border-transparent'
+                : 'border-transparent text-ink-muted hover:text-ink hover:bg-surface-hover'
             }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -728,10 +726,8 @@ export const ShotListPanel: React.FC = () => {
             aria-pressed={showAllScenes}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold transition-colors ${
               showAllScenes
-                ? 'bg-accent text-white border-violet-500'
-                : isLight
-                ? 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                ? 'bg-accent-soft text-accent-ink border-transparent'
+                : 'border-transparent text-ink-muted hover:text-ink hover:bg-surface-hover'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -739,9 +735,7 @@ export const ShotListPanel: React.FC = () => {
           </button>
 
           {/* View Toggle: Cards vs Table List */}
-          <div className={`flex items-center gap-0.5 border rounded-lg p-0.5 ${
-            isLight ? 'bg-slate-200/70 border-slate-300' : 'bg-slate-800 border-slate-700'
-          }`}>
+          <div className="flex items-center gap-0.5 border rounded-lg p-0.5 bg-surface-sunken border-line">
             <button
               onClick={() => setShowStoryboards((v) => !v)}
               title={
@@ -752,7 +746,7 @@ export const ShotListPanel: React.FC = () => {
               aria-pressed={showStoryboards}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 showStoryboards
-                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                  ? 'bg-surface text-ink shadow-sm ring-1 ring-line'
                   : 'text-ink-muted hover:text-ink'
               }`}
             >
@@ -780,7 +774,7 @@ export const ShotListPanel: React.FC = () => {
               aria-pressed={viewMode === 'cards'}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 viewMode === 'cards'
-                  ? 'bg-accent text-white shadow-xs'
+                  ? 'bg-surface text-ink shadow-sm ring-1 ring-line'
                   : 'text-ink-muted hover:text-ink'
               }`}
             >
@@ -793,7 +787,7 @@ export const ShotListPanel: React.FC = () => {
               aria-pressed={viewMode === 'table'}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
                 viewMode === 'table'
-                  ? 'bg-accent text-white shadow-xs'
+                  ? 'bg-surface text-ink shadow-sm ring-1 ring-line'
                   : 'text-ink-muted hover:text-ink'
               }`}
             >
@@ -1015,7 +1009,7 @@ export const ShotListPanel: React.FC = () => {
                       onClick={(e) => e.stopPropagation()}
                       title="Click to edit shot number"
                       className={`w-12 text-center text-xs font-mono font-bold px-1 py-0.5 rounded border focus:outline-none focus:ring-1 focus:ring-sky-500 ${
-                        isLight ? 'bg-slate-100 text-sky-700 border-sky-300' : 'bg-slate-900 text-sky-400 border-sky-500/40'
+                        'bg-surface-muted text-accent-ink border-sky-300 dark:border-sky-500/40'
                       }`}
                     />
 
@@ -1095,7 +1089,7 @@ export const ShotListPanel: React.FC = () => {
                       title="Open Simulated Viewfinder for this Shot"
                       aria-label="Open Simulated Viewfinder for this Shot"
                       className={`p-1 rounded transition-colors ${
-                        isLight ? 'text-slate-500 hover:text-sky-600 hover:bg-slate-100' : 'text-slate-400 hover:text-sky-300 hover:bg-slate-700'
+                        'text-ink-muted hover:text-accent-ink hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -1120,7 +1114,7 @@ export const ShotListPanel: React.FC = () => {
                       className={`p-1 rounded transition-colors ${
                         linedShotIds.has(shot.id)
                           ? 'text-violet-500'
-                          : isLight ? 'text-slate-500 hover:text-violet-600 hover:bg-slate-100' : 'text-slate-400 hover:text-violet-300 hover:bg-slate-700'
+                          : 'text-ink-muted hover:text-violet-600 dark:hover:text-violet-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -1157,7 +1151,7 @@ export const ShotListPanel: React.FC = () => {
                     onClick={(e) => e.stopPropagation()}
                     placeholder="Shot Name / Action Description..."
                     className={`w-full text-xs font-semibold px-2 py-1 rounded-lg border focus:outline-none focus:border-sky-500 transition-colors ${
-                      isLight ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white' : 'bg-slate-900/80 text-slate-200 border-slate-700 focus:bg-slate-950'
+                      'bg-slate-50 dark:bg-slate-900/80 text-ink-soft border-line focus:bg-field'
                     }`}
                   />
                 </div>
@@ -1327,7 +1321,7 @@ export const ShotListPanel: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className={`border-b text-[10px] uppercase tracking-wider font-bold ${
-                  isLight ? 'bg-slate-100/80 text-slate-600 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'
+                  'bg-slate-100/80 dark:bg-slate-950 text-ink-muted border-line'
                 }`}>
                   <th className="py-2.5 px-2 w-8 text-center"></th>
                   {showStoryboards && <th className="py-2.5 px-2 w-12">Story</th>}
@@ -1368,8 +1362,8 @@ export const ShotListPanel: React.FC = () => {
                         isDropAfter ? 'border-b-2 border-b-sky-500' : ''
                       } ${
                         isSelected
-                          ? isLight ? 'bg-sky-50 font-medium' : 'bg-slate-800 font-medium'
-                          : isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60'
+                          ? 'bg-sky-50 dark:bg-slate-800 font-medium'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                       }`}
                     >
                       {/* Drag Handle (reordering only makes sense within a scene) */}
@@ -1379,8 +1373,8 @@ export const ShotListPanel: React.FC = () => {
                             title={`Scene ${sceneLabelBySetupId.get(setupIdByShotId.get(shot.id) || '') || ''}`}
                             className={`text-[10px] font-mono font-bold px-1 py-0.5 rounded ${
                               foreign
-                                ? isLight ? 'bg-violet-100 text-violet-700' : 'bg-violet-500/20 text-violet-300'
-                                : isLight ? 'bg-sky-100 text-sky-700' : 'bg-sky-500/20 text-sky-300'
+                                ? 'bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300'
+                                : 'bg-sky-100 dark:bg-sky-500/20 text-accent-ink'
                             }`}
                           >
                             {sceneLabelBySetupId.get(setupIdByShotId.get(shot.id) || '') || '—'}
@@ -1669,7 +1663,7 @@ export const ShotListPanel: React.FC = () => {
       */}
       {hiddenShotCount > 0 && (
         <div className={`px-2.5 py-2 border-t flex items-center justify-between gap-2 text-[11px] ${
-          isLight ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-amber-900/60 bg-amber-950/30 text-amber-200'
+          'border-amber-200 dark:border-amber-900/60 bg-warn-soft text-warn'
         }`}>
           <span>
             Showing the first <strong>{visibleShots.length}</strong> of {filteredShots.length} shots.
@@ -1685,7 +1679,7 @@ export const ShotListPanel: React.FC = () => {
         </div>
       )}
       <div className={`p-2.5 border-t text-[11px] flex items-center justify-between ${
-        isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-slate-800 bg-slate-950/80 text-slate-400'
+        'border-line bg-slate-50 dark:bg-slate-950/80 text-ink-muted'
       }`}>
         <span className="flex items-center gap-1 font-mono">
           <Layers className="w-3.5 h-3.5 text-accent-ink" />

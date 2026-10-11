@@ -64,7 +64,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
   onSelectEvent,
   onSelectDate,
   selectedDate,
-  isLight,
+  isLight: _isLight,
 }) => {
   const grid = useMemo(() => buildMonthGrid(yearMonth), [yearMonth]);
   const today = todayIso();
@@ -97,7 +97,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                 onClick={() => onSelectDate(day.iso)}
                 title="Open this day's shooting schedule"
                 className={`min-h-[78px] p-1 border-r last:border-r-0 cursor-pointer transition-colors ${
-                  isLight ? 'border-slate-200 hover:bg-sky-50/60' : 'border-slate-800 hover:bg-sky-950/30'
+                  'border-line hover:bg-sky-50/60 dark:hover:bg-sky-950/30'
                 } ${day.inMonth ? '' : 'opacity-45'} ${selectedDate === day.iso ? 'ring-2 ring-inset ring-sky-500' : ''}`}
               >
                 <div className="flex items-center justify-between">
@@ -112,7 +112,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                   {scheduledWork.flatMap((workDay) => workDay.items).slice(0, 2).map((item, index) => (
                     <p
                       key={`work-${index}-${item.label}`}
-                      className={`text-[10px] truncate px-1 rounded border font-semibold ${isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/50 text-amber-200'}`}
+                      className={`text-[10px] truncate px-1 rounded border font-semibold border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 text-warn`}
                       title={item.label}
                     >
                       {item.label}
@@ -147,7 +147,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                   })}
                   {dayEvents.length > 3 && <p className={`text-[10px] ${mutedCls}`}>+{dayEvents.length - 3} more</p>}
                   {due.slice(0, 2).map((task) => (
-                    <p key={task.id} className={`text-[10px] truncate px-1 rounded border ${task.completedAt ? 'opacity-50 line-through' : ''} ${isLight ? 'border-violet-300 text-violet-700 bg-violet-50' : 'border-violet-700 text-violet-300 bg-violet-950/40'}`} title={`Task due: ${task.title}`}>
+                    <p key={task.id} className={`text-[10px] truncate px-1 rounded border ${task.completedAt ? 'opacity-50 line-through' : ''} border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40`} title={`Task due: ${task.title}`}>
                       ☐ {task.title}
                     </p>
                   ))}
@@ -171,14 +171,14 @@ interface CalendarEventEditorProps {
 }
 
 /** Inline editor for one calendar event: dates, category, status, color, assignees, notes. */
-export const CalendarEventEditor: React.FC<CalendarEventEditorProps> = ({ event, people, onUpdate, onDelete, onClose, isLight }) => {
+export const CalendarEventEditor: React.FC<CalendarEventEditorProps> = ({ event, people, onUpdate, onDelete, onClose, isLight: _isLight }) => {
   const inputCls = `min-h-[32px] w-full rounded-md border px-2 py-1 text-xs outline-none ${
     'border-line-strong bg-field text-ink focus:border-accent'
   }`;
   const labelCls = `text-[10px] font-bold uppercase tracking-wider text-ink-muted`;
   const assignees = event.assigneeIds ?? [];
   return (
-    <div className={`rounded-lg border p-3 space-y-2 ${isLight ? 'border-sky-200 bg-sky-50/60' : 'border-sky-900/60 bg-sky-950/20'}`}>
+    <div className={`rounded-lg border p-3 space-y-2 border-sky-200 dark:border-sky-900/60 bg-accent-soft`}>
       <div className="flex items-center gap-2">
         <input value={event.title} onChange={(e) => onUpdate({ title: e.target.value })} className={`${inputCls} font-semibold`} />
         <button onClick={onClose} className={`text-[10px] font-bold px-2 py-1 rounded border border-line-strong`}>Close</button>

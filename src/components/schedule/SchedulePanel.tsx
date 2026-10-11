@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { printPdfBytes } from '../../utils/printPdf';
 import { WhatIfPanel } from './WhatIfPanel';
 import { scheduleWhatIf } from '../../domain/reports/scheduleWhatIf';
 import { readScheduleView, requestScheduleView } from '../../utils/uiPrefs';
 import type { ScheduleView } from '../../utils/uiPrefs';
 import { ScheduleDood } from './DoodReport';
+import { ViewSwitcher } from '../common/ViewSwitcher';
 import { PanelTitle } from '../common/PanelHeader';
+import { ProductionReportView } from './ProductionReportView';
 import { PerformerTimeReportView } from './PerformerTimeReportView';
 import { OneLinerView } from './OneLinerView';
 import { createPortal } from 'react-dom';
@@ -26,6 +28,8 @@ import {
   Users,
   ListOrdered,
   Printer,
+  ClipboardCheck,
+  Upload,
 } from 'lucide-react';
 import { DoodIcon, StripboardIcon, TimeSheetIcon } from '../icons/ProductionIcons';
 import { useFloorPlan } from '../../context/FloorPlanContext';
@@ -33,6 +37,7 @@ import { useDialogs } from '../dialog/DialogProvider';
 import { CoverageMatrixEditor } from './CoverageMatrixEditor';
 import { TimelineCalendar } from './TimelineCalendar';
 import { CalendarEventEditor, MonthCalendar } from './MonthCalendar';
+import { materializeScheduleImport, planScheduleCsvImport, type ScheduleImportPlan } from '../../domain/scheduling/scheduleCsvImport';
 import { createId } from '../../domain/ids';
 import { waitForImages } from '../../utils/image';
 import {
@@ -71,6 +76,7 @@ import {
   addCalendarEventCommand,
   addProductionDayCommand,
   addScheduleBlockCommand,
+  importScheduleCommand,
   moveScheduleBlockCommand,
   removeCalendarEventCommand,
   removeProductionDayCommand,
@@ -101,7 +107,37 @@ const formatMinutes = (total: number): string => {
 export const SchedulePanel: React.FC = () => {
   const { project, runCommand, activeSetup, scriptLines, avScriptRows, allShots } = useFloorPlan();
   const { theme, setActiveRightTab } = useWorkspaceUI();
-  const { confirm } = useDialogs();
+  const { confirm, notice } = useDialogs();
+  const scheduleImportRef = useRef<HTMLInputElement>(null);
+
+  /** Read another tool's schedule export, show what it would add, then add it. */
+  const importScheduleFile = async (file: File) => {
+    let plan: ScheduleImportPlan;
+    try {
+      plan = planScheduleCsvImport(await file.text(), project.scriptScenes ?? []);
+    } catch (error) {
+      await notice({ title: 'Schedule import', message: error instanceof Error ? error.message : 'The file could not be read.' });
+      return;
+    }
+    if (plan.days.length === 0) {
+      await notice({
+        title: 'Schedule import',
+        message: plan.unmatchedScenes.length
+          ? `None of the scenes in ${file.name} are in this screenplay (${plan.unmatchedScenes.slice(0, 12).join(', ')}). Import or write the screenplay first.`
+          : `No scheduled scenes found in ${file.name}.`,
+      });
+      return;
+    }
+    const ok = await confirm({
+      title: 'Import schedule',
+      message: `${file.name}: ${plan.days.length} shooting day${plan.days.length === 1 ? '' : 's'} with ${plan.sceneCount} scene strip${plan.sceneCount === 1 ? '' : 's'}, added after the days you already have.${plan.unmatchedScenes.length ? `
+
+Not in this screenplay, so left out: ${plan.unmatchedScenes.slice(0, 20).join(', ')}${plan.unmatchedScenes.length > 20 ? '…' : ''}.` : ''}`,
+      confirmLabel: 'Import',
+    });
+    if (!ok) return;
+    runCommand(importScheduleCommand, { ...materializeScheduleImport(plan, createId), source: file.name }, { domain: 'schedule' });
+  };
   const isLight = theme === 'light';
 
   // Memoised: `?? []` mints a fresh array every render, which made every memo
@@ -642,7 +678,7 @@ export const SchedulePanel: React.FC = () => {
     const omittedLabel = block.kind === 'scene' ? block.omittedLabel : undefined;
     if (omittedLabel !== undefined) {
       return (
-        <li key={block.id} draggable onDragStart={handleDragStart(block.id)} onDragEnd={handleDragEnd} onDragOver={allowDrop(targetKey)} onDrop={handleDrop(day ? day.id : null, indexInDay)} title="This scene was deleted from the screenplay. Delete this strip to remove it entirely." className={`group border border-dashed transition-all ${draggedBlockId === block.id ? 'opacity-40' : ''} ${isLight ? 'bg-slate-100 border-slate-300 text-slate-500' : 'bg-slate-900/60 border-slate-700 text-slate-400'}`}>
+        <li key={block.id} draggable onDragStart={handleDragStart(block.id)} onDragEnd={handleDragEnd} onDragOver={allowDrop(targetKey)} onDrop={handleDrop(day ? day.id : null, indexInDay)} title="This scene was deleted from the screenplay. Delete this strip to remove it entirely." className={`group border border-dashed transition-all ${draggedBlockId === block.id ? 'opacity-40' : ''} bg-slate-100 dark:bg-slate-900/60 border-line-strong text-ink-muted`}>
           <div className={`grid items-center min-h-10 ${day ? 'grid-cols-[22px_42px_1fr_68px]' : 'grid-cols-[22px_42px_1fr_42px]'}`}>
             <span className="flex justify-center cursor-grab"><GripVertical className={`w-3.5 h-3.5 ${mutedText}`} /></span>
             <span className="font-mono text-[10px] font-black text-center opacity-70">OM.</span>
@@ -689,11 +725,11 @@ export const SchedulePanel: React.FC = () => {
     }, 0);
     return (
       <section key={day.id} onDragOver={allowDrop(`day:${day.id}`)} onDrop={handleDrop(day.id)} className={`overflow-hidden rounded-lg border shadow-sm ${dropTarget === `day:${day.id}` ? 'border-cyan-500 ring-2 ring-cyan-500/20' : 'border-line-strong bg-surface'}`}>
-        <div className="bg-slate-900 text-white px-3 py-2.5 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-md bg-cyan-500 text-slate-950 flex flex-col items-center justify-center leading-none shrink-0"><span className="text-[10px] font-black uppercase">Day</span><span className="text-base font-black">{dayIndex + 1}</span></div>
-          <div className="min-w-0 flex-1"><input aria-label={`Name of ${day.name || 'this day'}`} value={day.name} onChange={(event) => updateDay(day.id, { name: event.target.value })} className="w-full bg-transparent text-sm font-black outline-none placeholder:text-slate-500" placeholder={`Shooting day ${dayIndex + 1}`} /><div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400"><input type="date" aria-label={`Date of ${day.name}`} value={day.date ?? ''} onChange={(event) => updateDay(day.id, { date: event.target.value || undefined })} className="bg-transparent font-mono outline-none" /><span>CALL</span><input aria-label={`Crew call on ${day.name}`} value={day.crewCall ?? ''} onChange={(event) => updateDay(day.id, { crewCall: event.target.value || undefined })} placeholder="07:00" className="w-12 bg-transparent font-mono text-white outline-none" /><span>WRAP</span><input aria-label={`Planned wrap on ${day.name}`} value={day.plannedWrap ?? ''} onChange={(event) => updateDay(day.id, { plannedWrap: event.target.value || undefined })} placeholder="18:30" className="w-12 bg-transparent font-mono text-white outline-none" /></div></div>
-          <div className="text-right shrink-0"><div className="text-[11px] font-black font-mono">{formatMinutes(summary.totalEstimatedMinutes)}</div><div className="text-[10px] uppercase tracking-wider text-slate-400">{shootableCount} shoot items · {day.scheduleBlockIds.length} strips</div></div>
-          <button onClick={() => { setSelectedCallSheetDayId(day.id); setWorkspaceView('callsheets'); }} className="h-8 px-2.5 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase flex items-center gap-1.5"><FileCheck2 className="w-3.5 h-3.5" /> Call sheet</button>
+        <div className="bg-slate-900 text-white px-3 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <div className="flex items-center gap-3 flex-1 min-w-[21rem]"><div className="w-9 h-9 rounded-md bg-cyan-500 text-slate-950 flex flex-col items-center justify-center leading-none shrink-0"><span className="text-[10px] font-black uppercase">Day</span><span className="text-base font-black">{dayIndex + 1}</span></div>
+          <div className="min-w-0 flex-1"><input aria-label={`Name of ${day.name || 'this day'}`} value={day.name} onChange={(event) => updateDay(day.id, { name: event.target.value })} className="w-full bg-transparent text-sm font-black outline-none placeholder:text-slate-500" placeholder={`Shooting day ${dayIndex + 1}`} /><div className="mt-1 flex items-center gap-2 whitespace-nowrap text-[10px] text-slate-400"><input type="date" aria-label={`Date of ${day.name}`} value={day.date ?? ''} onChange={(event) => updateDay(day.id, { date: event.target.value || undefined })} className="w-[7.5rem] bg-transparent font-mono outline-none [color-scheme:dark]" /><span>CALL</span><input aria-label={`Crew call on ${day.name}`} value={day.crewCall ?? ''} onChange={(event) => updateDay(day.id, { crewCall: event.target.value || undefined })} placeholder="07:00" className="w-12 bg-transparent font-mono text-white outline-none" /><span>WRAP</span><input aria-label={`Planned wrap on ${day.name}`} value={day.plannedWrap ?? ''} onChange={(event) => updateDay(day.id, { plannedWrap: event.target.value || undefined })} placeholder="18:30" className="w-12 bg-transparent font-mono text-white outline-none" /></div></div></div>
+          <div className="text-right shrink-0 ml-auto"><div className="text-[11px] font-black font-mono">{formatMinutes(summary.totalEstimatedMinutes)}</div><div className="text-[10px] text-slate-400 whitespace-nowrap">{shootableCount} shoot items · {day.scheduleBlockIds.length} strips</div></div>
+          <button onClick={() => { setSelectedCallSheetDayId(day.id); setWorkspaceView('callsheets'); }} className="h-8 px-2.5 rounded-md bg-white/10 hover:bg-white/20 text-[11px] font-semibold whitespace-nowrap flex items-center gap-1.5"><FileCheck2 className="w-3.5 h-3.5" /> Call sheet</button>
           <button onClick={() => deleteDay(day.id)} title="Delete this shooting day" aria-label="Delete this shooting day" className="w-8 h-8 rounded-md hover:bg-red-500/20 text-slate-400 hover:text-red-400 flex items-center justify-center"><Trash2 className="w-3.5 h-3.5" /></button>
         </div>
         {(() => {
@@ -730,14 +766,35 @@ export const SchedulePanel: React.FC = () => {
                 type="button"
                 onClick={() => setActiveRightTab('contacts')}
                 title="Assign performers and edit their production cast numbers"
-                className={`h-8 px-2.5 rounded-md border text-[10px] font-black flex items-center gap-1.5 transition-colors bg-field border-line-strong hover:border-emerald-500 hover:text-ok`}
+                className={`h-8 px-2.5 rounded-md text-[11px] font-semibold flex items-center gap-1.5 whitespace-nowrap transition-colors text-ink-soft hover:bg-surface-hover`}
               >
                 <Users className="w-3.5 h-3.5" /><span className="hidden sm:inline">Cast numbers</span>
               </button>
             )}
-            <div className={`flex h-8 rounded-md border p-0.5 bg-surface-sunken border-line`}>
-              {([['stripboard', StripboardIcon, 'Board'], ['oneliner', ListOrdered, 'One-liner'], ['dood', DoodIcon, 'DOOD'], ['calendar', CalendarRange, 'Timeline'], ['callsheets', FileCheck2, 'Call sheets'], ['coverage', Users, 'Coverage'], ['timereport', TimeSheetIcon, 'Time report']] as const).map(([view, Icon, label]) => <button key={view} onClick={() => setWorkspaceView(view)} aria-pressed={workspaceView === view} aria-label={label} title={label} className={`px-2 sm:px-2.5 rounded text-[10px] font-black flex items-center gap-1.5 transition-colors ${workspaceView === view ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-sm' : mutedText}`}><Icon className="w-3.5 h-3.5" /><span className="hidden sm:inline">{label}</span></button>)}
-            </div>
+            {workspaceView === 'stripboard' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => scheduleImportRef.current?.click()}
+                  title="Import a schedule exported from another tool or a spreadsheet (CSV with a Scene column)"
+                  className="h-8 px-2.5 rounded-md text-[11px] font-semibold flex items-center gap-1.5 whitespace-nowrap transition-colors text-ink-soft hover:bg-surface-hover"
+                >
+                  <Upload className="w-3.5 h-3.5" /><span className="hidden sm:inline">Import CSV</span>
+                </button>
+                <input
+                  ref={scheduleImportRef}
+                  type="file"
+                  accept=".csv,.tsv,.txt,text/csv"
+                  aria-label="Schedule CSV file"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) void importScheduleFile(file);
+                  }}
+                />
+              </>
+            )}
             {(pdfSection() || workspaceView === 'callsheets') && (
               <button
                 type="button"
@@ -755,6 +812,24 @@ export const SchedulePanel: React.FC = () => {
             )}
           </div>
         </div>
+        <div className="px-4 pb-2 flex">
+          <ViewSwitcher
+            label="Schedule view"
+            widthPerLabel={80}
+            value={workspaceView}
+            onChange={setWorkspaceView}
+            items={[
+              { id: 'stripboard', icon: StripboardIcon, label: 'Board' },
+              { id: 'oneliner', icon: ListOrdered, label: 'One-liner' },
+              { id: 'dood', icon: DoodIcon, label: 'DOOD' },
+              { id: 'calendar', icon: CalendarRange, label: 'Timeline' },
+              { id: 'callsheets', icon: FileCheck2, label: 'Call sheets' },
+              { id: 'coverage', icon: Users, label: 'Coverage' },
+              { id: 'timereport', icon: TimeSheetIcon, label: 'Time report' },
+              { id: 'dpr', icon: ClipboardCheck, label: 'Day report' },
+            ]}
+          />
+        </div>
       </header>
 
       {hasIssues && <div className="shrink-0 px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-[10px] font-bold text-amber-900 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5" />{conflicts.length + danglingRefs.length} schedule integrity warning{conflicts.length + danglingRefs.length === 1 ? '' : 's'} need attention.</div>}
@@ -764,10 +839,10 @@ export const SchedulePanel: React.FC = () => {
         <aside onDragOver={allowDrop('pool')} onDrop={handleDrop(null)} className={`w-[150px] sm:w-[205px] shrink-0 border-r flex flex-col min-h-0 bg-surface border-line`}>
           <div className="p-2.5 border-b border-inherit"><div className="flex items-center justify-between"><h3 className="text-[10px] font-black uppercase tracking-[0.14em] flex items-center gap-1.5"><Inbox className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400" />Unscheduled</h3><span className="text-[10px] font-mono font-bold text-slate-500">{pooledBlockIds.length + unscheduledScenes.length + unscheduledSetups.length + unscheduledShots.length}</span></div><div className="relative mt-2"><Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" /><input value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder="Search scenes, setups, shots" className={`${inputClass} !min-h-8 !pl-7 !text-[10px]`} /></div></div>
           <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1.5">
-            {selectedShotIds.size > 0 && <div className={`sticky top-0 z-10 rounded-md border p-1.5 flex items-center gap-1.5 shadow-sm ${isLight ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-white text-slate-950'}`}><span className="flex-1 text-[10px] font-black">{selectedShotIds.size} shots selected</span><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleShots([...selectedShotIds], days[0].id)} className="h-6 px-2 rounded bg-cyan-500 text-slate-950 text-[10px] font-black disabled:opacity-40">Add to day 1</button><button type="button" onClick={() => setSelectedShotIds(new Set())} title="Clear the shot selection" aria-label="Clear the shot selection" className="w-6 h-6 text-sm opacity-70">×</button></div>}
-            {unscheduledScenes.map((scene) => <div key={scene.id} draggable onDragStart={handleDragStart(`scene:${scene.id}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab ${isLight ? 'bg-amber-50 border-amber-200' : 'bg-amber-950/20 border-amber-800/50'}`}><div className="flex"><div className="w-7 bg-amber-400 text-amber-950 flex items-center justify-center font-mono text-[10px] font-black">{scene.sceneNumber}</div><div className="min-w-0 flex-1 px-2 py-2"><div className="text-[10px] font-black truncate">{scene.heading}</div><div className={`mt-0.5 text-[10px] font-bold uppercase ${mutedText}`}>{scene.intExt?.replace('_', '/') ?? 'SCENE'} · {scene.timeOfDay ?? 'TBD'} · {formatPageEighths(scene.pageLengthEighths)}</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleScene(scene.id, days[0].id)} title="Add to first shooting day" aria-label="Add to first shooting day" className="w-7 shrink-0 flex items-center justify-center text-amber-800 hover:bg-amber-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>)}
-            {unscheduledSetups.map((setup) => <div key={setup.id} draggable onDragStart={handleDragStart(`setup:${setup.id}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab ${isLight ? 'bg-cyan-50 border-cyan-200' : 'bg-cyan-950/20 border-cyan-800/50'}`}><div className="flex"><div className="w-7 bg-cyan-500 text-slate-950 flex items-center justify-center font-mono text-[10px] font-black">SET</div><div className="min-w-0 flex-1 px-2 py-2"><div className="text-[10px] font-black truncate">{setup.name}</div><div className={`mt-0.5 text-[10px] font-bold uppercase truncate ${mutedText}`}>{setup.sceneNumber || 'No scene'} · {setup.location || 'Location TBD'} · {setup.shots.length} shots</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleSetup(setup.id, days[0].id)} title="Add to first shooting day" aria-label="Add to first shooting day" className="w-7 shrink-0 flex items-center justify-center text-cyan-800 hover:bg-cyan-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>)}
-            {unscheduledShots.map(({ shot, setup }) => { const selected = selectedShotIds.has(shot.id); const dragIds = selected ? [...selectedShotIds] : [shot.id]; return <div key={shot.id} draggable onDragStart={handleDragStart(`shots:${dragIds.join(',')}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab transition-colors ${selected ? 'ring-2 ring-violet-500 border-violet-500' : isLight ? 'bg-violet-50 border-violet-200' : 'bg-violet-950/20 border-violet-800/50'}`}><div className="flex items-stretch"><label className="w-7 shrink-0 flex items-center justify-center bg-violet-500/15"><input type="checkbox" checked={selected} onChange={() => toggleShotSelection(shot.id)} aria-label={`Select shot ${shot.shotNumber}`} className="accent-violet-600" /></label><div className="min-w-0 flex-1 px-2 py-1.5"><div className="text-[10px] font-black truncate">{shot.shotNumber} · {shot.name}</div><div className={`mt-0.5 text-[10px] font-bold uppercase truncate ${mutedText}`}>{shot.cameraLabel} · {shot.shotSize} · {shot.lensMm}mm · {setup.name}</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleShots([shot.id], days[0].id)} title={`Add shot ${shot.shotNumber} to first shooting day`} aria-label={`Add shot ${shot.shotNumber} to first shooting day`} className="w-7 shrink-0 flex items-center justify-center text-violet-700 hover:bg-violet-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>; })}
+            {selectedShotIds.size > 0 && <div className={`sticky top-0 z-10 rounded-md border p-1.5 flex items-center gap-1.5 shadow-sm bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-950`}><span className="flex-1 text-[10px] font-black">{selectedShotIds.size} shots selected</span><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleShots([...selectedShotIds], days[0].id)} className="h-6 px-2 rounded bg-cyan-500 text-slate-950 text-[10px] font-black disabled:opacity-40">Add to day 1</button><button type="button" onClick={() => setSelectedShotIds(new Set())} title="Clear the shot selection" aria-label="Clear the shot selection" className="w-6 h-6 text-sm opacity-70">×</button></div>}
+            {unscheduledScenes.map((scene) => <div key={scene.id} draggable onDragStart={handleDragStart(`scene:${scene.id}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50`}><div className="flex"><div className="w-7 bg-amber-400 text-amber-950 flex items-center justify-center font-mono text-[10px] font-black">{scene.sceneNumber}</div><div className="min-w-0 flex-1 px-2 py-2"><div className="text-[10px] font-black truncate">{scene.heading}</div><div className={`mt-0.5 text-[10px] font-bold uppercase ${mutedText}`}>{scene.intExt?.replace('_', '/') ?? 'SCENE'} · {scene.timeOfDay ?? 'TBD'} · {formatPageEighths(scene.pageLengthEighths)}</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleScene(scene.id, days[0].id)} title="Add to first shooting day" aria-label="Add to first shooting day" className="w-7 shrink-0 flex items-center justify-center text-amber-800 hover:bg-amber-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>)}
+            {unscheduledSetups.map((setup) => <div key={setup.id} draggable onDragStart={handleDragStart(`setup:${setup.id}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-800/50`}><div className="flex"><div className="w-7 bg-cyan-500 text-slate-950 flex items-center justify-center font-mono text-[10px] font-black">SET</div><div className="min-w-0 flex-1 px-2 py-2"><div className="text-[10px] font-black truncate">{setup.name}</div><div className={`mt-0.5 text-[10px] font-bold uppercase truncate ${mutedText}`}>{setup.sceneNumber || 'No scene'} · {setup.location || 'Location TBD'} · {setup.shots.length} shots</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleSetup(setup.id, days[0].id)} title="Add to first shooting day" aria-label="Add to first shooting day" className="w-7 shrink-0 flex items-center justify-center text-cyan-800 hover:bg-cyan-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>)}
+            {unscheduledShots.map(({ shot, setup }) => { const selected = selectedShotIds.has(shot.id); const dragIds = selected ? [...selectedShotIds] : [shot.id]; return <div key={shot.id} draggable onDragStart={handleDragStart(`shots:${dragIds.join(',')}`)} onDragEnd={handleDragEnd} className={`border rounded-md overflow-hidden cursor-grab transition-colors ${selected ? 'ring-2 ring-violet-500 border-violet-500' : 'bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800/50'}`}><div className="flex items-stretch"><label className="w-7 shrink-0 flex items-center justify-center bg-violet-500/15"><input type="checkbox" checked={selected} onChange={() => toggleShotSelection(shot.id)} aria-label={`Select shot ${shot.shotNumber}`} className="accent-violet-600" /></label><div className="min-w-0 flex-1 px-2 py-1.5"><div className="text-[10px] font-black truncate">{shot.shotNumber} · {shot.name}</div><div className={`mt-0.5 text-[10px] font-bold uppercase truncate ${mutedText}`}>{shot.cameraLabel} · {shot.shotSize} · {shot.lensMm}mm · {setup.name}</div></div><button type="button" disabled={!days.length} onClick={() => days[0] && scheduleShots([shot.id], days[0].id)} title={`Add shot ${shot.shotNumber} to first shooting day`} aria-label={`Add shot ${shot.shotNumber} to first shooting day`} className="w-7 shrink-0 flex items-center justify-center text-violet-700 hover:bg-violet-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button></div></div>; })}
             {pooledBlockIds.map((block) => renderBlockRow(block))}
             {!unscheduledScenes.length && !unscheduledSetups.length && !unscheduledShots.length && !pooledBlockIds.length && <div className={`py-8 text-center text-[10px] ${mutedText}`}>Everything is scheduled.</div>}
           </div>
@@ -894,6 +969,7 @@ export const SchedulePanel: React.FC = () => {
       {workspaceView === 'dood' && <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-3"><ScheduleDood isLight={isLight} onOpenBoard={() => setWorkspaceView('stripboard')} /></div>}
       {workspaceView === 'oneliner' && <div className="flex-1 min-h-0"><OneLinerView isLight={isLight} /></div>}
       {workspaceView === 'timereport' && <div className="flex-1 min-h-0"><PerformerTimeReportView days={days} isLight={isLight} /></div>}
+      {workspaceView === 'dpr' && <div className="flex-1 min-h-0"><ProductionReportView days={days} /></div>}
 
       {printSheet && createPortal(<div className="call-sheet-print-host"><CallSheetPrintView sheet={printSheet} /></div>, document.body)}
       {printView === 'stripboard' && createPortal(

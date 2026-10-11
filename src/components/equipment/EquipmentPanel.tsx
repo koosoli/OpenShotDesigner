@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ViewSwitcher } from '../common/ViewSwitcher';
 import { PanelTitle } from '../common/PanelHeader';
 import { useDismiss } from '../common/useDismiss';
 import { usePersistentUiState } from '../../utils/usePersistentUiState';
@@ -9,7 +10,6 @@ import {
   Boxes,
   Cable,
   Camera,
-  Check,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -34,10 +34,13 @@ import {
   X,
   Workflow,
   Zap,
+  Clapperboard,
 } from 'lucide-react';
+import { EquipmentItemModal, type EquipmentItemForm } from './EquipmentItemModal';
+import { BrandOptions, ModelOptions, usesFixtureDatabase } from './GearOptions';
+import { PackageItemModal, type PackageItemForm } from './PackageItemModal';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useDialogs } from '../dialog/DialogProvider';
-import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { waitForImages } from '../../utils/image';
 import { CameraElement, EquipmentCategory, EquipmentItem, LightElement, MasterEquipmentItem } from '../../types';
@@ -72,89 +75,6 @@ import {
 import type { FixtureProfile, GearBrandOption, GearModelOption } from '../../domain/fixtures';
 import { formatQuantity } from '../../domain/documentFormat';
 
-/**
- * Only the lighting department has a real-fixture database behind it. Every
- * other category gets an empty profile list, which makes the merge helpers
- * fall through to the curated department names unchanged.
- */
-const usesFixtureDatabase = (category: EquipmentCategory): boolean => category === 'lighting';
-
-/** `<optgroup>`s separating the curated department names from database entries. */
-const BrandOptions: React.FC<{ options: GearBrandOption[] }> = ({ options }) => {
-  const department = options.filter((option) => option.fromDepartment);
-  const database = options.filter((option) => !option.fromDepartment);
-  const optionClass = 'bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold';
-  const label = (option: GearBrandOption) =>
-    option.profileCount > 0 ? `${option.brand} (${option.profileCount})` : option.brand;
-  if (database.length === 0) {
-    return (
-      <>
-        {department.map((option) => (
-          <option key={option.brand} value={option.brand} className={optionClass}>
-            {label(option)}
-          </option>
-        ))}
-      </>
-    );
-  }
-  return (
-    <>
-      <optgroup label="Department catalog">
-        {department.map((option) => (
-          <option key={option.brand} value={option.brand} className={optionClass}>
-            {label(option)}
-          </option>
-        ))}
-      </optgroup>
-      <optgroup label={`Fixture database (${database.length} makers)`}>
-        {database.map((option) => (
-          <option key={option.brand} value={option.brand} className={optionClass}>
-            {label(option)}
-          </option>
-        ))}
-      </optgroup>
-    </>
-  );
-};
-
-/** Model options, marking the ones that carry database data with a ◆. */
-const ModelOptions: React.FC<{ options: GearModelOption[] }> = ({ options }) => {
-  const optionClass = 'bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold';
-  const linked = options.filter((option) => option.profile);
-  const plain = options.filter((option) => !option.profile);
-  if (linked.length === 0) {
-    return (
-      <>
-        {plain.map((option) => (
-          <option key={option.model} value={option.model} className={optionClass}>
-            {option.model}
-          </option>
-        ))}
-      </>
-    );
-  }
-  return (
-    <>
-      <optgroup label="Fixture database — DMX & specs included">
-        {linked.map((option) => (
-          <option key={option.model} value={option.model} className={optionClass}>
-            ◆ {option.model}
-            {option.profile!.modes.length > 0 ? ` — ${option.profile!.modes.length} DMX mode${option.profile!.modes.length === 1 ? '' : 's'}` : ''}
-          </option>
-        ))}
-      </optgroup>
-      {plain.length > 0 && (
-        <optgroup label="Department catalog — name only">
-          {plain.map((option) => (
-            <option key={option.model} value={option.model} className={optionClass}>
-              {option.model}
-            </option>
-          ))}
-        </optgroup>
-      )}
-    </>
-  );
-};
 
 export const EquipmentPanel: React.FC = () => {
   // Prefix for pairing each caption with its control (`htmlFor`/`id`). From
@@ -264,15 +184,7 @@ export const EquipmentPanel: React.FC = () => {
   // Package modal state for adding an accessory to a specific package
   const [activePackageTargetId, setActivePackageTargetId] = useState<string | null>(null);
   const [isAddPackageItemModalOpen, setIsAddPackageItemModalOpen] = useState(false);
-  const [packageFormData, setPackageFormData] = useState<{
-    category: EquipmentCategory;
-    name: string;
-    brand: string;
-    model: string;
-    quantity: number;
-    roleOrFunction: string;
-    specs: string;
-  }>({
+  const [packageFormData, setPackageFormData] = useState<PackageItemForm>({
     category: 'power_media',
     name: 'V-Mount Batteries (4-Pack) & Charger',
     brand: 'Anton Bauer',
@@ -283,20 +195,7 @@ export const EquipmentPanel: React.FC = () => {
   });
 
   // Form state for general add / edit modal
-  const [formData, setFormData] = useState<{
-    category: EquipmentCategory;
-    name: string;
-    brand: string;
-    model: string;
-    quantity: number;
-    roleOrFunction: string;
-    specs: string;
-    notes: string;
-    targetPackageId?: string; // Optional: target package to attach to
-    /** Set when the chosen model came from the fixture database (plan §17). */
-    fixtureProfileId?: string;
-    fixtureModeId?: string;
-  }>({
+  const [formData, setFormData] = useState<EquipmentItemForm>({
     category: 'camera',
     name: '',
     brand: '',
@@ -356,8 +255,6 @@ export const EquipmentPanel: React.FC = () => {
   const [isEditingHintDismissed, setEditingHintDismissed] = usePersistentUiState('gear.editingHint.dismissed', false);
   // Both gear modals are overlays rather than real <dialog>s, so they need their
   // own focus trap to stay reachable by keyboard and to hand focus back on close.
-  const addModalRef = useDialogFocusTrap(isAddModalOpen);
-  const addPackageItemModalRef = useDialogFocusTrap(isAddPackageItemModalOpen);
   const dmxSheetRows = useMemo(() => sortedPatchRows(dmxPatches), [dmxPatches]);
   const tableWrapRef = useRef<HTMLDivElement>(null);
 
@@ -761,109 +658,53 @@ export const EquipmentPanel: React.FC = () => {
               : `whole production, ${project.setups?.length || 1} scenes`}`}
           />
 
-          <div className="flex items-center gap-1.5">
-            {/* View Mode Toggle: Spreadsheet (Default) vs Cards */}
-            <div className={`flex items-center rounded-lg border p-0.5 text-[11px] font-bold border-line-strong bg-surface-sunken`}>
-              <button
-                onClick={() => setViewStyle('spreadsheet')}
-                title="Spreadsheet Data Grid view (Default)"
-                aria-pressed={viewStyle === 'spreadsheet'}
-                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                  viewStyle === 'spreadsheet'
-                    ? 'bg-accent text-white shadow-xs font-black'
-                    : isLight
-                      ? 'text-slate-800 hover:text-black hover:bg-slate-200'
-                      : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Table className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Spreadsheet</span>
-              </button>
-              <button
-                onClick={() => setViewStyle('cards')}
-                title="Department Rubric Cards view"
-                aria-pressed={viewStyle === 'cards'}
-                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                  viewStyle === 'cards'
-                    ? 'bg-accent text-white shadow-xs font-black'
-                    : isLight
-                      ? 'text-slate-800 hover:text-black hover:bg-slate-200'
-                      : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Cards</span>
-              </button>
-            </div>
-
-            {/* Scope Selector: Current Scene vs All Scenes */}
-            <div className={`flex items-center rounded-lg border p-0.5 text-[11px] font-bold border-line-strong bg-surface-sunken`}>
-              <button
-                onClick={() => setScope('current')}
-                aria-pressed={scope === 'current'}
-                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                  scope === 'current'
-                    ? 'bg-accent text-white shadow-xs font-black'
-                    : isLight
-                      ? 'text-slate-800 hover:text-black hover:bg-slate-200'
-                      : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span>Current Scene</span>
-                <span className="text-[10px] font-mono opacity-90 font-black">({activeSetup.sceneNumber || '1'})</span>
-              </button>
-              <button
-                onClick={() => setScope('all')}
-                aria-pressed={scope === 'all'}
-                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                  scope === 'all'
-                    ? 'bg-accent text-white shadow-xs font-black'
-                    : isLight
-                      ? 'text-slate-800 hover:text-black hover:bg-slate-200'
-                      : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>All Scenes</span>
-                <span className="text-[10px] font-mono opacity-90 font-black">({project.setups?.length || 1})</span>
-              </button>
-            </div>
-
-            {/* DMX Universe View Toggle */}
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <ViewSwitcher
+              label="Equipment layout"
+              value={viewStyle}
+              onChange={setViewStyle}
+              className="flex-none"
+              widthPerLabel={60}
+              items={[
+                { id: 'spreadsheet', icon: Table, label: 'Table' },
+                { id: 'cards', icon: LayoutGrid, label: 'Cards' },
+              ]}
+            />
+            <ViewSwitcher
+              label="Equipment scope"
+              value={scope}
+              onChange={setScope}
+              className="flex-none"
+              widthPerLabel={60}
+              items={[
+                { id: 'current', icon: Clapperboard, label: `Scene ${activeSetup.sceneNumber || '1'}` },
+                { id: 'all', icon: Layers, label: 'All scenes', count: project.setups?.length || 1 },
+              ]}
+            />
             {scope === 'current' && (
               <button
                 onClick={() => setIsUniverseViewOpen((v) => !v)}
                 title="Visual 512-channel DMX universe map"
                 aria-pressed={isUniverseViewOpen}
-                className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 transition-colors ${
-                  isUniverseViewOpen
-                    ? 'bg-amber-500 text-white border-amber-400 shadow-xs'
-                    : isLight
-                      ? 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900'
-                      : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+                className={`h-8 px-2.5 rounded-lg text-[11px] font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+                  isUniverseViewOpen ? 'bg-accent-soft text-accent-ink' : 'text-ink-muted hover:text-ink hover:bg-surface-hover'
                 }`}
               >
                 <Zap className="w-3.5 h-3.5" />
-                <span>Universe View</span>
+                <span>DMX map</span>
               </button>
             )}
-
-            {/* Signal Flow View Toggle */}
             {scope === 'current' && (
               <button
                 onClick={() => setIsSignalFlowOpen((v) => !v)}
                 title="Layered signal path from sources to sinks"
                 aria-pressed={isSignalFlowOpen}
-                className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 transition-colors ${
-                  isSignalFlowOpen
-                    ? 'bg-emerald-500 text-white border-emerald-400 shadow-xs'
-                    : isLight
-                      ? 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-900'
-                      : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+                className={`h-8 px-2.5 rounded-lg text-[11px] font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+                  isSignalFlowOpen ? 'bg-accent-soft text-accent-ink' : 'text-ink-muted hover:text-ink hover:bg-surface-hover'
                 }`}
               >
                 <Workflow className="w-3.5 h-3.5" />
-                <span>Signal Flow</span>
+                <span>Signal flow</span>
               </button>
             )}
           </div>
@@ -932,7 +773,7 @@ export const EquipmentPanel: React.FC = () => {
                 <button onClick={() => { handleExportCsv(); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 hover:bg-surface-hover`}><FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />CSV export</button>
                 <button onClick={() => { void handleDownloadPdf(); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 hover:bg-surface-hover`}><FileText className="w-3.5 h-3.5 text-sky-600" />PDF export</button>
                 <button onClick={() => { openExportModal('equipment'); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 hover:bg-surface-hover`}><Printer className="w-3.5 h-3.5 text-sky-600" />Print preview</button>
-                {scope === 'current' && (activeSetup.customEquipment || []).length > 0 && <button onClick={() => { void confirm({ title: 'Reset scene equipment?', message: 'Reset this scene’s equipment list to live floor plan elements?', confirmLabel: 'Reset', danger: true }).then((confirmed) => { if (confirmed) resetSceneEquipment(); }); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 text-rose-600 ${isLight ? 'hover:bg-rose-50' : 'hover:bg-rose-950/30'}`}><RotateCcw className="w-3.5 h-3.5" />Reset overrides</button>}
+                {scope === 'current' && (activeSetup.customEquipment || []).length > 0 && <button onClick={() => { void confirm({ title: 'Reset scene equipment?', message: 'Reset this scene’s equipment list to live floor plan elements?', confirmLabel: 'Reset', danger: true }).then((confirmed) => { if (confirmed) resetSceneEquipment(); }); setIsGearActionsOpen(false); }} className={`w-full h-8 px-2 rounded-md text-left text-[11px] font-semibold flex items-center gap-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30`}><RotateCcw className="w-3.5 h-3.5" />Reset overrides</button>}
               </div>
             )}
           </div>
@@ -942,7 +783,7 @@ export const EquipmentPanel: React.FC = () => {
         {isPresetDrawerOpen && (
           <div
             className={`p-3 rounded-xl border flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 shadow-sm ${
-              isLight ? 'bg-amber-50 border-amber-300 text-amber-950' : 'bg-amber-950/30 border-amber-900/60 text-amber-100'
+              'bg-warn-soft border-amber-300 dark:border-amber-900/60 text-amber-950 dark:text-amber-100'
             }`}
           >
             <div className="flex items-center justify-between">
@@ -1071,8 +912,8 @@ export const EquipmentPanel: React.FC = () => {
             <Info className="w-4 h-4 flex-shrink-0 text-sky-600 dark:text-sky-400" />
             <span>
               {scope === 'current'
-                ? '📦 Click "Open Kit" or "+ Add Gear to Kit" on any camera package to attach batteries, memory cards, monitors, and accessories.'
-                : '🔒 All Scenes master truck is a consolidated summary across the entire project.'}
+                ? 'Use “Kit” or “Add to kit” on a camera package to attach batteries, media, monitors and accessories.'
+                : 'All scenes: the whole production’s truck, summed across every scene.'}
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -1105,7 +946,7 @@ export const EquipmentPanel: React.FC = () => {
           still visible without expanding — and the detail is one click away.
         */}
         {scope === 'current' && hasTechnicalBand && (
-          <div className={`rounded-lg border overflow-hidden ${isLight ? 'border-slate-300 bg-white' : 'border-slate-800 bg-slate-950/40'}`}>
+          <div className={`rounded-lg border overflow-hidden border-line-strong bg-white dark:bg-slate-950/40`}>
             <button
               type="button"
               onClick={() => setTechnicalBandOpen((open) => !open)}
@@ -1138,7 +979,7 @@ export const EquipmentPanel: React.FC = () => {
         {scope === 'current' && (powerSummary.poweredCablesCount > 0 || powerSummary.totalWatts > 0) && (
           <div
             className={`px-3 py-2.5 rounded-lg border flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs ${
-              isLight ? 'bg-rose-50/70 border-rose-200 text-rose-950' : 'bg-rose-950/30 border-rose-800/50 text-rose-100'
+              'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/50 text-rose-950 dark:text-rose-100'
             }`}
           >
             <div className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[11px]">
@@ -1163,10 +1004,10 @@ export const EquipmentPanel: React.FC = () => {
         {scope === 'current' && dmxableCount > 0 && (
           <div
             className={`rounded-lg border text-xs overflow-hidden ${
-              isLight ? 'bg-amber-50/60 border-amber-200 text-amber-950' : 'bg-amber-950/25 border-amber-800/50 text-amber-100'
+              'bg-amber-50/60 dark:bg-amber-950/25 border-amber-200 dark:border-amber-800/50 text-amber-950 dark:text-amber-100'
             }`}
           >
-            <div className={`flex items-center border-b ${isLight ? 'border-amber-200' : 'border-amber-800/50'}`}>
+            <div className={`flex items-center border-b border-amber-200 dark:border-amber-800/50`}>
               <button
                 onClick={() => setDmxPatchOpen((v) => !v)}
                 className="flex-1 min-w-0 px-3 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-left"
@@ -1260,7 +1101,7 @@ export const EquipmentPanel: React.FC = () => {
                         key={p.light.id}
                         onClick={() => selectElement(p.light.id)}
                         className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:opacity-80 ${
-                          isLight ? 'bg-white/60' : 'bg-slate-950/40'
+                          'bg-white/60 dark:bg-slate-950/40'
                         }`}
                       >
                         <span className={`w-2 h-2 rounded-full shrink-0 ${p.universe && p.address ? (p.conflict ? 'bg-rose-500' : 'bg-emerald-500') : 'bg-slate-400'}`} />
@@ -1328,7 +1169,7 @@ export const EquipmentPanel: React.FC = () => {
                 <thead>
                   <tr
                     className={`border-b text-[11px] font-mono uppercase font-black sticky top-0 z-10 ${
-                      isLight ? 'bg-slate-200 text-slate-950 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-800'
+                      'bg-slate-200 dark:bg-slate-950 text-ink border-line-strong'
                     }`}
                   >
                     <th className="p-2.5 w-28 whitespace-nowrap">DEPARTMENT</th>
@@ -1451,16 +1292,14 @@ export const EquipmentPanel: React.FC = () => {
                                   onClick={() => togglePackageExpand(item.id)}
                                   title={isExpanded ? 'Collapse package kit components' : 'Open package to view & add batteries, media cards, monitors, etc.'}
                                   aria-expanded={isExpanded}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 shadow-xs ${
+                                  className={`order-last px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1 ${
                                     isExpanded
-                                      ? 'bg-accent text-white ring-2 ring-sky-400'
-                                      : isLight
-                                        ? 'bg-accent hover:bg-accent-hover text-white shadow-xs'
-                                        : 'bg-sky-500/20 hover:bg-sky-500/40 text-sky-300 border border-sky-500/30'
+                                      ? 'bg-accent-soft text-accent-ink'
+                                      : 'text-accent-ink hover:bg-accent-soft'
                                   }`}
                                 >
                                   <Package className="w-3.5 h-3.5" />
-                                  <span>{isExpanded ? 'Close Kit' : 'Open Kit'}</span>
+                                  <span>{isExpanded ? 'Close kit' : 'Kit'}</span>
                                   <span className="font-mono text-[10px] opacity-90">({packageItems.length})</span>
                                   {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                                 </button>
@@ -1471,14 +1310,11 @@ export const EquipmentPanel: React.FC = () => {
                                 <button
                                   onClick={() => openAddPackageItemModal(item.id)}
                                   title={`Add batteries, media cards, monitor, or custom gear directly to ${item.name}`}
-                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition-all shadow-xs ${
-                                    isLight
-                                      ? 'bg-emerald-700 hover:bg-emerald-700 text-white'
-                                      : 'bg-emerald-600/20 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 text-emerald-300'
-                                  }`}
+                                  aria-label={`Add gear to ${item.name}`}
+                                  className="order-last px-2 py-0.5 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors text-ink-muted hover:text-ok hover:bg-ok-soft"
                                 >
                                   <Plus className="w-3.5 h-3.5" />
-                                  <span>Add Gear to Kit</span>
+                                  <span>Add to kit</span>
                                 </button>
                               )}
 
@@ -1498,11 +1334,11 @@ export const EquipmentPanel: React.FC = () => {
                               )}
 
                               {item.isCustom ? (
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border flex-shrink-0 ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-400 border-violet-500/30'}`}>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border flex-shrink-0 bg-violet-100 dark:bg-violet-500/15 text-violet-950 dark:text-violet-400 border-violet-300 dark:border-violet-500/30`}>
                                   Custom
                                 </span>
                               ) : (
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border flex-shrink-0 ${isLight ? 'bg-sky-100 text-sky-950 border-sky-300' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'}`}>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border flex-shrink-0 bg-accent-soft text-sky-950 dark:text-sky-400 border-sky-300 dark:border-sky-500/30`}>
                                   Canvas
                                 </span>
                               )}
@@ -1586,7 +1422,7 @@ export const EquipmentPanel: React.FC = () => {
                                 <span
                                   title={`Linked to fixture database: ${rowProfile.manufacturer} ${rowProfile.model} · ${fixtureSpecsLine(rowProfile, item.fixtureModeId) || 'no measured data'}`}
                                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-black border ${
-                                    isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+                                    'bg-violet-100 dark:bg-violet-500/15 text-violet-950 dark:text-violet-300 border-violet-300 dark:border-violet-500/30'
                                   }`}
                                 >
                                   ◆ {(() => {
@@ -1607,7 +1443,7 @@ export const EquipmentPanel: React.FC = () => {
                                     }}
                                     title="Not on the floor plan, so the DMX patch cannot address it. Place it to make it patchable."
                                     className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black border ${
-                                      isLight ? 'bg-amber-100 text-amber-950 border-amber-300 hover:bg-amber-200' : 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                                      'bg-amber-100 dark:bg-amber-500/15 text-amber-950 dark:text-amber-300 border-amber-300 dark:border-amber-500/30 hover:bg-amber-200 dark:hover:bg-amber-500/25'
                                     }`}
                                   >
                                     Place on plan to patch
@@ -1619,7 +1455,7 @@ export const EquipmentPanel: React.FC = () => {
 
                           {/* 5. Quantity Stepper */}
                           <td className="p-2.5 align-middle text-center">
-                            <div className={`inline-flex items-center rounded-lg border overflow-hidden text-xs ${isLight ? 'border-slate-300 bg-slate-100' : 'border-slate-700 bg-black/40'}`}>
+                            <div className={`inline-flex items-center rounded-lg border overflow-hidden text-xs border-line-strong bg-slate-100 dark:bg-black/40`}>
                               {isEditable && (
                                 <button
                                   onClick={() =>
@@ -1714,7 +1550,7 @@ export const EquipmentPanel: React.FC = () => {
                                 {masterItem.usedInSetups.map((s, sIdx) => (
                                   <span
                                     key={sIdx}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/20'}`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border bg-violet-100 dark:bg-violet-500/15 text-violet-950 dark:text-violet-300 border-violet-300 dark:border-violet-500/20`}
                                   >
                                     {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
                                   </span>
@@ -1792,7 +1628,7 @@ export const EquipmentPanel: React.FC = () => {
                                 {/* Kit Header Bar */}
                                 <div className="flex items-center justify-between flex-wrap gap-2">
                                   <div className="flex items-center gap-2">
-                                    <div className={`p-1.5 rounded-md ${isLight ? 'bg-sky-200 text-sky-900' : 'bg-sky-500/20 text-sky-400'}`}>
+                                    <div className={`p-1.5 rounded-md bg-sky-200 dark:bg-sky-500/20 text-sky-900 dark:text-sky-400`}>
                                       <Package className="w-4 h-4" />
                                     </div>
                                     <div>
@@ -1853,10 +1689,10 @@ export const EquipmentPanel: React.FC = () => {
                                 )}
 
                                 {/* Kit Sub-Items Table */}
-                                <div className={`border-2 rounded-xl overflow-hidden shadow-md ${isLight ? 'border-sky-300 bg-white text-slate-950' : 'border-sky-500/30 bg-slate-900 text-slate-100'}`}>
+                                <div className={`border-2 rounded-xl overflow-hidden shadow-md border-sky-300 dark:border-sky-500/30 bg-surface text-ink`}>
                                   <table className="w-full text-left text-xs border-collapse font-sans">
                                     <thead>
-                                      <tr className={`border-b text-[10px] font-mono uppercase font-black ${isLight ? 'bg-sky-100 text-sky-950 border-sky-300' : 'bg-slate-950 text-slate-200 border-slate-800'}`}>
+                                      <tr className={`border-b text-[10px] font-mono uppercase font-black bg-sky-100 dark:bg-slate-950 text-sky-950 dark:text-slate-200 border-sky-300 dark:border-slate-800`}>
                                         <th className="p-2 w-28">DEPARTMENT</th>
                                         <th className="p-2 min-w-[200px]">PACKAGE ACCESSORY / ITEM</th>
                                         <th className="p-2 min-w-[130px]">BRAND</th>
@@ -2030,7 +1866,7 @@ export const EquipmentPanel: React.FC = () => {
 
                                               {/* Sub Quantity */}
                                               <td className="p-2 align-middle text-center">
-                                                <div className={`inline-flex items-center rounded-lg border overflow-hidden text-xs ${isLight ? 'border-slate-300 bg-slate-100' : 'border-slate-700 bg-black/40'}`}>
+                                                <div className={`inline-flex items-center rounded-lg border overflow-hidden text-xs border-line-strong bg-slate-100 dark:bg-black/40`}>
                                                   {isEditable && (
                                                     <button
                                                       onClick={() =>
@@ -2163,7 +1999,7 @@ export const EquipmentPanel: React.FC = () => {
             {/* Spreadsheet Table Footer Summary */}
             <div
               className={`p-2.5 border-t flex items-center justify-between text-xs font-mono font-black ${
-                isLight ? 'bg-slate-200 text-slate-950 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-800'
+                'bg-slate-200 dark:bg-slate-950 text-ink border-line-strong'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -2200,7 +2036,7 @@ export const EquipmentPanel: React.FC = () => {
                   {/* Rubric Header */}
                   <summary
                     className={`px-3.5 py-2.5 border-b flex items-center justify-between ${
-                      isLight ? 'bg-slate-200 text-slate-950 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-800'
+                      'bg-slate-200 dark:bg-slate-950 text-ink border-line-strong'
                     } cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
                   >
                     <div className="flex items-center gap-2">
@@ -2282,16 +2118,16 @@ export const EquipmentPanel: React.FC = () => {
 
                                 <span className="text-xs font-black leading-tight text-slate-950 dark:text-slate-100">{item.name}</span>
                                 {item.isCustom ? (
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-400 border-violet-500/30'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border bg-violet-100 dark:bg-violet-500/15 text-violet-950 dark:text-violet-400 border-violet-300 dark:border-violet-500/30`}>
                                     Custom
                                   </span>
                                 ) : (
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border ${isLight ? 'bg-sky-100 text-sky-950 border-sky-300' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black border bg-accent-soft text-sky-950 dark:text-sky-400 border-sky-300 dark:border-sky-500/30`}>
                                     Canvas
                                   </span>
                                 )}
                                 {item.roleOrFunction && (
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${isLight ? 'bg-slate-200 text-slate-950' : 'bg-slate-500/15 text-slate-300'}`}>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-500/15 text-slate-950 dark:text-slate-300`}>
                                     {item.roleOrFunction}
                                   </span>
                                 )}
@@ -2320,7 +2156,7 @@ export const EquipmentPanel: React.FC = () => {
                                   {masterItem.usedInSetups.map((s, sIdx) => (
                                     <span
                                       key={sIdx}
-                                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${isLight ? 'bg-violet-100 text-violet-950 border-violet-300' : 'bg-violet-500/15 text-violet-300 border-violet-500/20'}`}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border bg-violet-100 dark:bg-violet-500/15 text-violet-950 dark:text-violet-300 border-violet-300 dark:border-violet-500/20`}
                                     >
                                       {s.sceneNumber ? `Sc ${s.sceneNumber}` : s.name} (×{s.quantity})
                                     </span>
@@ -2335,7 +2171,7 @@ export const EquipmentPanel: React.FC = () => {
                             {/* Quantity & Actions */}
                             <div className="flex items-center gap-2 flex-shrink-0">
                               {/* Quantity pill / Stepper */}
-                              <div className={`flex items-center rounded-lg border overflow-hidden text-xs ${isLight ? 'border-slate-300 bg-slate-100' : 'border-slate-700 bg-black/40'}`}>
+                              <div className={`flex items-center rounded-lg border overflow-hidden text-xs border-line-strong bg-slate-100 dark:bg-black/40`}>
                                 {scope === 'current' && (
                                   <button
                                     onClick={() =>
@@ -2474,603 +2310,33 @@ export const EquipmentPanel: React.FC = () => {
 
       {/* 6. Add / Edit General Item Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
-          <div
-            ref={addModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`${fieldId}-add-equipment-title`}
-            tabIndex={-1}
-            className={`w-full max-w-lg rounded-2xl border p-5 shadow-2xl outline-hidden ${
-              'bg-surface border-line-strong text-ink'
-            }`}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className={`p-1.5 rounded-lg ${isLight ? 'bg-sky-100 text-sky-900' : 'bg-sky-500/15 text-sky-400'}`}>
-                  <Boxes className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 id={`${fieldId}-add-equipment-title`} className="text-sm font-black text-slate-950 dark:text-slate-100">
-                    {editingItem ? 'Edit Production Equipment' : 'Add Production Equipment'}
-                  </h3>
-                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                    Scene {activeSetup.sceneNumber || '1'}: {activeSetup.name}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                title="Close"
-                aria-label="Close"
-                className="p-1 text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white rounded-lg transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveModal} className="mt-4 flex flex-col gap-3.5">
-              {/* Optional: Target Package Selector */}
-              {!editingItem && availableCameraPackages.length > 0 && (
-                <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-sky-50 border-sky-300' : 'bg-sky-500/10 border-sky-500/30'}`}>
-                  <label htmlFor={`${fieldId}-destination-package-optional`} className="block text-[11px] font-black uppercase tracking-wider text-sky-950 dark:text-sky-400 mb-1">
-                    📦 Destination Package (Optional)
-                  </label>
-                  <select id={`${fieldId}-destination-package-optional`}
-                    value={formData.targetPackageId || ''}
-                    onChange={(e) => setFormData({ ...formData, targetPackageId: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border font-bold ${
-                      isLight ? 'bg-white text-slate-950 border-sky-400' : 'bg-slate-800 text-slate-100 border-sky-700'
-                    }`}
-                  >
-                    <option value="" className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                      -- Standalone Item (Not in package) --
-                    </option>
-                    {availableCameraPackages.map((pkg) => (
-                      <option key={pkg.id} value={pkg.id} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                        Attach directly inside {pkg.name} (Camera Kit)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Category Rubric */}
-              <div>
-                <label htmlFor={`${fieldId}-department-category-rubric`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                  Department / Category Rubric
-                </label>
-                <select id={`${fieldId}-department-category-rubric`}
-                  value={formData.category}
-                  onChange={(e) => {
-                    const newCat = e.target.value as EquipmentCategory;
-                    const brands = getBrandsForCategory(newCat);
-                    const defaultBrand = brands[0] || '';
-                    const defaultModel = getModelsForBrand(newCat, defaultBrand)[0] || '';
-                    setFormData({
-                      ...formData,
-                      category: newCat,
-                      brand: defaultBrand,
-                      model: defaultModel,
-                      name: defaultModel || formData.name,
-                      // The old link belonged to a fixture in another department.
-                      fixtureProfileId: undefined,
-                      fixtureModeId: undefined,
-                      specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId)
-                        ? ''
-                        : formData.specs,
-                    });
-                  }}
-                  className={`w-full p-2 text-xs rounded-lg border font-bold ${
-                    isLight ? 'bg-white text-slate-950 border-slate-300' : 'bg-slate-800 text-slate-100 dark:border-slate-700'
-                  }`}
-                >
-                  {EQUIPMENT_CATEGORIES.map((cat) => (
-                    <option key={cat.key} value={cat.key} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Brand & Model Templates Selector */}
-              <div className={`grid grid-cols-2 gap-2 p-2.5 rounded-xl border ${isLight ? 'bg-slate-100 border-slate-300' : 'bg-slate-950/60 border-slate-700'}`}>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-300">
-                      Brand Template
-                    </span>
-                    <span className="text-[10px] font-bold opacity-70">Dropdown</span>
-                  </div>
-                  <select
-                    aria-label="Brand Template"
-                    value={formData.brand}
-                    onChange={(e) => {
-                      const newBrand = e.target.value;
-                      const options = modelOptionsFor(formData.category, newBrand);
-                      const first = options[0];
-                      const linked = first && first.profile ? gearProfileUpdates(first.profile) : undefined;
-                      setFormData({
-                        ...formData,
-                        brand: newBrand,
-                        model: first ? first.model : '',
-                        name: (first && first.model) || formData.name,
-                        fixtureProfileId: linked?.fixtureProfileId,
-                        fixtureModeId: linked?.fixtureModeId,
-                        specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId)
-                          ? linked?.specs ?? ''
-                          : formData.specs,
-                      });
-                    }}
-                    className={`w-full p-1.5 text-xs rounded-lg border font-bold ${
-                      'bg-raised text-ink border-line-strong'
-                    }`}
-                  >
-                    <option value="" className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">-- Custom Brand --</option>
-                    <BrandOptions options={brandOptionsFor(formData.category)} />
-                  </select>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-300">
-                      Model Template
-                    </span>
-                    <span className="text-[10px] font-bold opacity-70">Dropdown</span>
-                  </div>
-                  <select
-                    aria-label="Model Template"
-                    value={formData.model}
-                    onChange={(e) => {
-                      const newModel = e.target.value;
-                      const chosen = modelOptionsFor(formData.category, formData.brand).find(
-                        (option) => option.model === newModel,
-                      );
-                      const linked = chosen && chosen.profile ? gearProfileUpdates(chosen.profile) : undefined;
-                      setFormData({
-                        ...formData,
-                        model: newModel,
-                        name: newModel || formData.name,
-                        // Picking the database entry under a brand written as
-                        // a pairing ("Aputure / Amaran") also settles the brand.
-                        brand: linked?.brand ?? formData.brand,
-                        fixtureProfileId: linked?.fixtureProfileId,
-                        fixtureModeId: linked?.fixtureModeId,
-                        specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId)
-                          ? linked?.specs ?? ''
-                          : formData.specs,
-                      });
-                    }}
-                    className={`w-full p-1.5 text-xs rounded-lg border font-mono text-[11px] font-bold ${
-                      'bg-raised text-ink border-line-strong'
-                    }`}
-                  >
-                    <option value="" className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">-- Custom Model --</option>
-                    <ModelOptions options={modelOptionsFor(formData.category, formData.brand)} />
-                  </select>
-                </div>
-              </div>
-
-              {/* Linked database fixture: DMX personality + technical card */}
-              {(() => {
-                const profile = profileById(formData.fixtureProfileId);
-                if (!profile) {
-                  if (!usesFixtureDatabase(formData.category)) return null;
-                  return (
-                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 -mt-1">
-                      Models marked ◆ come from the fixture database and bring DMX modes, wattage and weight with them.
-                    </p>
-                  );
-                }
-                const mode = profile.modes.find((candidate) => candidate.id === formData.fixtureModeId) ?? profile.modes[0];
-                return (
-                  <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-violet-50 border-violet-300' : 'bg-violet-500/10 border-violet-500/30'}`}>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="text-[11px] font-black uppercase tracking-wider text-violet-950 dark:text-violet-300">
-                        ◆ Fixture database
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFormData({
-                            ...formData,
-                            fixtureProfileId: undefined,
-                            fixtureModeId: undefined,
-                            specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId) ? '' : formData.specs,
-                          })
-                        }
-                        className="text-[10px] font-bold underline opacity-70 hover:opacity-100"
-                      >
-                        Unlink
-                      </button>
-                    </div>
-                    <p className="text-[11px] font-bold text-slate-950 dark:text-slate-100">
-                      {profile.manufacturer} {profile.model}
-                    </p>
-                    {profile.modes.length > 0 ? (
-                      <>
-                        <label htmlFor={`${fieldId}-dmx-personality`} className="block text-[10px] font-black uppercase tracking-wider mt-2 mb-1 text-slate-950 dark:text-slate-300">
-                          DMX Personality
-                        </label>
-                        <select
-                          id={`${fieldId}-dmx-personality`}
-                          value={mode?.id ?? ''}
-                          onChange={(e) => {
-                            const updates = gearProfileUpdates(profile, e.target.value);
-                            setFormData({
-                              ...formData,
-                              fixtureModeId: updates.fixtureModeId,
-                              specs: specsIsDerived(formData.specs, formData.fixtureProfileId, formData.fixtureModeId)
-                                ? updates.specs
-                                : formData.specs,
-                            });
-                          }}
-                          className={`w-full p-1.5 text-xs rounded-lg border font-bold ${
-                            isLight ? 'bg-white text-slate-950 border-violet-300' : 'bg-slate-800 text-slate-100 border-violet-700'
-                          }`}
-                        >
-                          {profile.modes.map((candidate) => (
-                            <option key={candidate.id} value={candidate.id} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                              {fixtureModeLabel(candidate)}
-                            </option>
-                          ))}
-                        </select>
-                        {mode?.channels && mode.channels.length > 0 && (
-                          <p className="mt-1.5 text-[10px] font-mono leading-relaxed text-slate-700 dark:text-slate-300 max-h-16 overflow-y-auto custom-scrollbar">
-                            {mode.channels.map((channel) => `${channel.offset}. ${channel.name}`).join(' · ')}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <p className="mt-1 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-                        No DMX modes listed for this fixture.
-                      </p>
-                    )}
-                    <p className="mt-1.5 text-[10px] font-mono text-slate-600 dark:text-slate-400">
-                      {fixtureSpecsLine(profile, mode?.id) || 'No measured data'}
-                    </p>
-                  </div>
-                );
-              })()}
-
-              {/* Item Name & Quantity */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label htmlFor={`${fieldId}-item-name`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                    Item Name *
-                  </label>
-                  <input id={`${fieldId}-item-name`}
-                    type="text"
-                    required
-                    placeholder="e.g. Camera A Package, ARRI SkyPanel S60-C, Sony FX6"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border font-black focus:ring-2 focus:ring-sky-500 ${
-                      'bg-raised border-line-strong text-ink'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor={`${fieldId}-quantity`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                    Quantity
-                  </label>
-                  <input id={`${fieldId}-quantity`}
-                    type="number"
-                    min={1}
-                    value={formData.quantity}
-                    onChange={(e) =>
-                      setFormData({ ...formData, quantity: Math.max(1, Number(e.target.value)) })
-                    }
-                    className={`w-full p-2 text-xs rounded-lg border font-mono font-black text-center focus:ring-2 focus:ring-sky-500 ${
-                      'bg-raised border-line-strong text-ink'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Freehand Brand & Model Customization */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor={`${fieldId}-brand-manufacturer`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                    Brand / Manufacturer
-                  </label>
-                  <input id={`${fieldId}-brand-manufacturer`}
-                    type="text"
-                    placeholder="e.g. ARRI, Aputure, Nanlite"
-                    value={formData.brand}
-                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border font-bold focus:ring-2 focus:ring-sky-500 ${
-                      'bg-raised border-line-strong text-ink'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor={`${fieldId}-model-variant`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                    Model / Variant
-                  </label>
-                  <input id={`${fieldId}-model-variant`}
-                    type="text"
-                    placeholder="e.g. SkyPanel S60-C, LS 600d Pro"
-                    value={formData.model}
-                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border font-mono font-bold text-[11px] focus:ring-2 focus:ring-sky-500 ${
-                      'bg-raised border-line-strong text-ink'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Role / Function */}
-              <div>
-                <label htmlFor={`${fieldId}-production-role-function`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                  Production Role / Function
-                </label>
-                <input id={`${fieldId}-production-role-function`}
-                  type="text"
-                  placeholder="e.g. Key Light, Backlight / Rim, A-Cam Main, Overhead Boom"
-                  value={formData.roleOrFunction}
-                  onChange={(e) => setFormData({ ...formData, roleOrFunction: e.target.value })}
-                  className={`w-full p-2 text-xs rounded-lg border font-bold focus:ring-2 focus:ring-sky-500 ${
-                    'bg-raised border-line-strong text-ink'
-                  }`}
-                />
-              </div>
-
-              {/* Technical Specs & Notes */}
-              <div>
-                <label htmlFor={`${fieldId}-technical-specs-notes`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                  Technical Specs & Notes
-                </label>
-                <textarea id={`${fieldId}-technical-specs-notes`}
-                  rows={2}
-                  placeholder="e.g. 5600K · 100% · Barn Doors, V-Lock mount, 12G 4K60p rated"
-                  value={formData.specs}
-                  onChange={(e) => setFormData({ ...formData, specs: e.target.value })}
-                  className={`w-full p-2 text-xs rounded-lg border font-medium focus:ring-2 focus:ring-sky-500 custom-scrollbar ${
-                    'bg-raised border-line-strong text-ink'
-                  }`}
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border ${
-                    'border-line-strong hover:bg-surface-hover text-ink'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 text-xs font-black rounded-lg bg-accent hover:bg-accent-hover text-white shadow-md flex items-center gap-1"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>{editingItem ? 'Save Changes' : formData.targetPackageId ? 'Attach to Package' : 'Add Item'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <EquipmentItemModal
+          fieldId={fieldId}
+          isLight={isLight}
+          sceneLabel={`Scene ${activeSetup.sceneNumber || '1'}: ${activeSetup.name}`}
+          form={formData}
+          setForm={setFormData}
+          editingItem={editingItem}
+          availableCameraPackages={availableCameraPackages}
+          brandOptionsFor={brandOptionsFor}
+          modelOptionsFor={modelOptionsFor}
+          profileById={profileById}
+          specsIsDerived={specsIsDerived}
+          onSubmit={handleSaveModal}
+          onClose={() => setIsAddModalOpen(false)}
+        />
       )}
 
       {/* 7. DEDICATED ADD ITEM TO CAMERA PACKAGE MODAL */}
       {isAddPackageItemModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
-          <div
-            ref={addPackageItemModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`${fieldId}-add-package-item-title`}
-            tabIndex={-1}
-            className={`w-full max-w-md rounded-2xl border p-5 shadow-2xl outline-hidden ${
-              'bg-surface border-line-strong text-ink'
-            }`}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className={`p-1.5 rounded-lg ${isLight ? 'bg-emerald-100 text-emerald-900' : 'bg-emerald-500/15 text-emerald-400'}`}>
-                  <Package className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 id={`${fieldId}-add-package-item-title`} className="text-sm font-black text-slate-950 dark:text-slate-100">
-                    Add Gear to Camera Package
-                  </h3>
-                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                    Attach batteries, media cards, monitor, transmitter, or accessories
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsAddPackageItemModalOpen(false)}
-                title="Close"
-                aria-label="Close"
-                className="p-1 text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white rounded-lg transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePackageItemModal} className="mt-4 flex flex-col gap-3">
-              {/* Preset Quick Loader */}
-              <div>
-                <label htmlFor={`${fieldId}-choose-preset-or-type-custom-below`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-emerald-700 dark:text-emerald-400">
-                  ⚡ Choose Preset (Or type custom below)
-                </label>
-                <select id={`${fieldId}-choose-preset-or-type-custom-below`}
-                  onChange={(e) => {
-                    const preset = CAMERA_PACKAGE_PRESETS.find((p) => p.name === e.target.value);
-                    if (preset) {
-                      setPackageFormData({
-                        category: preset.category,
-                        name: preset.name,
-                        brand: preset.brand,
-                        model: preset.model,
-                        quantity: preset.quantity,
-                        roleOrFunction: preset.roleOrFunction,
-                        specs: preset.specs,
-                      });
-                    }
-                  }}
-                  className={`w-full p-2 text-xs rounded-lg border font-bold ${
-                    isLight ? 'bg-white text-slate-950 border-slate-300' : 'bg-slate-800 text-slate-100 dark:border-slate-700'
-                  }`}
-                >
-                  <option value="" className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                    -- Select Camera Accessory Preset --
-                  </option>
-                  {CAMERA_PACKAGE_PRESETS.map((p, idx) => (
-                    <option key={idx} value={p.name} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                      {p.name} (x{p.quantity}) - {p.brand}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Category */}
-              <div>
-                <label htmlFor={`${fieldId}-category-rubric`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                  Category Rubric
-                </label>
-                <select id={`${fieldId}-category-rubric`}
-                  value={packageFormData.category}
-                  onChange={(e) =>
-                    setPackageFormData({ ...packageFormData, category: e.target.value as EquipmentCategory })
-                  }
-                  className={`w-full p-2 text-xs rounded-lg border font-bold ${
-                    isLight ? 'bg-white text-slate-950 border-slate-300' : 'bg-slate-800 text-slate-100 dark:border-slate-700'
-                  }`}
-                >
-                  {EQUIPMENT_CATEGORIES.map((cat) => (
-                    <option key={cat.key} value={cat.key} className="bg-white text-slate-950 dark:bg-slate-800 dark:text-slate-100 font-bold">
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Item Name & Quantity */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label htmlFor={`${fieldId}-accessory-name`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                    Accessory Name *
-                  </label>
-                  <input id={`${fieldId}-accessory-name`}
-                    type="text"
-                    required
-                    placeholder="e.g. V-Mount Batteries, CFexpress Type B"
-                    value={packageFormData.name}
-                    onChange={(e) => setPackageFormData({ ...packageFormData, name: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border font-black ${
-                      'bg-raised border-line-strong text-ink'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor={`${fieldId}-quantity-2`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                    Quantity
-                  </label>
-                  <input id={`${fieldId}-quantity-2`}
-                    type="number"
-                    min={1}
-                    value={packageFormData.quantity}
-                    onChange={(e) =>
-                      setPackageFormData({ ...packageFormData, quantity: Math.max(1, Number(e.target.value)) })
-                    }
-                    className={`w-full p-2 text-xs rounded-lg border font-mono font-black text-center ${
-                      'bg-raised border-line-strong text-ink'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Brand & Model */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor={`${fieldId}-brand`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                    Brand
-                  </label>
-                  <input id={`${fieldId}-brand`}
-                    type="text"
-                    placeholder="e.g. Anton Bauer, SanDisk, SmallHD"
-                    value={packageFormData.brand}
-                    onChange={(e) => setPackageFormData({ ...packageFormData, brand: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border font-bold ${
-                      'bg-raised border-line-strong text-ink'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor={`${fieldId}-model-variant-2`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                    Model / Variant
-                  </label>
-                  <input id={`${fieldId}-model-variant-2`}
-                    type="text"
-                    placeholder="e.g. Titon 150, Cine 7"
-                    value={packageFormData.model}
-                    onChange={(e) => setPackageFormData({ ...packageFormData, model: e.target.value })}
-                    className={`w-full p-2 text-xs rounded-lg border font-mono font-bold text-[11px] ${
-                      'bg-raised border-line-strong text-ink'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Role & Specs */}
-              <div>
-                <label htmlFor={`${fieldId}-role-function`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                  Role / Function
-                </label>
-                <input id={`${fieldId}-role-function`}
-                  type="text"
-                  placeholder="e.g. Camera Power, Recording Media, Focus Peaking"
-                  value={packageFormData.roleOrFunction}
-                  onChange={(e) => setPackageFormData({ ...packageFormData, roleOrFunction: e.target.value })}
-                  className={`w-full p-2 text-xs rounded-lg border font-bold ${
-                    'bg-raised border-line-strong text-ink'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label htmlFor={`${fieldId}-technical-specs`} className="block text-[11px] font-black uppercase tracking-wider mb-1 text-slate-950 dark:text-slate-300">
-                  Technical Specs
-                </label>
-                <input id={`${fieldId}-technical-specs`}
-                  type="text"
-                  placeholder="e.g. 14.4V High-Draw · 150Wh · USB-C"
-                  value={packageFormData.specs}
-                  onChange={(e) => setPackageFormData({ ...packageFormData, specs: e.target.value })}
-                  className={`w-full p-2 text-xs rounded-lg border font-medium ${
-                    'bg-raised border-line-strong text-ink'
-                  }`}
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAddPackageItemModalOpen(false)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border ${
-                    'border-line-strong hover:bg-surface-hover text-ink'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 text-xs font-black rounded-lg bg-emerald-700 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Attach to Package</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <PackageItemModal
+          fieldId={fieldId}
+          isLight={isLight}
+          form={packageFormData}
+          setForm={setPackageFormData}
+          onSubmit={handleSavePackageItemModal}
+          onClose={() => setIsAddPackageItemModalOpen(false)}
+        />
       )}
       {/* 8. DMX Universe View Modal */}
       {isUniverseViewOpen && scope === 'current' && (

@@ -484,7 +484,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({ cam, isLight }
                     e.stopPropagation();
                   }}
                   className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
-                    isLight ? 'bg-sky-50 text-sky-700 border-sky-300 hover:bg-sky-100' : 'bg-slate-800 hover:bg-slate-700 text-sky-300 border-slate-700'
+                    'bg-sky-50 dark:bg-slate-800 text-accent-ink border-sky-300 dark:border-slate-700 hover:bg-sky-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   + Add Camera Movement Waypoint (Beat {nextBeat})

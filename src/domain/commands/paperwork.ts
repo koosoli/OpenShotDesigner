@@ -11,6 +11,7 @@ import type { Project } from '../../types';
 import { setDoodOverride } from '../reports/dood';
 import type { DoodManualStatus } from '../reports/dood';
 import type { PerformerTimeReport } from '../reports/exhibitG';
+import type { ProductionReportNotes } from '../reports/productionReport';
 import { createId } from '../ids';
 import { revisionColorAt } from '../script/revisionColors';
 import type { CommandResult } from './types';
@@ -147,6 +148,34 @@ export const updatePerformerTimeReportCommand = (
       entityId: current.id,
       timestamp: commandTimestamp(),
       description: input.description ?? 'Edit performer time report',
+    },
+  };
+};
+
+export interface UpdateProductionReportNotesInput {
+  dayId: string;
+  patch: Partial<Omit<ProductionReportNotes, 'dayId'>>;
+}
+
+/** Edit the hand-written part of a day's production report; empty fields are dropped. */
+export const updateProductionReportNotesCommand = (project: Project, input: UpdateProductionReportNotesInput): CommandResult => {
+  const day = project.productionDays?.find((candidate) => candidate.id === input.dayId);
+  if (!day) throw new Error(`updateProductionReportNotes: no production day ${input.dayId}.`);
+  const list = project.productionReportNotes ?? [];
+  const current = list.find((entry) => entry.dayId === input.dayId) ?? { dayId: input.dayId };
+  const merged: ProductionReportNotes = { ...current, ...input.patch, dayId: input.dayId };
+  for (const key of Object.keys(merged) as Array<keyof ProductionReportNotes>) {
+    if (key !== 'dayId' && (merged[key] === undefined || merged[key] === '')) delete merged[key];
+  }
+  const rest = list.filter((entry) => entry.dayId !== input.dayId);
+  const isEmpty = Object.keys(merged).length === 1;
+  return {
+    project: { ...project, productionReportNotes: isEmpty ? rest : [...rest, merged] },
+    meta: {
+      type: 'updateProductionReportNotes',
+      entityId: input.dayId,
+      timestamp: commandTimestamp(),
+      description: `Edit production report notes for ${day.name}`,
     },
   };
 };

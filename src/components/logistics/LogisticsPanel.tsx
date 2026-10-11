@@ -1025,7 +1025,7 @@ export const LogisticsPanel: React.FC = () => {
       {/* Safety note (plan §24) — rendered exactly once at the bottom */}
       <div
         className={`rounded-xl border px-3 py-2.5 text-[11px] leading-relaxed flex items-start gap-2 ${
-          isLight ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-amber-950/40 border-amber-800 text-amber-200'
+          'bg-warn-soft border-amber-200 dark:border-amber-800 text-warn'
         }`}
       >
         <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />

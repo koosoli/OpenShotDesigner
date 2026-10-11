@@ -42,3 +42,13 @@ export const setDocumentLanguageCommand = (
     },
   };
 };
+
+/**
+ * Replace the project's content with a merged version (cloud save-back).
+ * One undo step, and the local id is kept: the merge came from a file whose
+ * own id may differ.
+ */
+export const applyMergedProjectCommand = (project: Project, input: { merged: Project; description: string }): CommandResult => ({
+  project: { ...input.merged, id: project.id },
+  meta: { type: 'applyMergedProject', timestamp: commandTimestamp(), description: input.description },
+});

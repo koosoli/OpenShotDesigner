@@ -1150,6 +1150,8 @@ export interface Project {
   scriptPageLock?: Record<string, number>;
   /** v34: SAG-AFTRA Exhibit G performer time sheets, one per production day. */
   performerTimeReports?: import('../domain/reports').PerformerTimeReport[];
+  /** v35: hand-written part of each day's production report (delays, accidents, notes). */
+  productionReportNotes?: import('../domain/reports').ProductionReportNotes[];
   productionSegments?: import('../domain/shots').ProductionSegment[];
   productionDays?: import('../domain/scheduling').ProductionDay[];
   scheduleBlocks?: import('../domain/scheduling').ScheduleBlock[];

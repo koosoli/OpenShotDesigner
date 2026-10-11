@@ -4,6 +4,56 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] — 2026-10-11
+
+### Added
+
+- **Daily production report** in Schedule (Day report): progress from the
+  continuity log, running totals to date, cast times from the Exhibit G sheet,
+  delays / accidents / remarks; own Print and PDF. The export-studio DPR gains
+  the same sections.
+- **Exhibit G form PDF** in the union form's layout (US Letter).
+- **Shooting schedule PDF** in the classic block-per-scene layout, with cast
+  names.
+- **Cast sides**: one highlighted sides PDF per performer for a shooting day,
+  zipped, from the call sheet; sides filtered to a character highlight that
+  character's lines.
+- **Cloud save-back**: open projects from Google Drive (new) or Nextcloud,
+  save them back to the same file, and get asked — save a copy or replace —
+  when someone else saved in between (ETag / modifiedTime checks).
+- Pasting a new draft over a script now goes through the same compare → mark
+  changes → keep history flow as importing a file.
+- **Merging cloud saves**: when someone saved the same Drive or Nextcloud file
+  since you opened it, your save merges with theirs — changes on either side
+  are kept, and only a value both of you changed differently is put to you
+  (mine / theirs per item). The merge is one undo step.
+- **Final Draft breakdown tags** import with the screenplay: Tagger elements
+  (props, wardrobe, vehicles, stunts…) become breakdown elements on the lines
+  they were tagged on.
+- **Schedule import from CSV**: one-liner or stripboard exports from other
+  scheduling tools or spreadsheets — day columns or "Day 3 / End of Day 2"
+  rows, scene numbers matched to the screenplay, meals and moves as banners.
+
+### Changed
+
+- Decluttered UI: quiet top bar (ghost buttons, neutral icons), panel tabs and
+  view switchers that never break labels or truncate the active tab, quieter
+  shot-list, equipment and script toolbars, calmer inspector sections.
+- Fixed overlapping text in the schedule's day headers and the shot-list
+  toolbar.
+- Entry bundle 471 → 362 KiB: dashboard, quick search, on-set mode and the DMX
+  view load on demand.
+- Equipment, script and context code split into focused files (item and
+  package dialogs, gear options, A/V script view, element clipboard).
+- Every project write in a component is now a named command (ratchet at 0);
+  ~175 more light/dark class pairs moved to tokens or `dark:` variants;
+  equipment list edits moved out of the main context.
+- Dependency updates (from Dependabot #15).
+
+### Migration
+
+- Project schema v35 (stamp only): optional `productionReportNotes`.
+
 ## [1.1.0] — 2026-10-10
 
 Production paperwork release: the reports an AD and a script supervisor hand

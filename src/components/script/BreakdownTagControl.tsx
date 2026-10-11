@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Tag } from 'lucide-react';
+import { updateBreakdownItemsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   BREAKDOWN_CATEGORIES,
@@ -37,7 +38,7 @@ export const BreakdownTagControl: React.FC<BreakdownTagControlProps> = ({
   selectedText,
   isLight: _isLight,
 }) => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const [category, setCategory] = useState<BreakdownCategory>('prop');
   const [name, setName] = useState('');
 
@@ -54,14 +55,15 @@ export const BreakdownTagControl: React.FC<BreakdownTagControlProps> = ({
 
   const tag = () => {
     if (!effectiveName) return;
-    updateProjectMeta((prev) => ({
-      breakdownItems: tagBreakdownItem(prev.breakdownItems ?? [], {
+    runCommand(updateBreakdownItemsCommand, {
+      update: (current) => tagBreakdownItem(current, {
         category,
         name: effectiveName,
         scriptLineIds: lineIds,
         ...(ranges && ranges.length > 0 ? { scriptRanges: ranges } : {}),
       }),
-    }));
+      description: `Tag ${effectiveName}`,
+    }, { domain: 'script' });
     setName('');
   };
 

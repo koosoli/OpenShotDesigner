@@ -16,6 +16,10 @@ export interface TableReportPdfSection {
   rows: string[][];
   /** Per-row fill/ink ("#rrggbb"), e.g. stripboard colours. */
   rowColors?: Array<{ fill?: string; ink?: string } | undefined>;
+  /** This section's own columns, for reports made of several different tables. */
+  columns?: PdfTableColumn[];
+  /** Printed instead of a table when `rows` is empty (otherwise the section is skipped). */
+  emptyText?: string;
 }
 
 export interface TableReportPdfInput {
@@ -46,7 +50,7 @@ export const createTableReportPdf = async (input: TableReportPdfInput): Promise<
     ...(input.subtitle ? { subtitle: input.subtitle } : {}),
   });
   const style = { fontSize: input.fontSize ?? 8, headerFontSize: (input.fontSize ?? 8) - 0.5 };
-  const sections = input.sections.filter((section) => section.rows.length > 0);
+  const sections = input.sections.filter((section) => section.rows.length > 0 || section.emptyText);
   if (sections.length === 0) {
     page.drawText('Nothing to report yet.', { x: ctx.margins.left, y: cursorY - 12, size: 10, font: ctx.regular });
     return finalizePdfDocument(ctx);
@@ -60,7 +64,12 @@ export const createTableReportPdf = async (input: TableReportPdfInput): Promise<
       page.drawText(sanitizePdfText(section.heading), { x: ctx.margins.left, y: cursorY - 10, size: 10, font: ctx.bold });
       cursorY -= 16;
     }
-    const result = drawPdfTable(ctx, page, cursorY, input.columns, section.rows, { ...style, rowColors: section.rowColors });
+    if (section.rows.length === 0) {
+      page.drawText(sanitizePdfText(section.emptyText ?? ''), { x: ctx.margins.left, y: cursorY - 10, size: 8, font: ctx.regular });
+      cursorY -= 22;
+      continue;
+    }
+    const result = drawPdfTable(ctx, page, cursorY, section.columns ?? input.columns, section.rows, { ...style, rowColors: section.rowColors });
     page = result.page;
     cursorY = result.cursorY - 10;
   }

@@ -817,7 +817,11 @@ export const samplePaperwork = (input: {
   days: readonly { id: string }[];
   castAssignments: readonly CastAssignment[];
   people: readonly Person[];
-}): { doodOverrides: DoodOverride[]; performerTimeReports: import('../domain/reports').PerformerTimeReport[] } => {
+}): {
+  doodOverrides: DoodOverride[];
+  performerTimeReports: import('../domain/reports').PerformerTimeReport[];
+  productionReportNotes: import('../domain/reports').ProductionReportNotes[];
+} => {
   const named = (name: string) => input.characters.find((character) => character.canonicalName === name);
   const doodOverrides: DoodOverride[] = [];
   if (input.days.length >= 2) {
@@ -850,7 +854,16 @@ export const samplePaperwork = (input: {
   const performerTimeReports = input.days.length > 0 && entries.length > 0
     ? [{ id: createId('exhibitg'), dayId: input.days[0].id, entries, preparedBy: '2nd AD', notes: 'Example sheet — SARAH’s lunch was called late.' }]
     : [];
-  return { doodOverrides, performerTimeReports };
+  const productionReportNotes = input.days.length > 0
+    ? [{
+        dayId: input.days[0].id,
+        delays: 'Example — 25 min lost at 10:40 re-rigging the practical in the living room.',
+        accidents: 'None',
+        notes: 'Example — SARAH’s lunch called late (see time report). Scene 1 completed.',
+        preparedBy: '2nd AD',
+      }]
+    : [];
+  return { doodOverrides, performerTimeReports, productionReportNotes };
 };
 
 export const buildExampleProductionFill = (project: Project): ExampleFillResult => {
@@ -1074,6 +1087,10 @@ export const buildExampleProductionFill = (project: Project): ExampleFillResult 
   if (!hasItems(project.performerTimeReports) && paperwork.performerTimeReports.length) {
     patch.performerTimeReports = paperwork.performerTimeReports;
     filled.push('performer time report');
+  }
+  if (!hasItems(project.productionReportNotes) && paperwork.productionReportNotes.length) {
+    patch.productionReportNotes = paperwork.productionReportNotes;
+    filled.push('production report notes');
   }
 
   // Standing content is production-level, so it fills only when the project

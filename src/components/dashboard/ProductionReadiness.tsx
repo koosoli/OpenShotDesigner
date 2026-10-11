@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, EyeOff, RotateCcw, ShieldCheck, X } from 'lucide-react';
+import { updateReadinessDismissalsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useWorkspaceUI, type RightTab } from '../../context/WorkspaceUIContext';
 import { buildReadinessItems, readinessFingerprint, type ReadinessDismissal, type ReadinessItem } from '../../domain/readiness';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 
 export const ProductionReadiness: React.FC = () => {
-  const { project, updateProjectMeta, displaySettings } = useFloorPlan();
+  const { project, runCommand, displaySettings } = useFloorPlan();
   const { setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
   const [open, setOpen] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
@@ -33,10 +34,8 @@ export const ProductionReadiness: React.FC = () => {
     setRightPanelOpen(true);
     setOpen(false);
   };
-  const mutateDismissals = (change: (current: ReadinessDismissal[]) => ReadinessDismissal[]) => updateProjectMeta((previous) => {
-    const next = change(previous.readinessDismissals ?? []);
-    return { readinessDismissals: next.length ? next : undefined };
-  });
+  const mutateDismissals = (change: (current: ReadinessDismissal[]) => ReadinessDismissal[]) =>
+    runCommand(updateReadinessDismissalsCommand, { update: change });
   const dismiss = (item: ReadinessItem) => mutateDismissals((current) => [
     ...current.filter((entry) => entry.itemId !== item.id),
     { itemId: item.id, fingerprint: readinessFingerprint(item), dismissedAt: new Date().toISOString() },

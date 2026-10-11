@@ -26,7 +26,10 @@ import type { PdfDocumentContext, PdfOrientation, PdfPageSize } from './document
 import { buildPdfFilename } from './filenames';
 import { wrapPdfCellText } from './tables';
 import { sanitizePdfText } from './text';
+import { rgb } from 'pdf-lib';
 import type { PDFPage } from 'pdf-lib';
+
+const HIGHLIGHT = rgb(1, 0.93, 0.45);
 
 /** One screenplay line inside a sides scene, mirroring `SidesLine`. */
 export interface SidesPdfLine {
@@ -52,6 +55,11 @@ export interface SidesPdfInput {
   scenes: SidesPdfScene[];
   /** Scenes kept for one performer, e.g. "JOHN". Names the file qualifier. */
   characterFilter?: string;
+  /**
+   * Highlight this character's cues and speeches, the way an actor marks
+   * their sides. Defaults to `characterFilter`; pass `null` to switch it off.
+   */
+  highlightCharacter?: string | null;
   missingSceneIds?: string[];
   /** True prints a DRAFT watermark; a string prints that label instead. */
   draft?: boolean | string;
@@ -213,6 +221,7 @@ const drawFlowLine = (
   widthChars: number,
   size: number,
   bold: boolean,
+  highlight = false,
 ): PageCursor => {
   const x = ctx.margins.left + (leftChars / 60) * ctx.contentWidth;
   const maxWidth = (widthChars / 60) * ctx.contentWidth;
@@ -221,6 +230,15 @@ const drawFlowLine = (
   const lineHeight = size * FLOW_LINE_HEIGHT_FACTOR;
   const placed = ensureSpace(ctx, cursor, lines.length * lineHeight);
   lines.forEach((line, index) => {
+    if (highlight) {
+      placed.page.drawRectangle({
+        x: x - 1.5,
+        y: placed.cursorY - lineHeight * (index + 1) + 1,
+        width: font.widthOfTextAtSize(line, size) + 3,
+        height: lineHeight - 0.5,
+        color: HIGHLIGHT,
+      });
+    }
     placed.page.drawText(line, {
       x,
       y: placed.cursorY - lineHeight * (index + 1) + 3,
@@ -234,7 +252,7 @@ const drawFlowLine = (
 const layoutFor = (type: string | undefined): { left: number; width: number; size: number; bold: boolean; upper: boolean } =>
   FLOW_LAYOUT[type ?? 'action'] ?? FLOW_LAYOUT.action;
 
-const drawSceneBlock = (ctx: PdfDocumentContext, cursor: PageCursor, scene: SidesPdfScene): PageCursor => {
+const drawSceneBlock = (ctx: PdfDocumentContext, cursor: PageCursor, scene: SidesPdfScene, highlight?: string): PageCursor => {
   // Scene band: number, heading cue and cast stay on one page with the first line.
   let placed = ensureSpace(ctx, cursor, 64);
   const band = scene.omitted
@@ -248,13 +266,17 @@ const drawSceneBlock = (ctx: PdfDocumentContext, cursor: PageCursor, scene: Side
   });
   placed = { page: placed.page, cursorY: placed.cursorY - SCENE_TITLE_SIZE - 5 };
 
+  // A speech is the cue plus the parentheticals and dialogue under it.
+  let inHighlightedSpeech = false;
   for (const line of scene.lines) {
+    if (line.type === 'character') inHighlightedSpeech = !!highlight && canonicalCueName(line.text) === highlight;
+    else if (line.type !== 'dialogue' && line.type !== 'parenthetical') inHighlightedSpeech = false;
     const layout = layoutFor(line.type);
     const text = layout.upper ? line.text.toUpperCase() : line.text;
     // Small gap before cues and sluglines, none inside a speech.
     const gap = line.type === 'character' || line.type === 'scene' ? 5 : 2;
     placed = { page: placed.page, cursorY: placed.cursorY - gap };
-    placed = drawFlowLine(ctx, placed, text, layout.left, layout.width, layout.size, layout.bold);
+    placed = drawFlowLine(ctx, placed, text, layout.left, layout.width, layout.size, layout.bold, inHighlightedSpeech);
   }
 
   if (scene.characters.length > 0 && !scene.omitted) {
@@ -299,8 +321,10 @@ export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> 
       { x: ctx.margins.left, y: cursor.cursorY - 12, size: 10, font: ctx.regular },
     );
   } else {
+    const highlight = input.highlightCharacter === null ? undefined : input.highlightCharacter ?? input.characterFilter;
+    const highlightName = highlight ? canonicalCueName(highlight) : undefined;
     for (const scene of input.scenes) {
-      cursor = drawSceneBlock(ctx, cursor, scene);
+      cursor = drawSceneBlock(ctx, cursor, scene, highlightName);
     }
     if ((input.missingSceneIds ?? []).length > 0) {
       const note = `${(input.missingSceneIds ?? []).length} requested scene(s) no longer exist in the script.`;

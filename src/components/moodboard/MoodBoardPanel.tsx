@@ -13,6 +13,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { updateMoodBoardsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { MoodBoard, MoodBoardCard, MoodBoardCardLayout } from '../../domain/moodboard';
 import {
@@ -131,7 +132,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
         e.dataTransfer.effectAllowed = 'move';
       }}
       className={`rounded-lg border p-2 space-y-2 ${
-        isLight ? 'border-slate-200 bg-slate-50' : 'border-slate-700/70 bg-slate-900/60'
+        'border-slate-200 dark:border-slate-700/70 bg-surface-sunken'
       }`}
     >
       <CardThumb card={card} isLight={isLight} />
@@ -190,7 +191,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
         onClick={() => setShowNotes((v) => !v)}
         aria-expanded={showNotes}
         className={`min-h-[36px] w-full flex items-center gap-1 px-1 text-[11px] font-semibold transition-colors rounded-md ${
-          isLight ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/60' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+          'text-ink-muted hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800'
         }`}
       >
         {showNotes ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -255,7 +256,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
                 title="Clear link"
                 aria-label="Clear link"
                 className={`min-h-[36px] min-w-[36px] flex items-center justify-center rounded-md transition-colors ${
-                  isLight ? 'hover:bg-slate-200/60' : 'hover:bg-slate-800'
+                  'hover:bg-slate-200/60 dark:hover:bg-slate-800'
                 }`}
               >
                 <X className="w-3.5 h-3.5" />
@@ -274,7 +275,7 @@ const CardView: React.FC<CardViewProps> = ({ card, sections, isLight, onUpdate, 
 };
 
 export const MoodBoardPanel: React.FC = () => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   const isLight = theme === 'light';
 
@@ -304,19 +305,20 @@ export const MoodBoardPanel: React.FC = () => {
   const imageSrcs = useMoodboardImageSrcs(allCards);
 
   const setBoards = useCallback(
-    (next: MoodBoard[]) => updateProjectMeta({ moodBoards: next }),
-    [updateProjectMeta],
+    (next: MoodBoard[]) => runCommand(updateMoodBoardsCommand, { update: () => next, description: 'Edit mood boards' }, { domain: 'project' }),
+    [runCommand],
   );
 
   const updateBoard = useCallback(
     (next: MoodBoard) => {
       // Merge against the LATEST boards, not the render-time array, so a write
       // that lands while another board is being edited does not revert it.
-      updateProjectMeta((prev) => ({
-        moodBoards: (prev.moodBoards ?? []).map((b) => (b.id === next.id ? next : b)),
-      }));
+      runCommand(updateMoodBoardsCommand, {
+        update: (boards) => boards.map((b) => (b.id === next.id ? next : b)),
+        description: `Edit mood board ${next.title ?? ''}`.trim(),
+      });
     },
-    [updateProjectMeta],
+    [runCommand],
   );
 
   /**
@@ -326,11 +328,11 @@ export const MoodBoardPanel: React.FC = () => {
    */
   const updateBoardWith = useCallback(
     (boardId: string, fn: (prev: MoodBoard) => MoodBoard) => {
-      updateProjectMeta((prev) => ({
-        moodBoards: (prev.moodBoards ?? []).map((b) => (b.id === boardId ? fn(b) : b)),
-      }));
+      runCommand(updateMoodBoardsCommand, {
+        update: (boards) => boards.map((b) => (b.id === boardId ? fn(b) : b)),
+      });
     },
-    [updateProjectMeta],
+    [runCommand],
   );
 
   useEffect(() => {
@@ -759,7 +761,7 @@ export const MoodBoardPanel: React.FC = () => {
             </div>
           )}
 
-          <div className={`rounded-xl overflow-auto ${isLight ? 'bg-white' : 'bg-slate-950/40'}`} style={{ maxHeight: 'calc(100% - 4rem)' }}>
+          <div className={`rounded-xl overflow-auto bg-white dark:bg-slate-950/40`} style={{ maxHeight: 'calc(100% - 4rem)' }}>
             {(activeBoard.collage?.mode ?? 'grid') === 'free' ? (
               <CollageFreeform
                 board={activeBoard}

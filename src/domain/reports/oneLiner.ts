@@ -28,6 +28,8 @@ export interface OneLinerScene {
   synopsis?: string;
   pageEighths?: number;
   castNumbers: number[];
+  /** "1. ALEX", in cast-number order — only when `characters` is given. */
+  cast?: string[];
   colorKey: StripColorKey;
   /** Department -> element names, only with `withElements`. */
   elements?: Array<{ category: string; items: string[] }>;
@@ -68,12 +70,15 @@ export const deriveOneLiner = (input: {
   castAssignments?: readonly CastAssignment[];
   breakdownItems?: readonly BreakdownItem[];
   withElements?: boolean;
+  /** Names for the cast list (shooting schedule). */
+  characters?: ReadonlyArray<{ id: string; canonicalName: string }>;
 }): OneLinerDay[] => {
   const blockById = new Map(input.blocks.map((block) => [block.id, block] as const));
   const sceneById = new Map(input.scenes.map((scene) => [scene.id, scene] as const));
   const castNumberOf = new Map((input.castAssignments ?? []).map((assignment) => [assignment.characterId, assignment.castNumber] as const));
   const itemById = new Map((input.breakdownItems ?? []).map((item) => [item.id, item] as const));
   const sources = { scriptScenes: input.scenes, setups: input.setups };
+  const nameOf = input.characters ? new Map(input.characters.map((character) => [character.id, character.canonicalName] as const)) : undefined;
 
   return input.days.map((day) => {
     const seen = new Set<string>();
@@ -102,6 +107,13 @@ export const deriveOneLiner = (input: {
           colorKey: stripColorKey(block, `${scene.intExt ?? ''} ${timeOfDay}`),
         };
         if (scene.synopsis) entry.synopsis = scene.synopsis;
+        if (nameOf) {
+          entry.cast = [...new Set(scene.characterIds)]
+            .map((id) => ({ number: castNumberOf.get(id), name: nameOf.get(id) }))
+            .filter((member): member is { number: number | undefined; name: string } => !!member.name)
+            .sort((a, b) => (a.number ?? Number.MAX_SAFE_INTEGER) - (b.number ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name))
+            .map((member) => (member.number !== undefined ? `${member.number}. ${member.name}` : member.name));
+        }
         if (scene.pageLengthEighths !== undefined) {
           entry.pageEighths = scene.pageLengthEighths;
           pageEighths += scene.pageLengthEighths;

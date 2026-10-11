@@ -103,6 +103,10 @@ export type {
   DailyProgressScene,
   DailyProgressSources,
 } from './dailyProgress';
+export { castSidesForDay } from './castSides';
+export type { CastSidesEntry } from './castSides';
+export { productionReportCast, productionReportNotesFor, productionReportToDate } from './productionReport';
+export type { ProductionReportCastRow, ProductionReportNotes, ProductionReportToDate } from './productionReport';
 export { buildCallSheetProjectContext, callSheetForDay } from './callSheetForDay';
 export type { CallSheetProjectContext } from './callSheetForDay';
 export { deriveElementReport } from './elementReport';

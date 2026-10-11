@@ -32,6 +32,10 @@ export class WebdavError extends Error {
   }
 }
 
+/** The server refused a save because the file changed since we last saw it (412). */
+export const isWebdavConflict = (error: unknown): boolean =>
+  error instanceof WebdavError && error.status === 412;
+
 export const isWebdavUnauthorized = (error: unknown): boolean =>
   error instanceof WebdavError && error.status === 401;
 
@@ -40,7 +44,18 @@ export interface WebdavFile {
   /** Path relative to the app folder, for download. */
   href: string;
   size?: number;
+  /** The server's version tag; a save sent with it fails if someone saved since. */
+  etag?: string;
+  /** Last saved on the server, as the server reports it (HTTP date). */
+  modified?: string;
 }
+
+/**
+ * What a save may assume about the server copy: that it is still the version
+ * we opened (`ifMatch`), or that there is none yet (`ifNoneMatch`). Absent
+ * means "overwrite whatever is there" — the old backup behaviour.
+ */
+export type WebdavSavePrecondition = { ifMatch: string } | { ifNoneMatch: true };
 
 type FetchImpl = typeof fetch;
 
@@ -125,7 +140,15 @@ const parsePropfind = (xml: string, folderPath: string): WebdavFile[] => {
     if (!name) continue;
     const sizeNode = responses[i].getElementsByTagNameNS('DAV:', 'getcontentlength')[0];
     const size = sizeNode?.textContent ? Number(sizeNode.textContent) : NaN;
-    out.push({ name, href: relative, ...(Number.isFinite(size) ? { size } : {}) });
+    const etag = responses[i].getElementsByTagNameNS('DAV:', 'getetag')[0]?.textContent?.trim();
+    const modified = responses[i].getElementsByTagNameNS('DAV:', 'getlastmodified')[0]?.textContent?.trim();
+    out.push({
+      name,
+      href: relative,
+      ...(Number.isFinite(size) ? { size } : {}),
+      ...(etag ? { etag } : {}),
+      ...(modified ? { modified } : {}),
+    });
   }
   return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 };
@@ -148,21 +171,34 @@ export const listWebdavPackages = async (
   );
 };
 
-/** Save (overwrite is native to PUT) one `.osd` package. */
+/**
+ * Save one `.osd` package. Without a precondition PUT simply overwrites; with
+ * one, the server refuses (412, `isWebdavConflict`) a save over a copy that
+ * changed since it was opened, or over a file that already exists.
+ * Resolves to the new version tag when the server reports one.
+ */
 export const uploadWebdavPackage = async (
   config: WebdavConfig,
   fileName: string,
   packageBlob: Blob,
   fetchImpl: FetchImpl = fetch,
-): Promise<void> => {
+  precondition?: WebdavSavePrecondition,
+): Promise<{ etag?: string }> => {
   requireConfig(config);
   await ensureWebdavFolder(config, fetchImpl);
+  const conditional: Record<string, string> = !precondition
+    ? {}
+    : 'ifMatch' in precondition
+      ? { 'If-Match': precondition.ifMatch }
+      : { 'If-None-Match': '*' };
   const response = await fetchImpl(fileUrl(config, fileName), {
     method: 'PUT',
-    headers: { ...authHeader(config), 'Content-Type': 'application/zip' },
+    headers: { ...authHeader(config), 'Content-Type': 'application/zip', ...conditional },
     body: packageBlob,
   });
-  if (!response.ok) await throwForStatus(response, 'uploading the export');
+  if (!response.ok) await throwForStatus(response, response.status === 412 ? 'saving (the server copy changed)' : 'uploading the export');
+  const etag = response.headers.get('ETag') ?? response.headers.get('OC-ETag') ?? undefined;
+  return etag ? { etag } : {};
 };
 
 /** Fetch one package for import. */

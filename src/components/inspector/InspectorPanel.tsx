@@ -364,7 +364,7 @@ export const InspectorPanel: React.FC = () => {
         </div>
 
         <div className={`rounded-xl border p-3 space-y-2 ${
-          isLight ? 'bg-orange-50 border-orange-200' : 'bg-orange-950/20 border-orange-900/70'
+          'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900/70'
         }`}>
           <div className="flex items-start gap-2">
             <Ruler className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
@@ -376,7 +376,7 @@ export const InspectorPanel: React.FC = () => {
             </div>
           </div>
           {selectedBg.calibration && (
-            <div className={`text-[10px] rounded-md px-2 py-1.5 ${isLight ? 'bg-white/80' : 'bg-slate-950/50'}`}>
+            <div className={`text-[10px] rounded-md px-2 py-1.5 bg-white/80 dark:bg-slate-950/50`}>
               Calibrated from {selectedBg.calibration.realLength}{selectedBg.calibration.unit} · image resized {selectedBg.calibration.appliedScaleFactor.toFixed(3)}×
             </div>
           )}
@@ -403,7 +403,7 @@ export const InspectorPanel: React.FC = () => {
             aria-pressed={selectedBg.visible}
             className={`py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
               selectedBg.visible
-                ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
+                ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-800'
                 : 'bg-surface-muted text-ink-muted border-line-strong'
             }`}
           >
@@ -416,7 +416,7 @@ export const InspectorPanel: React.FC = () => {
             aria-pressed={selectedBg.locked}
             className={`py-2 text-[11px] font-semibold rounded-lg border flex items-center justify-center gap-1.5 transition-colors ${
               selectedBg.locked
-                ? isLight ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-800'
+                ? 'bg-warn-soft text-warn border-amber-300 dark:border-amber-800'
                 : 'bg-surface-muted text-ink-muted border-line-strong'
             }`}
           >
@@ -604,14 +604,11 @@ export const InspectorPanel: React.FC = () => {
                   aria-pressed={(activeSetup.gridSettings?.unit || 'm') === 'm'}
                   className={`py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center justify-center gap-1.5 ${
                     (activeSetup.gridSettings?.unit || 'm') === 'm'
-                      ? 'bg-accent text-white border-sky-500 shadow-sm'
-                      : isLight
-                      ? 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
-                      : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                      ? 'bg-accent text-white border-transparent shadow-sm'
+                      : 'bg-field text-ink-soft border-line hover:bg-surface-hover'
                   }`}
                 >
                   <span>Meters (m)</span>
-                  <span className="text-[10px] opacity-90 font-mono">Metric</span>
                 </button>
                 <button
                   type="button"
@@ -624,14 +621,11 @@ export const InspectorPanel: React.FC = () => {
                   aria-pressed={activeSetup.gridSettings?.unit === 'ft'}
                   className={`py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center justify-center gap-1.5 ${
                     activeSetup.gridSettings?.unit === 'ft'
-                      ? 'bg-accent text-white border-sky-500 shadow-sm'
-                      : isLight
-                      ? 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
-                      : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                      ? 'bg-accent text-white border-transparent shadow-sm'
+                      : 'bg-field text-ink-soft border-line hover:bg-surface-hover'
                   }`}
                 >
                   <span>Feet (ft)</span>
-                  <span className="text-[10px] opacity-90 font-mono">Imperial</span>
                 </button>
               </div>
             </div>
@@ -1072,7 +1066,7 @@ export const InspectorPanel: React.FC = () => {
                 {sunDayTimes && (
                   <div
                     className={`text-[10px] rounded-lg border p-2.5 space-y-0.5 leading-relaxed ${
-                      isLight ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-amber-950/30 text-amber-100 border-amber-900/60'
+                      'bg-warn-soft text-amber-900 dark:text-amber-100 border-amber-200 dark:border-amber-900/60'
                     }`}
                   >
                     {sunDayTimes.polarNight ? (
@@ -1130,7 +1124,7 @@ export const InspectorPanel: React.FC = () => {
                 aria-label="Show all labels"
                 aria-pressed={displaySettings.showLabels}
                 className={`relative w-10 h-5 rounded-full transition-colors ${
-                  displaySettings.showLabels ? 'bg-teal-500' : isLight ? 'bg-slate-300' : 'bg-slate-700'
+                  displaySettings.showLabels ? 'bg-teal-500' : 'bg-slate-300 dark:bg-slate-700'
                 }`}
               >
                 <span
@@ -1547,7 +1541,7 @@ export const InspectorPanel: React.FC = () => {
                         aria-pressed={bg.visible}
                         className={`py-1.5 text-[10px] font-semibold rounded-lg border flex items-center justify-center gap-1 transition-colors ${
                           bg.visible
-                            ? isLight ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-teal-950/40 text-teal-300 border-teal-800'
+                            ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-800'
                             : 'bg-surface-muted text-ink-muted border-line-strong'
                         }`}
                       >
@@ -1560,7 +1554,7 @@ export const InspectorPanel: React.FC = () => {
                         aria-pressed={bg.locked}
                         className={`py-1.5 text-[10px] font-semibold rounded-lg border flex items-center justify-center gap-1 transition-colors ${
                           bg.locked
-                            ? isLight ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-800'
+                            ? 'bg-warn-soft text-warn border-amber-300 dark:border-amber-800'
                             : 'bg-surface-muted text-ink-muted border-line-strong'
                         }`}
                       >
@@ -1848,7 +1842,7 @@ export const InspectorPanel: React.FC = () => {
                 <button
                   onClick={addGroupKeyframe}
                   className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
-                    isLight ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' : 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border-slate-700'
+                    'bg-emerald-50 dark:bg-slate-800 text-ok border-emerald-300 dark:border-slate-700 hover:bg-emerald-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   + Add Group Keyframe (Beat {nextBeat})

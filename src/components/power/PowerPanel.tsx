@@ -10,6 +10,7 @@ import {
   Trash2,
   Zap,
 } from 'lucide-react';
+import { setPowerPlanCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { useFixtureCatalog } from '../inspector/useFixtureCatalog';
 import { createId } from '../../domain/ids';
@@ -57,7 +58,7 @@ const parseOptionalNumber = (raw: string): number | undefined => {
 };
 
 export const PowerPanel: React.FC = () => {
-  const { project, updateProjectMeta, activeSetup } = useFloorPlan();
+  const { project, runCommand, activeSetup } = useFloorPlan();
   const { theme, openExportModal } = useWorkspaceUI();
   // Re-render when the fixture catalog changes: the bundled snapshot arrives
   // asynchronously and an online refresh can replace it, and both change the
@@ -119,7 +120,7 @@ export const PowerPanel: React.FC = () => {
 
   /** Every mutation persists immutably through powerPlan. */
   const commit = (next: PowerPanelPlan) => {
-    updateProjectMeta({ powerPlan: next });
+    runCommand(setPowerPlanCommand, { plan: next });
   };
 
   // --- Derived report (pure domain logic; profiles arrive later) ---
@@ -334,7 +335,7 @@ export const PowerPanel: React.FC = () => {
       {/* Assumptions box (plan rules 13–15) */}
       <div
         className={`rounded-xl border px-3 py-2.5 text-[11px] leading-relaxed flex items-start gap-2 ${
-          isLight ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-sky-950/50 border-sky-800 text-sky-200'
+          'bg-sky-50 dark:bg-sky-950/50 border-sky-200 dark:border-sky-800 text-sky-900 dark:text-sky-200'
         }`}
       >
         <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />

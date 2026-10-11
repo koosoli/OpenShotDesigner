@@ -343,7 +343,7 @@ export const ElementAnnotationsSection: React.FC<{ elementId: string; isLight: b
       <button
         onClick={addAnnotation}
         className={`w-full py-2 rounded-lg border border-dashed text-[11px] font-semibold transition-colors flex items-center justify-center gap-1.5 ${
-          isLight ? 'text-amber-700 border-amber-300 hover:bg-amber-50' : 'text-amber-300 border-amber-800 hover:bg-amber-950/40'
+          'text-warn border-amber-300 dark:border-amber-800 hover:bg-warn-soft'
         }`}
       >
         <MessageSquarePlus className="w-3.5 h-3.5" /> Add Annotation

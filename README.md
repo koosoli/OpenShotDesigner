@@ -4,7 +4,7 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.1.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.2.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
@@ -336,6 +336,10 @@ board — in one print job, with your production logo on the paperwork.
 - **What-if while you drag** — dragging a strip shows what the move does to page counts, day length and paid performer days before you drop it.
 - **Performers production time report (Exhibit G)** — fill it from the schedule, type 24-hour times, and see meal penalties, short meals, forced calls (rest), overtime (day or weekly contract) and minors' hours. Every limit is a per-sheet setting. On set, a big-button **cast clock** stamps the next time for each performer.
 - **Call sheet email** — opens an email draft to everyone called that day with their call times, and downloads the call sheet PDF alongside for you to attach (a mail link cannot carry attachments; no server involved).
+- **Cast sides** — one sides PDF per performer with dialogue that day, their cue and lines highlighted, zipped to attach to the email.
+- **Daily production report** — Schedule → Day report: scenes, pages, setups and shots against the plan from the continuity log, running totals to date, cast times from the Exhibit G sheet, and delays, accidents and remarks; prints and exports on its own.
+- **Shooting schedule PDF** — the one-liner with elements prints in the classic layout: a block per scene in its strip colour, cast by number and every department's elements underneath.
+- **Exhibit G form PDF** — the time report prints in the union form's layout (work time, meals, travel time, MPs, forced call, signature column) on US Letter.
 
 ### Continuity log & shooting-day checklist
 
@@ -474,8 +478,11 @@ New to it? **Templates → Fill empty modules with examples** loads a worked exa
 | **Continuity / Resolve metadata** | The take log as a **DaVinci Resolve metadata CSV** (Media Pool → right-click → Import Metadata…) — byte-identical headers, CRLF, no BOM — plus a printable continuity report and wrap checklist |
 | **Complete package** | Everything above that has data, in one print job |
 | **JSON** | Full project backup — import to restore or share |
-| **Cloud export** | Manual one-way `.osd` backup to Google Drive from the project dashboard (sign in with Google; needs internet, everything else stays offline) |
-| **Nextcloud backup & restore** | Manual `.osd` up- and download to your own Nextcloud/WebDAV server from the project dashboard (server address + app password; needs internet) |
+| **Google Drive** | Save `.osd` projects to Drive and open them again from the project dashboard (sign in with Google; needs internet, everything else stays offline) |
+| **Nextcloud / WebDAV** | Save and open `.osd` projects on your own Nextcloud/WebDAV server from the project dashboard (server address + app password; needs internet) |
+| **Sharing through the cloud** | A project opened from Drive or Nextcloud saves back to the same file. If someone else saved it in the meantime, the two versions are merged: changes on either side are kept and only a value you both changed differently is put to you, item by item |
+| **Schedule CSV import** | Schedule → Import CSV: one-liner or stripboard exports from other tools or a spreadsheet; scene numbers are matched to the screenplay |
+| **Final Draft tags** | Breakdown elements tagged in Final Draft's Tagger arrive with the `.fdx` import |
 
 Projects are stored in your browser's IndexedDB (with a `localStorage` fallback) and images live in a content-addressed asset store, so **download a JSON backup** before clearing site data or moving to another machine.
 

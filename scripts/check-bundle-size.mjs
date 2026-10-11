@@ -2,7 +2,10 @@ import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const assetDir = join(process.cwd(), 'dist', 'assets');
-const MAX_ENTRY_BYTES = 1_050_000;
+// The entry is what every visit downloads before the app can paint. 362 KiB
+// after the dashboard, quick search, on-set mode and DMX view went lazy
+// (2026-10-11); the budget leaves headroom but catches a module sliding back in.
+const MAX_ENTRY_BYTES = 420_000;
 const files = await readdir(assetDir);
 const entries = await Promise.all(
   files

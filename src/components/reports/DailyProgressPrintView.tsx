@@ -5,8 +5,11 @@ import {
   formatPageEighths,
   formatSpan,
   plannedDayMinutes,
+  productionReportCast,
+  productionReportNotesFor,
+  productionReportToDate,
 } from '../../domain/reports';
-import type { DailyProgressReport } from '../../domain/reports';
+import type { DailyProgressReport, ProductionReportCastRow, ProductionReportNotes, ProductionReportToDate } from '../../domain/reports';
 import { formatDurationHours } from '../../domain/scheduling';
 import { keyCrewDisplayName } from '../../domain/people';
 import { resolveContainerAssignments } from '../../domain/logistics';
@@ -36,6 +39,12 @@ export interface DailyProgressPrintViewProps {
   plannedDayMinutes: number | null;
   /** Rendered inside the export modal rather than as a standalone print host. */
   embedded?: boolean;
+  /** Running totals after this day. */
+  toDate?: ProductionReportToDate | null;
+  /** Cast times from the day's Exhibit G sheet. */
+  cast?: ProductionReportCastRow[];
+  /** Delays, accidents and remarks written at wrap. */
+  notes?: ProductionReportNotes;
 }
 
 const dash = (value: string | number | undefined): string =>
@@ -61,6 +70,9 @@ export const DailyProgressPrintView: React.FC<DailyProgressPrintViewProps> = ({
   report,
   plannedDayMinutes: plannedMinutes,
   embedded = false,
+  toDate,
+  cast,
+  notes,
 }) => {
   const generatedAt = new Intl.DateTimeFormat('en-CA').format(new Date());
   const behind = (report.scheduleVarianceMinutes ?? 0) > 0;
@@ -301,6 +313,50 @@ export const DailyProgressPrintView: React.FC<DailyProgressPrintViewProps> = ({
             </>
           )}
 
+          {toDate && (
+            <>
+              <h2 className="dpr-section">To date (day {toDate.dayNumber} of {toDate.daysTotal})</h2>
+              <p>
+                Scenes {toDate.scenesCompleted} of {toDate.scenesTotal} · pages {formatPageEighths(toDate.pagesCompletedEighths)} of {formatPageEighths(toDate.pagesTotalEighths)} · shots covered {toDate.shotsCovered} · takes {toDate.takesLogged}
+              </p>
+            </>
+          )}
+
+          {cast && cast.length > 0 && (
+            <>
+              <h2 className="dpr-section">Cast</h2>
+              <table className="dpr-table">
+                <thead>
+                  <tr><th>#</th><th>Performer</th><th>Status</th><th>On set</th><th>1st meal</th><th>Wrap</th><th className="num">Worked</th><th className="num">MP</th></tr>
+                </thead>
+                <tbody>
+                  {cast.map((row, index) => (
+                    <tr key={index}>
+                      <td>{row.castNumber ?? ''}</td>
+                      <td>{row.name}{row.role ? ` (${row.role})` : ''}</td>
+                      <td>{dash(row.status)}</td>
+                      <td>{dash(row.reportOnSet)}</td>
+                      <td>{dash(row.meal1)}</td>
+                      <td>{dash(row.dismissOnSet)}</td>
+                      <td className="num">{row.worked}</td>
+                      <td className="num">{row.mealPenalties || ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {notes && (notes.delays || notes.accidents || notes.notes) && (
+            <>
+              <h2 className="dpr-section">Notes</h2>
+              {notes.delays && <p><b>Delays:</b> {notes.delays}</p>}
+              {notes.accidents && <p><b>Accidents / injuries:</b> {notes.accidents}</p>}
+              {notes.notes && <p><b>Remarks:</b> {notes.notes}</p>}
+              {notes.preparedBy && <p><b>Prepared by:</b> {notes.preparedBy}</p>}
+            </>
+          )}
+
           <footer className="dpr-footer">
             <p>
               Derived from the schedule and the continuity log. Correct a take and this sheet
@@ -366,5 +422,8 @@ export const buildDailyProgressPrintModel = (
     firstAd: crew('first_ad'),
     report,
     plannedDayMinutes: plannedDayMinutes(day),
+    toDate: productionReportToDate(project, day.id),
+    cast: productionReportCast(project, day.id),
+    notes: productionReportNotesFor(project, day.id),
   };
 };

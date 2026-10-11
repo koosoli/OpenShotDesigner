@@ -7,7 +7,7 @@
  * dozen props, because the prop list would otherwise just be a copy of the
  * context.
  */
-import React, { useId, useState } from 'react';
+import React, { Suspense, lazy, useId, useState } from 'react';
 import { Compass, Database, Maximize, Sun, Tags, Zap } from 'lucide-react';
 import type { LightElement } from '../../../types';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
@@ -37,15 +37,15 @@ import {
 import { useFixtureCatalog } from '../useFixtureCatalog';
 import { createId } from '../../../domain/ids';
 import { createIdbAssetStore } from '../../../domain/storage/idbAssetStore';
-import { validateGdtfArchive } from '../../../domain/technical/mvrExport';
 import { useDialogs } from '../../dialog/DialogProvider';
 import { parseOption, parseOptionFrom } from '../../../domain/optionValue';
 import { FresnelLightIcon } from '../../icons/ProductionIcons';
 import { flagLabel, isFlagFixture } from '../../canvas/FlagFixtureIcon';
-import { DmxUniverseView } from '../../equipment/DmxUniverseView';
 import { FixtureProfilePicker } from '../FixtureProfilePicker';
 import { PillToggle, RubricSection, WaypointListEditor } from '../shared/InspectorPrimitives';
 import { LightModifiersSection } from './LightModifiersSection';
+
+const DmxUniverseView = lazy(() => import('../../equipment/DmxUniverseView').then((m) => ({ default: m.DmxUniverseView })));
 
 interface LightInspectorProps {
   light: LightElement;
@@ -1044,7 +1044,8 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
                   void notice({ title: 'Invalid GDTF file', message: 'Please choose a real .gdtf archive.' });
                   return;
                 }
-                void validateGdtfArchive(file)
+                void import('../../../domain/technical/mvrExport')
+                  .then(({ validateGdtfArchive }) => validateGdtfArchive(file))
                   .then(() => gdtfAssetStore.put(file, { source: `GDTF: ${file.name}` }, `gdtf:${light.id}`))
                   .then((ref) => updateElement(light.id, { gdtfAssetId: ref.id, gdtfFileName: file.name }))
                   .catch((error: unknown) => {
@@ -1157,10 +1158,12 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               Open DMX Patch Bay
             </button>
             {dmxUniverseFixtureId === light.id && (
-              <DmxUniverseView
-                focusFixtureId={light.id}
-                onClose={() => setDmxUniverseFixtureId(null)}
-              />
+              <Suspense fallback={null}>
+                <DmxUniverseView
+                  focusFixtureId={light.id}
+                  onClose={() => setDmxUniverseFixtureId(null)}
+                />
+              </Suspense>
             )}
           </>
         ) : (
@@ -1221,7 +1224,7 @@ export const LightInspector: React.FC<LightInspectorProps> = ({ light, isLight }
               type="button"
               onClick={handleAddLightWp}
               className={`w-full py-2 border rounded-lg text-xs font-semibold cursor-pointer select-none active:scale-[0.98] transition-transform ${
-                isLight ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100' : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
+                'bg-amber-50 dark:bg-slate-800 text-warn border-amber-300 dark:border-slate-700 hover:bg-amber-100 dark:hover:bg-slate-700'
               }`}
             >
               + Add Light Waypoint (Beat {nextBeat})

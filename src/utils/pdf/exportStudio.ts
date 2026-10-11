@@ -326,7 +326,12 @@ export const renderSectionPdf = async (
         sceneIds: ctx.sidesSceneIds ?? undefined,
         character: ctx.sidesCharacter || undefined,
       });
-      const bytes = await createSidesPdf({ productionTitle: title, scenes, ...logo });
+      const bytes = await createSidesPdf({
+        productionTitle: title,
+        scenes,
+        ...(ctx.sidesCharacter ? { characterFilter: ctx.sidesCharacter } : {}),
+        ...logo,
+      });
       return renderedPdf(bytes, buildSidesPdfFilename({ productionTitle: title }));
     }
     case 'scriptreports': {

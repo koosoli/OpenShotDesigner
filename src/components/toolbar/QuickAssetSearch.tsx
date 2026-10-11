@@ -749,9 +749,9 @@ export const QuickAssetSearch: React.FC = () => {
       >
         {/* Header / Search input */}
         <div className={`flex items-center gap-2.5 px-4 py-3 border-b ${
-          isLight ? 'border-slate-200 bg-slate-50/70' : 'border-slate-800 bg-slate-950/60'
+          'border-line bg-slate-50/70 dark:bg-slate-950/60'
         }`}>
-          <Search className={`w-4 h-4 flex-shrink-0 ${isLight ? 'text-slate-400' : 'text-violet-400'}`} />
+          <Search className={`w-4 h-4 flex-shrink-0 text-slate-400 dark:text-violet-400`} />
           <input
             ref={inputRef}
             value={query}
@@ -783,7 +783,7 @@ export const QuickAssetSearch: React.FC = () => {
 
         {/* Category Filter Pills */}
         <div className={`flex items-center gap-1 overflow-x-auto px-3 py-1.5 border-b custom-scrollbar ${
-          isLight ? 'bg-slate-100/60 border-slate-200' : 'bg-slate-950/40 border-slate-800/80'
+          'bg-slate-100/60 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/80'
         }`}>
           {CATEGORY_TABS.map((tab) => (
             <button

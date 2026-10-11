@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { ViewSwitcher } from '../common/ViewSwitcher';
 import { TopSheetView } from './TopSheetView';
 import { PanelTitle } from '../common/PanelHeader';
 import { createPortal } from 'react-dom';
@@ -6,6 +7,7 @@ import { AlertTriangle, CalendarRange, ClipboardCheck, Coins, Download, FileSpre
 import { BudgetPrintView } from '../reports/BudgetPrintView';
 import { PdfExportButton } from '../common/PdfExportButton';
 import { waitForImages } from '../../utils/image';
+import { patchPersonCommand, updateBudgetCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import {
@@ -42,7 +44,7 @@ const downloadText = (filename: string, text: string) =>
  * follow the schedule as it changes.
  */
 export const BudgetPanel: React.FC = () => {
-  const { project, updateProjectMeta } = useFloorPlan();
+  const { project, runCommand } = useFloorPlan();
   const { theme, setActiveRightTab } = useWorkspaceUI();
   const isLight = theme === 'light';
   const [view, setView] = useState<'budget' | 'topsheet' | 'actuals' | 'needs'>('budget');
@@ -85,7 +87,7 @@ export const BudgetPanel: React.FC = () => {
   const money = (value: number) => formatMoney(value, currency);
 
   const mutateBudget = (fn: (current: ProjectBudget) => ProjectBudget) =>
-    updateProjectMeta((prev) => ({ budget: fn(prev.budget ?? emptyBudget()) }));
+    runCommand(updateBudgetCommand, { update: (budget) => fn(budget ?? emptyBudget()) }, { domain: 'project' });
   const patchBudget = (updates: Partial<ProjectBudget>) =>
     mutateBudget((current) => ({ ...current, ...updates }));
   const patchSettings = (updates: Partial<ProjectBudget['settings']>) =>
@@ -148,9 +150,7 @@ export const BudgetPanel: React.FC = () => {
 
   const people = useMemo(() => (project.people ?? []).filter((p) => p.kind === 'crew' || p.kind === 'cast' || p.kind === 'talent'), [project.people]);
   const patchPerson = (id: string, updates: Partial<Person>) =>
-    updateProjectMeta((prev) => ({
-      people: (prev.people ?? []).map((p) => (p.id === id ? { ...p, ...updates } : p)),
-    }));
+    runCommand(patchPersonCommand, { personId: id, updates }, { domain: 'people' });
   const entryById = new Map(summary.entries.map((entry) => [entry.id, entry] as const));
   const aboveLine = people.filter((p) => isAboveTheLine(p));
   const belowLine = people.filter((p) => !isAboveTheLine(p));
@@ -236,13 +236,17 @@ export const BudgetPanel: React.FC = () => {
           subtitle={<>{shootDays} shooting day{shootDays === 1 ? '' : 's'} · {view === 'actuals' ? `${actualsLines.length} budget line${actualsLines.length === 1 ? '' : 's'}` : `${summary.entries.length} priced line${summary.entries.length === 1 ? '' : 's'}`} · total {money(summary.total)}</>}
         />
         <div className="flex items-center gap-2">
-          <div className={`flex h-8 rounded-md border p-0.5 bg-surface-sunken border-line`}>
-            {([['budget', Coins, 'Budget'], ['topsheet', FileSpreadsheet, 'Top sheet'], ['actuals', ClipboardCheck, 'Actuals'], ['needs', CalendarRange, 'Day needs']] as const).map(([key, Icon, label]) => (
-              <button key={key} onClick={() => setView(key)} aria-pressed={view === key} aria-label={label} title={label} className={`px-2 sm:px-2.5 rounded text-[10px] font-black flex items-center gap-1.5 ${view === key ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-sm' : mutedCls}`}>
-                <Icon className="w-3.5 h-3.5" /><span className="hidden sm:inline">{label}</span>
-              </button>
-            ))}
-          </div>
+          <ViewSwitcher
+            label="Budget view"
+            value={view}
+            onChange={setView}
+            items={[
+              { id: 'budget', icon: Coins, label: 'Budget' },
+              { id: 'topsheet', icon: FileSpreadsheet, label: 'Top sheet' },
+              { id: 'actuals', icon: ClipboardCheck, label: 'Actuals' },
+              { id: 'needs', icon: CalendarRange, label: 'Day needs' },
+            ]}
+          />
           {view === 'budget' && (
             <PdfExportButton onClick={() => setPrinting(true)} title="Download the budget as a PDF" />
           )}
@@ -460,7 +464,7 @@ export const BudgetPanel: React.FC = () => {
           </section>
 
           {(unpricedPeople.length > 0 || unpricedEquipment.length > 0) && (
-            <section className={`rounded-xl border p-3 ${isLight ? 'border-amber-200 bg-amber-50' : 'border-amber-900/60 bg-amber-950/20'}`}>
+            <section className={`rounded-xl border p-3 border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/20`}>
               <h3 className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Not yet priced</h3>
               {unpricedPeople.length > 0 && (
                 <p className="text-[11px] mt-1">

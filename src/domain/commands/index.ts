@@ -36,11 +36,12 @@ export type {
   SetTrussProfilesInput,
   UpsertTrussElementInput,
 } from './rigging';
-export { setDocumentLanguageCommand } from './project';
+export { applyMergedProjectCommand, setDocumentLanguageCommand } from './project';
 export type { SetDocumentLanguageInput } from './project';
 export {
   addUnplannedShotCommand,
   deleteTakeCommand,
+  recordOnSetTakeCommand,
   setContinuityDayFilterCommand,
   updateTakeCommand,
   updateTakesCommand,
@@ -61,6 +62,7 @@ export {
   setScriptPageLockCommand,
   setScriptRevisionColorCommand,
   updatePerformerTimeReportCommand,
+  updateProductionReportNotesCommand,
 } from './paperwork';
 export type {
   SetCharacterColorInput,
@@ -68,11 +70,13 @@ export type {
   SetDoodDropAfterDaysInput,
   SetScriptRevisionColorInput,
   UpdatePerformerTimeReportInput,
+  UpdateProductionReportNotesInput,
 } from './paperwork';
 export {
   addCalendarEventCommand,
   addProductionDayCommand,
   addScheduleBlockCommand,
+  importScheduleCommand,
   removeCalendarEventCommand,
   removeProductionDayCommand,
   removeScheduleBlockCommand,
@@ -89,3 +93,21 @@ export {
 export type { ProductionDetailsUpdate } from './productionDetails';
 export { setLogisticsDayFilterCommand, updateLogisticsCommand } from './logistics';
 export type { SetLogisticsDayFilterInput, UpdateLogisticsInput } from './logistics';
+export {
+  patchPersonCommand,
+  patchStandingCallSheetCommand,
+  setRiggingAssumptionsCommand,
+  updateBudgetCommand,
+  updateContinuityNotesCommand,
+  updateReadinessDismissalsCommand,
+  updateReviewCommentsCommand,
+  updateTrussElementsCommand,
+  setCoverageMatrixCommand,
+  setPowerPlanCommand,
+  setRunOfShowCommand,
+  updateMoodBoardsCommand,
+  updateTaskBoardsCommand,
+} from './collections';
+export type { SetRunOfShowInput, UpdateMoodBoardsInput, UpdateTaskBoardsInput } from './collections';
+export { addScriptRevisionCommand, addSetupsCommand, removeBreakdownItemCommand, updateBreakdownItemsCommand } from './breakdown';
+export type { UpdateBreakdownItemsInput } from './breakdown';

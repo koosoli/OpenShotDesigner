@@ -32,13 +32,30 @@ import {
   recordBackup,
 } from '../../utils/cloud/backupHistory';
 import {
+  downloadDrivePackage,
+  isDriveConflict,
   isDriveUnauthorized,
+  listDrivePackages,
   requestDriveAccessToken,
   revokeDriveAccessToken,
   uploadProjectToDrive,
+  type DriveFileRef,
 } from '../../utils/cloud/googleDrive';
+import { saveCloudBase, readCloudBase } from '../../utils/cloud/cloudBases';
+import { threeWayMerge, resolveMergeConflicts, type MergeConflict } from '../../domain/sync/threeWayMerge';
+import { migrateProject } from '../../domain/migrations';
+import { MergeConflictDialog } from './MergeConflictDialog';
+import type { Project } from '../../types';
+import {
+  cloudCopyFileName,
+  planCloudSave,
+  readCloudLink,
+  writeCloudLink,
+  type CloudProvider,
+} from '../../utils/cloud/cloudLinks';
 import {
   downloadWebdavPackage,
+  isWebdavConflict,
   isWebdavUnauthorized,
   listWebdavPackages,
   uploadWebdavPackage,
@@ -114,9 +131,9 @@ const formatUpdated = (iso: string): string => {
  * first run and whenever the user opens "Projects" from the top bar.
  */
 export const ProjectDashboard: React.FC = () => {
-  const { project, projects, activeProjectId, createNewProject, openProjectById, duplicateProject, renameProject, deleteProjectById, loadProjectFromJson, restoreRevision } = useFloorPlan();
+  const { project, projects, activeProjectId, createNewProject, openProjectById, duplicateProject, renameProject, deleteProjectById, loadProjectFromJson, restoreRevision, applyMergedProject } = useFloorPlan();
   const { isDashboardOpen, closeDashboard, theme } = useWorkspaceUI();
-  const { notice } = useDialogs();
+  const { choose, notice } = useDialogs();
 
   const isLight = theme === 'light';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -164,6 +181,21 @@ export const ProjectDashboard: React.FC = () => {
   const [driveConnecting, setDriveConnecting] = useState(false);
   /** Project id currently uploading, or 'connect' while signing in. */
   const [driveBusyId, setDriveBusyId] = useState<string | null>(null);
+  // Projects in the Drive app folder, for opening; listed on request.
+  const [driveFiles, setDriveFiles] = useState<DriveFileRef[]>([]);
+  const [driveListBusy, setDriveListBusy] = useState(false);
+  const [driveBusyFile, setDriveBusyFile] = useState<string | null>(null);
+  // An open merge: the conflicts to decide, and how to continue once decided.
+  const [pendingMerge, setPendingMerge] = useState<{
+    fileName: string;
+    theirChanges: number;
+    conflicts: MergeConflict[];
+    settle: (useTheirs: Set<number> | null) => void;
+  } | null>(null);
+  const askMergeChoices = (fileName: string, theirChanges: number, conflicts: MergeConflict[]) =>
+    new Promise<Set<number> | null>((resolve) => {
+      setPendingMerge({ fileName, theirChanges, conflicts, settle: (choice) => { setPendingMerge(null); resolve(choice); } });
+    });
   /** Last backup clock for the stale-backup reminder; refreshed on open and after every local backup. */
   const [backupAt, setBackupAt] = useState<string | null>(() => getLastBackupAt());
   const refreshBackupAge = () => setBackupAt(getLastBackupAt());
@@ -214,18 +246,20 @@ export const ProjectDashboard: React.FC = () => {
   };
 
   /** Commit a parsed file: register media, remap upgraded ids, load, optionally bind. */
+  /** Import a parsed file as a project; resolves to its id, or null when it failed. */
   const commitParsedFile = async (
     parsed: ParsedProjectFile,
     bind?: { fileName: string; handle: unknown },
-  ): Promise<void> => {
+  ): Promise<string | null> => {
     const remapped = await parsed.importAssets();
     const finalProject = applyAssetRemap(parsed.project, remapped);
     const result = loadProjectFromJson(finalProject);
     if (!result.ok) {
       await notice({ title: 'Import failed', message: result.message });
-      return;
+      return null;
     }
     if (bind) bindNativeProjectHandle(result.project.id, bind.fileName, bind.handle);
+    return result.project.id;
   };
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -318,46 +352,195 @@ export const ProjectDashboard: React.FC = () => {
   const disconnectDrive = () => {
     if (driveToken) void revokeDriveAccessToken(driveToken);
     setDriveToken(null);
+    setDriveFiles([]);
   };
 
-  /** One-way backup of a project package to the user's Drive. */
-  const uploadProjectToDriveHandler = async (id: string) => {
-    if (!driveToken) {
-      await notice({ title: 'Google Drive', message: 'Open the Cloud button above first to connect.' });
+  /** A Drive call with one silent token refresh: the hour-long token may have expired between visits. */
+  const withDriveToken = async <T,>(call: (token: string) => Promise<T>): Promise<T> => {
+    if (!driveToken) throw new Error('Not connected to Google Drive.');
+    try {
+      return await call(driveToken);
+    } catch (error) {
+      if (!isDriveUnauthorized(error)) throw error;
+      const fresh = await requestDriveAccessToken(effectiveDriveClientId, { silent: true });
+      setDriveToken(fresh);
+      return call(fresh);
+    }
+  };
+
+  const refreshDriveFileList = async () => {
+    setDriveListBusy(true);
+    try {
+      setDriveFiles(await withDriveToken((token) => listDrivePackages(token)));
+    } catch (error) {
+      if (isDriveUnauthorized(error)) setDriveToken(null);
+      await notice({ title: 'Google Drive', message: error instanceof Error ? error.message : 'The file list could not be loaded.' });
+    } finally {
+      setDriveListBusy(false);
+    }
+  };
+
+  /** Open a Drive project here, remembering which file and version it came from. */
+  const importDriveFile = async (file: DriveFileRef) => {
+    setDriveBusyFile(file.id);
+    try {
+      const blob = await withDriveToken((token) => downloadDrivePackage(token, file.id));
+      const projectId = await commitParsedFile(await parseProjectFileBytes(await blob.arrayBuffer()));
+      if (projectId) {
+        writeCloudLink(projectId, 'drive', { fileName: file.name, fileId: file.id, ...(file.modifiedTime ? { version: file.modifiedTime } : {}) });
+        const opened = readProject(projectId);
+        if (opened) await saveCloudBase(projectId, 'drive', opened);
+        await notice({ title: 'Opened from Google Drive', message: `${file.name} is now a project in this browser. Saving it to Drive again updates that file, and asks first if someone else saved it in the meantime.` });
+      }
+    } catch (error) {
+      await notice({ title: 'Open failed', message: error instanceof Error ? error.message : 'unknown error' });
+    } finally {
+      setDriveBusyFile(null);
+    }
+  };
+
+  /**
+   * Save a project to Drive or Nextcloud. A file this browser opened or saved
+   * before is updated only if nobody saved it since (otherwise: save ours as a
+   * copy, or replace theirs). A same-named file this browser never saw is
+   * never replaced without asking.
+   */
+  const saveProjectToCloud = async (id: string, provider: CloudProvider) => {
+    const label = provider === 'drive' ? 'Google Drive' : 'Nextcloud';
+    const server = nextcloud;
+    if (provider === 'drive' ? !driveToken : !server) {
+      await notice({ title: label, message: 'Open the Cloud button above and connect first.' });
       return;
     }
-    const stored = readProject(id);
+    // The open project is read live: the library copy can trail it by a debounce.
+    const stored = id === project.id ? project : readProject(id);
     if (!stored) return;
     setDriveBusyId(id);
     try {
       const packageBlob = await exportProjectPackageV2(stored);
-      const fileName = `${safeFileName(stored.title, 'project').toLowerCase()}.osd`;
-      const attempt = (token: string) => uploadProjectToDrive({ accessToken: token, fileName, packageBlob });
-      try {
-        const ref = await attempt(driveToken);
-        recordBackup();
-        refreshBackupAge();
-        await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
-      } catch (error) {
-        // One silent retry: the hour-long token may have expired between visits.
-        if (!isDriveUnauthorized(error)) throw error;
-        const fresh = await requestDriveAccessToken(effectiveDriveClientId, { silent: true });
-        setDriveToken(fresh);
-        const ref = await attempt(fresh);
-        recordBackup();
-        refreshBackupAge();
-        await notice({ title: 'Saved to Google Drive', message: `${ref.name} is now in your Drive folder OpenShotDesigner.` });
+      const defaultName = `${safeFileName(stored.title, 'project').toLowerCase()}.osd`;
+      const link = readCloudLink(id, provider);
+      const remote = provider === 'drive'
+        ? (await withDriveToken((token) => listDrivePackages(token))).map((file) => ({ name: file.name, modified: file.modifiedTime }))
+        : (await listWebdavPackages(server as WebdavConfig)).map((file) => ({ name: file.name, modified: file.modified }));
+      const plan = planCloudSave(link, defaultName, remote);
+      let fileName = plan.fileName;
+      // 'checked' saves only over the version we know (or over nothing); 'replace' overwrites.
+      let mode: 'checked' | 'replace' = 'checked';
+      if (plan.kind === 'ask') {
+        const choice = await choose({
+          title: 'A file with this name is already there',
+          message: `${fileName} is already in the OpenShotDesigner folder${plan.remoteModified ? ` (saved ${new Date(plan.remoteModified).toLocaleString()})` : ''}.\n\nIt may be an older backup of this project, or someone else's work.`,
+          confirmLabel: 'Replace it',
+          alternativeLabel: 'Save as a copy',
+          danger: true,
+        });
+        if (choice === 'cancel') return;
+        if (choice === 'alternative') fileName = cloudCopyFileName(fileName);
+        else mode = 'replace';
       }
+
+      const upload = async (name: string, how: 'checked' | 'replace', blob: Blob = packageBlob, expectedVersion?: string): Promise<{ version?: string; fileId?: string }> => {
+        const expected = how === 'replace' ? undefined : expectedVersion ?? (plan.kind === 'update' && name === plan.fileName ? plan.version : null);
+        const packageBlob = blob;
+        if (provider === 'drive') {
+          const ref = await withDriveToken((token) => uploadProjectToDrive({
+            accessToken: token,
+            fileName: name,
+            packageBlob,
+            ...(expected === undefined ? {} : { expectedModifiedTime: expected }),
+          }));
+          return { fileId: ref.id, ...(ref.modifiedTime ? { version: ref.modifiedTime } : {}) };
+        }
+        const precondition = expected === undefined ? undefined : expected === null ? { ifNoneMatch: true as const } : { ifMatch: expected };
+        const saved = await uploadWebdavPackage(server as WebdavConfig, name, packageBlob, fetch, precondition);
+        // Not every server returns the new ETag on PUT; read it back from the listing.
+        const version = saved.etag ?? (await listWebdavPackages(server as WebdavConfig)).find((file) => file.name === name)?.etag;
+        return version ? { version } : {};
+      };
+
+      let result: { version?: string; fileId?: string };
+      let savedProject: Project = stored;
+      try {
+        result = await upload(fileName, mode);
+      } catch (error) {
+        if (!(provider === 'drive' ? isDriveConflict(error) : isWebdavConflict(error))) throw error;
+        // Someone saved since. With the copy both started from, merge.
+        const base = plan.kind === 'update' ? await readCloudBase(id, provider) : undefined;
+        if (base) {
+          const remote = provider === 'drive'
+            ? (await withDriveToken((token) => listDrivePackages(token))).find((file) => file.name === fileName)
+            : undefined;
+          const remoteWebdav = provider === 'webdav'
+            ? (await listWebdavPackages(server as WebdavConfig)).find((file) => file.name === fileName)
+            : undefined;
+          const theirVersion = remote?.modifiedTime ?? remoteWebdav?.etag;
+          const theirBlob = provider === 'drive'
+            ? (remote ? await withDriveToken((token) => downloadDrivePackage(token, remote.id)) : undefined)
+            : await downloadWebdavPackage(server as WebdavConfig, fileName);
+          if (theirBlob && theirVersion) {
+            const parsed = await parseProjectFileBytes(await theirBlob.arrayBuffer());
+            const theirs = migrateProject(applyAssetRemap(parsed.project, await parsed.importAssets())).project;
+            const { merged, conflicts, theirChanges } = threeWayMerge<Project>(base, stored, theirs);
+            let final = merged;
+            if (conflicts.length > 0) {
+              const choice = await askMergeChoices(fileName, theirChanges, conflicts);
+              if (!choice) return;
+              final = resolveMergeConflicts(merged, conflicts, choice);
+            }
+            final = { ...final, id };
+            applyMergedProject(id, final, `Merge ${theirChanges} change${theirChanges === 1 ? '' : 's'} from ${label}`);
+            result = await upload(fileName, 'checked', await exportProjectPackageV2(final), theirVersion);
+            savedProject = final;
+            writeCloudLink(id, provider, { fileName, ...result });
+            await saveCloudBase(id, provider, final);
+            recordBackup();
+            refreshBackupAge();
+            if (provider === 'drive') void refreshDriveFileList();
+            else await refreshNcFileList(server as WebdavConfig);
+            await notice({
+              title: `Merged and saved to ${label}`,
+              message: `${theirChanges} change${theirChanges === 1 ? '' : 's'} from the newer copy merged in${conflicts.length ? `, ${conflicts.length} decided by you` : ''}. Undo (Ctrl+Z) takes the merge back out of this project.`,
+            });
+            return;
+          }
+        }
+        const choice = await choose({
+          title: 'Someone saved a newer copy',
+          message: `${fileName} on ${label} was saved again since you opened it here. Saving now would replace that work.\n\nSave yours as a copy to keep both, then compare them.`,
+          confirmLabel: 'Replace theirs',
+          alternativeLabel: 'Save mine as a copy',
+          danger: true,
+        });
+        if (choice === 'cancel') return;
+        if (choice === 'alternative') {
+          fileName = cloudCopyFileName(fileName);
+          result = await upload(fileName, 'checked');
+        } else {
+          result = await upload(fileName, 'replace');
+        }
+      }
+
+      writeCloudLink(id, provider, { fileName, ...result });
+      await saveCloudBase(id, provider, savedProject);
+      recordBackup();
+      refreshBackupAge();
+      if (provider === 'drive') void refreshDriveFileList();
+      else await refreshNcFileList(server as WebdavConfig);
+      await notice({ title: `Saved to ${label}`, message: `${fileName} is saved in the OpenShotDesigner folder.` });
     } catch (error) {
-      if (isDriveUnauthorized(error)) setDriveToken(null);
+      if (provider === 'drive' && isDriveUnauthorized(error)) setDriveToken(null);
+      if (provider === 'webdav' && isWebdavUnauthorized(error)) setNextcloud(null);
       await notice({
-        title: 'Google Drive upload failed',
+        title: `${label} upload failed`,
         message: error instanceof Error ? error.message : 'The upload could not be completed.',
       });
     } finally {
       setDriveBusyId(null);
     }
   };
+
+  const uploadProjectToDriveHandler = (id: string) => saveProjectToCloud(id, 'drive');
 
   const refreshNcFileList = async (config: WebdavConfig = {
     baseUrl: ncUrl,
@@ -406,33 +589,7 @@ export const ProjectDashboard: React.FC = () => {
     if (!ncRemember) setNcPassword('');
   };
 
-  /** One-way backup of a project package to the connected WebDAV server. */
-  const uploadProjectToNextcloud = async (id: string) => {
-    if (!nextcloud) {
-      await notice({ title: 'Nextcloud', message: 'Open the Cloud button above and connect Nextcloud first.' });
-      return;
-    }
-    const stored = readProject(id);
-    if (!stored) return;
-    setDriveBusyId(id);
-    try {
-      const packageBlob = await exportProjectPackageV2(stored);
-      const fileName = `${safeFileName(stored.title, 'project').toLowerCase()}.osd`;
-      await uploadWebdavPackage(nextcloud, fileName, packageBlob);
-      recordBackup();
-      refreshBackupAge();
-      await refreshNcFileList(nextcloud);
-      await notice({ title: 'Saved to Nextcloud', message: `${fileName} is now in the OpenShotDesigner folder.` });
-    } catch (error) {
-      if (isWebdavUnauthorized(error)) setNextcloud(null);
-      await notice({
-        title: 'Nextcloud upload failed',
-        message: error instanceof Error ? error.message : 'The upload could not be completed.',
-      });
-    } finally {
-      setDriveBusyId(null);
-    }
-  };
+  const uploadProjectToNextcloud = (id: string) => saveProjectToCloud(id, 'webdav');
 
   /** Restore a server backup into this browser, through the file-import path. */
   const importWebdavFile = async (file: WebdavFile) => {
@@ -440,8 +597,13 @@ export const ProjectDashboard: React.FC = () => {
     setNcBusyFile(file.name);
     try {
       const blob = await downloadWebdavPackage(nextcloud, file.name);
-      await commitParsedFile(await parseProjectFileBytes(await blob.arrayBuffer()));
-      await notice({ title: 'Imported from Nextcloud', message: `${file.name} is now a project in this browser.` });
+      const projectId = await commitParsedFile(await parseProjectFileBytes(await blob.arrayBuffer()));
+      if (projectId) {
+        writeCloudLink(projectId, 'webdav', { fileName: file.name, ...(file.etag ? { version: file.etag } : {}) });
+        const opened = readProject(projectId);
+        if (opened) await saveCloudBase(projectId, 'webdav', opened);
+        await notice({ title: 'Opened from Nextcloud', message: `${file.name} is now a project in this browser. Saving it to Nextcloud again updates that file, and asks first if someone else saved it in the meantime.` });
+      }
     } catch (error) {
       await notice({
         title: 'Import failed',
@@ -531,7 +693,7 @@ export const ProjectDashboard: React.FC = () => {
               onClick={() => setDriveOpen(true)}
               title={(driveToken || nextcloud) ? 'Cloud backup: connected — manage backups' : 'Cloud backup: sign in and save .osd packages'}
               aria-label="Cloud backup"
-              className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'border-slate-300 hover:bg-slate-200' : 'border-slate-700 hover:bg-slate-800'}`}
+              className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 border-line-strong hover:bg-slate-200 dark:hover:bg-slate-800`}
             >
               <Cloud className={`w-4 h-4 ${driveToken || nextcloud ? 'text-emerald-500' : 'text-sky-500'}`} /> Cloud
               {(driveToken || nextcloud) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />}
@@ -714,7 +876,7 @@ export const ProjectDashboard: React.FC = () => {
         {unreadable.length > 0 && (
           <div
             className={`mb-4 rounded-2xl border p-4 ${
-              isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/40 text-amber-100'
+              'border-amber-300 dark:border-amber-800 bg-warn-soft text-amber-900 dark:text-amber-100'
             }`}
           >
             <h2 className="text-xs font-bold uppercase tracking-wide flex items-center gap-2">
@@ -748,7 +910,7 @@ export const ProjectDashboard: React.FC = () => {
         {projects.length > 0 && backupIsStale(backupAt) && (
           <div
             className={`mb-4 rounded-2xl border p-3.5 flex items-center gap-2.5 ${
-              isLight ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-amber-800 bg-amber-950/40 text-amber-100'
+              'border-amber-300 dark:border-amber-800 bg-warn-soft text-amber-900 dark:text-amber-100'
             }`}
           >
             <History className="w-4 h-4 flex-shrink-0" />
@@ -875,10 +1037,10 @@ export const ProjectDashboard: React.FC = () => {
                             role="dialog"
                             aria-label="Save project file format"
                             className={`absolute left-0 top-full mt-1.5 w-60 border rounded-xl shadow-2xl p-2.5 z-50 space-y-1 ${
-                              isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-100'
+                              'bg-surface border-line text-slate-800 dark:text-slate-100'
                             }`}
                           >
-                            <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                            <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs hover:bg-surface-hover`}>
                               <input
                                 type="radio"
                                 name={`save-format-${entry.id}`}
@@ -888,12 +1050,12 @@ export const ProjectDashboard: React.FC = () => {
                               />
                               <span>
                                 <strong>.osd package</strong>
-                                <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                <span className={`block text-[10px] text-ink-muted`}>
                                   Project + all images. The backup to take.
                                 </span>
                               </span>
                             </label>
-                            <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs ${isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'}`}>
+                            <label className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs hover:bg-surface-hover`}>
                               <input
                                 type="radio"
                                 name={`save-format-${entry.id}`}
@@ -903,7 +1065,7 @@ export const ProjectDashboard: React.FC = () => {
                               />
                               <span>
                                 <strong>JSON</strong>
-                                <span className={`block text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                                <span className={`block text-[10px] text-ink-muted`}>
                                   Project only, no media. For experts and version control.
                                 </span>
                               </span>
@@ -1017,12 +1179,22 @@ export const ProjectDashboard: React.FC = () => {
           </a>
         </footer>
 
+        {pendingMerge && (
+          <MergeConflictDialog
+            fileName={pendingMerge.fileName}
+            theirChanges={pendingMerge.theirChanges}
+            conflicts={pendingMerge.conflicts}
+            onApply={(useTheirs) => pendingMerge.settle(useTheirs)}
+            onCancel={() => pendingMerge.settle(null)}
+          />
+        )}
+
         {/* Google Drive backup: manual one-way .osd export. Backup dialog,
             not sync: nothing uploads itself. */}
         {driveOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
             <div
-              className={`absolute inset-0 ${isLight ? 'bg-slate-950/40' : 'bg-black/60'}`}
+              className={`absolute inset-0 bg-slate-950/40 dark:bg-black/60`}
               onClick={() => setDriveOpen(false)}
             />
             <div
@@ -1038,7 +1210,7 @@ export const ProjectDashboard: React.FC = () => {
                   <h3 id="dashboard-drive-title" className="text-sm font-bold flex items-center gap-1.5">
                     <Cloud className="w-4 h-4 text-sky-500" /> Cloud backup
                   </h3>
-                  <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <p className={`text-[11px] mt-1 text-ink-muted`}>
                     Manual one-way .osd backups — Google Drive or your own Nextcloud/WebDAV server.
                     Re-saving refreshes its file. Needs internet; everything else keeps working offline.
                   </p>
@@ -1109,7 +1281,7 @@ export const ProjectDashboard: React.FC = () => {
                   </div>
                 )}
 
-              <details className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              <details className={`mt-3 text-[11px] text-ink-muted`}>
                 <summary className="cursor-pointer font-semibold hover:underline w-fit">
                   {hasBuiltInClientId ? 'Self-hosting? Use your own Client ID' : 'One-time setup: get your own Client ID'}
                 </summary>
@@ -1136,8 +1308,43 @@ export const ProjectDashboard: React.FC = () => {
                 )}
               </details>
 
-              <p className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                Connected? Close this window and press the upload button on any production below.
+              {driveToken && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wide opacity-60">
+                      Projects on your Drive {driveFiles.length > 0 && `(${driveFiles.length})`}
+                    </span>
+                    <button onClick={() => void refreshDriveFileList()} disabled={driveListBusy} className={ghostButton}>
+                      {driveListBusy ? 'Loading…' : driveFiles.length ? 'Refresh' : 'Show'}
+                    </button>
+                  </div>
+                  {driveFiles.length > 0 && (
+                    <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                      {driveFiles.map((file) => (
+                        <li key={file.id} className="border rounded-xl px-3 py-2 flex items-center justify-between gap-2 border-line">
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold truncate">{file.name}</div>
+                            <div className="text-[10px] text-ink-muted">
+                              {[file.modifiedTime ? `saved ${new Date(file.modifiedTime).toLocaleString()}` : undefined, file.size !== undefined ? formatBytes(file.size) : undefined].filter(Boolean).join(' · ')}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => void importDriveFile(file)}
+                            disabled={driveBusyFile !== null}
+                            title={`Open ${file.name} as a project in this browser`}
+                            className={`${ghostButton} flex-shrink-0 disabled:opacity-40`}
+                          >
+                            <Download className="w-3 h-3" /> {driveBusyFile === file.id ? 'Opening…' : 'Open'}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <p className={`mt-3 text-[11px] text-ink-muted`}>
+                To save: press the Drive button on any production below. A project opened from Drive saves back to the same file, and you are asked first if someone else saved it since.
               </p>
               </div>
               )}
@@ -1146,7 +1353,7 @@ export const ProjectDashboard: React.FC = () => {
               <div className="mt-4">
                 {nextcloud ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`text-[11px] font-semibold flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>
+                    <span className={`text-[11px] font-semibold flex items-center gap-1.5 text-ink-soft`}>
                       <Server className="w-3.5 h-3.5 text-emerald-500" /> Connected to {hostOf(nextcloud.baseUrl)}
                     </span>
                     <button onClick={() => void refreshNcFileList()} disabled={ncBusy} className={ghostButton}>
@@ -1193,7 +1400,7 @@ export const ProjectDashboard: React.FC = () => {
                       >
                         <Server className="w-4 h-4" /> {ncBusy ? 'Connecting…' : 'Connect'}
                       </button>
-                      <label className={`flex items-center gap-1.5 text-[11px] cursor-pointer ${isLight ? 'text-slate-500' : 'text-slate-400'}`} title="Keep the password in this browser for next time">
+                      <label className={`flex items-center gap-1.5 text-[11px] cursor-pointer text-ink-muted`} title="Keep the password in this browser for next time">
                         <input
                           type="checkbox"
                           checked={ncRemember}
@@ -1212,7 +1419,7 @@ export const ProjectDashboard: React.FC = () => {
                       Backups on this server {ncFiles.length > 0 && `(${ncFiles.length})`}
                     </div>
                     {ncFiles.length === 0 ? (
-                      <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      <p className={`text-[11px] text-ink-muted`}>
                         Nothing here yet — press the server button on a production below to save its first backup.
                       </p>
                     ) : (
@@ -1221,13 +1428,13 @@ export const ProjectDashboard: React.FC = () => {
                           <li
                             key={file.href}
                             className={`border rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${
-                              isLight ? 'border-slate-200' : 'border-slate-800'
+                              'border-line'
                             }`}
                           >
                             <div className="min-w-0">
                               <div className="text-xs font-semibold truncate">{file.name}</div>
                               {file.size !== undefined && (
-                                <div className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <div className={`text-[10px] text-ink-subtle`}>
                                   {formatBytes(file.size)}
                                 </div>
                               )}
@@ -1238,7 +1445,7 @@ export const ProjectDashboard: React.FC = () => {
                               title={`Import ${file.name} as a project in this browser`}
                               className={`${ghostButton} flex-shrink-0 disabled:opacity-40`}
                             >
-                              <Download className="w-3 h-3" /> {ncBusyFile === file.name ? 'Importing…' : 'Import'}
+                              <Download className="w-3 h-3" /> {ncBusyFile === file.name ? 'Opening…' : 'Open'}
                             </button>
                           </li>
                         ))}
@@ -1247,7 +1454,7 @@ export const ProjectDashboard: React.FC = () => {
                   </div>
                 )}
 
-                <details className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                <details className={`mt-3 text-[11px] text-ink-muted`}>
                   <summary className="cursor-pointer font-semibold hover:underline w-fit">
                     Where is the address? Use an app password
                   </summary>
@@ -1257,8 +1464,8 @@ export const ProjectDashboard: React.FC = () => {
                   </div>
                 </details>
 
-                <p className={`mt-3 text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                  To save: close this window and press the server button on any production below. To restore: press Import beside a backup.
+                <p className={`mt-3 text-[11px] text-ink-muted`}>
+                  To save: press the server button on any production below. To open: press Open beside a file. Saving it again updates that file, and you are asked first if someone else saved it since.
                 </p>
               </div>
               )}
@@ -1269,7 +1476,7 @@ export const ProjectDashboard: React.FC = () => {
         {storageOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
             <div
-              className={`absolute inset-0 ${isLight ? 'bg-slate-950/40' : 'bg-black/60'}`}
+              className={`absolute inset-0 bg-slate-950/40 dark:bg-black/60`}
               onClick={() => setStorageOpen(false)}
             />
             <div
@@ -1352,7 +1559,7 @@ export const ProjectDashboard: React.FC = () => {
         {revisionsProject && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
             <div
-              className={`absolute inset-0 ${isLight ? 'bg-slate-950/40' : 'bg-black/60'}`}
+              className={`absolute inset-0 bg-slate-950/40 dark:bg-black/60`}
               onClick={() => {
                 setRevisionsProjectId(null);
                 setConfirmRestoreId(null);

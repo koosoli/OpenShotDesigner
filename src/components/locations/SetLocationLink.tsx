@@ -1,5 +1,6 @@
 import React from 'react';
 import { MapPin } from 'lucide-react';
+import { setLocationsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { createId } from '../../domain/ids';
 import { linkSetNameToLocation, locationForSetName, unlinkSetName } from '../../domain/locations';
@@ -24,28 +25,28 @@ const NONE = '__none__';
  * location, see `domain/locations/linking.ts` — offered wherever the set name
  * appears: on the heading itself and on the sheet that needs the address.
  */
-export const SetLocationLink: React.FC<SetLocationLinkProps> = ({ setName, isLight, compact }) => {
-  const { project, updateProjectMeta } = useFloorPlan();
+export const SetLocationLink: React.FC<SetLocationLinkProps> = ({ setName, isLight: _isLight, compact }) => {
+  const { project, runCommand } = useFloorPlan();
   const locations = project.locations ?? [];
   const linked = locationForSetName(locations, setName);
   if (!setName.trim()) return null;
 
   const choose = (value: string) => {
     if (value === NONE) {
-      updateProjectMeta({ locations: unlinkSetName(locations, setName) });
+      runCommand(setLocationsCommand, { update: (current) => unlinkSetName(current, setName), description: `Unlink ${setName} from its location` });
       return;
     }
     if (value === CREATE) {
       const location = { id: createId('loc'), name: setName.trim(), type: 'location' as const, referenceAssetIds: [] };
-      updateProjectMeta((prev) => ({ locations: [...(prev.locations ?? []), location] }));
+      runCommand(setLocationsCommand, { update: (current) => [...current, location], description: `Add location ${location.name}` });
       return;
     }
-    updateProjectMeta({ locations: linkSetNameToLocation(locations, setName, value) });
+    runCommand(setLocationsCommand, { update: (current) => linkSetNameToLocation(current, setName, value), description: `Link ${setName} to a location` });
   };
 
   const tone = linked
-    ? isLight ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-emerald-700/60 bg-emerald-950/40 text-emerald-300'
-    : isLight ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-amber-700/60 bg-amber-950/40 text-amber-300';
+    ? 'border-emerald-300 dark:border-emerald-700/60 bg-ok-soft text-emerald-800 dark:text-emerald-300'
+    : 'border-amber-300 dark:border-amber-700/60 bg-warn-soft text-warn';
 
   return (
     <label

@@ -25,7 +25,7 @@ export const TitlePageEditor: React.FC<TitlePageEditorProps> = ({ isLight }) => 
   const page = project.titlePage ?? {};
 
   const inputCls = `w-full rounded-md border px-2 py-1.5 text-xs outline-none ${
-    isLight ? 'border-slate-300 bg-white text-slate-800 focus:border-violet-400' : 'border-slate-700 bg-slate-950 text-slate-200 focus:border-violet-500'
+    'border-line-strong bg-field text-ink-soft focus:border-violet-400 dark:focus:border-violet-500'
   }`;
   const labelCls = `text-[10px] font-bold uppercase tracking-wider text-ink-muted`;
 
