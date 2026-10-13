@@ -4,6 +4,36 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] — 2026-10-13
+
+### Added
+
+- **Screenplay editor pickers**: scene headings have a dropdown for INT. /
+  EXT. / INT./EXT. / EXT./INT. / I/E. / EST. and one for the time of day
+  (DAY, NIGHT, DAWN, DUSK, CONTINUOUS, LATER… plus any time the script
+  already uses); the set is typed between them. Typing or pasting a whole
+  heading still works and fills the pickers.
+- Character cues get a ( ) picker that adds or removes V.O., O.S., O.C.,
+  CONT'D, PRE-LAP, FILTERED…; transition, shot and parenthetical lines suggest
+  the standard ones (CUT TO:, SMASH CUT TO:, ANGLE ON, INSERT, (beat),
+  (whispering)…) as you type.
+- **Keyboard-only screenplay writing**: ↑ / ↓ move between lines; every
+  suggestion list (locations, characters, times, cue extensions, transitions,
+  shots, parentheticals) is driven with ↑ / ↓ and taken with Enter or Tab;
+  Alt+↑/↓ changes INT./EXT. and Alt+Shift+↑/↓ the time of day; ← / → at the
+  ends of the set field reach the pickers. All listed in the shortcut sheet (?).
+- **New scenes get a floor-plan setup**: a scene heading written in the
+  screenplay editor creates a setup named after it, with one example camera
+  (Camera A, Shot 1) and no actor, without switching away from the setup you
+  have open. Imported or pasted drafts don't, and a scene number that already
+  has a setup is left alone. Reports → "Create setup" builds the same.
+
+### Changed
+
+- The screenplay suggestions are the editor's own lists instead of the
+  browser's autocomplete, so they look the same everywhere and work from the
+  keyboard.
+
 ## [1.2.0] — 2026-10-11
 
 ### Added

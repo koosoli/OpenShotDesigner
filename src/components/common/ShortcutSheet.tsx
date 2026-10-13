@@ -60,6 +60,21 @@ const GROUPS: Array<{ group: string; items: Array<[string, string]> }> = [
       ['Mouse wheel', 'Zoom at the cursor'],
     ],
   },
+  {
+    group: 'Screenplay editor',
+    items: [
+      ['Enter', 'New line of the next kind (heading → action → character → …)'],
+      ['Enter on an empty line', 'Turn it into the next kind (action → scene heading)'],
+      ['Tab · Shift + Tab', 'Change the line’s kind'],
+      ['↑ ↓', 'Previous · next line'],
+      ['Backspace on an empty line', 'Remove it'],
+      ['↑ ↓ then Enter / Tab', 'Pick from an open suggestion list (Esc closes it)'],
+      ['Alt + ↑ ↓', 'Scene heading: INT. / EXT. …'],
+      ['Alt + Shift + ↑ ↓', 'Scene heading: time of day'],
+      ['← at the start · → at the end', 'Scene heading: reach the INT/EXT · time picker'],
+      ['( after a character name', 'Cue extensions: V.O., O.S., CONT’D…'],
+    ],
+  },
 ];
 
 /**

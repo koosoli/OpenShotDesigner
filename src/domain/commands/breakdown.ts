@@ -47,11 +47,18 @@ export const addScriptRevisionCommand = (project: Project, input: { revision: Sc
   meta: meta('addScriptRevision', `Keep the previous draft (${input.revision.sourceFileName}) in revision history`, input.revision.id),
 });
 
-/** Add floor-plan setups (from script scenes) and open the first of them. */
-export const addSetupsCommand = (project: Project, input: { setups: SceneSetup[] }): CommandResult => {
+/**
+ * Add floor-plan setups (from script scenes) and open the first of them —
+ * unless `open` is false, as when writing creates them in the background.
+ */
+export const addSetupsCommand = (project: Project, input: { setups: SceneSetup[]; open?: boolean }): CommandResult => {
   if (input.setups.length === 0) throw new Error('addSetups: nothing to add.');
   return {
-    project: { ...project, setups: [...project.setups, ...input.setups], activeSetupId: input.setups[0].id },
+    project: {
+      ...project,
+      setups: [...project.setups, ...input.setups],
+      activeSetupId: input.open === false ? project.activeSetupId : input.setups[0].id,
+    },
     meta: meta('addSetups', input.setups.length === 1 ? `Add setup ${input.setups[0].name}` : `Add ${input.setups.length} setups from the script`),
   };
 };

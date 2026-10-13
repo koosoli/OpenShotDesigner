@@ -18,7 +18,7 @@ import {
 import { SceneListReport } from './SceneListReport';
 import { PropsReport } from './PropsReport';
 import { SCOUT_STATUS } from '../locations/LocationScoutSection';
-import { emptySetup } from '../../utils/projectLibrary';
+import { setupForScriptScene } from '../../utils/setupFromScene';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { SetLocationLink } from '../locations/SetLocationLink';
 import { BreakdownElementsPanel } from './BreakdownElementsPanel';
@@ -28,12 +28,6 @@ interface ScriptReportsPanelProps {
   lines: ScriptLine[];
   isLight: boolean;
 }
-
-const setupTimeOfDay = (scene: ScriptScene): SceneSetup['timeOfDay'] => {
-  const isNight = /NIGHT|DUSK|MIDNIGHT|NIGHTFALL/i.test(scene.timeOfDay || '');
-  const isExterior = scene.intExt === 'EXT';
-  return `${isNight ? 'Night' : 'Day'} ${isExterior ? 'EXT' : 'INT'}`;
-};
 
 export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, isLight }) => {
   const { project, runCommand, setActiveSetupId, activeSetup, allShots, avScriptRows } = useFloorPlan();
@@ -98,16 +92,7 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
       (!scene.locationId || setup.locationId === scene.locationId)
     );
 
-  const buildSetup = (scene: ScriptScene, locationId?: string): SceneSetup => {
-    const setup = emptySetup(`Scene ${scene.sceneNumber} · ${scene.heading}`);
-    return {
-      ...setup,
-      sceneNumber: scene.sceneNumber,
-      location: scene.heading,
-      locationId,
-      timeOfDay: setupTimeOfDay(scene),
-    };
-  };
+  const buildSetup = (scene: ScriptScene, locationId?: string): SceneSetup => setupForScriptScene(scene, locationId);
 
   const createOrOpenSetup = (scene: ScriptScene, locationId?: string) => {
     const existing = matchingSetup(scene);

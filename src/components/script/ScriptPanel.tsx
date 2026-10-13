@@ -26,7 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { ScriptElementType, ScriptFormatMode, ScriptLine, ShotSize } from '../../types';
+import { SceneSetup, ScriptElementType, ScriptFormatMode, ScriptLine, ShotSize } from '../../types';
 import {
   formatParenthetical,
   parseAVScriptText,
@@ -39,7 +39,6 @@ import {
   buildCharacterCatalog,
   mergeCharacterCatalogs,
   parseSceneHeading,
-  replaceSceneHeadingLocation,
   sceneHeadingLocationQuery,
   suggestCharacters,
   suggestLocations,
@@ -64,6 +63,7 @@ import type { BreakdownSourceRange, HighlightMode, ScriptRevisionComparison } fr
 import { ScriptHighlightBar } from './ScriptHighlightBar';
 import {
   addScriptRevisionCommand,
+  addSetupsCommand,
   setCharacterColorCommand,
   setScriptPageLockCommand,
   setScriptRevisionColorCommand,
@@ -72,6 +72,22 @@ import {
 import { lockPages, pageLabels } from '../../domain/script/pageLock';
 import { REVISION_COLORS, currentRevisionColor, markRevisedLines, revisionColorAt } from '../../domain/script/revisionColors';
 import { readUiPref, writeUiPref } from '../../utils/uiPrefs';
+import { setupForScriptScene } from '../../utils/setupFromScene';
+import { SceneHeadingInput } from './SceneHeadingInput';
+import { SuggestionList, suggestionKeyAction, type Suggestion } from './SuggestionList';
+import {
+  CUE_EXTENSIONS,
+  PARENTHETICALS,
+  SHOT_CALLS,
+  TRANSITIONS,
+  completeCueExtension,
+  cueExtensionQuery,
+  customTimesIn,
+  matchingPresets,
+  splitCue,
+  toggleCueExtension,
+  withHeadingLocation,
+} from '../../domain/script/sceneHeadingParts';
 import { AVScriptView, SHOT_SIZES } from './AVScriptView';
 import { ScriptReportsPanel } from './ScriptReportsPanel';
 import { TitlePageEditor } from './TitlePageEditor';
@@ -103,10 +119,21 @@ const ELEMENT_STYLES: Record<ScriptElementType, { label: string; shortcut: strin
  * Item types are derived from the suggestion functions so they cannot drift
  * from the catalogues they come out of.
  */
-type SuggestionList =
-  | { kind: 'character'; items: ReturnType<typeof suggestCharacters> }
-  | { kind: 'location'; items: ReturnType<typeof suggestLocations> }
-  | { kind: 'none'; items: [] };
+/** What a line's suggestion list offers: each item knows the text it would leave on the line. */
+interface LineSuggestions {
+  lineId: string;
+  label: string;
+  tone: 'amber' | 'emerald' | 'sky' | 'slate';
+  uppercase: boolean;
+  items: Array<Suggestion & { apply: string }>;
+}
+
+/** Preset lists offered on transition, shot and parenthetical lines. */
+const LINE_PRESETS: Partial<Record<ScriptElementType, { presets: readonly string[]; label: string; tone: LineSuggestions['tone'] }>> = {
+  transition: { presets: TRANSITIONS, label: 'Transitions', tone: 'slate' },
+  shot: { presets: SHOT_CALLS, label: 'Shot calls', tone: 'slate' },
+  parenthetical: { presets: PARENTHETICALS, label: 'Parentheticals', tone: 'sky' },
+};
 
 export const ScriptPanel: React.FC = () => {
   const { activeSetup, scriptLines, scriptTitle, allScriptMarks, allShots, setupIdForMark, setActiveSetupId, selectedShotId, selectShot, createShotFromScriptRange, linkShotToScriptRange, scriptLinkShotId, cancelScriptLinking, updateScriptMark, setLiningDescription, deleteScriptMark, setScriptLines, setSceneNumbersLocked, avScriptRows, setAVScriptRows, scriptFormatMode, setScriptFormatMode, displaySettings, project, runCommand } = useFloorPlan();
@@ -200,35 +227,112 @@ export const ScriptPanel: React.FC = () => {
     });
     return Array.from(seen.values());
   }, [lines, project.locations]);
-  const [suggest, setSuggest] = useState<{ lineId: string; kind: 'character' | 'location' } | null>(null);
-  // Tagged by kind rather than returned as a bare array. The two suggestion
-  // lists hold different shapes — a character has a canonical name and
-  // aliases, a location has a name — and a plain union leaves every render
-  // site asserting which one it got. The tag makes the narrowing real.
-  const activeSuggestions = useMemo((): SuggestionList => {
-    // The list belongs to the line being edited. Without this it kept pointing
-    // at the line it was opened on: pressing Enter to start an action line left
-    // the location suggestions hanging under the scene heading above, with no
-    // way to dismiss them short of Escape on a field no longer focused.
-    if (!suggest || suggest.lineId !== activeEditingLineId) return { kind: 'none', items: [] };
+  /** Times of day this screenplay already uses beyond the presets ("LATE AFTERNOON"). */
+  const scriptTimesOfDay = useMemo(
+    () => customTimesIn(lines.filter((line) => line.type === 'scene').map((line) => line.text || '')),
+    [lines],
+  );
+  const [suggest, setSuggest] = useState<{ lineId: string; kind: 'character' | 'location' | 'preset' } | null>(null);
+  const [suggestIndex, setSuggestIndex] = useState(0);
+  /** Open (or refresh) the suggestions for a line after a typed change. */
+  const openSuggest = (lineId: string, kind: 'character' | 'location' | 'preset') => {
+    setSuggest({ lineId, kind });
+    setSuggestIndex(0);
+  };
+  // The list belongs to the line being edited. Without this it kept pointing
+  // at the line it was opened on: pressing Enter to start an action line left
+  // the location suggestions hanging under the scene heading above, with no
+  // way to dismiss them short of Escape on a field no longer focused.
+  const lineSuggestions = useMemo((): LineSuggestions | null => {
+    if (!suggest || suggest.lineId !== activeEditingLineId) return null;
     const line = lines.find((l) => l.id === suggest.lineId);
-    if (!line) return { kind: 'none', items: [] };
+    if (!line) return null;
+    const text = line.text || '';
+    let list: LineSuggestions;
     if (suggest.kind === 'character') {
-      return {
-        kind: 'character',
-        items: suggestCharacters(characterCatalog, line.text || '').filter(
-          (c) => c.canonicalName !== (line.text || '').trim().toUpperCase(),
-        ),
+      const extensionQuery = cueExtensionQuery(text);
+      list = extensionQuery !== null
+        ? {
+            lineId: line.id, label: 'Cue extensions', tone: 'emerald', uppercase: true,
+            items: matchingPresets(CUE_EXTENSIONS, extensionQuery).map((extension) => ({
+              key: extension, label: `(${extension})`, apply: completeCueExtension(text, extension),
+            })),
+          }
+        : {
+            lineId: line.id, label: 'Characters', tone: 'emerald', uppercase: true,
+            items: suggestCharacters(characterCatalog, text)
+              .filter((c) => c.canonicalName !== text.trim().toUpperCase())
+              .map((c) => ({
+                key: c.id, label: c.canonicalName, apply: c.canonicalName,
+                ...((c.aliases?.length ?? 0) > 0 ? { hint: `aka ${c.aliases?.[0]}` } : {}),
+              })),
+          };
+    } else if (suggest.kind === 'location') {
+      const query = sceneHeadingLocationQuery(text);
+      list = {
+        lineId: line.id, label: 'Locations', tone: 'amber', uppercase: true,
+        items: suggestLocations(locationCatalog, query)
+          .filter((l) => l.name.toLowerCase() !== query.trim().toLowerCase())
+          .map((l) => ({ key: l.name, label: l.name, apply: withHeadingLocation(text, l.name) })),
+      };
+    } else {
+      const presets = LINE_PRESETS[line.type || 'action'];
+      if (!presets) return null;
+      list = {
+        lineId: line.id, label: presets.label, tone: presets.tone, uppercase: line.type !== 'parenthetical',
+        items: matchingPresets(presets.presets, text).map((preset) => ({ key: preset, label: preset, apply: preset })),
       };
     }
-    const query = sceneHeadingLocationQuery(line.text || '');
-    return {
-      kind: 'location',
-      items: suggestLocations(locationCatalog, query).filter(
-        (l) => l.name.toLowerCase() !== query.trim().toLowerCase()
-      ),
-    };
+    return list.items.length > 0 ? list : null;
   }, [suggest, activeEditingLineId, lines, characterCatalog, locationCatalog]);
+
+  /** ↑ ↓ / Enter / Tab / Esc on a line whose suggestion list is open. True when the key was used. */
+  const handleSuggestionKeys = (event: React.KeyboardEvent, line: ScriptLine): boolean => {
+    if (!lineSuggestions || lineSuggestions.lineId !== line.id) return false;
+    const count = lineSuggestions.items.length;
+    const action = suggestionKeyAction(event, count);
+    if (!action) return false;
+    event.preventDefault();
+    if (action === 'next') setSuggestIndex((index) => (index + 1) % count);
+    else if (action === 'previous') setSuggestIndex((index) => (index - 1 + count) % count);
+    else if (action === 'pick') {
+      updateLine(line.id, lineSuggestions.items[Math.min(suggestIndex, count - 1)].apply);
+      setSuggest(null);
+    } else setSuggest(null);
+    return true;
+  };
+
+  const renderSuggestions = (line: ScriptLine) =>
+    lineSuggestions && lineSuggestions.lineId === line.id ? (
+      <SuggestionList
+        label={lineSuggestions.label}
+        tone={lineSuggestions.tone}
+        uppercase={lineSuggestions.uppercase}
+        items={lineSuggestions.items}
+        highlight={Math.min(suggestIndex, lineSuggestions.items.length - 1)}
+        onPick={(item) => {
+          const chosen = lineSuggestions.items.find((candidate) => candidate.key === item.key);
+          if (chosen) updateLine(line.id, chosen.apply);
+          setSuggest(null);
+        }}
+      />
+    ) : null;
+
+  /**
+   * Move the caret to another line from the keyboard. Every line's input
+   * stays mounted, so focus has to be moved by hand (autoFocus only fires on
+   * mount); `column` keeps the caret roughly where it was.
+   */
+  const focusLine = (lineId: string, column: number | 'end') => {
+    setActiveEditingLineId(lineId);
+    requestAnimationFrame(() => {
+      const input = document.querySelector<HTMLInputElement>(`[data-line-input="${CSS.escape(lineId)}"]`);
+      if (!input) return;
+      input.focus();
+      const position = column === 'end' ? input.value.length : Math.min(column, input.value.length);
+      input.setSelectionRange(position, position);
+    });
+  };
 
   useEffect(() => {
     if (activeTab !== 'reports' && activeTab !== 'title_page' && scriptFormatMode && scriptFormatMode !== activeTab) {
@@ -266,6 +370,8 @@ export const ScriptPanel: React.FC = () => {
     // A script that arrives with a cover keeps it — title, credit, author and
     // draft used to be stripped at the door and thrown away.
     const cover = parseScreenplayTitlePage(raw);
+    // An imported script's scenes do not each get a setup (see above).
+    importingScriptRef.current = true;
     setScriptLines(parsed, {
       scriptTitle: cover?.title?.trim() || name,
       scriptText: raw,
@@ -395,6 +501,51 @@ export const ScriptPanel: React.FC = () => {
       setAVScriptRows([]);
     });
   };
+
+  /*
+   * A scene written here also gets a floor-plan setup — named after its
+   * heading, with one example camera — so the plan and shot list keep up with
+   * the script. Only scenes written in this editor: importing a whole
+   * screenplay must not fill the plan with dozens of setups (Reports →
+   * Scenes has "Create setups" for that). The setup is made once the heading
+   * names a location and the writer has moved on from it, so a half-typed
+   * heading never creates one, and never when the scene number already has a
+   * setup.
+   */
+  const knownHeadingIdsRef = useRef<Set<string> | null>(null);
+  const pendingSetupHeadingsRef = useRef<Set<string>>(new Set());
+  const importingScriptRef = useRef(false);
+  useEffect(() => {
+    const ids = new Set(lines.filter((line) => line.type === 'scene').map((line) => line.id));
+    if (knownHeadingIdsRef.current && !importingScriptRef.current) {
+      for (const id of ids) if (!knownHeadingIdsRef.current.has(id)) pendingSetupHeadingsRef.current.add(id);
+    }
+    importingScriptRef.current = false;
+    knownHeadingIdsRef.current = ids;
+  }, [lines]);
+  useEffect(() => {
+    const pending = pendingSetupHeadingsRef.current;
+    if (pending.size === 0) return;
+    const additions: SceneSetup[] = [];
+    for (const id of [...pending]) {
+      if (id === activeEditingLineId) continue; // still being written
+      const line = lines.find((candidate) => candidate.id === id);
+      if (!line || line.type !== 'scene' || line.omitted) {
+        pending.delete(id);
+        continue;
+      }
+      const location = parseSceneHeading(line.text || '').location;
+      if (!location || /^LOCATION$/i.test(location)) continue; // not named yet
+      const scene = (project.scriptScenes ?? []).find((candidate) => candidate.id === id);
+      if (!scene) continue;
+      pending.delete(id);
+      const taken = [...project.setups, ...additions].some((setup) => setup.sceneNumber === scene.sceneNumber);
+      if (!taken) additions.push(setupForScriptScene(scene));
+    }
+    if (additions.length > 0) runCommand(addSetupsCommand, { setups: additions, open: false }, { domain: 'script' });
+    // runCommand is stable in effect; the inputs that decide are listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEditingLineId, lines, project.scriptScenes, project.setups]);
 
   const handleStartBlankScreenplay = () => {
     const blankId = createId('sl');
@@ -723,6 +874,21 @@ export const ScriptPanel: React.FC = () => {
   };
 
   const handleLineKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, line: ScriptLine, index: number) => {
+    // ↑ ↓ move between lines, keeping the caret's column; omitted headings
+    // have no field and are stepped over.
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      for (let i = index + step; i >= 0 && i < lines.length; i += step) {
+        const target = lines[i];
+        if (target.type === 'scene' && target.omitted) continue;
+        e.preventDefault();
+        setSuggest(null);
+        focusLine(target.id, e.currentTarget.selectionStart ?? 0);
+        return;
+      }
+      return;
+    }
+
     if (e.key === 'Tab') {
       e.preventDefault();
       const order: ScriptElementType[] = ['scene', 'action', 'character', 'parenthetical', 'dialogue', 'transition'];
@@ -794,7 +960,7 @@ export const ScriptPanel: React.FC = () => {
       const prevLine = lines[index - 1];
       const filtered = removeLineOrOmit(lines, line.id);
       setScriptLines(filtered);
-      if (prevLine) setActiveEditingLineId(prevLine.id);
+      if (prevLine) focusLine(prevLine.id, 'end');
       return;
     }
   };
@@ -1271,6 +1437,7 @@ export const ScriptPanel: React.FC = () => {
                       <div
                         key={line.id}
                         onClick={() => setActiveEditingLineId(line.id)}
+                        onFocus={() => setActiveEditingLineId(line.id)}
                         className={`group relative flex items-center gap-2 rounded px-2 py-0.5 transition-colors ${
                           isSelected ? 'bg-violet-950/40 ring-1 ring-violet-500/40' : 'hover:bg-slate-800/30'
                         }`}
@@ -1324,7 +1491,7 @@ export const ScriptPanel: React.FC = () => {
                               </span>
                             </div>
                           ) : line.type === 'scene' ? (
-                            <div className="flex items-center justify-between font-bold text-amber-300">
+                            <div className="flex flex-wrap items-center justify-between gap-y-0.5 font-bold text-amber-300">
                               {/* Both margins, like a production draft. The left
                                   one mirrors the right, which is the one you
                                   edit when the numbers are locked. */}
@@ -1333,45 +1500,24 @@ export const ScriptPanel: React.FC = () => {
                                   {line.sceneNumber}
                                 </span>
                               )}
-                              <div className="relative flex-1">
-                                <input
-                                  autoFocus={isSelected}
-                                  value={line.text}
-                                  onChange={(e) => {
-                                    updateLine(line.id, e.target.value);
-                                    setSuggest({ lineId: line.id, kind: 'location' });
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Escape') setSuggest(null);
-                                    handleLineKeyDown(e, line, idx);
-                                  }}
-                                  // The suggestion buttons keep focus with
-                                  // preventDefault on mousedown, so closing on
-                                  // blur never eats the click that picks one.
-                                  onBlur={() => setSuggest(null)}
-                                  className="w-full bg-transparent outline-none uppercase font-bold text-amber-300 focus:bg-amber-950/20 px-1 rounded"
-                                  placeholder="INT. LOCATION - TIME"
-                                />
-                                {suggest?.lineId === line.id && activeSuggestions.kind === 'location' && activeSuggestions.items.length > 0 && (
-                                  <ul className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-amber-700/50 bg-slate-900 shadow-xl overflow-hidden text-[11px]">
-                                    {activeSuggestions.items.map((loc) => (
-                                      <li key={loc.name}>
-                                        <button
-                                          type="button"
-                                          onMouseDown={(e) => e.preventDefault()}
-                                          onClick={() => {
-                                            updateLine(line.id, replaceSceneHeadingLocation(line.text || '', loc.name));
-                                            setSuggest(null);
-                                          }}
-                                          className="w-full text-left px-2 py-1 uppercase font-bold text-amber-300 hover:bg-amber-950/60"
-                                        >
-                                          {loc.name}
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
+                              <SceneHeadingInput
+                                lineId={line.id}
+                                text={line.text || ''}
+                                autoFocus={isSelected}
+                                extraTimes={scriptTimesOfDay}
+                                onChange={(text) => updateLine(line.id, text)}
+                                onTyped={() => openSuggest(line.id, 'location')}
+                                onKeyDown={(e) => {
+                                  if (handleSuggestionKeys(e, line)) return;
+                                  handleLineKeyDown(e, line, idx);
+                                }}
+                                // The suggestion buttons keep focus with
+                                // preventDefault on mousedown, so closing on
+                                // blur never eats the click that picks one.
+                                onBlur={() => setSuggest(null)}
+                              >
+                                {renderSuggestions(line)}
+                              </SceneHeadingInput>
                               {/* The set this heading names, linked to the project
                                   location that holds its address — the link the call
                                   sheet needs, offered where the set is written. */}
@@ -1395,67 +1541,84 @@ export const ScriptPanel: React.FC = () => {
                               ) : null}
                             </div>
                           ) : line.type === 'parenthetical' ? (
-                            <div className="text-sky-300 italic flex items-center">
+                            <div className="relative text-sky-300 italic flex items-center">
                               <input
                                 autoFocus={isSelected}
-                                value={line.text}
-                                onChange={(e) => updateLine(line.id, e.target.value)}
-                                onKeyDown={(e) => handleLineKeyDown(e, line, idx)}
-                                className="w-full bg-transparent outline-none italic text-sky-300 focus:bg-sky-950/20 px-1 rounded"
-                                placeholder="(whispering / beat / delivery)"
-                              />
-                            </div>
-                          ) : line.type === 'character' ? (
-                            <div className="relative">
-                              <input
-                                autoFocus={isSelected}
+                                data-line-input={line.id}
+                                aria-label="Parenthetical"
                                 value={line.text}
                                 onChange={(e) => {
                                   updateLine(line.id, e.target.value);
-                                  setSuggest({ lineId: line.id, kind: 'character' });
+                                  openSuggest(line.id, 'preset');
                                 }}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Escape') setSuggest(null);
+                                  if (handleSuggestionKeys(e, line)) return;
+                                  handleLineKeyDown(e, line, idx);
+                                }}
+                                className="w-full bg-transparent outline-none italic text-sky-300 focus:bg-sky-950/20 px-1 rounded"
+                                placeholder="(whispering / beat / delivery)"
+                              />
+                              {renderSuggestions(line)}
+                            </div>
+                          ) : line.type === 'character' ? (
+                            <div className="relative flex items-center gap-1">
+                              <input
+                                autoFocus={isSelected}
+                                data-line-input={line.id}
+                                aria-label="Character cue"
+                                value={line.text}
+                                onChange={(e) => {
+                                  updateLine(line.id, e.target.value);
+                                  openSuggest(line.id, 'character');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (handleSuggestionKeys(e, line)) return;
                                   handleLineKeyDown(e, line, idx);
                                 }}
                                 onBlur={() => setSuggest(null)}
                                 className="w-full bg-transparent outline-none uppercase font-bold text-emerald-300 focus:bg-emerald-950/20 px-1 rounded"
                                 placeholder="CHARACTER NAME"
                               />
-                              {suggest?.lineId === line.id && activeSuggestions.kind === 'character' && activeSuggestions.items.length > 0 && (
-                                <ul className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-emerald-700/50 bg-slate-900 shadow-xl overflow-hidden text-[11px]">
-                                  {activeSuggestions.items.map((c) => (
-                                    <li key={c.id}>
-                                      <button
-                                        type="button"
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        onClick={() => {
-                                          updateLine(line.id, c.canonicalName);
-                                          setSuggest(null);
-                                        }}
-                                        className="w-full text-left px-2 py-1 uppercase font-bold text-emerald-300 hover:bg-emerald-950/60"
-                                      >
-                                        {c.canonicalName}
-                                        {(c.aliases?.length ?? 0) > 0 && (
-                                          <span className="ml-2 opacity-50 font-normal normal-case">aka {c.aliases?.[0]}</span>
-                                        )}
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
+                              <select
+                                aria-label="Add or remove a cue extension"
+                                title="V.O., O.S., CONT'D…"
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value) updateLine(line.id, toggleCueExtension(line.text || '', e.target.value));
+                                }}
+                                className="shrink-0 bg-transparent text-[10px] font-bold text-emerald-300/70 hover:text-emerald-300 outline-none rounded px-0.5 hover:bg-emerald-950/30 cursor-pointer"
+                              >
+                                <option value="" className="bg-slate-900 text-emerald-300">( )</option>
+                                {CUE_EXTENSIONS.map((extension) => (
+                                  <option key={extension} value={extension} className="bg-slate-900 text-emerald-300">
+                                    {splitCue(line.text || '').extensions.includes(extension) ? `✓ (${extension})` : `(${extension})`}
+                                  </option>
+                                ))}
+                              </select>
+                              {renderSuggestions(line)}
                             </div>
                           ) : (
+                            <div className="relative">
                             <input
                               autoFocus={isSelected}
+                              data-line-input={line.id}
+                              aria-label={line.type === 'dialogue' ? 'Dialogue' : line.type === 'transition' ? 'Transition' : line.type === 'shot' ? 'Shot' : 'Action'}
                               value={line.text}
-                              onChange={(e) => updateLine(line.id, e.target.value)}
-                              onKeyDown={(e) => handleLineKeyDown(e, line, idx)}
+                              onChange={(e) => {
+                                updateLine(line.id, e.target.value);
+                                if (LINE_PRESETS[line.type || 'action']) openSuggest(line.id, 'preset');
+                              }}
+                              onKeyDown={(e) => {
+                                if (handleSuggestionKeys(e, line)) return;
+                                handleLineKeyDown(e, line, idx);
+                              }}
                               className={`w-full bg-transparent outline-none focus:bg-slate-800/40 px-1 rounded ${
                                 line.type === 'dialogue' ? 'text-slate-100' : 'text-slate-300'
                               }`}
-                              placeholder={line.type === 'dialogue' ? 'Spoken dialogue...' : 'Action description...'}
+                              placeholder={line.type === 'dialogue' ? 'Spoken dialogue...' : line.type === 'transition' ? 'CUT TO:' : line.type === 'shot' ? 'ANGLE ON…' : 'Action description...'}
                             />
+                            {renderSuggestions(line)}
+                            </div>
                           )}
                         </div>
 
