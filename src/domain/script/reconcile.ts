@@ -7,8 +7,10 @@
  * still exist, otherwise every lining is dropped and every scheduled scene is
  * stamped OMITTED. Matching is positional-greedy: each new line claims the
  * next unmatched previous line with the same type and text (scene headings
- * also match on scene number, so a retyped slugline keeps its identity).
+ * also match on scene number, so a retyped slugline keeps its identity), and
+ * a line reworded in place is matched to the line it was by its words.
  */
+import { compareDrafts } from './compareDrafts';
 
 export interface ReconcilableLine {
   id: string;
@@ -19,6 +21,9 @@ export interface ReconcilableLine {
   pageEighthsOverride?: number;
   /** Revision colour that last changed the line; follows its identity. */
   revisedIn?: number;
+  /** A heading's summary and card colour; follow its identity. */
+  synopsis?: string;
+  sceneColor?: string;
 }
 
 const normalize = (text: string): string => text.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -81,6 +86,19 @@ export const reconcileScriptLineIds = <T extends ReconcilableLine>(
     }
   });
 
+  // Pass 3: a line reworded in the new draft is still that line. The draft
+  // comparison pairs it with the old one by its words (domain/script/
+  // compareDrafts), so its linings and tags stay put; the revision mark
+  // (markRevisedLines) still sees the text changed.
+  if (resolved.size < next.length) {
+    for (const diff of compareDrafts(previous, next).diffs) {
+      if (diff.kind !== 'changed' || diff.old === undefined || diff.new === undefined) continue;
+      if (resolved.has(diff.new)) continue;
+      const id = claim(previous[diff.old]);
+      if (id) resolved.set(diff.new, id);
+    }
+  }
+
   // Hand-entered data that lives on a line follows its identity: a manual
   // page length typed on scene 12 is still scene 12's after a re-parse.
   const previousById = new Map(previous.map((line) => [line.id, line] as const));
@@ -94,6 +112,9 @@ export const reconcileScriptLineIds = <T extends ReconcilableLine>(
     if (before?.revisedIn !== undefined && out.revisedIn === undefined) {
       out = { ...out, revisedIn: before.revisedIn };
     }
+    // A draft that carries no index card keeps the one the scene had.
+    if (before?.synopsis && out.synopsis === undefined) out = { ...out, synopsis: before.synopsis };
+    if (before?.sceneColor && out.sceneColor === undefined) out = { ...out, sceneColor: before.sceneColor };
     return out;
   });
 };

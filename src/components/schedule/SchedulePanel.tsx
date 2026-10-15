@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { printPdfBytes } from '../../utils/printPdf';
 import { WhatIfPanel } from './WhatIfPanel';
 import { scheduleWhatIf } from '../../domain/reports/scheduleWhatIf';
-import { readScheduleView, requestScheduleView } from '../../utils/uiPrefs';
+import { SCHEDULE_VIEW_EVENT, readScheduleView, requestScheduleView } from '../../utils/uiPrefs';
 import type { ScheduleView } from '../../utils/uiPrefs';
 import { ScheduleDood } from './DoodReport';
 import { ViewSwitcher } from '../common/ViewSwitcher';
@@ -158,6 +158,15 @@ Not in this screenplay, so left out: ${plan.unmatchedScenes.slice(0, 20).join(',
     setWorkspaceViewState(view);
     requestScheduleView(view);
   };
+  // A link elsewhere ("DOOD" in the script's reports) can ask while this is open.
+  useEffect(() => {
+    const follow = (event: Event) => {
+      const view = (event as CustomEvent<ScheduleView>).detail;
+      if (view) setWorkspaceViewState(view);
+    };
+    window.addEventListener(SCHEDULE_VIEW_EVENT, follow);
+    return () => window.removeEventListener(SCHEDULE_VIEW_EVENT, follow);
+  }, []);
   const [selectedCallSheetDayId, setSelectedCallSheetDayId] = useState<string | null>(() => days[0]?.id ?? null);
   const [sourceQuery, setSourceQuery] = useState('');
   const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(() => new Set());

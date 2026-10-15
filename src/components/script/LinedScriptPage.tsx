@@ -165,6 +165,8 @@ interface LinedScriptPageProps {
   revisionIndex?: number;
   /** Page length per scene heading line id, shown beside the slugline. */
   scenePageEighths?: ReadonlyMap<string, number>;
+  /** Cues that print an automatic (CONT'D); shown after the name, never part of its text. */
+  contdLineIds?: ReadonlySet<string>;
   onLinePointerDown?: (event: React.PointerEvent, lineId: string) => void;
   onSelectMark?: (mark: ScriptMark) => void;
   /** Commit a dragged lining edge (called once, on release). */
@@ -193,6 +195,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
   pageStarts,
   revisionIndex,
   scenePageEighths,
+  contdLineIds,
   onLinePointerDown,
   onSelectMark,
   onExtendMark,
@@ -495,6 +498,18 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
               >
                 {line.omitted ? omittedSceneLabel(line.sceneNumber) : line.text}
               </span>
+              {type === 'character' && contdLineIds?.has(line.id) && (
+                <span aria-hidden className={`${layout.className} ${boldCharacters ? 'font-bold' : ''}`}> (CONT'D)</span>
+              )}
+              {type === 'character' && line.dual && !print && (
+                <span
+                  title="Dual dialogue: prints beside the speech above"
+                  className="ml-2 select-none font-sans font-semibold opacity-60"
+                  style={{ fontSize: '0.65em' }}
+                >
+                  ⇉ dual
+                </span>
+              )}
 
               {/* Persistent selection highlight for partial text selection */}
               {selectionCover && (selectionCover.start > 0 || selectionCover.end < line.text.length || isLineFullSelected) && (

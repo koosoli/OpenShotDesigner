@@ -34,6 +34,7 @@ import { drawPdfTable, wrapPdfCellText } from './tables';
 import type { PdfTableColumn } from './tables';
 import { sanitizePdfText } from './text';
 import type { PDFPage } from 'pdf-lib';
+import { formatPageEighths } from '../../domain/reports/dailyProgress';
 
 export interface ScriptReportPdfScene {
   sceneNumber: string;
@@ -41,6 +42,8 @@ export interface ScriptReportPdfScene {
   heading: string;
   timeOfDay: string;
   pages: string;
+  /** Printed page the scene starts on ("12", "12A"). */
+  page?: string;
   cast: string;
   elements: string;
 }
@@ -50,6 +53,12 @@ export interface ScriptReportPdfCharacter {
   castAs: string;
   sceneCount: number;
   sceneNumbers: string;
+  speeches?: number;
+  words?: number;
+  /** Pages of the character's scenes, as eighths ("4 2/8"). */
+  pages?: string;
+  /** Printed label of the page they first speak on. */
+  firstPage?: string;
 }
 
 export interface ScriptReportPdfLocation {
@@ -146,18 +155,23 @@ export const buildScriptReportsPdfFilename = (input: ScriptReportsPdfFilenameInp
 const SCENE_COLUMNS: PdfTableColumn[] = [
   { header: 'Sc.', widthFrac: 7, align: 'center' },
   { header: 'I/E', widthFrac: 7, align: 'center' },
-  { header: 'Heading', widthFrac: 30 },
-  { header: 'Time', widthFrac: 10 },
+  { header: 'Heading', widthFrac: 26 },
+  { header: 'Time', widthFrac: 9 },
+  { header: 'Page', widthFrac: 5, align: 'center' },
   { header: 'Pages', widthFrac: 8, align: 'center' },
   { header: 'Cast', widthFrac: 16 },
   { header: 'Elements', widthFrac: 22 },
 ];
 
 const CHARACTER_COLUMNS: PdfTableColumn[] = [
-  { header: 'Character', widthFrac: 24 },
-  { header: 'Cast As', widthFrac: 24 },
-  { header: 'Scenes', widthFrac: 9, align: 'center' },
-  { header: 'Scene Numbers', widthFrac: 43 },
+  { header: 'Character', widthFrac: 18 },
+  { header: 'Cast As', widthFrac: 16 },
+  { header: 'Scenes', widthFrac: 7, align: 'center' },
+  { header: 'Speeches', widthFrac: 8, align: 'center' },
+  { header: 'Words', widthFrac: 7, align: 'center' },
+  { header: 'Pages', widthFrac: 8, align: 'center' },
+  { header: 'First p.', widthFrac: 7, align: 'center' },
+  { header: 'Scene Numbers', widthFrac: 29 },
 ];
 
 const LOCATION_COLUMNS: PdfTableColumn[] = [
@@ -193,6 +207,8 @@ const INT_EXT_LABEL: Record<string, string> = { INT: 'INT', EXT: 'EXT', INT_EXT:
 
 /** Structural scene shape (mirrors `ScriptScene` fields the report reads). */
 export interface ScriptReportSceneSource {
+  /** The heading line id — what the page labels are keyed on. */
+  id?: string;
   sceneNumber: string;
   heading: string;
   intExt?: string;
@@ -211,6 +227,7 @@ export const scriptReportScenesFromScenes = (
   scenes: readonly ScriptReportSceneSource[],
   characters: readonly { id: string; canonicalName: string }[],
   breakdownItems: readonly { id: string; name: string }[],
+  pageOfLine?: ReadonlyMap<string, string>,
 ): ScriptReportPdfScene[] => {
   const characterName = (id: string): string => characters.find((c) => c.id === id)?.canonicalName ?? '—';
   const itemName = (id: string): string | undefined => breakdownItems.find((i) => i.id === id)?.name;
@@ -219,7 +236,8 @@ export const scriptReportScenesFromScenes = (
     intExt: scene.intExt ? (INT_EXT_LABEL[scene.intExt] ?? '') : '',
     heading: scene.omitted ? `${scene.heading} (OMITTED)` : scene.heading,
     timeOfDay: scene.timeOfDay ?? '—',
-    pages: scene.pageLengthEighths !== undefined ? `${scene.pageLengthEighths}/8` : '—',
+    pages: scene.pageLengthEighths !== undefined ? formatPageEighths(scene.pageLengthEighths) : '—',
+    ...(scene.id && pageOfLine?.get(scene.id) ? { page: pageOfLine.get(scene.id) } : {}),
     cast: scene.characterIds.map(characterName).join(', ') || '—',
     elements: scene.breakdownItemIds.map(itemName).filter((name): name is string => !!name).join(', ') || '—',
   }));
@@ -227,7 +245,7 @@ export const scriptReportScenesFromScenes = (
 
 /** Structural character-report shape (mirrors `CharacterReport`). */
 export interface ScriptReportCharacterSource {
-  character?: { canonicalName: string };
+  character?: { id?: string; canonicalName: string };
   castPerson?: { displayName: string };
   scenes: readonly { sceneNumber: string }[];
 }
@@ -235,13 +253,20 @@ export interface ScriptReportCharacterSource {
 /** Map character reports to rows: cast-as, scene count, scene numbers. */
 export const scriptReportCharactersFromReports = (
   reports: readonly ScriptReportCharacterSource[],
+  stats?: ReadonlyMap<string, { speeches: number; words: number; eighths: number; firstPage?: string }>,
 ): ScriptReportPdfCharacter[] =>
-  reports.map((report) => ({
-    character: report.character?.canonicalName ?? '—',
-    castAs: report.castPerson?.displayName ?? 'not cast',
-    sceneCount: report.scenes.length,
-    sceneNumbers: report.scenes.map((scene) => scene.sceneNumber).join(', '),
-  }));
+  reports.map((report) => {
+    const figures = report.character?.id ? stats?.get(report.character.id) : undefined;
+    return {
+      character: report.character?.canonicalName ?? '—',
+      castAs: report.castPerson?.displayName ?? 'not cast',
+      sceneCount: report.scenes.length,
+      sceneNumbers: report.scenes.map((scene) => scene.sceneNumber).join(', '),
+      ...(figures
+        ? { speeches: figures.speeches, words: figures.words, pages: formatPageEighths(figures.eighths), ...(figures.firstPage ? { firstPage: figures.firstPage } : {}) }
+        : {}),
+    };
+  });
 
 /** Structural location-breakdown shape (mirrors `ScriptLocationBreakdown`). */
 export interface ScriptReportLocationSource {
@@ -473,7 +498,7 @@ export const createScriptReportsPdf = async (input: ScriptReportsPdfInput): Prom
       ctx,
       cursor,
       SCENE_COLUMNS,
-      scenes.map((scene) => [scene.sceneNumber, scene.intExt, scene.heading, scene.timeOfDay, scene.pages, scene.cast, scene.elements]),
+      scenes.map((scene) => [scene.sceneNumber, scene.intExt, scene.heading, scene.timeOfDay, scene.page ?? '—', scene.pages, scene.cast, scene.elements]),
       'No scenes in this report.',
     );
   }
@@ -483,7 +508,16 @@ export const createScriptReportsPdf = async (input: ScriptReportsPdfInput): Prom
       ctx,
       cursor,
       CHARACTER_COLUMNS,
-      characters.map((entry) => [entry.character, entry.castAs, String(entry.sceneCount), entry.sceneNumbers]),
+      characters.map((entry) => [
+        entry.character,
+        entry.castAs,
+        String(entry.sceneCount),
+        entry.speeches === undefined ? '—' : String(entry.speeches),
+        entry.words === undefined ? '—' : String(entry.words),
+        entry.pages ?? '—',
+        entry.firstPage ?? '—',
+        entry.sceneNumbers,
+      ]),
       'No speaking characters in this report.',
     );
   }

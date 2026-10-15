@@ -13,6 +13,7 @@ import type { ScriptScene } from './types';
 import type { Location } from '../locations';
 import { createId } from '../ids';
 import { estimateScenePageEighths } from './pageCount';
+import type { PageCountOptions } from './pageCount';
 
 // ---------------------------------------------------------------------------
 // Character name normalization
@@ -252,6 +253,11 @@ export interface ScriptBreakdownLine {
   omitted?: boolean;
   /** Manual page length on a scene heading; wins over the estimate. */
   pageEighthsOverride?: number;
+  /** On a scene heading: its summary and index-card colour. */
+  synopsis?: string;
+  sceneColor?: string;
+  /** On a cue: dual dialogue (sets the speech beside the one before). */
+  dual?: boolean;
 }
 
 export interface ScriptLocationBreakdown {
@@ -311,6 +317,7 @@ export const deriveScriptBreakdown = (
   lines: ScriptBreakdownLine[],
   existingCharacters: Character[] = [],
   canonicalLocations: Location[] = [],
+  layout: PageCountOptions = {},
 ): ScriptBreakdown => {
   const discovered = buildCharacterCatalog(lines);
   const characters = mergeCharacterCatalogs(existingCharacters, discovered);
@@ -342,6 +349,8 @@ export const deriveScriptBreakdown = (
         breakdownItemIds: [],
       };
       if (line.omitted) currentScene.omitted = true;
+      if (line.synopsis?.trim()) currentScene.synopsis = line.synopsis.trim();
+      if (line.sceneColor) currentScene.color = line.sceneColor;
       scenes.push(currentScene);
       if (parsedLocation && !line.omitted) locationNames.set(line.id, location?.name || parsedLocation);
       continue;
@@ -364,7 +373,7 @@ export const deriveScriptBreakdown = (
     else locationGroups.set(key, { key, name, locationId: scene.locationId, scenes: [scene] });
   }
 
-  const eighths = estimateScenePageEighths(lines);
+  const eighths = estimateScenePageEighths(lines, layout);
   for (const scene of scenes) {
     const measured = eighths.get(scene.id);
     if (measured !== undefined) scene.pageLengthEighths = measured;

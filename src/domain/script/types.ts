@@ -33,6 +33,8 @@ export interface ScriptScene {
   omitted?: boolean;
 
   synopsis?: string;
+  /** Index-card colour (hex) carried from the scene heading. */
+  color?: string;
   /** Page length in eighths, as used by classic breakdowns. */
   pageLengthEighths?: number;
   /**

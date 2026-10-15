@@ -391,7 +391,7 @@ const NO_LINES: ScriptLine[] = [];
 export const ScheduleDood: React.FC<{ isLight: boolean; onOpenBoard?: () => void }> = ({ isLight, onOpenBoard }) => {
   const { project } = useFloorPlan();
   const lines = project.scriptLines ?? NO_LINES;
-  const breakdown = cachedScriptBreakdown(lines, project.characters, project.locations);
+  const breakdown = cachedScriptBreakdown(lines, project.characters, project.locations, project.screenplayLayout);
   return (
     <DoodReport
       lines={lines}

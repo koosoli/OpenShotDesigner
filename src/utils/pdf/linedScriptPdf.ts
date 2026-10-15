@@ -1,18 +1,17 @@
 /**
  * Lined screenplay PDF (roadmap Phase 3: script family).
  *
- * US Hollywood layout on US Letter, set in 12pt Courier throughout:
+ * US Hollywood layout on US Letter (or A4), set in 12pt Courier throughout:
  * - 1.5" left / 1" right / 1" top-bottom margins leave exactly 6" of text,
- *   which at Courier's 10 pitch is the classic 60-column grid. Every element
- *   sits on that grid: sluglines, action and shots full-width; character cues
- *   at 2.2", parentheticals at 1.6", dialogue at 1.0" running 3.5" wide;
- *   transitions flush right. Single-spaced with a blank line between blocks
- *   (none inside a speech), a double space before each new slugline.
+ *   which at Courier's 10 pitch is the classic 60-column grid.
+ * - The pages are the app's screenplay pages (domain/script/pagination): the
+ *   industry break rules, (MORE) / (CONT'D) across dialogue breaks, dual
+ *   dialogue side by side, automatic (CONT'D), locked page numbers and
+ *   A-pages. So the page a breakdown or call sheet names is the page printed.
+ * - Page numbers top right from page 2 (every page once pages are locked).
  * - Scene numbers print in both margins like a numbered production draft;
  *   omitted scenes print `SCENE n — OMITTED` and skip their parked body.
- * - Page breaks fall between scenes where sensible: a new slugline starts a
- *   fresh page when less than ~40% of the current page remains; explicit
- *   `page-break` lines force one.
+ *   Script notes do not print.
  * - The title-page cover prints first, alone on its own page, when the
  *   production enabled it and it carries content — mirroring TitlePageView:
  *   title a third down centred in caps, credit/author/source beneath, contact
@@ -32,21 +31,25 @@ import {
 } from './document';
 import type { PdfDocumentContext, PdfOrientation, PdfPageSize } from './document';
 import { buildPdfFilename } from './filenames';
-import { wrapPdfCellText } from './tables';
+import type { PdfHeaderLogo } from './document';
 import { sanitizePdfText } from './text';
-import { hasTitlePageContent, resolveTitlePage } from '../../domain/script';
-import type { ScreenplayTitlePage } from '../../domain/script';
+import { hasTitlePageContent, paginateScreenplay, resolveTitlePage, screenplayLayoutOptions } from '../../domain/script';
+import type { ScreenplayLayout, ScreenplayTitlePage } from '../../domain/script';
 import { StandardFonts, degrees, rgb } from 'pdf-lib';
 import type { PDFFont, PDFPage } from 'pdf-lib';
 
 /** One screenplay line, mirroring `ScriptLine` in minimal printable form. */
 export interface LinedScriptPdfLine {
+  /** The script line id — what a page lock is keyed on. */
+  id?: string;
   type?: string;
   text: string;
   sceneNumber?: string;
   omitted?: boolean;
   /** Changed in the current revision: prints the margin asterisk. */
   revised?: boolean;
+  /** On a character cue: sets the speech beside the one before it. */
+  dual?: boolean;
 }
 
 export interface LinedScriptPdfInput {
@@ -58,18 +61,20 @@ export interface LinedScriptPdfInput {
   draft?: boolean | string;
   /** Explicit lifecycle alternative to `draft`. */
   isDraft?: boolean;
-  /** Hollywood means US Letter; overridable for tests. */
+  /** Paper and automatic (CONT'D), as the project sets them. */
+  layout?: ScreenplayLayout;
+  /** Overrides the paper from `layout`. */
   pageSize?: PdfPageSize;
   orientation?: PdfOrientation;
   generatedAt?: Date;
   confidentialityLine?: string;
   /** Raw PNG bytes for the production logo; corrupt bytes print logo-less. */
   logoPngBytes?: Uint8Array;
+  /** Locked page per line id (needs `id` on the lines): numbers and A-pages as on screen. */
+  pageLock?: Record<string, number>;
   /**
-   * The script's own pages ("12", "12A"), as the index of the line that starts
-   * each one. When given, every script page starts a new PDF page with its
-   * number top-right — so locked page numbers and A-pages print as they read
-   * on screen — instead of the PDF breaking pages on its own.
+   * Explicit page starts ("12", "12A") by the index of the line that starts
+   * each one, for callers without line ids. Wins over `pageLock`.
    */
   pageStarts?: Array<{ lineIndex: number; label: string }>;
   /** The screenplay cover. Prints first, on its own page, only when enabled
@@ -96,11 +101,6 @@ export const buildLinedScriptPdfFilename = (input: LinedScriptPdfFilenameInput):
     ...(input.date === undefined ? {} : { date: input.date }),
   });
 
-interface PageCursor {
-  page: PDFPage;
-  cursorY: number;
-}
-
 interface ScriptFonts {
   regular: PDFFont;
   bold: PDFFont;
@@ -111,42 +111,19 @@ const COURIER_SIZE = 12;
 const COURIER_CHAR_WIDTH = 7.2;
 const SCRIPT_LINE_HEIGHT = 12;
 
-/**
- * Hollywood column grid, offsets in characters from the text block's left
- * edge: action full-width; character cues 2.2" in; parentheticals 1.6" in;
- * dialogue 1.0" in running 3.5" wide; transitions flush to the right edge.
- */
-const LINED_LAYOUT: Record<string, { left: number; width: number; bold: boolean; upper: boolean; right?: boolean }> = {
-  scene: { left: 0, width: 60, bold: true, upper: true },
-  action: { left: 0, width: 60, bold: false, upper: false },
-  character: { left: 22, width: 38, bold: false, upper: true },
-  parenthetical: { left: 16, width: 20, bold: false, upper: false },
-  dialogue: { left: 10, width: 35, bold: false, upper: false },
-  transition: { left: 0, width: 60, bold: false, upper: true, right: true },
-  shot: { left: 0, width: 60, bold: true, upper: true },
-  note: { left: 0, width: 60, bold: false, upper: false },
+/** Type style per element; the columns come from the pagination. */
+const LINED_LAYOUT: Record<string, { bold: boolean; upper: boolean }> = {
+  scene: { bold: true, upper: true },
+  action: { bold: false, upper: false },
+  character: { bold: false, upper: true },
+  parenthetical: { bold: false, upper: false },
+  dialogue: { bold: false, upper: false },
+  transition: { bold: false, upper: true },
+  shot: { bold: true, upper: true },
 };
 
-const FALLBACK_LAYOUT = { left: 0, width: 60, bold: false, upper: false };
+const FALLBACK_LAYOUT = { bold: false, upper: false };
 const SCENE_NUMBER_SIZE = 12;
-
-/** Single-spaced inside a block; a blank line between blocks; two before a slugline. */
-const gapBefore = (type: string | undefined, previous: string | undefined): number => {
-  if (type === 'scene') return SCRIPT_LINE_HEIGHT * 2;
-  const inSpeech = (value: string | undefined): boolean =>
-    value === 'character' || value === 'parenthetical' || value === 'dialogue';
-  if (inSpeech(type) && inSpeech(previous) && type !== 'character') return 0;
-  return SCRIPT_LINE_HEIGHT;
-};
-
-/** New page when fewer than `needed` points remain above the footer zone. */
-const ensureSpace = (ctx: PdfDocumentContext, cursor: PageCursor, needed: number): PageCursor => {
-  if (cursor.cursorY - needed < ctx.margins.bottom) {
-    const page = addPdfPage(ctx);
-    return { page, cursorY: ctx.contentTop };
-  }
-  return cursor;
-};
 
 const drawSceneNumber = (
   ctx: PdfDocumentContext,
@@ -165,44 +142,59 @@ const drawSceneNumber = (
 };
 
 /** The revision asterisk, in the right margin beside the changed line. */
-const drawRevisionMark = (ctx: PdfDocumentContext, top: number, after: PageCursor): void => {
-  after.page.drawText('*', {
+const drawRevisionMark = (ctx: PdfDocumentContext, page: PDFPage, baseline: number): void => {
+  page.drawText('*', {
     x: ctx.margins.left + ctx.contentWidth + 22,
-    y: top - 10,
+    y: baseline,
     size: 12,
     font: ctx.bold,
   });
 };
 
-/** One wrapped screenplay line at its grid column, in 12pt Courier. */
-const drawScriptLine = (
-  ctx: PdfDocumentContext,
-  fonts: ScriptFonts,
-  cursor: PageCursor,
-  text: string,
-  layout: { left: number; width: number; bold: boolean; right?: boolean },
-): PageCursor => {
-  const font = layout.bold ? fonts.bold : fonts.regular;
-  const maxWidth = layout.width * COURIER_CHAR_WIDTH;
-  const lines = wrapPdfCellText(font, text, maxWidth, COURIER_SIZE);
-  const placed = ensureSpace(ctx, cursor, lines.length * SCRIPT_LINE_HEIGHT);
-  lines.forEach((line, index) => {
-    const clean = sanitizePdfText(line);
-    const x = layout.right === true
-      ? ctx.margins.left + ctx.contentWidth - font.widthOfTextAtSize(clean, COURIER_SIZE)
-      : ctx.margins.left + layout.left * COURIER_CHAR_WIDTH;
-    placed.page.drawText(clean, {
-      x,
-      y: placed.cursorY - SCRIPT_LINE_HEIGHT * (index + 1) + 3,
-      size: COURIER_SIZE,
-      font,
-    });
-  });
-  return { page: placed.page, cursorY: placed.cursorY - lines.length * SCRIPT_LINE_HEIGHT };
-};
-
-const layoutFor = (type: string | undefined): { left: number; width: number; bold: boolean; upper: boolean; right?: boolean } =>
+const layoutFor = (type: string | undefined): { bold: boolean; upper: boolean } =>
   (type !== undefined ? LINED_LAYOUT[type] : undefined) ?? FALLBACK_LAYOUT;
+
+/**
+ * Page one's title line when no cover prints: production, "Screenplay" and the
+ * scope line, small, in the top margin — the body keeps all of its lines so
+ * the pages match the ones the app counts.
+ */
+const drawSlimHeader = (
+  ctx: PdfDocumentContext,
+  page: PDFPage,
+  input: Pick<LinedScriptPdfInput, 'productionTitle' | 'subtitle' | 'lines'>,
+  logo: PdfHeaderLogo | null,
+): void => {
+  const top = ctx.pageHeight - 30;
+  const logoHeight = logo ? Math.min(24, logo.height) : 0;
+  const logoWidth = logo ? (logo.width * logoHeight) / Math.max(1, logo.height) : 0;
+  const textWidth = ctx.contentWidth - (logo ? logoWidth + 8 : 0) - 48;
+  page.drawText(sanitizePdfText(input.productionTitle), {
+    x: ctx.margins.left,
+    y: top - 9,
+    size: 10,
+    font: ctx.bold,
+    color: rgb(0.1, 0.1, 0.1),
+    maxWidth: textWidth,
+  });
+  const subtitle = input.subtitle ?? `${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`;
+  page.drawText(sanitizePdfText(`Screenplay${subtitle.trim() ? ` · ${subtitle}` : ''}`), {
+    x: ctx.margins.left,
+    y: top - 20,
+    size: 8,
+    font: ctx.regular,
+    color: rgb(0.35, 0.35, 0.35),
+    maxWidth: textWidth,
+  });
+  if (logo) {
+    page.drawImage(logo.image, {
+      x: ctx.margins.left + ctx.contentWidth - logoWidth,
+      y: top - logoHeight,
+      width: logoWidth,
+      height: logoHeight,
+    });
+  }
+};
 
 /** Centred Courier line, e.g. for the cover. */
 const drawCentered = (
@@ -305,10 +297,11 @@ const drawTitlePageCover = (
 
 /** Render the lined screenplay and return the finished PDF bytes. */
 export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<Uint8Array> => {
+  const layout = screenplayLayoutOptions(input.layout);
   const ctx = await createPdfDocument({
     title: `Screenplay - ${input.productionTitle}`,
     subject: 'Screenplay',
-    pageSize: input.pageSize ?? 'Letter',
+    pageSize: input.pageSize ?? (layout.paper === 'a4' ? 'A4' : 'Letter'),
     orientation: input.orientation ?? 'portrait',
     // Hollywood margins: 1.5" left / 1" right leaves exactly 6" of text,
     // which at Courier 12pt is the classic 60-column grid.
@@ -330,121 +323,108 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
     drawTitlePageCover(ctx, fonts, addPdfPage(ctx), input);
   }
 
-  const page = addPdfPage(ctx);
-  // A printed cover already says what this is and who wrote it: repeating the
-  // paperwork title block underneath would demote the cover to a preface, so
-  // the script starts straight in. Without a cover the title block stays —
-  // it is the only thing naming the production on the page.
-  const headerY = coverPrinted
-    ? ctx.contentTop
-    : drawDocumentHeader(ctx, page, ctx.contentTop, {
-        productionTitle: input.productionTitle,
-        documentTitle: 'Screenplay',
-        subtitle: input.subtitle ?? `${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`,
-        logo,
-      });
-  let cursor: PageCursor = { page, cursorY: headerY };
-
   if (input.lines.length === 0) {
-    cursor.page.drawText(sanitizePdfText('No script lines yet.'), {
+    const page = addPdfPage(ctx);
+    const headerY = coverPrinted
+      ? ctx.contentTop
+      : drawDocumentHeader(ctx, page, ctx.contentTop, {
+          productionTitle: input.productionTitle,
+          documentTitle: 'Screenplay',
+          subtitle: input.subtitle ?? '0 lines',
+          logo,
+        });
+    page.drawText(sanitizePdfText('No script lines yet.'), {
       x: ctx.margins.left,
-      y: cursor.cursorY - 12,
+      y: headerY - 12,
       size: COURIER_SIZE,
       font: fonts.regular,
     });
     return finalizePdfDocument(ctx);
   }
 
-  const contentHeight = ctx.contentTop - ctx.margins.bottom;
-  let sceneOrdinal = 0;
-  let skippingOmittedBody = false;
-  let previousType: string | undefined;
+  // The same pages the app counts eighths and locks pages on.
+  const anchors = input.pageStarts?.length
+    ? new Map(input.pageStarts.map((start) => [start.lineIndex, start.label] as const))
+    : undefined;
+  const pagination = paginateScreenplay(
+    input.lines.map((line, index) => ({
+      id: line.id ?? `pdf-line-${index}`,
+      text: line.text,
+      ...(line.type ? { type: line.type } : {}),
+      ...(line.omitted ? { omitted: true } : {}),
+      ...(line.dual ? { dual: true } : {}),
+      ...(line.sceneNumber ? { sceneNumber: line.sceneNumber } : {}),
+    })),
+    {
+      paper: layout.paper,
+      autoContd: layout.autoContd,
+      multicam: layout.multicam,
+      sceneContinued: layout.sceneContinued,
+      ...(input.pageLock && !anchors ? { lock: input.pageLock } : {}),
+      ...(anchors ? { anchors } : {}),
+    },
+  );
+  const numberedPlainly = !anchors && !(input.pageLock && Object.keys(input.pageLock).length > 0);
+
+  // Scene numbers as printed: the heading's own, else its position.
+  const sceneNumberAt = new Map<number, string>();
+  let ordinal = 0;
+  input.lines.forEach((line, index) => {
+    if (line.type !== 'scene') return;
+    ordinal += 1;
+    sceneNumberAt.set(index, line.sceneNumber || String(ordinal));
+  });
   const showNumbers = input.showSceneNumbers !== false;
+  const bodyTop = ctx.pageHeight - ctx.margins.top;
+  const baselineOf = (row: number) => bodyTop - SCRIPT_LINE_HEIGHT * (row + 1) + 3;
 
-  const startLabel = new Map((input.pageStarts ?? []).map((start) => [start.lineIndex, start.label] as const));
-  const followScriptPages = startLabel.size > 0;
-  let pageLabel: string | undefined;
-  const labelledPages = new Set<PDFPage>();
-  const labelPage = (target: PDFPage) => {
-    if (!pageLabel || labelledPages.has(target)) return;
-    labelledPages.add(target);
-    const text = sanitizePdfText(`${pageLabel}.`);
-    target.drawText(text, {
-      x: ctx.margins.left + ctx.contentWidth - ctx.bold.widthOfTextAtSize(text, 10),
-      y: ctx.pageHeight - ctx.margins.top + 12,
-      size: 10,
-      font: ctx.bold,
-    });
-  };
-
-  for (const [lineIndex, line] of input.lines.entries()) {
-    if (followScriptPages && startLabel.has(lineIndex)) {
-      pageLabel = startLabel.get(lineIndex);
-      if (lineIndex > 0 && cursor.cursorY < ctx.contentTop - 1) {
-        cursor = { page: addPdfPage(ctx), cursorY: ctx.contentTop };
+  pagination.pages.forEach((laid, pageIndex) => {
+    const page = addPdfPage(ctx);
+    if (pageIndex === 0 && !coverPrinted) {
+      // Without a cover, a slim title line in the top margin names the
+      // production; the body keeps every one of its lines.
+      drawSlimHeader(ctx, page, input, logo);
+    }
+    // Page numbers top right from page 2 on; locked pages always say theirs.
+    if (!(numberedPlainly && pageIndex === 0)) {
+      const text = sanitizePdfText(`${laid.label}.`);
+      page.drawText(text, {
+        x: ctx.margins.left + ctx.contentWidth - fonts.regular.widthOfTextAtSize(text, COURIER_SIZE),
+        y: ctx.pageHeight - 36 - COURIER_SIZE + 3,
+        size: COURIER_SIZE,
+        font: fonts.regular,
+      });
+    }
+    for (const line of laid.lines) {
+      const source = input.lines[line.index];
+      const style = layoutFor(line.type);
+      const omitted = line.kind === 'omitted';
+      const bold =
+        omitted ||
+        (line.kind === 'body' && style.bold) ||
+        (line.type === 'character' && line.kind !== 'more' && input.boldCharacters === true);
+      // Multi-camera scripts set their action in capitals.
+      const upper = line.kind === 'body' && (style.upper || (layout.multicam && line.type === 'action'));
+      const text = sanitizePdfText(`${upper ? line.text.toUpperCase() : line.text}${line.suffix ?? ''}`);
+      const y = baselineOf(line.row);
+      if (text) {
+        page.drawText(text, {
+          x: ctx.margins.left + line.col * COURIER_CHAR_WIDTH,
+          y,
+          size: COURIER_SIZE,
+          font: bold ? fonts.bold : fonts.regular,
+        });
       }
-      labelPage(cursor.page);
-    }
-    if (line.type === 'page-break') {
-      if (followScriptPages) continue;
-      const fresh = addPdfPage(ctx);
-      cursor = { page: fresh, cursorY: ctx.contentTop };
-      skippingOmittedBody = false;
-      previousType = undefined;
-      continue;
-    }
-    if (line.type === 'scene') {
-      sceneOrdinal += 1;
-      const sceneNumber = line.sceneNumber || String(sceneOrdinal);
-      if (line.omitted === true) {
-        // Numbered-draft rule: the slug stays, the body is parked elsewhere.
-        cursor = ensureSpace(ctx, cursor, 30);
-        const placed = drawScriptLine(ctx, fonts, cursor, `SCENE ${sceneNumber} — OMITTED`, { left: 0, width: 60, bold: true });
-        if (showNumbers) {
-          drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'left');
-          drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'right');
+      if (showNumbers && line.first && line.type === 'scene') {
+        const number = sceneNumberAt.get(line.index);
+        if (number) {
+          drawSceneNumber(ctx, fonts, page, y, number, 'left');
+          drawSceneNumber(ctx, fonts, page, y, number, 'right');
         }
-        cursor = { page: placed.page, cursorY: placed.cursorY - 6 };
-        skippingOmittedBody = true;
-        previousType = 'scene';
-        continue;
       }
-      skippingOmittedBody = false;
-      // Page breaks between scenes where sensible: a slugline low on the
-      // page starts fresh rather than orphaning the heading from its action.
-      const remainingFrac = (cursor.cursorY - ctx.margins.bottom) / contentHeight;
-      const atTop = cursor.cursorY >= ctx.contentTop - 1;
-      if (!followScriptPages && !atTop && remainingFrac < 0.4) {
-        const fresh = addPdfPage(ctx);
-        cursor = { page: fresh, cursorY: ctx.contentTop };
-      }
-      cursor = ensureSpace(ctx, cursor, 40);
-      const gapY = cursor.cursorY - 8;
-      cursor = { page: cursor.page, cursorY: gapY };
-      const sceneTop = cursor;
-      const placed = drawScriptLine(ctx, fonts, cursor, line.text.toUpperCase(), LINED_LAYOUT.scene);
-      if (line.revised) drawRevisionMark(ctx, placed.page === sceneTop.page ? sceneTop.cursorY : ctx.contentTop, placed);
-      if (showNumbers) {
-        drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'left');
-        drawSceneNumber(ctx, fonts, placed.page, placed.cursorY + 10, sceneNumber, 'right');
-      }
-      cursor = placed;
-      labelPage(cursor.page);
-      previousType = 'scene';
-      continue;
+      if (line.kind === 'body' && source?.revised) drawRevisionMark(ctx, page, y);
     }
-    if (skippingOmittedBody) continue;
-    if (line.text.trim() === '') continue;
-    const base = layoutFor(line.type);
-    const layout = line.type === 'character' && input.boldCharacters === true ? { ...base, bold: true } : base;
-    const text = layout.upper ? line.text.toUpperCase() : line.text;
-    cursor = { page: cursor.page, cursorY: cursor.cursorY - gapBefore(line.type, previousType) };
-    const top = cursor;
-    cursor = drawScriptLine(ctx, fonts, cursor, text, layout);
-    labelPage(cursor.page);
-    if (line.revised) drawRevisionMark(ctx, cursor.page === top.page ? top.cursorY : ctx.contentTop, cursor);
-    previousType = line.type;
-  }
+  });
 
   return finalizePdfDocument(ctx);
 };

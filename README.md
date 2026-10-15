@@ -4,7 +4,7 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.2.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.4.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
@@ -253,9 +253,11 @@ board — in one print job, with your production logo on the paperwork.
 
 - **Lined Coverage view** — standard Hollywood layout (Courier, 60-column page) with fluid auto-scaling that dynamically fills available panel or fullscreen space.
 - **Screenplay Editor** — write and format scripts directly inside the browser with authentic 12pt Hollywood Courier formatting.
-  - **Natural Enter flow** — `Scene Heading` ➔ `Action` ➔ `Character` ➔ `Parenthetical` ➔ `Dialogue` ➔ `Action`.
-  - **Smart blank conversions** — pressing <kbd>Enter</kbd> on empty cues seamlessly converts Parentheticals to Dialogue, empty Characters to Action, and empty Actions to Scene Headings.
-  - **Tab cycling** — press <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to cycle across all 6 screenplay element types.
+  - **Final Draft's element flow** — <kbd>Enter</kbd> after a heading gives Action, <kbd>Tab</kbd> at the end of Action gives a Character, <kbd>Enter</kbd> after a Character gives Dialogue, <kbd>Tab</kbd> in Dialogue a Parenthetical. <kbd>Enter</kbd> in the middle of a line splits it, on an empty line it opens the element list, and <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> on an empty line change its kind forwards and backwards. Typing `int. ` at the start of an action line makes it a heading.
+  - **Location picker** — ▾ on a scene heading offers the project's locations; a new set typed there becomes a location in the Locations tab.
+  - **Dual dialogue** — <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>D</kbd> (or **⇉ Dual** on the cue) sets a speech beside the one above. Fountain `^` and Final Draft dual dialogue import and export intact.
+  - **Industry pages** — US Letter (54 lines) or A4 (58), feature or multi-camera format, with (MORE) / (CONT'D) when a speech breaks across pages, no stranded headings or cues, an automatic (CONT'D) when a character speaks again in the same scene, and optional scene CONTINUED marks. Eighths, locked pages, sides and the printed screenplay all come from the same pages, and the editor shows where each page starts.
+  - **Element list** — <kbd>Enter</kbd> on an empty line lists the elements (↑ ↓ or 1–7).
   - **Fountain mode** — toggle between WYSIWYG Page View and raw Fountain syntax markdown code.
 - **AV Script (2-Column Audio/Visual)** — dedicated production AV table for commercials, documentaries, and multicam setups. Synchronized bidirectionally with floor plan cameras and lined coverage. Prints as a sheet of its own — video down one side, audio down the other, with shot count and running time — and joins the complete package whenever it has rows.
 - **Scene numbers detected automatically** — from production-draft sluglines (`8   INT. LOFT - NIGHT   8`), Fountain forced numbers (`#8A#`), or Final Draft scene attributes — and printed in **both margins**, the way a numbered production draft is read.
@@ -391,7 +393,7 @@ board — in one print job, with your production logo on the paperwork.
 
 ### Reports & exports
 
-- **Script breakdown** — scene list with page counts in eighths (55-line Courier page, overridable per scene), characters, locations, elements, **breakdown sheets** per scene and a **prop report** built from the tagged screenplay.
+- **Script breakdown** — scene list with page counts in eighths (measured on the printed pages, overridable per scene) and each scene's **summary** (Final Draft index cards and Fountain `=` lines import with the script, or write them in the list), characters, locations, elements, **breakdown sheets** per scene and a **prop report** built from the tagged screenplay.
 - **Script colours & revisions** — highlight by character, location or breakdown category; lock pages (A-pages, omitted pages) and mark revised lines with the standard revision colour sequence, carried into the lined-script PDF. Final Draft (`.fdx`) import and export.
 - **Location scouting** — scout notes, ratings, status and photos (with EXIF date and GPS) per location, including candidates for a set.
 - **Budget top sheet** — account-numbered summary of the budget, printable.
@@ -590,6 +592,11 @@ technical data stays `unknown` instead of being substituted with `0`.
 ## License
 
 Released under the [GNU General Public License v3.0](LICENSE).
+
+The screenplay page-break rules, dual-dialogue layout, Final Draft element
+flow and the word-level draft comparison follow
+[ScriptCraft](https://github.com/NoJuanNobody/scriptcraft) (MIT OR
+Apache-2.0), reimplemented in TypeScript.
 
 ## Support
 

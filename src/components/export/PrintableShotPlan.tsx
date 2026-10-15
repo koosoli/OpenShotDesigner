@@ -105,7 +105,7 @@ import {
 } from '../../domain/scheduling';
 import { useMoodboardImageSrcs } from '../moodboard/moodboardAssets';
 import { buildScriptSides, sidesCharacterOptions, splitScenes } from '../../domain/script';
-import { attachBreakdownItemsToScenes } from '../../domain/script';
+import { attachBreakdownItemsToScenes, autoContdCueIds, screenplayLayoutOptions } from '../../domain/script';
 import { ProjectImage } from '../common/ProjectImage';
 import { useImageRefSrcs } from '../../utils/assetImages';
 import { keyFrameImage } from '../../utils/storyboardFrames';
@@ -229,12 +229,12 @@ export const PrintableShotPlan: React.FC = () => {
   // does not know about elements — so resolve the tagged ones onto them here
   // rather than storing that link a second time (rule 37).
   const reportBreakdown = React.useMemo(() => {
-    const derived = cachedScriptBreakdown(scriptLines, project.characters, project.locations);
+    const derived = cachedScriptBreakdown(scriptLines, project.characters, project.locations, project.screenplayLayout);
     return {
       ...derived,
       scenes: attachBreakdownItemsToScenes(derived.scenes, scriptLines, project.breakdownItems ?? []),
     };
-  }, [scriptLines, project.characters, project.locations, project.breakdownItems]);
+  }, [scriptLines, project.characters, project.locations, project.breakdownItems, project.screenplayLayout]);
   const reportCharacterEntries = React.useMemo(
     () => reportBreakdown.characters
       .map((character) => deriveCharacterReport(character.id, {
@@ -2360,7 +2360,8 @@ export const PrintableShotPlan: React.FC = () => {
                         isLight
                         print
                         revisionIndex={currentRevisionColor(project).index}
-                        pageStarts={project.scriptPageLock ? new Map(pageLabels(printedScriptLines, project.scriptPageLock).starts.map((start) => [start.lineId, start.label] as const)) : undefined}
+                        contdLineIds={screenplayLayoutOptions(project.screenplayLayout).autoContd ? autoContdCueIds(scriptLines) : undefined}
+                        pageStarts={project.scriptPageLock ? new Map(pageLabels(printedScriptLines, project.scriptPageLock, screenplayLayoutOptions(project.screenplayLayout)).starts.map((start) => [start.lineId, start.label] as const)) : undefined}
                       />
                     )}
                   </div>

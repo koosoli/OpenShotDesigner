@@ -7,11 +7,11 @@ const action = (id: string) => ({ id, type: 'action', text: 'A line of action th
 const script = (n: number, prefix = 'l') => Array.from({ length: n }, (_, i) => action(`${prefix}${i}`));
 
 describe('page locking', () => {
-  it('lays out 55-line pages', () => {
+  it('lays out 54-line Letter pages', () => {
     const pages = layoutPages(script(60));
     expect(pages.get('l0')).toBe(1);
-    expect(pages.get('l27')).toBe(1);
-    expect(pages.get('l28')).toBe(2);
+    expect(pages.get('l26')).toBe(1);
+    expect(pages.get('l27')).toBe(2);
   });
 
   it('keeps locked numbers and spills new text onto A-pages', () => {

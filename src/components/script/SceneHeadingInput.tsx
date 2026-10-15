@@ -34,7 +34,9 @@ const PREFIX_VALUES: readonly string[] = ['', ...SCENE_PREFIXES];
  *  - after " - " the times are offered as a list (↑ ↓, Enter or Tab);
  *  - Alt+↑/↓ changes INT/EXT, Alt+Shift+↑/↓ the time of day;
  *  - ← at the start of the set field reaches the INT/EXT picker, → at its end
- *    the time picker; there ↑ ↓ change the value and ← → / Enter / Esc go back.
+ *    the time picker; there ↑ ↓ change the value and ← → / Enter / Esc go back;
+ *  - the ▾ beside the set lists the project's locations and the sets this
+ *    script already uses; a name not on it is simply typed.
  *
  * While the set field is being typed in it keeps its own draft of all three
  * parts, so a trailing space ("LIVING ") survives until the next word, and a
@@ -55,8 +57,10 @@ export const SceneHeadingInput: React.FC<{
   autoFocus?: boolean;
   /** Times used elsewhere in this screenplay, offered after the presets. */
   extraTimes?: readonly string[];
+  /** Existing locations and set names, offered in the set picker. */
+  locations?: readonly string[];
   children?: React.ReactNode;
-}> = ({ lineId, text, onChange, onKeyDown, onBlur, onTyped, autoFocus, extraTimes = [], children }) => {
+}> = ({ lineId, text, onChange, onKeyDown, onBlur, onTyped, autoFocus, extraTimes = [], locations = [], children }) => {
   const [draft, setDraft] = useState<SceneHeadingParts | null>(null);
   const parts = draft ?? splitSceneHeading(text);
   const [timeHighlight, setTimeHighlight] = useState(0);
@@ -217,6 +221,24 @@ export const SceneHeadingInput: React.FC<{
           />
         ) : children}
       </div>
+      {locations.length > 0 && (
+        <select
+          aria-label="Pick a location"
+          title="Pick an existing location — or type a new one; it is added to Locations"
+          value=""
+          onChange={(event) => {
+            if (!event.target.value) return;
+            write({ body: event.target.value.toUpperCase() });
+            focusInput('end');
+          }}
+          className={`${select} w-[3ch] px-0`}
+        >
+          <option value="" className={option}>▾</option>
+          {locations.map((name) => (
+            <option key={name} value={name} className={option}>{name.toUpperCase()}</option>
+          ))}
+        </select>
+      )}
       <span aria-hidden className="shrink-0 font-bold text-amber-300/70">-</span>
       <select
         ref={timeRef}

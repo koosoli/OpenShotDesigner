@@ -1,6 +1,7 @@
 import { ScriptElementType, ScriptLine } from '../../types';
 import { parseFountainTitlePage, serializeFountainTitlePage } from '../../domain/script';
 import type { ScreenplayTitlePage } from '../../domain/script';
+import { fdxBodyParagraphs } from '../../domain/script/fdxParagraphs';
 
 /**
  * Screenplay import + classification.
@@ -110,7 +111,23 @@ interface ParsedElement {
   type: ScriptElementType;
   sceneNumber?: string;
   omitted?: boolean;
+  /** Cue of the second speaker in dual dialogue. */
+  dual?: boolean;
+  /** Scene heading's summary (Fountain `= …`, Final Draft index card). */
+  synopsis?: string;
+  sceneColor?: string;
+  /** Revision colour the line was last changed in (Final Draft revision sets). */
+  revisedIn?: number;
 }
+
+/** The scene heading a synopsis line belongs to: the latest one, if any. */
+const attachSynopsis = (out: ParsedElement[], text: string): void => {
+  for (let i = out.length - 1; i >= 0; i -= 1) {
+    if (out[i].type !== 'scene') continue;
+    out[i].synopsis = out[i].synopsis ? `${out[i].synopsis} ${text}` : text;
+    return;
+  }
+};
 
 /** `[[OMITTED]]` directly after a slugline marks that scene as cut (round-trips our Fountain export). */
 const OMITTED_NOTE_RE = /^\[\[\s*OMITTED\s*\]\]$|^OMITTED$/i;
@@ -147,6 +164,27 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
     if (PAGE_NUMBER_RE.test(text) || CONTINUED_RE.test(text)) return;
     if (applyOmittedNote(out, text)) return;
 
+    // Fountain page break and synopsis lines.
+    if (/^={3,}$/.test(text)) {
+      out.push({ text: '', type: 'page-break', sceneNumber: currentScene });
+      previousType = null;
+      return;
+    }
+    if (/^=(?!=)/.test(text)) {
+      const synopsis = text.slice(1).trim();
+      if (synopsis) attachSynopsis(out, synopsis);
+      return;
+    }
+
+    // A shot Fountain has no syntax for, written as action with a [[shot]]
+    // note (ScriptCraft's convention; other apps show it as action).
+    const shotNote = text.match(/^(.*?)\s*\[\[\s*shot\s*\]\]\s*$/i);
+    if (shotNote && shotNote[1].trim()) {
+      out.push({ text: shotNote[1].replace(/^!/, '').trim().toUpperCase(), type: 'shot', sceneNumber: currentScene });
+      previousType = 'shot';
+      return;
+    }
+
     // Fountain forced-element prefixes
     if (text.startsWith('!')) {
       out.push({ text: text.slice(1).trim(), type: 'action', sceneNumber: currentScene });
@@ -154,7 +192,9 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
       return;
     }
     if (text.startsWith('@')) {
-      out.push({ text: text.slice(1).trim(), type: 'character', sceneNumber: currentScene });
+      const forced = text.slice(1).trim();
+      const dual = /\^\s*$/.test(forced);
+      out.push({ text: forced.replace(/\s*\^\s*$/, ''), type: 'character', sceneNumber: currentScene, ...(dual ? { dual: true } : {}) });
       previousType = 'character';
       return;
     }
@@ -193,15 +233,20 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
       return;
     }
 
+    // Fountain dual dialogue: the second cue ends with ^.
+    const dualCue = /\^\s*$/.test(text);
+    const cueText = dualCue ? text.replace(/\s*\^\s*$/, '') : text;
+    // The name is in capitals; an extension may not be ("EDWARD (cont'd)").
+    const cueName = cueText.replace(/\([^)]*\)/g, '').trim();
     const looksLikeCue =
-      isUpper(text) &&
-      text.length <= 45 &&
-      CHARACTER_RE.test(text) &&
-      !text.endsWith('.') &&
+      isUpper(cueName) &&
+      cueText.length <= 45 &&
+      CHARACTER_RE.test(cueText) &&
+      !cueText.endsWith('.') &&
       (!usesIndentation || indent >= 8);
 
     if (looksLikeCue && previousType !== 'character') {
-      out.push({ text, type: 'character', sceneNumber: currentScene });
+      out.push({ text: cueText.toUpperCase(), type: 'character', sceneNumber: currentScene, ...(dualCue ? { dual: true } : {}) });
       previousType = 'character';
       return;
     }
@@ -240,26 +285,45 @@ export const parseFinalDraftXml = (raw: string): ParsedElement[] => {
   let currentScene: string | undefined;
 
   // Only the script body: a Final Draft file's <TitlePage> holds paragraphs
-  // too, and reading those imported the cover as action lines.
-  const body = doc.querySelector('FinalDraft > Content') ?? doc.documentElement;
-  Array.from(body.querySelectorAll(':scope > Paragraph')).forEach((paragraph) => {
-    const text = Array.from(paragraph.querySelectorAll('Text'))
-      .map((node) => node.textContent || '')
-      .join('')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (!text) return;
-    if (applyOmittedNote(out, text)) return;
+  // too, and reading those imported the cover as action lines. Dual dialogue
+  // and the scene headings' index cards are read by fdxBodyParagraphs.
+  fdxBodyParagraphs(doc).forEach(({ element: paragraph, type: fdxType, text, dual, summary, color, revision, notes }) => {
+    // The writer's script notes follow the paragraph they are anchored in.
+    const pushNotes = () => notes?.forEach((note) => out.push({ text: note, type: 'note', sceneNumber: currentScene }));
+    if (!text) {
+      pushNotes();
+      return;
+    }
+    if (applyOmittedNote(out, text)) {
+      pushNotes();
+      return;
+    }
+    const revised = revision !== undefined ? { revisedIn: revision } : {};
 
-    const type = FDX_TYPE_MAP[paragraph.getAttribute('Type') || ''] || 'action';
+    // Final Draft's outline (acts, sequences and their summaries) is hidden in
+    // the script; it used to import as action lines. Kept as script notes.
+    if (/^Outline/i.test(fdxType)) {
+      out.push({ text, type: 'note', sceneNumber: currentScene });
+      return;
+    }
+    const type = FDX_TYPE_MAP[fdxType] || 'action';
     if (type === 'scene') {
       const attrNumber = paragraph.getAttribute('Number') || undefined;
       const { text: headingText, sceneNumber } = extractSceneNumber(text);
       currentScene = attrNumber || sceneNumber || currentScene;
-      out.push({ text: headingText.toUpperCase(), type, sceneNumber: attrNumber || sceneNumber });
+      out.push({
+        text: headingText.toUpperCase(),
+        type,
+        sceneNumber: attrNumber || sceneNumber,
+        ...(summary ? { synopsis: summary } : {}),
+        ...(color ? { sceneColor: color } : {}),
+        ...revised,
+      });
+      pushNotes();
       return;
     }
-    out.push({ text, type, sceneNumber: currentScene });
+    out.push({ text, type, sceneNumber: currentScene, ...(type === 'character' && dual ? { dual: true } : {}), ...revised });
+    pushNotes();
   });
 
   return out.length ? out : parseScreenplayText(raw);
@@ -288,6 +352,10 @@ export const parseScreenplay = (raw: string, fileName = ''): ScriptLine[] => {
       isSceneHeading: element.type === 'scene',
     };
     if (element.omitted) line.omitted = true;
+    if (element.dual) line.dual = true;
+    if (element.synopsis) line.synopsis = element.synopsis;
+    if (element.sceneColor) line.sceneColor = element.sceneColor;
+    if (element.revisedIn !== undefined) line.revisedIn = element.revisedIn;
     return line;
   });
 };
@@ -337,6 +405,7 @@ export const serializeToFountain = (
         const isStandardPrefix = /^(INT|EXT|EST|INT\.?\/EXT|I\/E)[.\s]/i.test(text);
         const prefix = isStandardPrefix ? '' : '.';
         out.push(`\n${prefix}${text.toUpperCase()}${sceneNum}\n`);
+        if (line.synopsis?.trim()) out.push(`= ${line.synopsis.trim()}\n`);
         if (line.omitted) {
           // Parked body is kept as boneyard so a round trip never loses it.
           out.push('[[OMITTED]]\n');
@@ -347,7 +416,7 @@ export const serializeToFountain = (
         break;
       }
       case 'character':
-        out.push(`\n${text.toUpperCase()}\n`);
+        out.push(`\n${text.toUpperCase()}${line.dual ? ' ^' : ''}\n`);
         break;
       case 'parenthetical':
         out.push(`${formatParenthetical(text)}\n`);
@@ -358,9 +427,13 @@ export const serializeToFountain = (
       case 'transition':
         out.push(`\n> ${text.toUpperCase()}\n`);
         break;
-      case 'shot':
-        out.push(`\n${text.toUpperCase()}\n`);
+      case 'shot': {
+        // A standard shot call reads back as a shot; anything else would read
+        // as a character cue, so it is forced to action and tagged [[shot]].
+        const upper = text.toUpperCase();
+        out.push(SHOT_RE.test(upper) && upper.length < 60 ? `\n${upper}\n` : `\n!${upper} [[shot]]\n`);
         break;
+      }
       case 'note':
         out.push(`\n[[ ${text} ]]\n`);
         break;

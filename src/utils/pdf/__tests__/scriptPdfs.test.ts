@@ -292,7 +292,7 @@ describe('script breakdown PDF', () => {
 
   it('maps domain shapes to rows (labels, eighths, DOOD codes)', () => {
     const [scene] = scriptReportScenesFromScenes([makeReportScene(0)], characters, items);
-    expect(scene).toMatchObject({ intExt: 'INT', pages: '12/8', cast: 'JOHN', elements: 'Propistol' });
+    expect(scene).toMatchObject({ intExt: 'INT', pages: '1 4/8', cast: 'JOHN', elements: 'Propistol' });
     const [element] = scriptReportElementsFromItems(items, [{ sceneNumber: '1', breakdownItemIds: ['prop-gun'] }]);
     expect(element).toMatchObject({ department: 'PROP', scenes: '1' });
     const dood = doodPdfFromDood({
@@ -327,7 +327,7 @@ describe('script breakdown PDF', () => {
           intExt: 'INT',
           heading: 'Müller pays 12 €',
           timeOfDay: 'NIGHT',
-          pages: '12/8',
+          pages: '1 4/8',
           cast: 'JOHN',
           elements: 'Cue → done',
         },
@@ -426,6 +426,78 @@ describe('lined screenplay PDF', () => {
     expect(combined).toContain(pdfHexToken('Müller'));
     expect(combined).toContain('31322080');
     expect(combined).toContain(pdfHexToken('?'));
+  });
+
+  it("lays sides out on the screenplay rules: (MORE), (CONT'D) and dual dialogue", async () => {
+    const pdf = await createSidesPdf({
+      productionTitle: 'My Film',
+      generatedAt: FIXED_DATE,
+      scenes: [{
+        sceneId: 's1',
+        sceneNumber: '7',
+        heading: 'INT. HALL - DAY',
+        omitted: false,
+        characters: ['MARGO', 'ANA', 'BEN'],
+        lines: [
+          { type: 'scene', text: 'INT. HALL - DAY' },
+          { type: 'character', text: 'MARGO' },
+          { type: 'dialogue', text: 'This is a sentence that goes on. '.repeat(80).trim() },
+          { type: 'character', text: 'ANA' },
+          { type: 'dialogue', text: 'Left.' },
+          { type: 'character', text: 'BEN', dual: true },
+          { type: 'dialogue', text: 'Right.' },
+        ],
+      }],
+    });
+    const combined = inflateContentStreams(pdf).join('\n');
+    expect((await PDFDocument.load(pdf)).getPageCount()).toBeGreaterThan(1);
+    expect(combined).toContain(pdfHexToken('(MORE)'));
+    expect(combined).toContain(pdfHexToken("MARGO (CONT'D)"));
+    expect(combined).toContain(pdfHexToken('Right.'));
+  });
+
+  it("breaks a long speech with (MORE) and the cue as (CONT'D)", async () => {
+    const lines: LinedScriptPdfLine[] = [
+      { type: 'scene', text: 'INT. HALL - DAY', sceneNumber: '1' },
+      ...Array.from({ length: 20 }, (_, i) => ({ type: 'action', text: `Beat ${i}.` })),
+      { type: 'character', text: 'MARGO' },
+      { type: 'dialogue', text: 'This is a sentence that goes on. '.repeat(20).trim() },
+    ];
+    const pdf = await createLinedScriptPdf({ productionTitle: 'My Film', lines, generatedAt: FIXED_DATE });
+    expect((await PDFDocument.load(pdf)).getPageCount()).toBe(2);
+    const combined = inflateContentStreams(pdf).join('\n');
+    expect(combined).toContain(pdfHexToken('(MORE)'));
+    expect(combined).toContain(pdfHexToken("MARGO (CONT'D)"));
+    expect(combined).toContain(pdfHexToken('2.'));
+  });
+
+  it("prints dual dialogue and the automatic (CONT'D)", async () => {
+    const pdf = await createLinedScriptPdf({
+      productionTitle: 'My Film',
+      lines: [
+        { type: 'scene', text: 'INT. BANK - DAY' },
+        { type: 'character', text: 'ANA' },
+        { type: 'dialogue', text: 'Give it back.' },
+        { type: 'character', text: 'BEN', dual: true },
+        { type: 'dialogue', text: 'No.' },
+        { type: 'character', text: 'CAL' },
+        { type: 'dialogue', text: 'Easy.' },
+        { type: 'action', text: 'Silence.' },
+        { type: 'character', text: 'CAL' },
+        { type: 'dialogue', text: 'Never.' },
+      ],
+      generatedAt: FIXED_DATE,
+    });
+    const combined = inflateContentStreams(pdf).join('\n');
+    expect(combined).toContain(pdfHexToken('No.'));
+    expect(combined).toContain(pdfHexToken("CAL (CONT'D)"));
+  });
+
+  it('sets the page on A4 when the project asks for it', async () => {
+    const pdf = await createLinedScriptPdf({ productionTitle: 'My Film', lines: makeLinedLines(1), layout: { paper: 'a4' }, generatedAt: FIXED_DATE });
+    const page = (await PDFDocument.load(pdf)).getPage(0);
+    expect(page.getWidth()).toBeCloseTo(595.28, 0);
+    expect(page.getHeight()).toBeCloseTo(841.89, 0);
   });
 
   it('watermarks drafts only where the input carries draft state', async () => {

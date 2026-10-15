@@ -252,6 +252,7 @@ export const CallSheetWorkspace: React.FC<CallSheetWorkspaceProps> = ({
         subtitle: `${selectedDay.name}${selectedDay.date ? ` · ${selectedDay.date}` : ''} · ${who}`,
         scenes,
         characterFilter: entry.character,
+        autoContd: project.screenplayLayout?.autoContd !== false,
       });
     }
     downloadBlob(bytesToBlob(zipPdfs(files), 'application/zip'), buildPdfFilename({ production: project.title, document: 'sides', qualifier: selectedDay.name, ...(selectedDay.date ? { date: selectedDay.date } : {}) }).replace(/\.pdf$/, '.zip'));

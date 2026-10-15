@@ -56,20 +56,31 @@ import {
   reconcileScriptLineIds,
   removeLineOrOmit,
   restoreScene,
+  autoContdCueIds,
+  dualDialogueSides,
+  screenplayLayoutOptions,
   tagBreakdownItem,
   untagScriptLine,
 } from '../../domain/script';
 import type { BreakdownSourceRange, HighlightMode, ScriptRevisionComparison } from '../../domain/script';
 import { ScriptHighlightBar } from './ScriptHighlightBar';
+import { DraftDiffList } from './DraftDiffList';
+import { compareDrafts } from '../../domain/script/compareDrafts';
+import type { DraftComparison } from '../../domain/script/compareDrafts';
 import {
   addScriptRevisionCommand,
   addSetupsCommand,
   setCharacterColorCommand,
+  setLocationsCommand,
+  setScreenplayLayoutCommand,
   setScriptPageLockCommand,
   setScriptRevisionColorCommand,
   updateBreakdownItemsCommand,
 } from '../../domain/commands';
 import { lockPages, pageLabels } from '../../domain/script/pageLock';
+import { locationForSetName } from '../../domain/locations';
+import { parseFdxDocument } from '../../domain/script/fdxDocument';
+import { ENTER_EMPTY_CHANGES, ENTER_NEW, SHIFT_TAB_CHANGES, TAB_CHANGES, TAB_NEW, startsSceneHeading } from '../../domain/script/elementFlow';
 import { REVISION_COLORS, currentRevisionColor, markRevisedLines, revisionColorAt } from '../../domain/script/revisionColors';
 import { readUiPref, writeUiPref } from '../../utils/uiPrefs';
 import { setupForScriptScene } from '../../utils/setupFromScene';
@@ -128,6 +139,17 @@ interface LineSuggestions {
   items: Array<Suggestion & { apply: string }>;
 }
 
+/** Final Draft's element list, offered by Enter on an empty line (1–7 pick one). */
+const ELEMENT_MENU: Array<{ type: ScriptElementType; label: string }> = [
+  { type: 'scene', label: 'Scene Heading' },
+  { type: 'action', label: 'Action' },
+  { type: 'character', label: 'Character' },
+  { type: 'parenthetical', label: 'Parenthetical' },
+  { type: 'dialogue', label: 'Dialogue' },
+  { type: 'transition', label: 'Transition' },
+  { type: 'shot', label: 'Shot' },
+];
+
 /** Preset lists offered on transition, shot and parenthetical lines. */
 const LINE_PRESETS: Partial<Record<ScriptElementType, { presets: readonly string[]; label: string; tone: LineSuggestions['tone'] }>> = {
   transition: { presets: TRANSITIONS, label: 'Transitions', tone: 'slate' },
@@ -138,7 +160,7 @@ const LINE_PRESETS: Partial<Record<ScriptElementType, { presets: readonly string
 export const ScriptPanel: React.FC = () => {
   const { activeSetup, scriptLines, scriptTitle, allScriptMarks, allShots, setupIdForMark, setActiveSetupId, selectedShotId, selectShot, createShotFromScriptRange, linkShotToScriptRange, scriptLinkShotId, cancelScriptLinking, updateScriptMark, setLiningDescription, deleteScriptMark, setScriptLines, setSceneNumbersLocked, avScriptRows, setAVScriptRows, scriptFormatMode, setScriptFormatMode, displaySettings, project, runCommand } = useFloorPlan();
   const { openExportModal, theme } = useWorkspaceUI();
-  const { confirm } = useDialogs();
+  const { confirm, notice } = useDialogs();
 
   /**
    * Every write to the script goes through here so breakdown elements cannot
@@ -187,6 +209,7 @@ export const ScriptPanel: React.FC = () => {
     raw: string;
     name: string;
     comparison: ScriptRevisionComparison;
+    lineDiff: DraftComparison;
   } | null>(null);
 
   const fontSize = autoFontSize * zoom;
@@ -227,6 +250,8 @@ export const ScriptPanel: React.FC = () => {
     });
     return Array.from(seen.values());
   }, [lines, project.locations]);
+  /** Every location and set name the heading picker offers, project locations first. */
+  const locationNames = useMemo(() => locationCatalog.map((location) => location.name), [locationCatalog]);
   /** Times of day this screenplay already uses beyond the presets ("LATE AFTERNOON"). */
   const scriptTimesOfDay = useMemo(
     () => customTimesIn(lines.filter((line) => line.type === 'scene').map((line) => line.text || '')),
@@ -286,8 +311,44 @@ export const ScriptPanel: React.FC = () => {
     return list.items.length > 0 ? list : null;
   }, [suggest, activeEditingLineId, lines, characterCatalog, locationCatalog]);
 
+  /*
+   * Enter on an empty line opens the element list, as in Final Draft: ↑ ↓ or
+   * 1–7 choose, Enter or Tab apply, Esc closes, and typing closes it too. The
+   * highlighted row starts on the element plain Enter would choose.
+   */
+  const [elementMenu, setElementMenu] = useState<{ lineId: string; index: number } | null>(null);
+  useEffect(() => {
+    setElementMenu((menu) => (menu && menu.lineId !== activeEditingLineId ? null : menu));
+  }, [activeEditingLineId]);
+  const handleElementMenuKeys = (event: React.KeyboardEvent, line: ScriptLine): boolean => {
+    if (!elementMenu || elementMenu.lineId !== line.id) return false;
+    const count = ELEMENT_MENU.length;
+    const digit = /^[1-7]$/.test(event.key) ? Number(event.key) - 1 : -1;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      setElementMenu({ lineId: line.id, index: (elementMenu.index + step + count) % count });
+      return true;
+    }
+    if (event.key === 'Enter' || event.key === 'Tab' || digit >= 0) {
+      event.preventDefault();
+      setElementMenu(null);
+      changeLineType(line.id, ELEMENT_MENU[digit >= 0 ? digit : elementMenu.index].type);
+      return true;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setElementMenu(null);
+      return true;
+    }
+    // Typing closes the list and types as usual.
+    setElementMenu(null);
+    return false;
+  };
+
   /** ↑ ↓ / Enter / Tab / Esc on a line whose suggestion list is open. True when the key was used. */
   const handleSuggestionKeys = (event: React.KeyboardEvent, line: ScriptLine): boolean => {
+    if (handleElementMenuKeys(event, line)) return true;
     if (!lineSuggestions || lineSuggestions.lineId !== line.id) return false;
     const count = lineSuggestions.items.length;
     const action = suggestionKeyAction(event, count);
@@ -296,14 +357,40 @@ export const ScriptPanel: React.FC = () => {
     if (action === 'next') setSuggestIndex((index) => (index + 1) % count);
     else if (action === 'previous') setSuggestIndex((index) => (index - 1 + count) % count);
     else if (action === 'pick') {
-      updateLine(line.id, lineSuggestions.items[Math.min(suggestIndex, count - 1)].apply);
+      const chosen = lineSuggestions.items[Math.min(suggestIndex, count - 1)].apply;
+      const index = lines.findIndex((l) => l.id === line.id);
+      if (line.type === 'character' && event.key === 'Enter' && index !== -1) {
+        // Taking a name with Enter also moves on to its dialogue, as in Final Draft.
+        const dialogueId = createId('sl');
+        setScriptLines([
+          ...lines.slice(0, index),
+          { ...line, text: chosen.toUpperCase() },
+          { id: dialogueId, lineNumber: index + 2, text: '', type: 'dialogue', sceneNumber: line.sceneNumber },
+          ...lines.slice(index + 1),
+        ]);
+        setActiveEditingLineId(dialogueId);
+      } else {
+        updateLine(line.id, chosen);
+      }
       setSuggest(null);
     } else setSuggest(null);
     return true;
   };
 
   const renderSuggestions = (line: ScriptLine) =>
-    lineSuggestions && lineSuggestions.lineId === line.id ? (
+    elementMenu && elementMenu.lineId === line.id ? (
+      <SuggestionList
+        label="Element (1–7)"
+        tone="slate"
+        uppercase={false}
+        items={ELEMENT_MENU.map((entry, index) => ({ key: entry.type, label: `${index + 1}  ${entry.label}` }))}
+        highlight={elementMenu.index}
+        onPick={(item) => {
+          setElementMenu(null);
+          changeLineType(line.id, item.key as ScriptElementType);
+        }}
+      />
+    ) : lineSuggestions && lineSuggestions.lineId === line.id ? (
       <SuggestionList
         label={lineSuggestions.label}
         tone={lineSuggestions.tone}
@@ -366,10 +453,13 @@ export const ScriptPanel: React.FC = () => {
     // A revised draft stars the lines it changed, in its revision colour.
     const parsed = markRevision === undefined
       ? reconciled
-      : markRevisedLines(reconciled, new Set(lines.map((line) => line.id)), markRevision);
+      : markRevisedLines(reconciled, new Map(lines.map((line) => [line.id, line.text] as const)), markRevision);
     // A script that arrives with a cover keeps it — title, credit, author and
     // draft used to be stripped at the door and thrown away.
-    const cover = parseScreenplayTitlePage(raw);
+    // Final Draft keeps its cover, page setup and revision sets around the body.
+    const fdx = parseFdxDocument(raw);
+    const cover = parseScreenplayTitlePage(raw) ?? fdx.titlePage ?? null;
+    const firstScript = lines.length === 0;
     // An imported script's scenes do not each get a setup (see above).
     importingScriptRef.current = true;
     setScriptLines(parsed, {
@@ -377,6 +467,14 @@ export const ScriptPanel: React.FC = () => {
       scriptText: raw,
       ...(cover ? { titlePage: cover } : {}),
     });
+    // A first script brings its paper and (CONT'D) setting, and the colour its
+    // revision marks are in, unless the project already chose them.
+    if (firstScript && fdx.layout && !project.screenplayLayout && (fdx.layout.paper || fdx.layout.autoContd === false || fdx.layout.format || fdx.layout.sceneContinued)) {
+      runCommand(setScreenplayLayoutCommand, { layout: fdx.layout }, { domain: 'script' });
+    }
+    if (firstScript && markRevision === undefined && fdx.activeRevision !== undefined && project.scriptRevisionColor === undefined) {
+      runCommand(setScriptRevisionColorCommand, { index: fdx.activeRevision }, { domain: 'script' });
+    }
     // A Final Draft file tagged in its Tagger brings its breakdown along.
     const tagged = parseFdxTags(raw);
     if (tagged.length > 0) {
@@ -404,14 +502,27 @@ export const ScriptPanel: React.FC = () => {
       importRaw(raw, name);
       return;
     }
+    const incoming = parseScreenplay(raw, name);
     setPendingRevision({
       raw,
       name,
-      comparison: compareScriptRevisions(lines, parseScreenplay(raw, name)),
+      comparison: compareScriptRevisions(lines, incoming),
+      lineDiff: compareDrafts(lines, incoming),
     });
   };
 
   const loadScript = (file: File) => {
+    // PDF, Word, Celtx and HTML scripts are converted first (loaded on demand).
+    if (/\.(pdf|docx|celtx|html?)$/i.test(file.name)) {
+      void import('../../utils/screenplayImport')
+        .then(({ convertScreenplayFile }) => convertScreenplayFile(file))
+        .then((converted) => {
+          if (converted) stageImport(converted.raw, converted.name);
+          else void notice({ title: 'No screenplay found', message: `${file.name} has no screenplay text this app can read. A scanned PDF holds pictures of pages, not text.` });
+        })
+        .catch(() => notice({ title: 'Could not read the file', message: `${file.name} could not be opened as a screenplay.` }));
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => stageImport(String(reader.result || ''), file.name);
     reader.readAsText(file);
@@ -446,7 +557,12 @@ export const ScriptPanel: React.FC = () => {
   };
 
   const exportFdxFile = () => {
-    const xml = serializeToFdx(lines, { title: scriptTitle, titlePage: project.titlePage });
+    const xml = serializeToFdx(lines, {
+      title: scriptTitle,
+      titlePage: project.titlePage,
+      layout: project.screenplayLayout,
+      revisionIndex: currentRevisionColor(project).index,
+    });
     downloadText(xml, `${safeFileName(scriptTitle, 'screenplay').toLowerCase()}.fdx`, { type: 'application/xml;charset=utf-8' });
   };
 
@@ -512,6 +628,41 @@ export const ScriptPanel: React.FC = () => {
    * heading never creates one, and never when the scene number already has a
    * setup.
    */
+  /*
+   * A set typed into a heading that no project location answers to becomes a
+   * location of its own once the writer moves on from the heading — so it is
+   * in the Locations tab, ready for an address, and the heading is linked.
+   * Only headings edited here: an imported script does not fill the tab.
+   */
+  const editedHeadingIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const edited = editedHeadingIdsRef.current;
+    if (edited.size === 0) return;
+    const names: string[] = [];
+    for (const id of [...edited]) {
+      if (id === activeEditingLineId) continue; // still being written
+      edited.delete(id);
+      const line = lines.find((candidate) => candidate.id === id);
+      if (!line || line.type !== 'scene' || line.omitted) continue;
+      const location = parseSceneHeading(line.text || '').location?.trim();
+      if (!location || /^LOCATION$/i.test(location)) continue;
+      if (locationForSetName(project.locations ?? [], location)) continue;
+      if (!names.some((name) => name.toLowerCase() === location.toLowerCase())) names.push(location);
+    }
+    if (names.length === 0) return;
+    runCommand(setLocationsCommand, {
+      update: (current) => [
+        ...current,
+        ...names
+          .filter((name) => !locationForSetName(current, name))
+          .map((name) => ({ id: createId('loc'), name, type: 'location' as const, referenceAssetIds: [] })),
+      ],
+      description: names.length === 1 ? `Add location ${names[0]}` : `Add ${names.length} locations`,
+    }, { domain: 'script' });
+    // runCommand is stable in effect; the inputs that decide are listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEditingLineId, lines, project.locations]);
+
   const knownHeadingIdsRef = useRef<Set<string> | null>(null);
   const pendingSetupHeadingsRef = useRef<Set<string>>(new Set());
   const importingScriptRef = useRef(false);
@@ -655,12 +806,19 @@ export const ScriptPanel: React.FC = () => {
     writeUiPref('script_highlight', mode);
   };
   const scriptBreakdown = useMemo(
-    () => cachedScriptBreakdown(lines, project.characters, project.locations),
-    [lines, project.characters, project.locations],
+    () => cachedScriptBreakdown(lines, project.characters, project.locations, project.screenplayLayout),
+    [lines, project.characters, project.locations, project.screenplayLayout],
   );
   // Page numbers (locked or fresh) for the page markers and the page count.
-  const pageInfo = useMemo(() => pageLabels(lines, project.scriptPageLock), [lines, project.scriptPageLock]);
+  const pageLayout = useMemo(() => screenplayLayoutOptions(project.screenplayLayout), [project.screenplayLayout]);
+  const pageInfo = useMemo(() => pageLabels(lines, project.scriptPageLock, pageLayout), [lines, project.scriptPageLock, pageLayout]);
   const pageStartMap = useMemo(() => new Map(pageInfo.starts.map((start) => [start.lineId, start.label] as const)), [pageInfo]);
+  // What the printed page adds to cues: (CONT'D) and dual-dialogue columns.
+  const autoContdIds = useMemo(
+    () => (pageLayout.autoContd ? autoContdCueIds(lines) : new Set<string>()),
+    [lines, pageLayout.autoContd],
+  );
+  const dualSides = useMemo(() => dualDialogueSides(lines), [lines]);
   const scenePageEighths = useMemo(
     () => new Map(scriptBreakdown.scenes.flatMap((scene) =>
       scene.pageLengthEighths === undefined ? [] : [[scene.id, scene.pageLengthEighths] as const])),
@@ -826,6 +984,7 @@ export const ScriptPanel: React.FC = () => {
     const updated = lines.map((l) => {
       if (l.id !== id) return l;
       const targetType = newType ?? l.type ?? 'action';
+      if (targetType === 'scene') editedHeadingIdsRef.current.add(id);
       let text = newText;
       if (targetType === 'parenthetical') {
         text = formatParenthetical(text);
@@ -833,7 +992,7 @@ export const ScriptPanel: React.FC = () => {
         if (l.type === 'parenthetical' || newType !== undefined) {
           text = stripParentheses(text);
         }
-        if (targetType === 'scene' || targetType === 'character' || targetType === 'transition') {
+        if (targetType === 'scene' || targetType === 'character' || targetType === 'transition' || targetType === 'shot') {
           text = text.toUpperCase();
         }
       }
@@ -860,6 +1019,31 @@ export const ScriptPanel: React.FC = () => {
       }
     }
     updateLine(id, text, type);
+  };
+
+  /**
+   * Dual dialogue: this cue's speech is set beside the speech before it. Only
+   * a cue that directly follows another speech can be dual.
+   */
+  const toggleDualDialogue = (id: string) => {
+    const index = lines.findIndex((l) => l.id === id);
+    const target = lines[index];
+    if (!target || target.type !== 'character') return;
+    if (!target.dual && !canBeDual(index)) return;
+    setScriptLines(lines.map((l) => {
+      if (l.id !== id) return l;
+      const next = { ...l };
+      if (target.dual) delete next.dual;
+      else next.dual = true;
+      return next;
+    }));
+  };
+
+  /** A cue can sit beside the speech directly above it (a cue, then its lines). */
+  const canBeDual = (index: number): boolean => {
+    let k = index - 1;
+    while (k >= 0 && (lines[k].type === 'dialogue' || lines[k].type === 'parenthetical')) k -= 1;
+    return k >= 0 && k < index - 1 && lines[k].type === 'character' && !lines[k].dual;
   };
 
   const toggleParentheticalOnLine = (id: string) => {
@@ -889,72 +1073,93 @@ export const ScriptPanel: React.FC = () => {
       return;
     }
 
-    if (e.key === 'Tab') {
+    // Ctrl/⌘+D: dual dialogue on a cue (Final Draft's shortcut).
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd' && line.type === 'character') {
       e.preventDefault();
-      const order: ScriptElementType[] = ['scene', 'action', 'character', 'parenthetical', 'dialogue', 'transition'];
-      const currType = line.type || 'action';
-      const currIdx = order.indexOf(currType);
-      const validIdx = currIdx === -1 ? 1 : currIdx;
-      const step = e.shiftKey ? -1 : 1;
-      const nextType = order[(validIdx + step + order.length) % order.length];
-      changeLineType(line.id, nextType);
+      toggleDualDialogue(line.id);
       return;
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      
-      // Default Hollywood Progression:
-      // Scene Heading -> Action -> Character -> Parenthetical -> Dialogue -> Action
-      let nextType: ScriptElementType = 'action';
-      if (line.type === 'scene') {
-        nextType = 'action';
-      } else if (line.type === 'action') {
-        nextType = 'character';
-      } else if (line.type === 'character') {
-        nextType = 'parenthetical';
-      } else if (line.type === 'parenthetical') {
-        nextType = 'dialogue';
-      } else if (line.type === 'dialogue') {
-        nextType = 'action';
-      } else if (line.type === 'transition') {
-        nextType = 'scene';
-      }
+    // Final Draft's element flow (docs/typing-parity in ScriptCraft): Enter
+    // and Tab at the end of a line start the next element, in an empty line
+    // they change it, in the middle Enter splits and Tab changes it.
+    const type = (line.type || 'action') as ScriptElementType;
+    const input = e.currentTarget;
+    const caret = input.selectionStart ?? line.text.length;
+    const caretEnd = input.selectionEnd ?? caret;
+    const trimmed = line.text.trim();
+    const empty = !trimmed || trimmed === '()' || trimmed === '(delivery instructions)';
+    // Scene headings are composed from pickers and never split; a caret just
+    // before a parenthetical's closing ")" counts as its end.
+    const atEnd =
+      type === 'scene' ||
+      caret >= line.text.trimEnd().length ||
+      (type === 'parenthetical' && caret >= line.text.trimEnd().length - 1);
 
-      // If the user presses Enter on an empty line, allow natural shortcut conversions:
-      const trimmed = line.text.trim();
-      if (!trimmed || trimmed === '()' || trimmed === '(delivery instructions)') {
-        if (line.type === 'parenthetical') {
-          changeLineType(line.id, 'dialogue');
-          return;
-        } else if (line.type === 'character') {
-          changeLineType(line.id, 'action');
-          return;
-        } else if (line.type === 'action') {
-          changeLineType(line.id, 'scene');
-          return;
-        }
-      }
-
+    const insertAfter = (nextType: ScriptElementType, text = '') => {
       const newLineId = createId('sl');
       const newLine: ScriptLine = {
         id: newLineId,
         lineNumber: index + 2,
-        text: '',
+        text: nextType === 'parenthetical' && !text ? '()' : text,
         type: nextType,
         // A new heading arrives unnumbered: the numbering regime gives it 3A
         // when locked, or its position when not (domain/script/numbering.ts).
         sceneNumber: nextType === 'scene' ? undefined : line.sceneNumber,
         isSceneHeading: nextType === 'scene',
       };
+      setScriptLines([...lines.slice(0, index + 1), newLine, ...lines.slice(index + 1)]);
+      if (nextType === 'parenthetical' && !text) focusLine(newLineId, 1);
+      else if (text) focusLine(newLineId, 0);
+      else setActiveEditingLineId(newLineId);
+    };
 
-      const newLines = [...lines.slice(0, index + 1), newLine, ...lines.slice(index + 1)];
-      setScriptLines(newLines);
-      setActiveEditingLineId(newLineId);
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        changeLineType(line.id, SHIFT_TAB_CHANGES[type] ?? 'action');
+        return;
+      }
+      if (!empty && atEnd) insertAfter(TAB_NEW[type] ?? 'character');
+      else changeLineType(line.id, TAB_CHANGES[type] ?? 'character');
       return;
     }
 
-    if (e.key === 'Backspace' && !line.text) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (empty) {
+        const target = ENTER_EMPTY_CHANGES[type] ?? 'action';
+        setSuggest(null);
+        setElementMenu({ lineId: line.id, index: Math.max(0, ELEMENT_MENU.findIndex((entry) => entry.type === target)) });
+        return;
+      }
+      if (atEnd) {
+        insertAfter(ENTER_NEW[type] ?? 'action');
+        return;
+      }
+      if (caret === 0 && caretEnd === 0) {
+        // At the start: an empty line of the same kind above.
+        const newLine: ScriptLine = { id: createId('sl'), lineNumber: index + 1, text: '', type, sceneNumber: line.sceneNumber };
+        setScriptLines([...lines.slice(0, index), newLine, ...lines.slice(index)]);
+        focusLine(line.id, 0);
+        return;
+      }
+      // In the middle: split; the tail keeps the element.
+      const head = line.text.slice(0, caret).trimEnd();
+      const tail = line.text.slice(caretEnd).trimStart();
+      const newLineId = createId('sl');
+      const tailLine: ScriptLine = { id: newLineId, lineNumber: index + 2, text: tail, type, sceneNumber: line.sceneNumber };
+      setScriptLines([
+        ...lines.slice(0, index),
+        { ...line, text: type === 'parenthetical' ? formatParenthetical(head) : head },
+        type === 'parenthetical' ? { ...tailLine, text: formatParenthetical(tail) } : tailLine,
+        ...lines.slice(index + 1),
+      ]);
+      focusLine(newLineId, type === 'parenthetical' ? 1 : 0);
+      return;
+    }
+
+    if (e.key === 'Backspace' && (!line.text || (type === 'parenthetical' && line.text.trim() === '()' && caret <= 1))) {
       if (lines.length <= 1) return;
       e.preventDefault();
       const prevLine = lines[index - 1];
@@ -1113,7 +1318,7 @@ export const ScriptPanel: React.FC = () => {
               ref={fileRef}
               className="hidden"
               type="file"
-              accept=".txt,.fountain,.fdx,.spmd,text/plain,text/xml,application/xml"
+              accept=".txt,.fountain,.fdx,.spmd,.pdf,.docx,.celtx,.html,.htm,text/plain,text/xml,application/xml,application/pdf"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) loadScript(file);
@@ -1433,14 +1638,28 @@ export const ScriptPanel: React.FC = () => {
                   {lines.map((line, idx) => {
                     const style = ELEMENT_STYLES[line.type || 'action'];
                     const isSelected = activeEditingLineId === line.id;
+                    const pageLabel = idx > 0 ? pageStartMap.get(line.id) : undefined;
                     return (
+                      <React.Fragment key={line.id}>
+                      {/* Where the printed page turns: the same pages as the PDF,
+                          locked labels (12A) included. */}
+                      {pageLabel && (
+                        <div
+                          role="separator"
+                          aria-label={`Page ${pageLabel}`}
+                          className="flex items-center gap-2 py-1 text-[10px] font-sans font-semibold text-slate-500 select-none"
+                        >
+                          <span className="flex-1 border-t border-dashed border-slate-700" />
+                          <span>{pageLabel}.</span>
+                        </div>
+                      )}
                       <div
-                        key={line.id}
                         onClick={() => setActiveEditingLineId(line.id)}
                         onFocus={() => setActiveEditingLineId(line.id)}
+                        {...(dualSides.has(line.id) ? { title: `Dual dialogue — ${dualSides.get(line.id)} column` } : {})}
                         className={`group relative flex items-center gap-2 rounded px-2 py-0.5 transition-colors ${
                           isSelected ? 'bg-violet-950/40 ring-1 ring-violet-500/40' : 'hover:bg-slate-800/30'
-                        }`}
+                        } ${dualSides.get(line.id) === 'left' ? 'border-l-2 border-emerald-500/40' : dualSides.get(line.id) === 'right' ? 'border-l-2 border-emerald-300/70 ml-4' : ''}`}
                       >
                         <div className="w-16 flex-shrink-0 opacity-0 group-hover:opacity-80 transition-opacity">
                           <button
@@ -1505,6 +1724,7 @@ export const ScriptPanel: React.FC = () => {
                                 text={line.text || ''}
                                 autoFocus={isSelected}
                                 extraTimes={scriptTimesOfDay}
+                                locations={locationNames}
                                 onChange={(text) => updateLine(line.id, text)}
                                 onTyped={() => openSuggest(line.id, 'location')}
                                 onKeyDown={(e) => {
@@ -1595,6 +1815,33 @@ export const ScriptPanel: React.FC = () => {
                                   </option>
                                 ))}
                               </select>
+                              {autoContdIds.has(line.id) && (
+                                <span
+                                  className="shrink-0 text-[10px] font-bold text-emerald-300/50"
+                                  title="Printed automatically: the same character spoke last in this scene"
+                                >
+                                  (CONT'D)
+                                </span>
+                              )}
+                              {(line.dual || canBeDual(idx)) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleDualDialogue(line.id);
+                                  }}
+                                  aria-pressed={!!line.dual}
+                                  aria-label="Dual dialogue"
+                                  title="Dual dialogue: print this speech beside the one above (Ctrl+D)"
+                                  className={`shrink-0 text-[10px] font-bold px-1 rounded border ${
+                                    line.dual
+                                      ? 'border-emerald-400/70 bg-emerald-900/50 text-emerald-200'
+                                      : 'border-transparent text-emerald-300/40 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:border-emerald-500/40'
+                                  }`}
+                                >
+                                  ⇉ Dual
+                                </button>
+                              )}
                               {renderSuggestions(line)}
                             </div>
                           ) : (
@@ -1605,6 +1852,11 @@ export const ScriptPanel: React.FC = () => {
                               aria-label={line.type === 'dialogue' ? 'Dialogue' : line.type === 'transition' ? 'Transition' : line.type === 'shot' ? 'Shot' : 'Action'}
                               value={line.text}
                               onChange={(e) => {
+                                // "int. " at the start of an action line makes it a heading.
+                                if ((line.type || 'action') === 'action' && startsSceneHeading(e.target.value)) {
+                                  updateLine(line.id, e.target.value, 'scene');
+                                  return;
+                                }
                                 updateLine(line.id, e.target.value);
                                 if (LINE_PRESETS[line.type || 'action']) openSuggest(line.id, 'preset');
                               }}
@@ -1646,6 +1898,7 @@ export const ScriptPanel: React.FC = () => {
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
+                      </React.Fragment>
                     );
                   })}
                 </div>
@@ -1664,7 +1917,7 @@ export const ScriptPanel: React.FC = () => {
             const changed = lines.filter((line) => line.revisedIn !== undefined && line.revisedIn === revision.index).length;
             const locked = !!project.scriptPageLock;
             return (
-              <div className="px-2.5 py-1 border-b border-line flex items-center gap-2 text-[11px]">
+              <div className="px-2.5 py-1 border-b border-line flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
                 <span className="w-3.5 h-3.5 rounded-sm border border-line-strong" style={{ background: revision.hex }} aria-hidden />
                 <label className="flex items-center gap-1 font-semibold">
                   Revision
@@ -1681,14 +1934,54 @@ export const ScriptPanel: React.FC = () => {
                   </select>
                 </label>
                 {revision.index > 0 && <span className="text-ink-muted">{changed} line{changed === 1 ? '' : 's'} marked * in this revision</span>}
-                <span className="ml-auto text-ink-muted">
+                <label className="ml-auto flex items-center gap-1 font-semibold" title="The paper the screenplay is set on: US Letter holds 54 lines a page, A4 58. Page counts, eighths and the printed script follow it.">
+                  Paper
+                  <select
+                    value={pageLayout.paper}
+                    onChange={(event) => runCommand(setScreenplayLayoutCommand, { layout: { paper: event.target.value === 'a4' ? 'a4' : undefined } }, { domain: 'script' })}
+                    aria-label="Screenplay paper"
+                    className="rounded border border-line-strong bg-field text-ink px-1 py-0.5 text-[11px]"
+                  >
+                    <option value="letter">US Letter</option>
+                    <option value="a4">A4</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-1" title="Print (CONT'D) on a cue when the same character speaks again after action in the same scene, as Final Draft does.">
+                  <input
+                    type="checkbox"
+                    checked={pageLayout.autoContd}
+                    onChange={(event) => runCommand(setScreenplayLayoutCommand, { layout: { autoContd: event.target.checked ? undefined : false } }, { domain: 'script' })}
+                  />
+                  Auto (CONT'D)
+                </label>
+                <label className="flex items-center gap-1" title="Print (CONTINUED) at the foot of a page and CONTINUED: at the top of the next where a scene runs over, as production drafts do.">
+                  <input
+                    type="checkbox"
+                    checked={pageLayout.sceneContinued}
+                    onChange={(event) => runCommand(setScreenplayLayoutCommand, { layout: { sceneContinued: event.target.checked || undefined } }, { domain: 'script' })}
+                  />
+                  CONTINUED
+                </label>
+                <label className="flex items-center gap-1 font-semibold" title="Multi-camera (sitcom) format: dialogue double-spaced, action in capitals, every scene on a new page — page counts and eighths follow it.">
+                  Format
+                  <select
+                    value={pageLayout.multicam ? 'multicam' : 'feature'}
+                    onChange={(event) => runCommand(setScreenplayLayoutCommand, { layout: { format: event.target.value === 'multicam' ? 'multicam' : undefined } }, { domain: 'script' })}
+                    aria-label="Screenplay format"
+                    className="rounded border border-line-strong bg-field text-ink px-1 py-0.5 text-[11px]"
+                  >
+                    <option value="feature">Feature / single-cam</option>
+                    <option value="multicam">Multi-camera</option>
+                  </select>
+                </label>
+                <span className="text-ink-muted">
                   {locked
                     ? `Pages locked${pageInfo.addedPages ? ` · ${pageInfo.addedPages} A-page${pageInfo.addedPages === 1 ? '' : 's'}` : ''}${pageInfo.omitted.length ? ` · p. ${pageInfo.omitted.join(', ')} omitted` : ''}`
                     : `${pageInfo.starts.length} page${pageInfo.starts.length === 1 ? '' : 's'}`}
                 </span>
                 <button
                   type="button"
-                  onClick={() => runCommand(setScriptPageLockCommand, { lock: locked ? undefined : lockPages(lines) }, { domain: 'script' })}
+                  onClick={() => runCommand(setScriptPageLockCommand, { lock: locked ? undefined : lockPages(lines, pageLayout) }, { domain: 'script' })}
                   title={locked ? 'Unlock pages: number pages freshly again' : 'Lock pages: keep every page number from now on; new text goes onto A-pages'}
                   aria-pressed={locked}
                   className={`px-2 py-0.5 rounded border text-[11px] font-semibold ${locked ? 'bg-accent text-white border-transparent' : 'border-line-strong hover:bg-surface-hover'}`}
@@ -1747,7 +2040,7 @@ export const ScriptPanel: React.FC = () => {
                 <FileText className="w-10 h-10 mx-auto mb-3 text-slate-500" />
                 <p className="text-sm font-bold text-slate-200">No Screenplay Loaded</p>
                 <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 mb-4">
-                  Import an existing screenplay (.fountain, .fdx, .txt) or write scenes directly. It will be rendered in Hollywood format for visual coverage lining.
+                  Import an existing screenplay (PDF, Final Draft, Fountain, Word, Celtx or plain text) or write scenes directly. It will be rendered in Hollywood format for visual coverage lining.
                 </p>
                 <div className="flex items-center justify-center gap-2 flex-wrap">
                   <button
@@ -1791,6 +2084,7 @@ export const ScriptPanel: React.FC = () => {
                   revisionIndex={currentRevisionColor(project).index}
                   pageStarts={pageStartMap}
                   scenePageEighths={scenePageEighths}
+                  contdLineIds={autoContdIds}
                   onLinePointerDown={handleLinePointerDown}
                   onSelectMark={(mark) => {
                     const owner = setupIdForMark(mark.id);
@@ -2057,6 +2351,8 @@ export const ScriptPanel: React.FC = () => {
                     </li>
                   ))}
               </ul>
+              <h3 className="mt-4 mb-1.5 text-[11px] font-black uppercase tracking-wider opacity-70">Line by line</h3>
+              <DraftDiffList comparison={pendingRevision.lineDiff} />
             </div>
             <div className="p-4 border-t border-inherit flex justify-end gap-2">
               <button onClick={() => setPendingRevision(null)} className={headerButton}>Cancel</button>

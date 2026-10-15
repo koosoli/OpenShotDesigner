@@ -23,12 +23,14 @@ import type { AVScriptRow, LightElement, Project, SceneSetup, ScriptLine, Shot }
 import { bytesToBlob, downloadBlob } from '../download';
 import { resolvePdfImageBytes, resolvePdfRasterBytes } from './imageBytes';
 import { currentRevisionColor } from '../../domain/script/revisionColors';
-import { pageLabels } from '../../domain/script/pageLock';
 import { shotListStoryboards } from './shotListBoards';
 
 export { resolvePdfImageBytes } from './imageBytes';
 import {
   attachBreakdownItemsToScenes,
+  characterScriptStats,
+  pageLabels,
+  screenplayLayoutOptions,
 } from '../../domain/script';
 import { deriveScriptBreakdown } from '../../domain/script/logic';
 import {
@@ -286,21 +288,18 @@ export const renderSectionPdf = async (
       const bytes = await createLinedScriptPdf({
         productionTitle: title,
         lines: ctx.scriptLines.map((line) => ({
+          id: line.id,
           type: line.type ?? '',
           text: line.text,
           ...(line.sceneNumber ? { sceneNumber: line.sceneNumber } : {}),
           ...(line.omitted ? { omitted: true } : {}),
+          ...(line.dual ? { dual: true } : {}),
           ...(line.revisedIn !== undefined && line.revisedIn === revision.index && revision.index > 0 ? { revised: true } : {}),
         })),
         subtitle: `${revision.label} draft${revision.index > 0 ? ' · * marks changed lines' : ''}`,
         // Locked pages print with their locked numbers and A-pages.
-        ...(project.scriptPageLock ? {
-          pageStarts: (() => {
-            const labels = pageLabels(ctx.scriptLines, project.scriptPageLock);
-            const indexOf = new Map(ctx.scriptLines.map((line, index) => [line.id, index] as const));
-            return labels.starts.flatMap((start) => (indexOf.has(start.lineId) ? [{ lineIndex: indexOf.get(start.lineId)!, label: start.label }] : []));
-          })(),
-        } : {}),
+        ...(project.scriptPageLock ? { pageLock: project.scriptPageLock } : {}),
+        ...(project.screenplayLayout ? { layout: project.screenplayLayout } : {}),
         // The print studio shows the cover when the production asked for
         // one; the PDF carries the same cover on its own first page.
         titlePage: project.titlePage,
@@ -329,14 +328,17 @@ export const renderSectionPdf = async (
       const bytes = await createSidesPdf({
         productionTitle: title,
         scenes,
+        autoContd: screenplayLayoutOptions(project.screenplayLayout).autoContd,
         ...(ctx.sidesCharacter ? { characterFilter: ctx.sidesCharacter } : {}),
         ...logo,
       });
       return renderedPdf(bytes, buildSidesPdfFilename({ productionTitle: title }));
     }
     case 'scriptreports': {
-      const derived = deriveScriptBreakdown(ctx.scriptLines, project.characters ?? [], project.locations ?? []);
+      const derived = deriveScriptBreakdown(ctx.scriptLines, project.characters ?? [], project.locations ?? [], screenplayLayoutOptions(project.screenplayLayout));
       const scenes = attachBreakdownItemsToScenes(derived.scenes, ctx.scriptLines, project.breakdownItems ?? []);
+      // Printed page labels ("12A" once pages are locked) for both reports.
+      const printedPages = pageLabels(ctx.scriptLines, project.scriptPageLock, screenplayLayoutOptions(project.screenplayLayout)).byLine;
       const characterReports = derived.characters
         .map((character) =>
           deriveCharacterReport(character.id, {
@@ -360,8 +362,11 @@ export const renderSectionPdf = async (
       const doodMapped = doodPdfFromDood(dood);
       const bytes = await createScriptReportsPdf({
         productionTitle: title,
-        scenes: scriptReportScenesFromScenes(scenes, derived.characters, project.breakdownItems ?? []),
-        characters: scriptReportCharactersFromReports(characterReports),
+        scenes: scriptReportScenesFromScenes(scenes, derived.characters, project.breakdownItems ?? [], printedPages),
+        characters: scriptReportCharactersFromReports(
+          characterReports,
+          characterScriptStats(ctx.scriptLines, derived.characters, scenes, printedPages),
+        ),
         locations: scriptReportLocationsFromBreakdown(derived.locations),
         elements: scriptReportElementsFromItems(project.breakdownItems ?? [], scenes),
         doodColumns: doodMapped.columns,

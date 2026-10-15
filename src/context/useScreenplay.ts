@@ -11,7 +11,7 @@ import type { Project, ScriptLine } from '../types';
 import type { ScreenplayTitlePage } from '../domain/script';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
-import { pruneBreakdownScriptLines } from '../domain/script';
+import { pruneBreakdownScriptLines, screenplayLayoutOptions } from '../domain/script';
 
 export const useScreenplay = (input: {
   project: Project;
@@ -70,12 +70,14 @@ export const useScreenplay = (input: {
       // character ids that existed nowhere else — so `castAssignments`, which
       // key on the persisted character ids, matched nothing and a scheduled
       // scene produced a call sheet with an empty cast table.
+      const layout = screenplayLayoutOptions(prev.screenplayLayout);
       const oldScenes = deriveScriptBreakdown(
         prev.scriptLines || [],
         prev.characters || [],
         prev.locations || [],
+        layout,
       ).scenes;
-      const derived = deriveScriptBreakdown(numbered, prev.characters || [], prev.locations || []);
+      const derived = deriveScriptBreakdown(numbered, prev.characters || [], prev.locations || [], layout);
       const newScenes = derived.scenes;
       // A scene counts as "live" only when its heading exists AND is not
       // flagged OMITTED — omitted scenes keep their number but are not shootable.
@@ -203,6 +205,7 @@ export const useScreenplay = (input: {
         prev.scriptLines || [],
         prev.characters || [],
         prev.locations || [],
+        screenplayLayoutOptions(prev.screenplayLayout),
       );
       // Nothing to persist for a screenplay with no cues in it; returning `prev`
       // keeps this effect from looping on projects that will never have any.

@@ -119,6 +119,35 @@ export const setScriptPageLockCommand = (project: Project, input: SetScriptPageL
   },
 });
 
+export interface SetScreenplayLayoutInput {
+  /** Merged into the current settings; a field set to undefined goes back to its default. */
+  layout: Partial<NonNullable<Project['screenplayLayout']>>;
+}
+
+/** Paper and automatic (CONT'D) for the screenplay's pages. */
+export const setScreenplayLayoutCommand = (project: Project, input: SetScreenplayLayoutInput): CommandResult => {
+  const merged = { ...(project.screenplayLayout ?? {}), ...input.layout };
+  const layout: NonNullable<Project['screenplayLayout']> = {};
+  if (merged.paper === 'a4') layout.paper = 'a4';
+  if (merged.autoContd === false) layout.autoContd = false;
+  if (merged.format === 'multicam') layout.format = 'multicam';
+  if (merged.sceneContinued === true) layout.sceneContinued = true;
+  return {
+    project: { ...project, screenplayLayout: Object.keys(layout).length > 0 ? layout : undefined },
+    meta: {
+      type: 'setScreenplayLayout',
+      timestamp: commandTimestamp(),
+      description: 'paper' in input.layout
+        ? `Set screenplay paper to ${input.layout.paper === 'a4' ? 'A4' : 'US Letter'}`
+        : 'format' in input.layout
+          ? `Set screenplay format to ${input.layout.format === 'multicam' ? 'multi-camera' : 'feature'}`
+          : 'sceneContinued' in input.layout
+            ? `Turn scene CONTINUED marks ${merged.sceneContinued ? 'on' : 'off'}`
+            : `Turn automatic (CONT'D) ${merged.autoContd === false ? 'off' : 'on'}`,
+    },
+  };
+};
+
 export interface UpdatePerformerTimeReportInput {
   dayId: string;
   update: (report: PerformerTimeReport) => PerformerTimeReport;

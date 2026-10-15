@@ -11,12 +11,15 @@ import type { Location } from '../locations';
 import type { Character } from './types';
 import { deriveScriptBreakdown } from './logic';
 import type { ScriptBreakdown, ScriptBreakdownLine } from './logic';
+import { screenplayLayoutOptions } from './pagination';
+import type { ScreenplayLayout } from './pagination';
 
 const NONE: readonly never[] = [];
 
 interface Entry {
   characters: readonly Character[];
   locations: readonly Location[];
+  layoutKey: string;
   result: ScriptBreakdown;
 }
 
@@ -26,12 +29,15 @@ export const cachedScriptBreakdown = (
   lines: readonly ScriptBreakdownLine[],
   characters?: readonly Character[],
   locations?: readonly Location[],
+  layout?: ScreenplayLayout,
 ): ScriptBreakdown => {
   const chars = characters ?? NONE;
   const locs = locations ?? NONE;
+  const options = screenplayLayoutOptions(layout);
+  const layoutKey = `${options.paper}:${options.autoContd}:${options.multicam}:${options.sceneContinued}`;
   const hit = cache.get(lines);
-  if (hit && hit.characters === chars && hit.locations === locs) return hit.result;
-  const result = deriveScriptBreakdown([...lines], [...chars], [...locs]);
-  cache.set(lines, { characters: chars, locations: locs, result });
+  if (hit && hit.characters === chars && hit.locations === locs && hit.layoutKey === layoutKey) return hit.result;
+  const result = deriveScriptBreakdown([...lines], [...chars], [...locs], options);
+  cache.set(lines, { characters: chars, locations: locs, layoutKey, result });
   return result;
 };

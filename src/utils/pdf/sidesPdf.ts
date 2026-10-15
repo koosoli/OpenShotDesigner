@@ -4,10 +4,9 @@
  * Printable data model (mirrors `ScriptSidesPrintView` and the `ScriptSides`
  * domain from `src/domain/script/sides.ts`, flattened so the PDF layer stays
  * React-free):
- * - One block per scene in shooting order: scene header, screenplay lines in
- *   monospace flow with the print view's Courier column layout (character at
- *   column 22, dialogue at 10, parenthetical at 16, transitions right), and a
- *   cast line. Omitted scenes print their `SCENE n — OMITTED` slug only.
+ * - Every scene in shooting order, set in 10pt Courier on the screenplay's
+ *   columns and page rules (see `createSidesPdf`), each followed by a cast
+ *   line. Omitted scenes print their `SCENE n — OMITTED` slug only.
  * - Optional character filter: keeps the scenes where the character has a cue
  *   (mirrors `buildScriptSides`), and names the file after them.
  *
@@ -22,12 +21,11 @@ import {
   embedProductionLogoPng,
   finalizePdfDocument,
 } from './document';
-import type { PdfDocumentContext, PdfOrientation, PdfPageSize } from './document';
+import type { PdfOrientation, PdfPageSize } from './document';
 import { buildPdfFilename } from './filenames';
-import { wrapPdfCellText } from './tables';
 import { sanitizePdfText } from './text';
-import { rgb } from 'pdf-lib';
-import type { PDFPage } from 'pdf-lib';
+import { paginateScreenplay } from '../../domain/script/pagination';
+import { StandardFonts, rgb } from 'pdf-lib';
 
 const HIGHLIGHT = rgb(1, 0.93, 0.45);
 
@@ -35,6 +33,8 @@ const HIGHLIGHT = rgb(1, 0.93, 0.45);
 export interface SidesPdfLine {
   type?: string;
   text: string;
+  /** On a character cue: dual dialogue, beside the speech above. */
+  dual?: boolean;
 }
 
 /** One scene block in the sides, mirroring `SidesScene`. */
@@ -71,6 +71,8 @@ export interface SidesPdfInput {
   confidentialityLine?: string;
   /** Raw PNG bytes for the production logo; corrupt bytes print logo-less. */
   logoPngBytes?: Uint8Array;
+  /** Automatic (CONT'D) on a repeated speaker, as the project sets it. Default on. */
+  autoContd?: boolean;
 }
 
 export interface SidesPdfFilenameInput {
@@ -95,6 +97,7 @@ export interface SidesPdfSourceLine {
   text: string;
   sceneNumber?: string;
   omitted?: boolean;
+  dual?: boolean;
 }
 
 export interface SidesPdfMapperOptions {
@@ -176,117 +179,36 @@ export const sidesPdfScenesFromLines = (
       omitted,
       lines: omitted
         ? [{ type: 'scene', text: `SCENE ${sceneNumber} — OMITTED` }]
-        : chunk.lines.map((line) => ({ type: line.type, text: line.text })),
+        : chunk.lines.map((line) => ({ type: line.type, text: line.text, ...(line.dual ? { dual: true } : {}) })),
       characters,
     });
   }
   return { scenes, missingSceneIds };
 };
 
-interface PageCursor {
-  page: PDFPage;
-  cursorY: number;
-}
+/** Sides are set in 10pt Courier: 60 columns are 5", leaving room for scene numbers. */
+const SIDES_SIZE = 10;
+const SIDES_COLUMN = SIDES_SIZE * 0.6;
+const SIDES_LINE = 11.5;
 
-/** Courier column grid from the print view: 60 columns, offsets in characters. */
-const FLOW_LAYOUT: Record<string, { left: number; width: number; size: number; bold: boolean; upper: boolean }> = {
-  scene: { left: 0, width: 60, size: 10, bold: true, upper: true },
-  action: { left: 0, width: 60, size: 9, bold: false, upper: false },
-  character: { left: 22, width: 38, size: 9.5, bold: true, upper: true },
-  parenthetical: { left: 16, width: 25, size: 8.5, bold: false, upper: false },
-  dialogue: { left: 10, width: 35, size: 9, bold: false, upper: false },
-  transition: { left: 40, width: 20, size: 9, bold: false, upper: true },
-  shot: { left: 0, width: 60, size: 9, bold: true, upper: true },
-  note: { left: 0, width: 60, size: 8.5, bold: false, upper: false },
+/** Type style per element; the columns come from the shared screenplay layout. */
+const STYLE: Record<string, { bold: boolean; upper: boolean }> = {
+  scene: { bold: true, upper: true },
+  character: { bold: false, upper: true },
+  transition: { bold: false, upper: true },
+  shot: { bold: true, upper: true },
 };
 
-const FLOW_LINE_HEIGHT_FACTOR = 1.35;
-const SCENE_TITLE_SIZE = 8.5;
-
-/** New page when fewer than `needed` points remain above the footer zone. */
-const ensureSpace = (ctx: PdfDocumentContext, cursor: PageCursor, needed: number): PageCursor => {
-  if (cursor.cursorY - needed < ctx.margins.bottom) {
-    const page = addPdfPage(ctx);
-    return { page, cursorY: ctx.contentTop };
-  }
-  return cursor;
-};
-
-/** One wrapped flow line; kept in single drawText calls so text stays searchable. */
-const drawFlowLine = (
-  ctx: PdfDocumentContext,
-  cursor: PageCursor,
-  text: string,
-  leftChars: number,
-  widthChars: number,
-  size: number,
-  bold: boolean,
-  highlight = false,
-): PageCursor => {
-  const x = ctx.margins.left + (leftChars / 60) * ctx.contentWidth;
-  const maxWidth = (widthChars / 60) * ctx.contentWidth;
-  const font = bold ? ctx.bold : ctx.regular;
-  const lines = wrapPdfCellText(font, text, maxWidth, size);
-  const lineHeight = size * FLOW_LINE_HEIGHT_FACTOR;
-  const placed = ensureSpace(ctx, cursor, lines.length * lineHeight);
-  lines.forEach((line, index) => {
-    if (highlight) {
-      placed.page.drawRectangle({
-        x: x - 1.5,
-        y: placed.cursorY - lineHeight * (index + 1) + 1,
-        width: font.widthOfTextAtSize(line, size) + 3,
-        height: lineHeight - 0.5,
-        color: HIGHLIGHT,
-      });
-    }
-    placed.page.drawText(line, {
-      x,
-      y: placed.cursorY - lineHeight * (index + 1) + 3,
-      size,
-      font,
-    });
-  });
-  return { page: placed.page, cursorY: placed.cursorY - lines.length * lineHeight };
-};
-
-const layoutFor = (type: string | undefined): { left: number; width: number; size: number; bold: boolean; upper: boolean } =>
-  FLOW_LAYOUT[type ?? 'action'] ?? FLOW_LAYOUT.action;
-
-const drawSceneBlock = (ctx: PdfDocumentContext, cursor: PageCursor, scene: SidesPdfScene, highlight?: string): PageCursor => {
-  // Scene band: number, heading cue and cast stay on one page with the first line.
-  let placed = ensureSpace(ctx, cursor, 64);
-  const band = scene.omitted
-    ? `SCENE ${scene.sceneNumber} — OMITTED`
-    : `SCENE ${scene.sceneNumber}`;
-  placed.page.drawText(sanitizePdfText(band), {
-    x: ctx.margins.left,
-    y: placed.cursorY - SCENE_TITLE_SIZE,
-    size: SCENE_TITLE_SIZE,
-    font: ctx.bold,
-  });
-  placed = { page: placed.page, cursorY: placed.cursorY - SCENE_TITLE_SIZE - 5 };
-
-  // A speech is the cue plus the parentheticals and dialogue under it.
-  let inHighlightedSpeech = false;
-  for (const line of scene.lines) {
-    if (line.type === 'character') inHighlightedSpeech = !!highlight && canonicalCueName(line.text) === highlight;
-    else if (line.type !== 'dialogue' && line.type !== 'parenthetical') inHighlightedSpeech = false;
-    const layout = layoutFor(line.type);
-    const text = layout.upper ? line.text.toUpperCase() : line.text;
-    // Small gap before cues and sluglines, none inside a speech.
-    const gap = line.type === 'character' || line.type === 'scene' ? 5 : 2;
-    placed = { page: placed.page, cursorY: placed.cursorY - gap };
-    placed = drawFlowLine(ctx, placed, text, layout.left, layout.width, layout.size, layout.bold, inHighlightedSpeech);
-  }
-
-  if (scene.characters.length > 0 && !scene.omitted) {
-    placed = { page: placed.page, cursorY: placed.cursorY - 3 };
-    placed = drawFlowLine(ctx, placed, `Cast: ${scene.characters.join(', ')}`, 0, 60, 8, false);
-  }
-  return { page: placed.page, cursorY: placed.cursorY - 10 };
-};
-
-/** Render the script sides and return the finished PDF bytes. */
+/**
+ * Render the script sides and return the finished PDF bytes.
+ *
+ * The scenes are laid out by the same rules as the screenplay
+ * (domain/script/pagination), on the sides' compact page: a speech that runs
+ * over a page gets (MORE) and its cue again as (CONT'D), dual dialogue sits
+ * side by side, a repeated speaker gets (CONT'D), and headings and cues are
+ * never stranded at the foot of a page. The highlighted performer's cues and
+ * speeches are marked the way an actor marks their sides.
+ */
 export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> => {
   const ctx = await createPdfDocument({
     title: `Sides - ${input.productionTitle}`,
@@ -298,44 +220,100 @@ export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> 
     draft: input.draft ?? input.isDraft ?? false,
     confidentialityLine: input.confidentialityLine,
   });
+  const fonts = {
+    regular: await ctx.doc.embedFont(StandardFonts.Courier),
+    bold: await ctx.doc.embedFont(StandardFonts.CourierBold),
+  };
   const logo = await embedProductionLogoPng(ctx.doc, input.logoPngBytes);
-  const page = addPdfPage(ctx);
+  const firstPage = addPdfPage(ctx);
   const subtitle =
     input.subtitle ??
     (input.characterFilter ? `Sides for ${input.characterFilter}` : `${input.scenes.length} scene${input.scenes.length === 1 ? '' : 's'}`);
-  const headerY = drawDocumentHeader(ctx, page, ctx.contentTop, {
+  const headerY = drawDocumentHeader(ctx, firstPage, ctx.contentTop, {
     productionTitle: input.productionTitle,
     documentTitle: 'Script Sides',
     subtitle,
     logo,
   });
-  let cursor: PageCursor = { page, cursorY: headerY };
 
   if (input.scenes.length === 0) {
-    cursor.page.drawText(
+    firstPage.drawText(
       sanitizePdfText(
         input.characterFilter
           ? `No scenes selected for these sides (no scenes with dialogue for ${input.characterFilter}).`
           : 'No scenes selected for these sides.',
       ),
-      { x: ctx.margins.left, y: cursor.cursorY - 12, size: 10, font: ctx.regular },
+      { x: ctx.margins.left, y: headerY - 12, size: 10, font: ctx.regular },
     );
-  } else {
-    const highlight = input.highlightCharacter === null ? undefined : input.highlightCharacter ?? input.characterFilter;
-    const highlightName = highlight ? canonicalCueName(highlight) : undefined;
-    for (const scene of input.scenes) {
-      cursor = drawSceneBlock(ctx, cursor, scene, highlightName);
+    return finalizePdfDocument(ctx);
+  }
+
+  // One script: every scene in shooting order, its cast under it.
+  const lines: Array<{ id: string; type?: string; text: string; omitted?: boolean; dual?: boolean; sceneNumber?: string; cast?: boolean }> = [];
+  input.scenes.forEach((scene, sceneIndex) => {
+    if (scene.omitted) {
+      lines.push({ id: `s${sceneIndex}`, type: 'scene', text: scene.heading, omitted: true, sceneNumber: scene.sceneNumber });
+      return;
     }
-    if ((input.missingSceneIds ?? []).length > 0) {
-      const note = `${(input.missingSceneIds ?? []).length} requested scene(s) no longer exist in the script.`;
-      cursor = ensureSpace(ctx, cursor, 20);
-      cursor.page.drawText(sanitizePdfText(note), {
-        x: ctx.margins.left,
-        y: cursor.cursorY - 10,
-        size: 8.5,
-        font: ctx.regular,
+    scene.lines.forEach((line, index) => {
+      lines.push({
+        id: `s${sceneIndex}-${index}`,
+        text: line.text,
+        ...(line.type ? { type: line.type } : {}),
+        ...(line.dual ? { dual: true } : {}),
+        ...(line.type === 'scene' ? { sceneNumber: scene.sceneNumber } : {}),
       });
+    });
+    if (scene.characters.length > 0) lines.push({ id: `s${sceneIndex}-cast`, type: 'action', text: `Cast: ${scene.characters.join(', ')}`, cast: true });
+  });
+
+  // The speeches the highlighted performer speaks: their cue and what follows it.
+  const highlight = input.highlightCharacter === null ? undefined : input.highlightCharacter ?? input.characterFilter;
+  const highlightName = highlight ? canonicalCueName(highlight) : undefined;
+  const highlighted = new Set<number>();
+  let speaking = false;
+  lines.forEach((line, index) => {
+    if (line.type === 'character') speaking = !!highlightName && canonicalCueName(line.text) === highlightName;
+    else if (line.type !== 'dialogue' && line.type !== 'parenthetical') speaking = false;
+    if (speaking) highlighted.add(index);
+  });
+
+  // The first page holds the title block: a blank paragraph fills its room.
+  const left = ctx.margins.left + 18;
+  const bodyTop = ctx.contentTop;
+  const rowsPerPage = Math.floor((bodyTop - ctx.margins.bottom) / SIDES_LINE);
+  const titleRows = Math.max(1, Math.ceil((bodyTop - headerY) / SIDES_LINE));
+  const spacer = { id: 'title-block', type: 'action', text: Array.from({ length: titleRows }, () => '').join('\n') };
+  const { pages } = paginateScreenplay([spacer, ...lines], { rowsPerPage, autoContd: input.autoContd !== false });
+
+  pages.forEach((laid, pageIndex) => {
+    const page = pageIndex === 0 ? firstPage : addPdfPage(ctx);
+    for (const line of laid.lines) {
+      if (line.index === 0) continue;
+      const source = lines[line.index - 1];
+      const style = STYLE[line.type] ?? { bold: false, upper: false };
+      const text = sanitizePdfText(`${line.kind === 'body' && style.upper ? line.text.toUpperCase() : line.text}${line.suffix ?? ''}`);
+      if (!text) continue;
+      const marked = highlighted.has(line.index - 1) && line.kind !== 'more';
+      const bold = line.kind === 'omitted' || (line.kind === 'body' && style.bold) || (line.type === 'character' && marked);
+      const font = source?.cast ? ctx.regular : bold ? fonts.bold : fonts.regular;
+      const size = source?.cast ? 8.5 : SIDES_SIZE;
+      const x = left + line.col * SIDES_COLUMN;
+      const y = bodyTop - SIDES_LINE * (line.row + 1) + 3;
+      if (marked) {
+        page.drawRectangle({ x: x - 1.5, y: y - 2.5, width: font.widthOfTextAtSize(text, size) + 3, height: SIDES_LINE - 0.5, color: HIGHLIGHT });
+      }
+      page.drawText(text, { x, y, size, font });
+      if (line.first && line.type === 'scene' && source?.sceneNumber) {
+        page.drawText(sanitizePdfText(source.sceneNumber), { x: ctx.margins.left - 4, y, size: SIDES_SIZE, font: fonts.bold });
+      }
     }
+  });
+
+  if ((input.missingSceneIds ?? []).length > 0) {
+    const last = ctx.doc.getPage(ctx.doc.getPageCount() - 1);
+    const note = `${(input.missingSceneIds ?? []).length} requested scene(s) no longer exist in the script.`;
+    last.drawText(sanitizePdfText(note), { x: ctx.margins.left, y: ctx.margins.bottom + 4, size: 8.5, font: ctx.regular });
   }
   return finalizePdfDocument(ctx);
 };

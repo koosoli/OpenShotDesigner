@@ -812,6 +812,20 @@ export interface ScriptLine {
    * is current. Absent = unchanged since the original draft.
    */
   revisedIn?: number;
+  /**
+   * v36: on a character cue, this speech is set beside the one before it
+   * (dual dialogue). Fountain marks it with a trailing ^, Final Draft with a
+   * DualDialogue block.
+   */
+  dual?: boolean;
+  /**
+   * v36: on a scene heading, the scene's one-line summary (Final Draft index
+   * card summary, Fountain `= synopsis`). Feeds the one-liner, the stripboard
+   * and the breakdown sheets.
+   */
+  synopsis?: string;
+  /** v36: on a scene heading, its index-card colour (hex), from Final Draft. */
+  sceneColor?: string;
 }
 
 /**
@@ -1148,6 +1162,13 @@ export interface Project {
    * pages are locked: numbers stay put and new text goes onto A-pages.
    */
   scriptPageLock?: Record<string, number>;
+  /**
+   * v36: how the screenplay is set on the page — paper (US Letter, 54 lines,
+   * or A4, 58) and automatic (CONT'D) on a cue whose character spoke last.
+   * Absent = Letter with automatic (CONT'D), the Final Draft default. Every
+   * page figure (eighths, locked pages, the printed script) follows it.
+   */
+  screenplayLayout?: import('../domain/script').ScreenplayLayout;
   /** v34: SAG-AFTRA Exhibit G performer time sheets, one per production day. */
   performerTimeReports?: import('../domain/reports').PerformerTimeReport[];
   /** v35: hand-written part of each day's production report (delays, accidents, notes). */

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { pageLabels } from '../../domain/script/pageLock';
 import { RotateCcw } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { estimateScenePageEighths, parsePageEighths } from '../../domain/script';
+import { SCREENPLAY_ROWS, estimateScenePageEighths, parsePageEighths, screenplayLayoutOptions } from '../../domain/script';
 import type { Character, ScriptScene } from '../../domain/script';
 import { formatPageEighths } from '../../domain/reports';
 import type { ScriptLine } from '../../types';
@@ -21,16 +21,22 @@ const INT_EXT_LABEL: Record<string, string> = { INT: 'INT', EXT: 'EXT', INT_EXT:
  * script; type over it to set your own (a scene that plays longer than it
  * reads, a montage on a quarter page), and the reset arrow goes back to the
  * measurement.
+ *
+ * The summary is the scene's index card (imported from Final Draft or a
+ * Fountain `=` line, or written here). It lives on the heading line and feeds
+ * the one-liner, the stripboard and the breakdown sheets.
  */
 export const SceneListReport: React.FC<SceneListReportProps> = ({ lines, scenes, characters, isLight: _isLight }) => {
   const { setScriptLines, project } = useFloorPlan();
-  const pageOf = useMemo(() => pageLabels(lines, project.scriptPageLock).byLine, [lines, project.scriptPageLock]);
+  const layout = useMemo(() => screenplayLayoutOptions(project.screenplayLayout), [project.screenplayLayout]);
+  const pageOf = useMemo(() => pageLabels(lines, project.scriptPageLock, layout).byLine, [lines, project.scriptPageLock, layout]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [summaryDrafts, setSummaryDrafts] = useState<Record<string, string>>({});
 
   // The measurement with every override ignored, so a reset shows what it returns to.
   const measured = useMemo(
-    () => estimateScenePageEighths(lines.map((line) => ({ ...line, pageEighthsOverride: undefined }))),
-    [lines],
+    () => estimateScenePageEighths(lines.map((line) => ({ ...line, pageEighthsOverride: undefined })), layout),
+    [lines, layout],
   );
   const overrideById = useMemo(
     () => new Map(lines.filter((line) => line.pageEighthsOverride !== undefined).map((line) => [line.id, line.pageEighthsOverride!] as const)),
@@ -43,6 +49,26 @@ export const SceneListReport: React.FC<SceneListReportProps> = ({ lines, scenes,
       const next = { ...line };
       if (eighths === undefined) delete next.pageEighthsOverride;
       else next.pageEighthsOverride = eighths;
+      return next;
+    }));
+  };
+
+  const commitSummary = (sceneId: string) => {
+    const raw = summaryDrafts[sceneId];
+    setSummaryDrafts((prev) => {
+      const next = { ...prev };
+      delete next[sceneId];
+      return next;
+    });
+    if (raw === undefined) return;
+    const text = raw.replace(/\s+/g, ' ').trim();
+    const heading = lines.find((line) => line.id === sceneId);
+    if (!heading || (heading.synopsis ?? '') === text) return;
+    setScriptLines(lines.map((line) => {
+      if (line.id !== sceneId) return line;
+      const next = { ...line };
+      if (text) next.synopsis = text;
+      else delete next.synopsis;
       return next;
     }));
   };
@@ -77,7 +103,7 @@ export const SceneListReport: React.FC<SceneListReportProps> = ({ lines, scenes,
         <div>
           <h3 className="text-sm font-bold">Scene list · page count</h3>
           <p className={`text-[11px] ${muted}`}>
-            Lengths are measured in eighths of a page from a standard 55-line Courier page. Type a length (2 3/8, 3/8, 1.5) to override one.
+            Lengths are measured in eighths of a page on the printed screenplay ({layout.paper === 'a4' ? 'A4' : 'US Letter'}, {SCREENPLAY_ROWS[layout.paper]} Courier lines a page). Type a length (2 3/8, 3/8, 1.5) to override one.
           </p>
         </div>
         <div className="text-right">
@@ -92,6 +118,7 @@ export const SceneListReport: React.FC<SceneListReportProps> = ({ lines, scenes,
               <th className="px-2 py-1.5">Sc</th>
               <th className="px-2 py-1.5">I/E</th>
               <th className="px-2 py-1.5">Heading</th>
+              <th className="px-2 py-1.5">Summary</th>
               <th className="px-2 py-1.5">D/N</th>
               <th className="px-2 py-1.5">Story day</th>
               <th className="px-2 py-1.5">Page</th>
@@ -106,9 +133,41 @@ export const SceneListReport: React.FC<SceneListReportProps> = ({ lines, scenes,
               const cast = scene.characterIds.map(nameOf).filter(Boolean).join(', ');
               return (
                 <tr key={scene.id} className={`border-t ${border} ${scene.omitted ? 'opacity-50' : ''}`}>
-                  <td className="px-2 py-1.5 font-mono font-bold text-violet-400">{scene.sceneNumber}</td>
+                  <td className="px-2 py-1.5 font-mono font-bold text-violet-400">
+                    <span className="inline-flex items-center gap-1">
+                      {scene.color && (
+                        <span
+                          aria-hidden
+                          title="Index card colour"
+                          className="inline-block w-2 h-2 rounded-full border border-line-strong"
+                          style={{ background: scene.color }}
+                        />
+                      )}
+                      {scene.sceneNumber}
+                    </span>
+                  </td>
                   <td className="px-2 py-1.5 font-mono">{INT_EXT_LABEL[scene.intExt ?? 'OTHER']}</td>
                   <td className={`px-2 py-1.5 ${scene.omitted ? 'line-through' : ''}`}>{scene.heading}</td>
+                  <td className="px-2 py-1.5 min-w-[12rem]">
+                    <input
+                      value={summaryDrafts[scene.id] ?? scene.synopsis ?? ''}
+                      onChange={(event) => setSummaryDrafts((prev) => ({ ...prev, [scene.id]: event.target.value }))}
+                      onBlur={() => commitSummary(scene.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
+                        if (event.key === 'Escape') {
+                          setSummaryDrafts((prev) => {
+                            const next = { ...prev };
+                            delete next[scene.id];
+                            return next;
+                          });
+                        }
+                      }}
+                      placeholder="What happens…"
+                      aria-label={`Summary of scene ${scene.sceneNumber}`}
+                      className="w-full rounded border border-transparent hover:border-line-strong focus:border-line-strong bg-transparent focus:bg-field px-1.5 py-0.5"
+                    />
+                  </td>
                   <td className="px-2 py-1.5">{scene.timeOfDay ?? '—'}</td>
                   <td className="px-2 py-1.5">{scene.scriptDay ?? '—'}</td>
                   <td className="px-2 py-1.5 font-mono">{pageOf.get(scene.id) ?? '—'}</td>

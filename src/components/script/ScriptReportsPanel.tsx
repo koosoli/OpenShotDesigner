@@ -5,7 +5,7 @@ import { PanelTitle } from '../common/PanelHeader';
 import { ArrowRight, Clapperboard, ListOrdered, MapPin, Package, Users } from 'lucide-react';
 import type { ScriptLine, SceneSetup } from '../../types';
 import type { ScriptScene } from '../../domain/script';
-import { characterColor } from '../../domain/script';
+import { characterColor, characterScriptStats, pageLabels, screenplayLayoutOptions } from '../../domain/script';
 import { deriveCharacterReport, formatPageEighths } from '../../domain/reports';
 import { parseSceneHeading } from '../../domain/script/logic';
 import { BreakdownSheetsReport } from './BreakdownSheetsReport';
@@ -55,8 +55,8 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
   const [report, setReport] = useState<'scenes' | 'sheets' | 'characters' | 'locations' | 'elements' | 'props'>('scenes');
 
   const breakdown = useMemo(
-    () => cachedScriptBreakdown(lines, project.characters, project.locations),
-    [lines, project.characters, project.locations],
+    () => cachedScriptBreakdown(lines, project.characters, project.locations, project.screenplayLayout),
+    [lines, project.characters, project.locations, project.screenplayLayout],
   );
 
   const characterReports = useMemo(
@@ -72,6 +72,12 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
         (a.character?.canonicalName || '').localeCompare(b.character?.canonicalName || '')),
     [breakdown, project.people, project.castAssignments],
   );
+
+  // Speeches, words, first page and pages per character (page labels follow locked pages).
+  const characterStats = useMemo(() => {
+    const pages = pageLabels(lines, project.scriptPageLock, screenplayLayoutOptions(project.screenplayLayout)).byLine;
+    return characterScriptStats(lines, breakdown.characters, breakdown.scenes, pages);
+  }, [lines, breakdown, project.scriptPageLock, project.screenplayLayout]);
 
   const setCharacterColor = (characterId: string, color: string) => {
     runCommand(setCharacterColorCommand, { characterId, color, fallbackCharacters: breakdown.characters }, { domain: 'script' });
@@ -212,6 +218,24 @@ export const ScriptReportsPanel: React.FC<ScriptReportsPanelProps> = ({ lines, i
                     </span>
                   ))}
                 </div>
+                {(() => {
+                  const stats = entry.character ? characterStats.get(entry.character.id) : undefined;
+                  return stats ? (
+                    <dl className="mt-3 grid grid-cols-4 gap-1 text-center">
+                      {[
+                        ['Speeches', String(stats.speeches)],
+                        ['Words', String(stats.words)],
+                        ['Pages', formatPageEighths(stats.eighths)],
+                        ['First p.', stats.firstPage ?? '—'],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-md border border-line bg-surface-sunken px-1 py-1">
+                          <dt className={`text-[9px] uppercase tracking-wider ${muted}`}>{label}</dt>
+                          <dd className="text-xs font-bold font-mono">{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null;
+                })()}
                 <p className={`mt-3 text-[10px] ${muted}`}>First {entry.firstSceneNumber} · Last {entry.lastSceneNumber}</p>
               </article>
             ))}

@@ -16,6 +16,7 @@
  * their Final Draft name kept in the notes.
  */
 import type { BreakdownCategory } from './types';
+import { fdxBodyParagraphs } from './fdxParagraphs';
 
 export interface FdxTaggedElement {
   category: BreakdownCategory;
@@ -47,13 +48,6 @@ const mapCategory = (name: string): BreakdownCategory | null | undefined => {
   return undefined;
 };
 
-const paragraphText = (paragraph: Element): string =>
-  Array.from(paragraph.querySelectorAll('Text'))
-    .map((node) => node.textContent || '')
-    .join('')
-    .replace(/\s+/g, ' ')
-    .trim();
-
 export const parseFdxTags = (raw: string): FdxTaggedElement[] => {
   if (!/<TagData/i.test(raw)) return [];
   const doc = new DOMParser().parseFromString(raw, 'application/xml');
@@ -84,12 +78,10 @@ export const parseFdxTags = (raw: string): FdxTaggedElement[] => {
 
   // Paragraphs each definition is tagged in.
   const taggedIn = new Map<string, string[]>();
-  const body = doc.querySelector('FinalDraft > Content') ?? doc.documentElement;
-  Array.from(body.querySelectorAll(':scope > Paragraph')).forEach((paragraph) => {
-    const text = paragraphText(paragraph);
+  fdxBodyParagraphs(doc).forEach(({ element: paragraph, text }) => {
     if (!text) return;
     const defs = new Set<string>();
-    paragraph.querySelectorAll('Text[TagNumber]').forEach((run) => {
+    paragraph.querySelectorAll(':scope > Text[TagNumber]').forEach((run) => {
       const defId = tagDefinition.get(run.getAttribute('TagNumber') ?? '');
       if (defId) defs.add(defId);
     });

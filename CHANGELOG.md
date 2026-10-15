@@ -4,6 +4,104 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] — 2026-10-15
+
+### Added
+
+- **Industry screenplay pages** (rules ported from ScriptCraft): US Letter
+  (54 lines) or A4 (58); a speech that breaks across pages gets (MORE) and
+  the cue again as NAME (CONT'D), split at a sentence end and never after a
+  parenthetical; scene headings and cues are never stranded at the foot of a
+  page; action splits only with two lines each side; automatic (CONT'D) when a
+  character speaks again in the same scene (toggle in the lined script bar).
+  Eighths, the page markers, locked pages / A-pages and the screenplay PDF all
+  use these same pages, so the page a call sheet names is the page printed.
+- **Dual dialogue**: Ctrl/⌘+D or **⇉ Dual** on a cue sets the speech beside
+  the one above; it prints side by side and splits both columns on a page
+  break. Fountain `^` and Final Draft `<DualDialogue>` round-trip — Final
+  Draft dual dialogue used to import as one action line holding both speeches.
+- **Scene summaries and card colours**: Final Draft index cards (summary and
+  colour) and Fountain `= synopsis` lines import with the script, can be
+  written in Reports → Scene list, export back out, and feed the one-liner,
+  the stripboard and the breakdown sheets. A Final Draft summary no longer
+  ends up glued to the slugline.
+- **Word-level draft comparison**: the "Review revised screenplay" dialog
+  shows, scene by scene, which lines were reworded (word by word), added, cut
+  or moved. A reworded line keeps its linings and breakdown tags on re-import
+  and gets the revision asterisk.
+- **Import PDF, Word, Celtx and HTML screenplays**: a PDF is read by its
+  columns (cover, scene numbers, wrapped lines, and speeches split by
+  (MORE)/(CONT'D) put back together; page numbers, headers and revision
+  asterisks dropped); Word documents by their element styles, or by indent
+  when typed by hand; Celtx projects and HTML by their element classes. A
+  scanned PDF (pictures of pages) says so instead of importing nothing.
+  pdf.js loads only when a PDF is imported.
+- **Location picker on scene headings**: ▾ beside the set lists the project's
+  locations and the sets the script already uses. A new set typed into a
+  heading becomes a project location when you move on, so it is in the
+  Locations tab ready for an address.
+- **Final Draft fidelity**: a Final Draft title page now imports; revision
+  sets come in as this app's revision colours (the writer's starred lines
+  stay starred, in their colour) and go back out; the paper and automatic
+  (CONT'D) setting travel both ways.
+- **Multi-camera format** (Lined script bar → Format): dialogue double-spaced,
+  action in capitals, every scene on a new page, so a sitcom's pages and
+  eighths are counted the way it prints. Travels with Final Draft files.
+- **Scene CONTINUED marks** (toggle in the Lined script bar): (CONTINUED) at
+  the foot of a page and CONTINUED: at the top of the next where a scene runs
+  over, as production drafts print. Travels with Final Draft files.
+- **Page breaks in the screenplay editor**: a dashed rule with the page number
+  where each printed page starts (locked labels included).
+- **Element list**: Enter on an empty line opens Final Draft's list of
+  elements — ↑ ↓ or 1–7, then Enter; Esc closes it.
+- **Final Draft script notes** import as script notes under the line they
+  were attached to, and export back as Final Draft notes.
+- **Dual dialogue from PDFs**: two speeches side by side import as dual
+  dialogue.
+- **Character report**: speeches, words, pages of their scenes and the page
+  they first speak on, on screen and in the PDF. The scene report PDF gains
+  the printed page each scene starts on. Both use locked page labels (12A).
+
+### Changed
+
+- **Final Draft's element flow** in the screenplay editor: Enter after action
+  is action and after a cue is dialogue; Tab at the end of a line starts the
+  next element (action → character, dialogue → parenthetical), Tab / Shift+Tab
+  on an empty line change its kind; Enter mid-line splits it; `int. ` on an
+  action line makes a heading; taking a character suggestion with Enter moves
+  on to the dialogue.
+- The screenplay PDF prints page numbers from page 2 and no longer prints
+  script notes; without a cover, its title block is a slim line in the top
+  margin so page one holds a full page of script.
+- Fountain `===` imports as a page break.
+- A shot that is not a standard shot call ("BIG HEAD OF MARA") is written to
+  Fountain as `!… [[shot]]` and reads back as a shot instead of a cue.
+- A continued dual-dialogue cue ("BARTHOLOMEW (CONT'D)") stays inside its
+  column.
+- **Cast sides** are laid out by the screenplay rules, on their compact page:
+  (MORE) / (CONT'D) where a speech breaks, dual dialogue side by side,
+  automatic (CONT'D), and no stranded headings or cues.
+
+### Fixed
+
+- Final Draft outline paragraphs (acts, sequences) imported as action lines;
+  they are kept as script notes now.
+- A cue with a lower-case extension ("EDWARD (cont'd)") imported as action,
+  taking its speech with it; found on a real production PDF (100 cues in
+  Big Fish).
+- Reports → DOOD opened the Schedule on its board when the browser could not
+  save preferences (storage full or blocked); it now always opens the day out
+  of days.
+
+### Migration
+
+- Project schema v36 (stamp only): optional `screenplayLayout` (paper,
+  automatic (CONT'D), format, scene CONTINUED), and
+  `dual` / `synopsis` / `sceneColor` on script lines.
+- Pages are now 54 lines (Letter), not the old 55-line estimate: eighths shift
+  slightly, and a script whose pages were locked before may show an A-page
+  where a locked page no longer fits — unlock and lock again to re-freeze.
+
 ## [1.3.0] — 2026-10-13
 
 ### Added

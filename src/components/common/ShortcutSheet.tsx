@@ -63,9 +63,13 @@ const GROUPS: Array<{ group: string; items: Array<[string, string]> }> = [
   {
     group: 'Screenplay editor',
     items: [
-      ['Enter', 'New line of the next kind (heading → action → character → …)'],
-      ['Enter on an empty line', 'Turn it into the next kind (action → scene heading)'],
-      ['Tab · Shift + Tab', 'Change the line’s kind'],
+      ['Enter at the end of a line', 'Next element, as in Final Draft (character → dialogue → action)'],
+      ['Enter mid-line · at the start', 'Split the line · empty line above'],
+      ['Enter on an empty line', 'Element list: ↑ ↓ or 1–7, then Enter (Esc closes)'],
+      ['Tab at the end of a line', 'New character after action, parenthetical after dialogue'],
+      ['Tab on an empty line · Shift + Tab', 'Change the line’s kind forwards · backwards'],
+      ['int. ext. est. i/e on an action line', 'Becomes a scene heading'],
+      ['Ctrl / ⌘ + D on a character', 'Dual dialogue (beside the speech above)'],
       ['↑ ↓', 'Previous · next line'],
       ['Backspace on an empty line', 'Remove it'],
       ['↑ ↓ then Enter / Tab', 'Pick from an open suggestion list (Esc closes it)'],

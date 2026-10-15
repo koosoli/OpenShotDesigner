@@ -50,11 +50,22 @@ export const currentRevisionColor = (project: {
 
 /**
  * Mark the lines a new draft changed. Lines that kept their identity through
- * `reconcileScriptLineIds` (same text) keep whatever mark they had; lines
- * with a fresh id — new or reworded — are marked with the new colour.
+ * `reconcileScriptLineIds` with the same text keep whatever mark they had;
+ * lines with a fresh id (new) or a kept id and new words (reworded — pass the
+ * previous text by id) are marked with the new colour.
  */
-export const markRevisedLines = <T extends { id: string; revisedIn?: number }>(
+export const markRevisedLines = <T extends { id: string; text?: string; revisedIn?: number }>(
   next: readonly T[],
-  previousIds: ReadonlySet<string>,
+  previous: ReadonlySet<string> | ReadonlyMap<string, string>,
   colorIndex: number,
-): T[] => next.map((line) => (previousIds.has(line.id) ? line : { ...line, revisedIn: colorIndex }));
+): T[] => {
+  const same = (line: T): boolean => {
+    if (!previous.has(line.id)) return false;
+    if (previous instanceof Map) {
+      const before = previous.get(line.id) ?? '';
+      return before.replace(/\s+/g, ' ').trim() === (line.text ?? '').replace(/\s+/g, ' ').trim();
+    }
+    return true;
+  };
+  return next.map((line) => (same(line) ? line : { ...line, revisedIn: colorIndex }));
+};

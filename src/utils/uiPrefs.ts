@@ -36,6 +36,21 @@ export const readShotListBoardsShown = (): 'on' | 'off' | 'auto' =>
 /** Schedule module views, remembered per browser; other modules can ask for one. */
 export type ScheduleView = 'stripboard' | 'oneliner' | 'dood' | 'calendar' | 'callsheets' | 'coverage' | 'timereport' | 'dpr';
 export const SCHEDULE_VIEWS: readonly ScheduleView[] = ['stripboard', 'oneliner', 'dood', 'calendar', 'callsheets', 'coverage', 'timereport', 'dpr'];
-export const readScheduleView = (): ScheduleView => readUiPref<ScheduleView>('schedule_view', SCHEDULE_VIEWS, 'stripboard');
-/** Open the Schedule module on `view` next time it mounts (e.g. a "Day out of days" link). */
-export const requestScheduleView = (view: ScheduleView): void => writeUiPref('schedule_view', view);
+/**
+ * A view another module asked for, held in memory as well as stored: the
+ * stored preference is only a convenience and is lost when storage is full or
+ * blocked, which left a "Day out of days" link opening the Schedule on its
+ * board. The in-memory request always arrives.
+ */
+let requestedScheduleView: ScheduleView | null = null;
+/** Fired when a view is requested, so a Schedule that is already open follows. */
+export const SCHEDULE_VIEW_EVENT = 'openshotdesigner:schedule-view';
+
+export const readScheduleView = (): ScheduleView =>
+  requestedScheduleView ?? readUiPref<ScheduleView>('schedule_view', SCHEDULE_VIEWS, 'stripboard');
+/** Open the Schedule module on `view` (e.g. a "Day out of days" link). */
+export const requestScheduleView = (view: ScheduleView): void => {
+  requestedScheduleView = view;
+  writeUiPref('schedule_view', view);
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent<ScheduleView>(SCHEDULE_VIEW_EVENT, { detail: view }));
+};
