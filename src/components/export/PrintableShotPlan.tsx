@@ -108,7 +108,7 @@ import { buildScriptSides, sidesCharacterOptions, splitScenes } from '../../doma
 import { attachBreakdownItemsToScenes, autoContdCueIds, screenplayLayoutOptions } from '../../domain/script';
 import { ProjectImage } from '../common/ProjectImage';
 import { useImageRefSrcs } from '../../utils/assetImages';
-import { keyFrameImage } from '../../utils/storyboardFrames';
+import { keyFrameFit, keyFrameImage } from '../../utils/storyboardFrames';
 import { currentRevisionColor } from '../../domain/script/revisionColors';
 import { pageLabels } from '../../domain/script/pageLock';
 import { SHOT_LIST_BOARD_SIZES, readShotListBoardSize, readShotListBoardsShown, writeUiPref } from '../../utils/uiPrefs';
@@ -1956,7 +1956,7 @@ export const PrintableShotPlan: React.FC = () => {
                                     alt={`Storyboard ${shot.shotNumber}`}
                                     className="w-full h-full"
                                     style={{
-                                      objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
+                                      objectFit: keyFrameFit(shot),
                                       objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
                                     }}
                                   />

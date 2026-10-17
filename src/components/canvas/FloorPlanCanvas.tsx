@@ -75,6 +75,7 @@ import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
 import { Move, ZoomIn, ZoomOut, Check, X, Scan, Grid } from 'lucide-react';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { wheelIntent } from '../../utils/wheelIntent';
 
 interface DragState {
   type:
@@ -296,10 +297,16 @@ export const FloorPlanCanvas: React.FC = () => {
       const currentScale = canvasScaleRef.current;
       const currentOffset = canvasOffsetRef.current;
 
-      // Cursor-relative scaling
-      const delta = e.deltaY;
-      const zoomFactor = delta < 0 ? 1.12 : 0.89;
-      const newScale = Math.max(0.15, Math.min(4.0, currentScale * zoomFactor));
+      // What the wheel means depends on where it came from (see wheelIntent):
+      // a touchpad's two-finger scroll pans, a pinch (or Ctrl + wheel) and a
+      // mouse wheel zoom — in proportion to the gesture, not a fixed step per
+      // event, which made a touchpad's stream of tiny events zoom wildly.
+      const intent = wheelIntent(e);
+      if (intent.kind === 'pan') {
+        setCanvasTransform(currentScale, { x: currentOffset.x - intent.dx, y: currentOffset.y - intent.dy });
+        return;
+      }
+      const newScale = Math.max(0.15, Math.min(4.0, currentScale * intent.factor));
 
       // Calculate world point under the mouse cursor to keep it stationary
       const worldX = (mouseX - currentOffset.x) / currentScale;
@@ -311,9 +318,41 @@ export const FloorPlanCanvas: React.FC = () => {
       setCanvasTransform(newScale, { x: newOffsetX, y: newOffsetY });
     };
 
+    // Safari reports a trackpad pinch as gesture events with a running scale,
+    // not as Ctrl + wheel; follow it the same way (and keep the page itself
+    // from zooming).
+    type SafariGesture = Event & { scale: number; clientX: number; clientY: number };
+    let gestureStart: { scale: number; offset: Vector2D } | null = null;
+    const handleGestureStart = (event: Event) => {
+      event.preventDefault();
+      gestureStart = { scale: canvasScaleRef.current, offset: canvasOffsetRef.current };
+    };
+    const handleGestureChange = (event: Event) => {
+      event.preventDefault();
+      if (!gestureStart) return;
+      const gesture = event as SafariGesture;
+      const rect = container.getBoundingClientRect();
+      const mouseX = gesture.clientX - rect.left;
+      const mouseY = gesture.clientY - rect.top;
+      const newScale = Math.max(0.15, Math.min(4.0, gestureStart.scale * gesture.scale));
+      const worldX = (mouseX - gestureStart.offset.x) / gestureStart.scale;
+      const worldY = (mouseY - gestureStart.offset.y) / gestureStart.scale;
+      setCanvasTransform(newScale, { x: mouseX - worldX * newScale, y: mouseY - worldY * newScale });
+    };
+    const handleGestureEnd = (event: Event) => {
+      event.preventDefault();
+      gestureStart = null;
+    };
+
     container.addEventListener('wheel', handleNativeWheel, { passive: false });
+    container.addEventListener('gesturestart', handleGestureStart, { passive: false });
+    container.addEventListener('gesturechange', handleGestureChange, { passive: false });
+    container.addEventListener('gestureend', handleGestureEnd, { passive: false });
     return () => {
       container.removeEventListener('wheel', handleNativeWheel);
+      container.removeEventListener('gesturestart', handleGestureStart);
+      container.removeEventListener('gesturechange', handleGestureChange);
+      container.removeEventListener('gestureend', handleGestureEnd);
     };
   }, [setCanvasTransform]);
 

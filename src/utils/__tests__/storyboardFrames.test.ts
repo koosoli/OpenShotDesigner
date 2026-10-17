@@ -4,6 +4,7 @@ import {
   START_SLOT,
   boardedFrames,
   framesOf,
+  keyFrameFit,
   keyFrameImage,
   setFramePatch,
   slotsOf,
@@ -197,5 +198,18 @@ describe('slotsOf / boardedFrames with mirrored frames', () => {
     const boarded = boardedFrames(shot, camera);
     expect(boarded).toHaveLength(1);
     expect(boarded[0].key).toBe(END_SLOT);
+  });
+});
+
+describe('keyFrameFit', () => {
+  /** The shot list cropped a frame set to show whole: it read the cleared legacy field. */
+  it('follows the fit set on the frame, not the retired shot field', () => {
+    const shot = { ...makeShot(), storyboardFrames: { [START_SLOT]: { image: 'data:a', fit: 'contain' } } } as Shot;
+    expect(keyFrameFit(shot)).toBe('contain');
+  });
+
+  it('reads a legacy shot and defaults to filling the box', () => {
+    expect(keyFrameFit({ ...makeShot(), storyboardImage: 'data:old', storyboardFit: 'contain' } as Shot)).toBe('contain');
+    expect(keyFrameFit({ ...makeShot(), storyboardFrames: { [START_SLOT]: { image: 'data:a' } } } as Shot)).toBe('cover');
   });
 });

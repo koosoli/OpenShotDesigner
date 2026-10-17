@@ -10,7 +10,7 @@ import { parseOption } from '../../domain/optionValue';
 
 /** The sort keys `sortShotsBy` accepts, and the values its <option>s carry. */
 const SHOT_SORT_VALUES = ['custom', 'shotNumber', 'camera', 'lens', 'status'] as const;
-import { keyFrameImage } from '../../utils/storyboardFrames';
+import { keyFrameFit, keyFrameImage } from '../../utils/storyboardFrames';
 import { effectiveMovement, hasCameraMove } from '../../utils/cameraMovement';
 import { exportShotListToCsv } from '../../utils/exportShotList';
 import { buildPdfFilename, createShotListPdf, shotListRowsFromSetups } from '../../utils/pdf';
@@ -366,7 +366,7 @@ export const ShotListPanel: React.FC = () => {
           `height:${Math.round(48 / sceneAspectRatio)}px`,
           'border-radius:4px',
           `background:${isLight ? '#f1f5f9' : '#020617'}`,
-          `object-fit:${shot.storyboardFit === 'contain' ? 'contain' : 'cover'}`,
+          `object-fit:${keyFrameFit(shot)}`,
         ].join(';');
         chip.appendChild(img);
       }
@@ -980,7 +980,7 @@ export const ShotListPanel: React.FC = () => {
                       alt={`Storyboard ${shot.shotNumber}`}
                       className="w-full h-full object-cover block pointer-events-none"
                       style={{
-                        objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
+                        objectFit: keyFrameFit(shot),
                         objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
                       }}
                     />
@@ -1407,7 +1407,7 @@ export const ShotListPanel: React.FC = () => {
                                 alt={`Storyboard ${shot.shotNumber}`}
                                 className="w-full h-full block"
                                 style={{
-                                  objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
+                                  objectFit: keyFrameFit(shot),
                                   objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
                                 }}
                               />

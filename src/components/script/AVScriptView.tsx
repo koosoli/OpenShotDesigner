@@ -5,7 +5,7 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import { avCoverage, avRowNumber, rowsForMissingShots } from '../../domain/script';
 import { createId } from '../../domain/ids';
 import { loadStoryboardImageFile } from '../../utils/image';
-import { keyFrameImage } from '../../utils/storyboardFrames';
+import { keyFrameFit, keyFrameImage } from '../../utils/storyboardFrames';
 import { ProjectImage } from '../common/ProjectImage';
 import { useDialogs } from '../dialog/DialogProvider';
 
@@ -26,7 +26,7 @@ const AVStoryboardCell: React.FC<{
   const { notice } = useDialogs();
   const inherited = !row.storyboardImage && linkedShot ? keyFrameImage(linkedShot) : undefined;
   const image = row.storyboardImage ?? inherited;
-  const fit = row.storyboardFit ?? linkedShot?.storyboardFit ?? 'cover';
+  const fit = row.storyboardFit ?? (linkedShot ? keyFrameFit(linkedShot) : 'cover');
 
   return (
     <div className="flex flex-col items-center gap-1">

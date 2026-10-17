@@ -6,11 +6,20 @@
     <title>Open Shot Designer</title>
     <link rel="icon" type="image/png" href="%BASE_URL%favicon.png" />
     <meta name="description" content="Open Shot Designer — a free, open-source 2D film floor plan & shot list designer. Block scenes, plan camera moves, and export production-ready blueprints." />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#171717" />
     <meta property="og:title" content="Open Shot Designer" />
     <meta property="og:description" content="Free, open-source 2D film floor plan & shot list designer. Block scenes, plan camera moves, and export production-ready blueprints." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Dark unless the person chose light: set before the app paints, so the
+      // page never flashes white on the way in.
+      try {
+        if (localStorage.getItem('cineplan_theme') !== 'light') document.documentElement.classList.add('dark');
+      } catch (_) {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

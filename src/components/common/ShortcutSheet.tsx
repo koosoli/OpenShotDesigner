@@ -57,7 +57,8 @@ const GROUPS: Array<{ group: string; items: Array<[string, string]> }> = [
     group: 'Canvas',
     items: [
       ['Hold Space / middle-click', 'Pan'],
-      ['Mouse wheel', 'Zoom at the cursor'],
+      ['Mouse wheel · touchpad pinch', 'Zoom at the cursor'],
+      ['Two-finger scroll on a touchpad', 'Pan'],
     ],
   },
   {

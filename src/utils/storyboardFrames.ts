@@ -122,6 +122,16 @@ export const keyFrame = (shot: Shot): StoryboardFrame | undefined => {
 export const keyFrameImage = (shot: Shot): string | undefined => keyFrame(shot)?.image;
 
 /**
+ * How {@link keyFrame} is fitted to its box, as the Storyboard panel set it.
+ *
+ * The fit lives on the frame. Views that read the shot's legacy
+ * `storyboardFit` instead — which `setFramePatch` clears — ignored a frame set
+ * to show whole and cropped it to the box.
+ */
+export const keyFrameFit = (shot: Shot): 'cover' | 'contain' =>
+  keyFrame(shot)?.fit ?? shot.storyboardFit ?? 'cover';
+
+/**
  * Build the `updateShot` payload that writes one frame.
  *
  * `storyboardFrames` is the only thing written. The legacy single-image fields

@@ -618,7 +618,7 @@ export default function App() {
       <LanguageProvider>
       {/* Outside FloorPlanProvider: selecting an element opens the inspector,
           so the project context drives workspace state and not the reverse. */}
-      <WorkspaceUIProvider startOnDashboard={startOnDashboard()}>
+      <WorkspaceUIProvider startOnDashboard={startOnDashboard()} initialTheme="dark">
         <FloorPlanProvider>
           <DialogProvider>
             <MainLayout />

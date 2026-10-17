@@ -433,7 +433,7 @@ const SHOTS = [
     })()`,
     finish: `(async () => {
       for (let attempt = 0; attempt < 15; attempt++) {
-        const print = [...document.querySelectorAll('button')].find(b => b.innerText.includes('Print / PDF'));
+        const print = [...document.querySelectorAll('button')].find(b => b.innerText.includes('Print / PDF') || b.getAttribute('aria-label') === 'Print this schedule view' || b.title === 'Print this schedule view');
         if (print) { print.click(); break; }
         await new Promise(r => setTimeout(r, 200));
       }

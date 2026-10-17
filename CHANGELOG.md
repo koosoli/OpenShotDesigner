@@ -4,6 +4,30 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.1] — 2026-10-17
+
+### Changed
+
+- **Dark mode is the default** (a saved choice of light is kept), applied
+  before the app paints so there is no white flash on load.
+- **Neutral greys and a new accent**: the interface greys are true neutral
+  grey instead of blue-tinted slate, and the accent is a dusty violet instead
+  of sky blue. Both are set in one place (`src/index.css`); white text on the
+  accent meets WCAG AA in both themes. The floor plan's selection outline
+  stays blue so it shows against any drawing.
+- **Touchpad zoom**: a pinch zooms in proportion to the gesture instead of a
+  fixed step per event (touchpads send dozens per pinch, which made zoom jump),
+  two-finger scrolling pans the floor plan instead of zooming, and a mouse
+  wheel zooms about one step per notch. Safari's trackpad pinch is handled
+  the same way.
+
+### Fixed
+
+- Storyboard frames set to show the whole picture were cropped in the shot
+  list (cards, table, drag chip), the print view and the A/V script: they
+  read a retired shot-level setting instead of the frame's own. The large
+  view now always shows the whole frame.
+
 ## [1.4.0] — 2026-10-15
 
 ### Added

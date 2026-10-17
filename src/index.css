@@ -8,6 +8,44 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
+ * The palette, re-pointed in one place rather than in ~2,600 class names.
+ *
+ * Greys: the UI is written in Tailwind's `slate`, a blue-tinted grey. It is a
+ * true neutral grey now, so dark mode reads as grey, not navy.
+ *
+ * Accent: sky blue was the highlight colour in ~600 places (focus rings,
+ * selected tabs, active buttons, links). `sky-*` is a dusty violet now —
+ * violet softened toward grey, so it stays calm next to the panels, and a
+ * different hue from every status colour (green OK, amber warning, red
+ * danger). White text on it meets WCAG AA in both themes.
+ */
+@theme {
+  --color-slate-50: var(--color-neutral-50);
+  --color-slate-100: var(--color-neutral-100);
+  --color-slate-200: var(--color-neutral-200);
+  --color-slate-300: var(--color-neutral-300);
+  --color-slate-400: var(--color-neutral-400);
+  --color-slate-500: var(--color-neutral-500);
+  --color-slate-600: var(--color-neutral-600);
+  --color-slate-700: var(--color-neutral-700);
+  --color-slate-800: var(--color-neutral-800);
+  --color-slate-900: var(--color-neutral-900);
+  --color-slate-950: var(--color-neutral-950);
+
+  --color-sky-50: color-mix(in oklab, var(--color-violet-50) 58%, var(--color-neutral-50));
+  --color-sky-100: color-mix(in oklab, var(--color-violet-100) 58%, var(--color-neutral-100));
+  --color-sky-200: color-mix(in oklab, var(--color-violet-200) 58%, var(--color-neutral-200));
+  --color-sky-300: color-mix(in oklab, var(--color-violet-300) 58%, var(--color-neutral-300));
+  --color-sky-400: color-mix(in oklab, var(--color-violet-400) 58%, var(--color-neutral-400));
+  --color-sky-500: color-mix(in oklab, var(--color-violet-500) 58%, var(--color-neutral-500));
+  --color-sky-600: color-mix(in oklab, var(--color-violet-600) 58%, var(--color-neutral-600));
+  --color-sky-700: color-mix(in oklab, var(--color-violet-700) 58%, var(--color-neutral-700));
+  --color-sky-800: color-mix(in oklab, var(--color-violet-800) 58%, var(--color-neutral-800));
+  --color-sky-900: color-mix(in oklab, var(--color-violet-900) 58%, var(--color-neutral-900));
+  --color-sky-950: color-mix(in oklab, var(--color-violet-950) 58%, var(--color-neutral-950));
+}
+
+/*
  * Semantic colour tokens. Components say what a colour is for (a surface, a
  * border, muted text, the accent) instead of carrying a light and a dark
  * Tailwind class each; the theme switch swaps the values here.
@@ -27,7 +65,7 @@
   /* Muted and subtle text stay at 4.5:1 or better on every light surface (WCAG AA). */
   --osd-ink-muted: var(--color-slate-600);
   --osd-ink-subtle: var(--color-slate-500);
-  /* White text on the accent needs sky-700; sky-600 is only 4:1. */
+  /* White text on the accent stays AA, hover included. */
   --osd-accent: var(--color-sky-700);
   --osd-accent-hover: var(--color-sky-800);
   --osd-accent-soft: var(--color-sky-50);
@@ -54,9 +92,11 @@ html.dark {
   --osd-ink-soft: var(--color-slate-300);
   --osd-ink-muted: var(--color-slate-400);
   --osd-ink-subtle: var(--color-slate-400);
-  --osd-accent: var(--color-sky-700);
-  --osd-accent-hover: var(--color-sky-600);
-  --osd-accent-soft: color-mix(in oklab, var(--color-sky-500) 15%, transparent);
+  /* A step lighter than in light mode so a selected tab stands off the hover
+     state on dark panels; white text on it stays AA, hover included. */
+  --osd-accent: var(--color-sky-600);
+  --osd-accent-hover: var(--color-sky-700);
+  --osd-accent-soft: color-mix(in oklab, var(--color-sky-400) 18%, transparent);
   --osd-accent-ink: var(--color-sky-300);
   --osd-ok: var(--color-emerald-400);
   --osd-ok-soft: color-mix(in oklab, var(--color-emerald-500) 15%, transparent);

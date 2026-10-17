@@ -75,8 +75,8 @@ export const StoryboardLightbox: React.FC<StoryboardLightboxProps> = ({ shots, i
               alt={`Storyboard ${shot.shotNumber}`}
               className="w-full h-full block"
               style={{
-                objectFit: shot.storyboardFit === 'contain' ? 'contain' : 'cover',
-                objectPosition: `${shot.storyboardPosition?.x ?? 50}% ${shot.storyboardPosition?.y ?? 50}%`,
+                // The large view always shows the whole frame.
+                objectFit: 'contain',
               }}
             />
           </div>
