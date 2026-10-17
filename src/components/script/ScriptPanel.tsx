@@ -139,6 +139,9 @@ interface LineSuggestions {
   items: Array<Suggestion & { apply: string }>;
 }
 
+/** Screenplay files the panel imports, by picker or by drop. */
+const SCRIPT_FILE = /\.(pdf|docx|celtx|html?|fdx|fountain|spmd|txt)$/i;
+
 /** Final Draft's element list, offered by Enter on an empty line (1–7 pick one). */
 const ELEMENT_MENU: Array<{ type: ScriptElementType; label: string }> = [
   { type: 'scene', label: 'Scene Heading' },
@@ -204,6 +207,7 @@ export const ScriptPanel: React.FC = () => {
     text: string;
   } | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [isFileDragOver, setIsFileDragOver] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [pendingRevision, setPendingRevision] = useState<{
     raw: string;
@@ -517,7 +521,16 @@ export const ScriptPanel: React.FC = () => {
       void import('../../utils/screenplayImport')
         .then(({ convertScreenplayFile }) => convertScreenplayFile(file))
         .then((converted) => {
-          if (converted) stageImport(converted.raw, converted.name);
+          if (converted) {
+            stageImport(converted.raw, converted.name);
+            const damaged = converted.damagedPages ?? [];
+            if (damaged.length > 0) {
+              void notice({
+                title: 'Some pages could not be read in full',
+                message: `The PDF is damaged on page${damaged.length === 1 ? '' : 's'} ${damaged.join(', ')}: part of the text there could not be read. The rest of the screenplay is imported — check those pages against the PDF.`,
+              });
+            }
+          }
           else void notice({ title: 'No screenplay found', message: `${file.name} has no screenplay text this app can read. A scanned PDF holds pictures of pages, not text.` });
         })
         .catch(() => notice({ title: 'Could not read the file', message: `${file.name} could not be opened as a screenplay.` }));
@@ -1296,7 +1309,33 @@ export const ScriptPanel: React.FC = () => {
   }`;
 
   return (
-    <div className={`h-full flex flex-col bg-surface text-ink`}>
+    <div
+      className={`relative h-full flex flex-col bg-surface text-ink`}
+      // A screenplay file dropped on the panel is imported. Without this the
+      // browser opened the dropped PDF in place of the app.
+      onDragOver={(event) => {
+        if (!Array.from(event.dataTransfer.types).includes('Files')) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        if (!isFileDragOver) setIsFileDragOver(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsFileDragOver(false);
+      }}
+      onDrop={(event) => {
+        const file = Array.from(event.dataTransfer.files).find((candidate) => SCRIPT_FILE.test(candidate.name));
+        setIsFileDragOver(false);
+        if (!event.dataTransfer.files.length) return;
+        event.preventDefault();
+        if (file) loadScript(file);
+        else void notice({ title: 'Not a screenplay file', message: 'Drop a PDF, Final Draft, Fountain, Word, Celtx or plain-text screenplay.' });
+      }}
+    >
+      {isFileDragOver && (
+        <div className="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-surface/85 text-sm font-semibold text-ink">
+          Drop to import the screenplay
+        </div>
+      )}
       <div className={`p-2 sm:p-2.5 border-b flex flex-col gap-2 border-line bg-slate-50/80 dark:bg-slate-950/60`}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <ViewSwitcher

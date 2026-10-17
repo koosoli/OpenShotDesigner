@@ -23,6 +23,8 @@ export interface PdfTextItem {
   /** Baseline, points from the page's bottom (PDF space). */
   y: number;
   width: number;
+  /** Set at an angle (a diagonal watermark). */
+  rotated?: boolean;
 }
 
 export interface PdfPageText {
@@ -98,7 +100,18 @@ export interface PdfScreenplay {
 /** Rebuild a screenplay from its PDF pages. */
 export const screenplayFromPdfPages = (pages: readonly PdfPageText[]): PdfScreenplay => {
   const column = columnWidth(pages);
-  const all = pages.map((page, index) => {
+  // Watermarks: text set at an angle, and text that sits at the same spot on
+  // most pages (a reader's name stamped across every page, "CONFIDENTIAL").
+  // Character names repeat too, but never at the same place page after page.
+  const spot = (item: PdfTextItem) => `${item.str.trim()}@${Math.round(item.x / 12)},${Math.round(item.y / 12)}`;
+  const pagesWith = new Map<string, number>();
+  for (const page of pages) {
+    for (const key of new Set(page.items.filter((item) => item.str.trim().length >= 4).map(spot))) pagesWith.set(key, (pagesWith.get(key) ?? 0) + 1);
+  }
+  const stamped = new Set(pages.length >= 4 ? [...pagesWith].filter(([, count]) => count >= pages.length * 0.4).map(([key]) => key) : []);
+  const cleaned = pages.map((page) => ({ ...page, items: page.items.filter((item) => !item.rotated && !stamped.has(spot(item))) }));
+
+  const all = cleaned.map((page, index) => {
     // Page furniture: running headers (page number, revision label) in the
     // top margin and footers in the bottom one.
     const top = page.height - 0.8 * 72;
@@ -107,20 +120,50 @@ export const screenplayFromPdfPages = (pages: readonly PdfPageText[]): PdfScreen
     return linesOf(page, index).filter((line) => line.y < top && line.y > bottom);
   });
 
-  // A first page without a scene on it, in front of more pages, is the cover.
+  // Front matter: the pages before the first scene (a cover sheet, the title
+  // page, a legal notice, an epigraph), when the script follows. The title
+  // page fills the cover; anything else is kept as script notes.
+  const hasScene = (page: Line[]) => page.some((line) => SCENE_START.test(joinItems(line.items, column)));
+  const firstScenePage = all.findIndex(hasScene);
+  const frontCount = firstScenePage > 0 && firstScenePage <= 4 ? firstScenePage : !hasScene(all[0] ?? []) && all.length > 1 && (all[0]?.length ?? 0) <= 30 ? 1 : 0;
+  const front = all.slice(0, frontCount);
+  const alignOf = (line: Line) => {
+    const page = pages[line.page];
+    // Two blocks side by side (two companies' addresses) are contact details.
+    const twoColumns = line.items.some((item, k) => k > 0 && item.str.trim() && item.x - (line.items[k - 1].x + line.items[k - 1].width) > 6 * column);
+    if (twoColumns) return 'left' as const;
+    const centre = (line.x0 + line.x1) / 2;
+    return Math.abs(centre - page.width / 2) < 0.6 * 72 ? 'center' as const : line.x1 > page.width - 1.6 * 72 && line.x0 > page.width / 2 - 36 ? 'right' as const : 'left' as const;
+  };
+  const credit = /^(written|screenplay|teleplay|story)?\s*by\b/i;
+  const titleIndex = Math.max(0, front.findIndex((page) => page.some((line) => credit.test(joinItems(line.items, column).trim()))));
   let titlePage: ScreenplayTitlePage | undefined;
-  let bodyPages = all;
-  if (all.length > 1 && all[0].length > 0 && all[0].length <= 30 && !all[0].some((line) => SCENE_START.test(joinItems(line.items, column)))) {
-    const page = pages[0];
-    titlePage = titlePageFromLines(all[0].map((line) => {
-      const centre = (line.x0 + line.x1) / 2;
-      const align = Math.abs(centre - page.width / 2) < 0.6 * 72 ? 'center' as const : line.x1 > page.width - 1.6 * 72 && line.x0 > page.width / 2 - 36 ? 'right' as const : 'left' as const;
-      return { align, text: joinItems(line.items, column).replace(/\s+/g, ' ') };
-    }));
-    bodyPages = all.slice(1);
-  }
+  const frontNotes: string[] = [];
+  front.forEach((page, index) => {
+    if (page.length === 0) return;
+    if (index === titleIndex) {
+      titlePage = titlePageFromLines(page.map((line, k) => ({
+        align: alignOf(line),
+        text: joinItems(line.items, column).trim().replace(/\s{3,}/g, ' · ').replace(/\s+/g, ' '),
+        gapBefore: k > 0 && page[k - 1].y - line.y > 20,
+      })));
+      return;
+    }
+    // Paragraphs of the other front pages, split where the lines open up.
+    let paragraph: string[] = [];
+    page.forEach((line, k) => {
+      if (k > 0 && page[k - 1].y - line.y > 20 && paragraph.length) {
+        frontNotes.push(paragraph.join(' '));
+        paragraph = [];
+      }
+      paragraph.push(joinItems(line.items, column).replace(/\s+/g, ' ').trim());
+    });
+    if (paragraph.length) frontNotes.push(paragraph.join(' '));
+  });
+  const bodyPages = all.slice(frontCount);
   const lines = bodyPages.flat();
-  if (lines.length === 0) return { text: '', ...(titlePage ? { titlePage } : {}) };
+  const notesText = frontNotes.filter(Boolean).map((note) => `[[${note.replace(/\]\]/g, '] ]')}]]`).join('\n\n');
+  if (lines.length === 0) return { text: notesText, ...(titlePage ? { titlePage } : {}) };
 
   // The action margin: the leftmost column a good share of lines start at
   // (scene numbers hang further left, so a lone outlier never sets it).
@@ -250,5 +293,6 @@ export const screenplayFromPdfPages = (pages: readonly PdfPageText[]): PdfScreen
     current = { ...row };
   }
   flush();
-  return { text: `${out.join('\n')}\n`, ...(titlePage ? { titlePage } : {}) };
+  const body = `${out.join('\n')}\n`;
+  return { text: notesText ? `${notesText}\n\n${body}` : body, ...(titlePage ? { titlePage } : {}) };
 };

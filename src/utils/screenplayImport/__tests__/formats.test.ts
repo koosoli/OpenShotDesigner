@@ -112,3 +112,40 @@ describe('PDF text reconstruction', () => {
     expect(parseScreenplayTitlePage(text)).toBeNull();
   });
 });
+
+describe('PDF watermarks and front matter', () => {
+  const item = (str: string, col: number, row: number, extra: Partial<{ rotated: boolean }> = {}) => ({ str, x: 108 + col * 7.2, y: 720 - (row + 1) * 12 + 3, width: str.length * 7.2, ...extra });
+  const page = (items: ReturnType<typeof item>[]) => ({ width: 612, height: 792, items });
+  const stamp = item('Ada Reader - Agency', 18, 30);
+
+  it('drops a name stamped on every page and diagonal text', () => {
+    const pages = [
+      page([item('INT. BANK - DAY', 0, 0), item('Rain falls on the old bank.', 0, 2), stamp, item('CONFIDENTIAL', 10, 20, { rotated: true })]),
+      ...Array.from({ length: 4 }, (_, k) => page([item(`Beat ${k} happens here.`, 0, 0), stamp])),
+    ];
+    const { text } = screenplayFromPdfPages(pages);
+    expect(text).not.toContain('Ada Reader');
+    expect(text).not.toContain('CONFIDENTIAL');
+    expect(text).toContain('Rain falls on the old bank.');
+  });
+
+  it('reads a cover spread over several pages: title page, notice and epigraph', () => {
+    const pages = [
+      page([item('Ada Reader - Agency', 18, 30)]),
+      page([item('THE BANK JOB', 24, 10), item('Written by', 25, 13), item('Ada Writer', 25, 15)]),
+      page([item('"Every scene is driven by music."', 5, 10)]),
+      page([item('INT. BANK - DAY', 0, 0), item('Rain.', 0, 2)]),
+      page([item('Sirens.', 0, 0)]),
+    ];
+    const { text, titlePage } = screenplayFromPdfPages(pages);
+    expect(titlePage).toMatchObject({ title: 'THE BANK JOB', credit: 'Written by', authors: 'Ada Writer' });
+    const lines = parseScreenplay(text, 'x.txt');
+    expect(lines.map((line) => [line.type, line.text])).toEqual([
+      ['note', 'Ada Reader - Agency'],
+      ['note', '"Every scene is driven by music."'],
+      ['scene', 'INT. BANK - DAY'],
+      ['action', 'Rain.'],
+      ['action', 'Sirens.'],
+    ]);
+  });
+});

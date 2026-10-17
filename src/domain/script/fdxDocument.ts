@@ -91,32 +91,53 @@ export const fdxTitlePage = (doc: Document): ScreenplayTitlePage | undefined => 
  * and date.
  */
 export const titlePageFromLines = (
-  input: ReadonlyArray<{ align: 'left' | 'center' | 'right'; text: string }>,
+  input: ReadonlyArray<{ align: 'left' | 'center' | 'right'; text: string; gapBefore?: boolean }>,
 ): ScreenplayTitlePage | undefined => {
   const lines = input.filter((line) => line.text.trim());
   if (lines.length === 0) return undefined;
   const page: ScreenplayTitlePage = {};
   const authors: string[] = [];
   const contact: string[] = [];
-  let afterCredit = false;
+  const notes: string[] = [];
+  /** Authors are the short centred lines right under the credit (or the title). */
+  let inAuthors = false;
   for (const line of lines) {
     const text = line.text.trim();
+    // A paragraph (a legal notice, a synopsis) is never a name or a date.
+    if (text.length > 60) {
+      inAuthors = false;
+      notes.push(text);
+      continue;
+    }
     if (COPYRIGHT_RE.test(text)) {
       page.copyright = text;
+      inAuthors = false;
       continue;
     }
     if (line.align === 'center') {
-      if (!page.title) page.title = text;
-      else if (CREDIT_RE.test(text) && !page.credit) {
+      if (!page.title) {
+        page.title = text;
+        inAuthors = true;
+      } else if (CREDIT_RE.test(text) && !page.credit) {
         page.credit = text;
-        afterCredit = true;
-      } else if (SOURCE_RE.test(text) && !page.source) page.source = text;
-      else if (DRAFT_RE.test(text) && !page.draftLabel) page.draftLabel = text;
-      else if (authors.length > 0 && DATE_RE.test(text) && !page.date) page.date = text;
-      else if (afterCredit || authors.length === 0) authors.push(text);
-      else page.notes = page.notes ? `${page.notes}\n${text}` : text;
+        inAuthors = true;
+      } else if (SOURCE_RE.test(text) && !page.source) {
+        page.source = text;
+        inAuthors = false;
+      } else if (DRAFT_RE.test(text) && !page.draftLabel) {
+        page.draftLabel = text;
+        inAuthors = false;
+      } else if (authors.length > 0 && DATE_RE.test(text) && !page.date) {
+        page.date = text;
+        inAuthors = false;
+      } else if (inAuthors && (!line.gapBefore || authors.length === 0)) authors.push(text);
+      else {
+        inAuthors = false;
+        notes.push(text);
+      }
       continue;
     }
+    inAuthors = false;
     if (line.align === 'right') {
       if (DRAFT_RE.test(text) && !page.draftLabel) page.draftLabel = text;
       else if (DATE_RE.test(text) && !page.date) page.date = text;
@@ -128,6 +149,14 @@ export const titlePageFromLines = (
   }
   if (authors.length) page.authors = authors.join('\n');
   if (contact.length) page.contact = contact.join('\n');
+  // A paragraph wrapped over several long lines reads back as one.
+  const paragraphs = notes.reduce<string[]>((out, note) => {
+    const last = out[out.length - 1];
+    if (last !== undefined && last.length > 60 && note.length > 60) out[out.length - 1] = `${last} ${note}`;
+    else out.push(note);
+    return out;
+  }, []);
+  if (paragraphs.length) page.notes = paragraphs.join('\n');
   return page;
 };
 

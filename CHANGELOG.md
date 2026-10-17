@@ -4,6 +4,29 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.2] — 2026-10-17
+
+### Added
+
+- **Drop a screenplay on the Script panel** to import it (PDF, Final Draft,
+  Fountain, Word, Celtx or plain text). Dropping a PDF used to make the
+  browser open the file in place of the app.
+
+### Fixed
+
+- PDF import of production drafts:
+  - A reader's name stamped on every page (and any diagonal watermark) no
+    longer lands in the script as stray lines or glued into sentences.
+  - Front matter spread over several pages (a cover sheet, the title page, a
+    legal notice, an epigraph) is read as such: the title page fills the
+    cover, the rest becomes script notes.
+  - Title pages with two contact blocks side by side and a legal paragraph
+    read correctly; long paragraphs go to the cover's notes, not the author.
+  - Pages a damaged PDF does not let us read in full are named after the
+    import, so they can be checked against the PDF instead of losing text
+    silently. PDF text is read on the page itself, which is what makes this
+    warning possible.
+
 ## [1.4.1] — 2026-10-17
 
 ### Changed

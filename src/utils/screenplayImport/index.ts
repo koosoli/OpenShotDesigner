@@ -22,6 +22,8 @@ export interface ConvertedScreenplay {
   raw: string;
   /** A file name whose extension tells `parseScreenplay` how to read `raw`. */
   name: string;
+  /** PDF pages whose text could not be read in full (1-based). */
+  damagedPages?: number[];
 }
 
 const withExtension = (name: string, extension: string) => `${name.replace(/\.[^.]+$/, '')}.${extension}`;
@@ -31,9 +33,14 @@ export const convertScreenplayFile = async (file: File): Promise<ConvertedScreen
   const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
   const data = new Uint8Array(await file.arrayBuffer());
   if (extension === 'pdf') {
-    const { text, titlePage } = screenplayFromPdfPages(await readPdfPages(data.buffer));
+    const { pages, damagedPages } = await readPdfPages(data.buffer);
+    const { text, titlePage } = screenplayFromPdfPages(pages);
     if (!text.trim()) return null;
-    return { raw: `${fountainTitleBlock(titlePage)}${text}`, name: withExtension(file.name, 'txt') };
+    return {
+      raw: `${fountainTitleBlock(titlePage)}${text}`,
+      name: withExtension(file.name, 'txt'),
+      ...(damagedPages.length ? { damagedPages } : {}),
+    };
   }
   if (extension === 'docx') {
     const { raw, extension: as } = screenplayFromDocx(data);
