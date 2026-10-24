@@ -147,6 +147,8 @@ interface FloorPlanContextType {
   displaySettings: DisplaySettings;
   storageWarning: string | null;
   dismissStorageWarning: () => void;
+  /** After another tab saved this project: overwrite that save with this tab's. */
+  keepThisTabsVersion: () => void;
 
   // Actions
   updateDisplaySettings: (updates: Partial<DisplaySettings>) => void;
@@ -639,7 +641,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Persistence lives in `useAutosave`: debounced IndexedDB writes, flush on
   // hide/unload, quota + multi-tab warnings. Extracted so the 4400-line
   // project context shrinks slice by slice instead of growing.
-  const { storageWarning, dismissStorageWarning } = useAutosave(project, setProjects);
+  const { storageWarning, dismissStorageWarning, keepThisTabsVersion } = useAutosave(project, setProjects);
 
   // Sync history when active setup changes externally (e.g. switched setup)
   const prevSetupIdRef = useRef(project.activeSetupId);
@@ -3393,6 +3395,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateDisplaySettings,
         storageWarning,
         dismissStorageWarning,
+        keepThisTabsVersion,
   });
 
   return (

@@ -86,6 +86,57 @@ const readWriteStamp = (projectId: string): ProjectWriteStamp | null => {
   }
 };
 
+/**
+ * The write stamps that already existed when this page loaded.
+ *
+ * A stamp only means "another tab saved after you loaded" if it was written
+ * after this page loaded. One left over from before — by the tab this page
+ * replaced on reload, say — describes data this page has already loaded, or
+ * data that never landed at all: the stamp is written synchronously, but the
+ * project goes to IndexedDB asynchronously, so a tab closed mid-save can leave
+ * a stamp newer than anything stored. Treating that as a conflict blocked
+ * every save of the reloaded tab with "changed in another browser tab" while
+ * no other tab was open.
+ */
+const stampsAtLoad = new Map<string, string>();
+if (typeof localStorage !== 'undefined') {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(WRITE_STAMP_PREFIX)) stampsAtLoad.set(key.slice(WRITE_STAMP_PREFIX.length), localStorage.getItem(key) ?? '');
+    }
+  } catch {
+    // No storage access: no stamps, no conflicts to detect.
+  }
+}
+
+/**
+ * Keep this tab's version after another tab saved: the other tab's save is
+ * taken as seen, so this tab's next save overwrites it.
+ */
+export const acceptExternalWrite = (projectId: string): void => {
+  try {
+    const raw = localStorage.getItem(`${WRITE_STAMP_PREFIX}${projectId}`);
+    if (raw !== null) stampsAtLoad.set(projectId, raw);
+  } catch {
+    // Nothing to accept without storage.
+  }
+};
+
+/** Whether another tab has saved this project since this page loaded it. */
+const savedElsewhereSinceLoad = (project: Project): ProjectWriteStamp | null => {
+  const external = readWriteStamp(project.id);
+  if (!external || external.sessionId === TAB_SESSION_ID) return null;
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(`${WRITE_STAMP_PREFIX}${project.id}`);
+  } catch {
+    return null;
+  }
+  if (raw !== null && stampsAtLoad.get(project.id) === raw) return null;
+  return external.updatedAt > (project.updatedAt ?? '') ? external : null;
+};
+
 const announceWrite = (project: Project): void => {
   const updatedAt = project.updatedAt ?? '';
   if (!updatedAt) return;
@@ -334,14 +385,8 @@ export const listUnreadableProjects = (): UnreadableProject[] => [...unreadableP
 
 /** Save a project and refresh its entry in the index. Throws when out of quota. */
 export const writeProject = (project: Project, options: { touch?: boolean } = {}): ProjectSummary => {
-  const external = readWriteStamp(project.id);
-  if (
-    external &&
-    external.sessionId !== TAB_SESSION_ID &&
-    external.updatedAt > (project.updatedAt ?? '')
-  ) {
-    throw new ProjectWriteConflictError(project.id, external.updatedAt);
-  }
+  const external = savedElsewhereSinceLoad(project);
+  if (external) throw new ProjectWriteConflictError(project.id, external.updatedAt);
   let storable = project;
   if (detectSchemaVersion(project) !== CURRENT_PROJECT_SCHEMA_VERSION) {
     try {

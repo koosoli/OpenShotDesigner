@@ -4,6 +4,19 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.5.1] — 2026-10-24
+
+### Fixed
+
+- **"This project was changed in another browser tab" with no other tab
+  open.** A tab reloaded or closed in the middle of a save could leave a
+  marker claiming a newer save than the one that reached storage, and the
+  reloaded tab then refused every save and kept showing the warning. Only a
+  save made by another tab after this page was opened now counts; a real
+  second tab is still detected.
+- The warning for a real conflict now offers **Keep this tab's version**
+  beside **Reload**.
+
 ## [1.5.0] — 2026-10-24
 
 ### Added

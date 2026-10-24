@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Project } from '../types';
 import type { ProjectSummary } from '../domain/storage/types';
 import {
+  acceptExternalWrite,
   loadLibrary,
   markSavePending,
   maybeWriteBackupSnapshot,
@@ -37,6 +38,8 @@ export const useAutosave = (
 ): {
   storageWarning: string | null;
   dismissStorageWarning: () => void;
+  /** After another tab saved: overwrite its save with this tab's project. */
+  keepThisTabsVersion: () => void;
   persistProjectNow: (target?: Project) => void;
 } => {
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
@@ -111,6 +114,10 @@ export const useAutosave = (
   return {
     storageWarning,
     dismissStorageWarning: () => setStorageWarning(null),
+    keepThisTabsVersion: () => {
+      acceptExternalWrite(autosaveProjectRef.current.id);
+      persistProjectNow();
+    },
     persistProjectNow,
   };
 };

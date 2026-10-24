@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CURRENT_PROJECT_SCHEMA_VERSION } from '../../domain/migrations';
 import {
+  acceptExternalWrite,
   createProject,
   flushPendingWrites,
   getSaveState,
@@ -106,6 +107,34 @@ describe('write / read round trip', () => {
     expect(() => writeProject(saved, { touch: false })).toThrow(ProjectWriteConflictError);
     expect(readProject(saved.id)).toBeNull();
     localStorage.removeItem(`openshotdesigner_write_stamp_${saved.id}`);
+  });
+
+  it("keeps this tab's version over the other tab's save when asked", () => {
+    const saved = project({ updatedAt: '2026-01-01T10:00:00.000Z' });
+    localStorage.setItem(
+      `openshotdesigner_write_stamp_${saved.id}`,
+      JSON.stringify({ sessionId: 'another-tab', updatedAt: '2026-01-01T10:01:00.000Z' }),
+    );
+    expect(() => writeProject(saved, { touch: false })).toThrow(ProjectWriteConflictError);
+    acceptExternalWrite(saved.id);
+    expect(() => writeProject(saved, { touch: false })).not.toThrow();
+    expect(readProject(saved.id)?.id).toBe(saved.id);
+    localStorage.removeItem(`openshotdesigner_write_stamp_${saved.id}`);
+  });
+
+  it('is not blocked by a stamp left from before the page loaded (a reload mid-save)', async () => {
+    // The tab this page replaced announced a save whose data never reached
+    // storage: its stamp is newer than anything stored, and no other tab is open.
+    const id = 'proj-reloaded';
+    localStorage.setItem(
+      `openshotdesigner_write_stamp_${id}`,
+      JSON.stringify({ sessionId: 'tab-before-reload', updatedAt: '2026-01-01T10:05:00.000Z' }),
+    );
+    vi.resetModules();
+    const fresh = await import('../projectLibrary');
+    const reloaded = { ...fresh.createProject({ title: 'Reloaded' }), id, updatedAt: '2026-01-01T10:00:00.000Z' };
+    expect(() => fresh.writeProject(reloaded)).not.toThrow();
+    localStorage.removeItem(`openshotdesigner_write_stamp_${id}`);
   });
 });
 

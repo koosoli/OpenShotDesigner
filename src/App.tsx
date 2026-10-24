@@ -106,7 +106,7 @@ type WorkspaceModule = 'shots' | 'storyboard' | 'script' | 'equipment' | 'schedu
 type WorkspaceGroup = 'creative' | 'production' | 'technical';
 
 const MainLayout: React.FC = () => {
-  const { project, activeSetup, selectedElementIds, storageWarning, dismissStorageWarning, isModuleVisible, isViewfinderOpen } = useFloorPlan();
+  const { project, activeSetup, selectedElementIds, storageWarning, dismissStorageWarning, keepThisTabsVersion, isModuleVisible, isViewfinderOpen } = useFloorPlan();
   useScriptSetupSync();
   const { activeRightTab, setActiveRightTab, theme, isExportModalOpen, isRightPanelOpen, setRightPanelOpen, isDashboardOpen } = useWorkspaceUI();
   const { notice } = useDialogs();
@@ -372,15 +372,26 @@ const MainLayout: React.FC = () => {
             <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
             <p className="text-[11px] leading-relaxed flex-1">{storageWarning}</p>
             {storageWarning.includes('another browser tab') && (
-              <button
-                onClick={() => window.location.reload()}
-                title="Reload to load the newer version"
-                className={`px-2 py-1 rounded-lg text-[11px] font-bold flex-shrink-0 ${
-                  isLight ? 'bg-amber-600 text-white hover:bg-amber-500' : 'bg-amber-500 text-black hover:bg-amber-400'
-                }`}
-              >
-                Reload
-              </button>
+              <>
+                <button
+                  onClick={() => window.location.reload()}
+                  title="Reload to load the newer version saved by the other tab"
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold flex-shrink-0 ${
+                    isLight ? 'bg-amber-600 text-white hover:bg-amber-500' : 'bg-amber-500 text-black hover:bg-amber-400'
+                  }`}
+                >
+                  Reload
+                </button>
+                <button
+                  onClick={keepThisTabsVersion}
+                  title="Save what is in this tab over the other tab's save"
+                  className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex-shrink-0 border ${
+                    isLight ? 'border-amber-400 text-amber-900 hover:bg-amber-100' : 'border-amber-600 text-amber-200 hover:bg-amber-900/60'
+                  }`}
+                >
+                  Keep this tab's version
+                </button>
+              </>
             )}
             <button
               onClick={dismissStorageWarning}
