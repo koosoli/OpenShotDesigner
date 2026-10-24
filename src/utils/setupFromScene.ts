@@ -6,6 +6,7 @@
  */
 import type { SceneSetup } from '../types';
 import type { ScriptScene } from '../domain/script';
+import { setupNameForScene } from '../domain/script/setupLink';
 import { blankSetup } from './projectLibrary';
 
 export const setupTimeOfDay = (scene: Pick<ScriptScene, 'timeOfDay' | 'intExt'>): SceneSetup['timeOfDay'] => {
@@ -15,13 +16,15 @@ export const setupTimeOfDay = (scene: Pick<ScriptScene, 'timeOfDay' | 'intExt'>)
 };
 
 export const setupForScriptScene = (
-  scene: Pick<ScriptScene, 'sceneNumber' | 'heading' | 'timeOfDay' | 'intExt'>,
+  scene: Pick<ScriptScene, 'sceneNumber' | 'heading' | 'timeOfDay' | 'intExt'> & { id?: string },
   locationId?: string,
 ): SceneSetup => {
-  const base = blankSetup(scene.sceneNumber, `Scene ${scene.sceneNumber} · ${scene.heading}`);
+  const base = blankSetup(scene.sceneNumber, setupNameForScene(scene));
   const camera = base.elements.find((element) => element.type === 'camera');
   return {
     ...base,
+    // Linked to its heading, so the plan follows the scene (domain/script/setupLink).
+    ...(scene.id ? { scriptSceneId: scene.id } : {}),
     location: scene.heading,
     ...(locationId ? { locationId } : {}),
     timeOfDay: setupTimeOfDay(scene),

@@ -1,3 +1,4 @@
+import { shownRotation } from '../../domain/plan/rotation';
 import React from 'react';
 import { CameraElement, Shot, Vector2D } from '../../types';
 import { getCameraFovPolygon, getInterpolatedPositionAndRotation, getSmoothSplinePath } from '../../utils/geometry';
@@ -129,7 +130,7 @@ const CameraElementViewImpl: React.FC<CameraElementViewProps> = ({
                 transform={`translate(${wp.x}, ${wp.y}) rotate(${wpRot})`}
                 opacity={0.62}
               >
-                <title>{`Camera keyframe B${wp.beat} — facing ${Math.round(wpRot)}°`}</title>
+                <title>{`Camera keyframe B${wp.beat} — facing ${shownRotation('camera', wpRot)}°`}</title>
                 {displaySettings.showFovCones && (
                   <path
                     d={wpFov.pathString}

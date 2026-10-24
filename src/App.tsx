@@ -4,9 +4,10 @@ import { useDismiss } from './components/common/useDismiss';
 import { useFitsLabels } from './components/common/useFitsLabels';
 import { MODULE_PICKER_GROUPS } from './domain/workspace';
 import { FloorPlanProvider, useFloorPlan } from './context/FloorPlanContext';
+import { useScriptSetupSync } from './context/useScriptSetupSync';
 import { TopNavbar } from './components/toolbar/TopNavbar';
 import { LeftToolbar } from './components/toolbar/LeftToolbar';
-import { FloorPlanCanvas } from './components/canvas/FloorPlanCanvas';
+import { SplitCanvasArea } from './components/canvas/SplitCanvasArea';
 import { TimelineBar } from './components/timeline/TimelineBar';
 import { ShotListPanel } from './components/shotlist/ShotListPanel';
 import { InspectorPanel } from './components/inspector/InspectorPanel';
@@ -106,6 +107,7 @@ type WorkspaceGroup = 'creative' | 'production' | 'technical';
 
 const MainLayout: React.FC = () => {
   const { project, activeSetup, selectedElementIds, storageWarning, dismissStorageWarning, isModuleVisible, isViewfinderOpen } = useFloorPlan();
+  useScriptSetupSync();
   const { activeRightTab, setActiveRightTab, theme, isExportModalOpen, isRightPanelOpen, setRightPanelOpen, isDashboardOpen } = useWorkspaceUI();
   const { notice } = useDialogs();
 
@@ -353,7 +355,7 @@ const MainLayout: React.FC = () => {
           <ProductionReadiness />
           <ReviewNotes />
           <div className="flex-1 relative overflow-hidden">
-            <FloorPlanCanvas />
+            <SplitCanvasArea />
           </div>
 
           {/* Director's Blocking Playback Timeline */}

@@ -46,7 +46,9 @@ export interface BaseElement {
   type: ElementType;
   x: number;
   y: number;
-  rotation: number; // in degrees (0 = pointing right / 90 = down)
+  rotation: number; // in degrees, stored (0 = pointing right / 90 = down); shown to people with 0 = down (domain/plan/rotation)
+  /** v37: drawn over the walls (domain/plan/stacking). Absent = in its usual layer. */
+  aboveWalls?: boolean;
   name: string;
   locked?: boolean;
   visible?: boolean;
@@ -1005,6 +1007,13 @@ export interface SceneSetup {
   locationId?: string;
   /** When set, this setup is the reusable MASTER PLAN for that location (§13). */
   masterPlanForLocationId?: string;
+  /**
+   * The screenplay scene this plan is for: the id of its heading (and
+   * `ScriptScene.id`). Kept in step by domain/script/setupLink, so the plan
+   * follows its scene when the script is renumbered. Absent = not linked
+   * (v37).
+   */
+  scriptSceneId?: string;
   elements: FloorPlanElement[];
   shots: Shot[];
   /** Custom added or overridden equipment items for this scene */

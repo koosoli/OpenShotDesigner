@@ -71,7 +71,7 @@ export { compareScriptRevisions } from './revision';
 export type { ScriptRevisionComparison, ScriptSceneChange } from './revision';
 export { estimateScenePageEighths, parsePageEighths, wrappedLineCount, SCREENPLAY_LINES_PER_PAGE } from './pageCount';
 export type { PageCountLine, PageCountOptions } from './pageCount';
-export { SCREENPLAY_ROWS, autoContdCueIds, cueName, dualDialogueSides, elementWidth, paginateScreenplay, screenplayLayoutOptions, wrapScreenplayText } from './pagination';
+export { DUAL_RIGHT_COLUMN, SCREENPLAY_ROWS, autoContdCueIds, caretRow, cueName, dualDialogueSides, elementColumns, elementWidth, paginateScreenplay, screenplayLayoutOptions, wrapScreenplayText } from './pagination';
 export type { LaidLine, LaidPage, PaginationLine, PaginationOptions, ScreenplayLayout, ScreenplayPaper, ScreenplayPagination } from './pagination';
 export { HIGHLIGHT_PALETTE, characterColor, deriveLineHighlights, locationColors } from './highlight';
 export type { HighlightLegendEntry, HighlightLine, HighlightMode, LineHighlight, NameMention } from './highlight';
@@ -92,3 +92,13 @@ export { characterScriptStats } from './characterStats';
 export type { CharacterScriptStats } from './characterStats';
 export { fdxLayout, fdxRevisionColorIndex, fdxTitlePage, parseFdxDocument } from './fdxDocument';
 export type { FdxDocumentSettings } from './fdxDocument';
+export {
+  NOT_IN_SCRIPT,
+  hasAutomaticName,
+  linkSetupToScene,
+  sceneOfSetup,
+  scenesWithoutSetup,
+  setupNameForScene,
+  syncSetupsWithScript,
+} from './setupLink';
+export type { SetupPatch } from './setupLink';

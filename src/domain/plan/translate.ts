@@ -85,3 +85,24 @@ export const patchWaypoint = (
   updates: Partial<Omit<Waypoint, 'id'>>,
 ): Waypoint[] =>
   path.map((waypoint) => (waypoint.id === waypointId ? { ...waypoint, ...updates } : waypoint));
+
+/**
+ * Move a whole element by a delta: its anchor and every absolute coordinate it
+ * carries — the far end of a wall, track or measure (`x2`/`y2`), a movement
+ * path or cable route, freehand ink.
+ *
+ * Paste and duplicate used to shift only `x`/`y`, so a wall's far end stayed
+ * where the original was and the copy came out diagonal.
+ */
+export const translateElement = <T extends FloorPlanElement>(el: T, dx: number, dy: number): T => {
+  const out = { ...el, x: el.x + dx, y: el.y + dy } as T & { x2?: number; y2?: number; path?: unknown; points?: unknown };
+  if ('x2' in el && typeof (el as { x2?: unknown }).x2 === 'number' && typeof (el as { y2?: unknown }).y2 === 'number') {
+    out.x2 = (el as { x2: number }).x2 + dx;
+    out.y2 = (el as { y2: number }).y2 + dy;
+  }
+  const path = (el as { path?: unknown }).path;
+  if (Array.isArray(path)) out.path = translatePath(path as Waypoint[] | CablePathPoint[], dx, dy);
+  const points = (el as { points?: unknown }).points;
+  if (Array.isArray(points)) out.points = translateStrokePoints(points as StrokePoint[], dx, dy);
+  return out;
+};

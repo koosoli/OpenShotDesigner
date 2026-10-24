@@ -113,3 +113,7 @@ export {
 export type { SetRunOfShowInput, UpdateMoodBoardsInput, UpdateTaskBoardsInput } from './collections';
 export { addScriptRevisionCommand, addSetupsCommand, removeBreakdownItemCommand, updateBreakdownItemsCommand } from './breakdown';
 export type { UpdateBreakdownItemsInput } from './breakdown';
+export { copyElementsToSetupCommand, setSetupViewCommand } from './sceneTransfer';
+export type { CopyElementsToSetupInput, CopyElementsToSetupResult, SetSetupViewInput } from './sceneTransfer';
+export { linkSetupToSceneCommand, setupsOutOfStep, syncSetupsWithScriptCommand } from './scriptSetups';
+export type { LinkSetupToSceneInput, SyncSetupsWithScriptInput } from './scriptSetups';

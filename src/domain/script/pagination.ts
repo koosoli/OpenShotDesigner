@@ -165,6 +165,38 @@ const DUAL: Record<'left' | 'right', Record<string, { col: number; width: number
 export const elementWidth = (type: string | undefined): number => specOf(type ?? 'action').width;
 
 /**
+ * Where an element prints: its first column from the text margin, its width
+ * in columns, and whether it is set flush right — in one column of a
+ * dual-dialogue block when `side` is given. The editor lays lines out on these
+ * same columns so they wrap where the page wraps them.
+ */
+export const elementColumns = (
+  type: string | undefined,
+  side?: 'left' | 'right',
+): { col: number; width: number; right: boolean } => {
+  const dual = side ? DUAL[side][type ?? 'dialogue'] ?? DUAL[side].dialogue : undefined;
+  if (dual) return { col: dual.col, width: dual.width, right: false };
+  const spec = specOf(type ?? 'action');
+  return { col: spec.col, width: spec.width, right: spec.right === true };
+};
+
+/** Where the right-hand column of a dual-dialogue block starts, from the text margin. */
+export const DUAL_RIGHT_COLUMN = 28;
+
+/** The printed row (0-based, as wrapped at `width`) that character offset `caret` sits on. */
+export const caretRow = (text: string, width: number, caret: number): { row: number; rows: number } => {
+  const rows = wrapScreenplayText(text, width);
+  let from = 0;
+  for (let k = 0; k < rows.length; k += 1) {
+    const start = rows[k] ? text.indexOf(rows[k], from) : from;
+    const end = (start < 0 ? from : start) + rows[k].length;
+    if (caret <= end || k === rows.length - 1) return { row: k, rows: rows.length };
+    from = end;
+  }
+  return { row: 0, rows: rows.length };
+};
+
+/**
  * Greedy word wrap at `width` characters. Spaces at a break belong to neither
  * line; a word longer than the column is cut. Always at least one line.
  */

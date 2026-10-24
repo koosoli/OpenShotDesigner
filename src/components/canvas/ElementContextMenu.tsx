@@ -3,6 +3,8 @@ import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   ChevronDown,
   ChevronUp,
+  ChevronsDown,
+  ChevronsUp,
   ClipboardPaste,
   Copy,
   Link2,
@@ -18,6 +20,8 @@ import {
 import { promptSaveAssemblyFromIds } from './AssembliesPanel';
 import { useDialogs } from '../dialog/DialogProvider';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
+import { restackElement } from '../../domain/plan/stacking';
+import type { StackMove } from '../../domain/plan/stacking';
 
 export interface ElementContextMenuState {
   /** Viewport (client) coordinates of the pointer that opened the menu. */
@@ -131,16 +135,12 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
     );
   });
 
-  const reorder = (direction: 'forward' | 'backward') =>
+  // Stacking: bring forward lifts an object over the walls first
+  // (domain/plan/stacking), then up among other raised objects.
+  const reorder = (direction: StackMove) =>
     run(() => {
       if (!state.elementId) return;
-      const elements = [...activeSetup.elements];
-      const index = elements.findIndex((el) => el.id === state.elementId);
-      if (index === -1) return;
-      const swapWith = direction === 'forward' ? index + 1 : index - 1;
-      if (swapWith < 0 || swapWith >= elements.length) return;
-      [elements[index], elements[swapWith]] = [elements[swapWith], elements[index]];
-      updateSetupMeta({ elements });
+      updateSetupMeta({ elements: restackElement(activeSetup.elements, state.elementId, direction) });
     });
 
   const cut = run(() => {
@@ -227,6 +227,16 @@ export const ElementContextMenu: React.FC<ElementContextMenuProps> = ({ state, o
           <button onClick={reorder('backward')} className={itemClass}>
             <span className="flex items-center gap-2">
               <ChevronDown className="w-3.5 h-3.5" /> Send Backward
+            </span>
+          </button>
+          <button onClick={reorder('front')} className={itemClass}>
+            <span className="flex items-center gap-2">
+              <ChevronsUp className="w-3.5 h-3.5" /> Bring to Front
+            </span>
+          </button>
+          <button onClick={reorder('back')} className={itemClass}>
+            <span className="flex items-center gap-2">
+              <ChevronsDown className="w-3.5 h-3.5" /> Send to Back
             </span>
           </button>
           <div className={`my-1 border-t border-line`} />

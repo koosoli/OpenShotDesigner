@@ -4,6 +4,55 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] — 2026-10-24
+
+### Added
+
+- **Split screen on the floor plan.** The split button in the canvas toolbar
+  shows scenes side by side (up to four), each with its own pan and zoom.
+  Every pane names its scene in a drop-down that picks what it shows (picking
+  a scene shown elsewhere swaps them), and the dividers drag to resize the
+  panes. You work in any pane: click or press-and-drag in it and that scene
+  is the one being edited, right there.
+- **Drag objects between scenes.** Drag anything from one pane onto another
+  to move it there (hold <kbd>Alt</kbd> to copy). A camera brings a copy of
+  its shot, numbered in its new scene.
+- **Bring to Front / Send to Back** in the right-click menu.
+- **Script scenes and floor plans stay linked.** A scene written in the
+  screenplay gets an empty plan in the scene list as soon as its heading is
+  there, and the plan's name follows the heading as you type it. A plan drawn
+  on the canvas first is linked to the scene of its number when that scene is
+  written. Linked plans follow their scene when the script is renumbered. Each heading shows its plan (or offers **+ Plan** to make or link
+  one), and the Inspector's **Script Scene** picker links or unlinks a plan by
+  hand.
+- **The screenplay editor has a light mode**: a white page with dark type,
+  following the app's theme.
+
+### Changed
+
+- **The screenplay editor is WYSIWYG while you write.** Every element sits at
+  its printed indent and width and wraps exactly where the printed page will,
+  so long action and dialogue no longer run out of sight; ↑ and ↓ move through
+  the wrapped lines of a paragraph before leaving it. Dual dialogue is written
+  side by side, in the two columns it prints in.
+- **0° now means facing down** for actors, cameras and lights: an actor facing
+  the camera at the foot of the plan reads 0° (90° left, 180° up, 270°
+  right). Saved projects look exactly as before; only the numbers shown and
+  typed change. Walls, furniture and text keep 0° = as drawn.
+- Importing a plain-text or Fountain script joins hard-wrapped action and
+  dialogue lines back into paragraphs, so they wrap to the page in the editor.
+- Project files are now schema version 37 (objects over walls, scene ↔ plan
+  links). Older projects open and upgrade as before; files saved by 1.5.0
+  need 1.5.0 or later to open.
+
+### Fixed
+
+- Pasting walls (or any line, track or cable) into another scene kept one end
+  where it was, so walls came out diagonal. They now move as a whole, and a
+  paste into a different scene lands in the same place.
+- **Bring Forward** on a prop, shape, light or cable now lifts it over the
+  walls instead of doing nothing visible.
+
 ## [1.4.2] — 2026-10-17
 
 ### Added

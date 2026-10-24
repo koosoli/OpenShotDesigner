@@ -8,6 +8,7 @@ import { useRef } from 'react';
 import type { CameraElement, FloorPlanElement, PlanGroup, SceneSetup, Shot } from '../types';
 import { createId } from '../domain/ids';
 import { remapAnnotationTargets } from '../domain/plan/annotations';
+import { translateElement } from '../domain/plan/translate';
 
 export const useElementClipboard = (input: {
   activeSetup: SceneSetup;
@@ -29,12 +30,11 @@ export const useElementClipboard = (input: {
 
       const newId = createId(`el-${el.type}`);
       duplicateIdMap.set(id, newId);
+      // The whole element moves — a wall's far end and a path included.
       const duplicated: FloorPlanElement = {
-        ...el,
+        ...translateElement(el, 30, 30),
         id: newId,
         name: `${el.name} (Copy)`,
-        x: el.x + 30,
-        y: el.y + 30,
       };
 
       if (duplicated.type === 'camera') {
@@ -75,6 +75,8 @@ export const useElementClipboard = (input: {
   // Clipboard for Ctrl+C / Ctrl+V copy & paste of selected assets.
   const clipboardRef = useRef<FloorPlanElement[]>([]);
   const pasteOffsetRef = useRef(30);
+  /** The scene the clipboard was copied from: pasting into another lands in place. */
+  const clipboardSetupRef = useRef<string | null>(null);
 
   const copySelectedElements = () => {
     if (selectedElementIds.length === 0) return;
@@ -83,10 +85,18 @@ export const useElementClipboard = (input: {
       .filter((el): el is FloorPlanElement => !!el)
       .map((el) => JSON.parse(JSON.stringify(el)) as FloorPlanElement);
     pasteOffsetRef.current = 30;
+    clipboardSetupRef.current = activeSetup.id;
   };
 
   const pasteElements = () => {
     if (clipboardRef.current.length === 0) return;
+    // Into the scene it came from, a paste steps 30 px clear of the original;
+    // into another scene it lands exactly where it was — a set's walls line
+    // up from scene to scene. Later pastes there step on from that spot.
+    if (clipboardSetupRef.current !== activeSetup.id) {
+      clipboardSetupRef.current = activeSetup.id;
+      pasteOffsetRef.current = 0;
+    }
     const newElements: FloorPlanElement[] = [];
     const newSelectedIds: string[] = [];
     // The shots the paste adds, in paste order. Their `order` and shot number
@@ -103,11 +113,9 @@ export const useElementClipboard = (input: {
       const newId = createId(`el-${el.type}`);
       pasteIdMap.set(el.id, newId);
       const pasted: FloorPlanElement = {
-        ...el,
+        ...translateElement(el, pasteOffsetRef.current, pasteOffsetRef.current),
         id: newId,
         name: `${el.name} (Copy)`,
-        x: el.x + pasteOffsetRef.current,
-        y: el.y + pasteOffsetRef.current,
       };
 
       // Camera copies also carry a copy of their linked shot so the pasted

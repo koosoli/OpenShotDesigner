@@ -26,7 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
-import { SceneSetup, ScriptElementType, ScriptFormatMode, ScriptLine, ShotSize } from '../../types';
+import { ScriptElementType, ScriptFormatMode, ScriptLine, ShotSize } from '../../types';
 import {
   formatParenthetical,
   parseAVScriptText,
@@ -57,6 +57,9 @@ import {
   removeLineOrOmit,
   restoreScene,
   autoContdCueIds,
+  caretRow,
+  DUAL_RIGHT_COLUMN,
+  elementColumns,
   dualDialogueSides,
   screenplayLayoutOptions,
   tagBreakdownItem,
@@ -65,11 +68,13 @@ import {
 import type { BreakdownSourceRange, HighlightMode, ScriptRevisionComparison } from '../../domain/script';
 import { ScriptHighlightBar } from './ScriptHighlightBar';
 import { DraftDiffList } from './DraftDiffList';
+import { ScreenplayLineField } from './ScreenplayLineField';
+import { ScenePlanLink } from './ScenePlanLink';
 import { compareDrafts } from '../../domain/script/compareDrafts';
 import type { DraftComparison } from '../../domain/script/compareDrafts';
 import {
   addScriptRevisionCommand,
-  addSetupsCommand,
+  syncSetupsWithScriptCommand,
   setCharacterColorCommand,
   setLocationsCommand,
   setScreenplayLayoutCommand,
@@ -114,15 +119,15 @@ type ScriptWorkspaceView = ScriptFormatMode | 'reports' | 'title_page';
 
 
 const ELEMENT_STYLES: Record<ScriptElementType, { label: string; shortcut: string; color: string; indentClass: string }> = {
-  scene: { label: 'Scene Heading', shortcut: 'INT/EXT', color: 'text-amber-400 border-amber-500/40 bg-amber-950/20', indentClass: 'font-bold uppercase tracking-wider text-slate-100 pl-0' },
-  action: { label: 'Action', shortcut: 'Act', color: 'text-slate-300 border-slate-600/40 bg-slate-800/20', indentClass: 'text-slate-200 pl-0 max-w-2xl' },
-  character: { label: 'Character', shortcut: 'Char', color: 'text-emerald-400 border-emerald-500/40 bg-emerald-950/20', indentClass: 'font-bold uppercase tracking-wide text-emerald-300 pl-[36%] max-w-xl' },
-  parenthetical: { label: 'Parenthetical (Tab)', shortcut: '(Tab)', color: 'text-sky-400 border-sky-500/40 bg-sky-950/20', indentClass: 'italic text-sky-300 pl-[28%] max-w-md' },
-  dialogue: { label: 'Dialogue', shortcut: 'Dia', color: 'text-violet-300 border-violet-500/40 bg-violet-950/20', indentClass: 'text-slate-100 pl-[20%] max-w-lg' },
-  transition: { label: 'Transition', shortcut: 'Trans', color: 'text-rose-400 border-rose-500/40 bg-rose-950/20', indentClass: 'font-bold uppercase text-rose-300 text-right pr-4' },
-  shot: { label: 'Shot Angle', shortcut: 'Shot', color: 'text-yellow-400 border-yellow-500/40 bg-yellow-950/20', indentClass: 'font-bold uppercase text-yellow-200 pl-0' },
-  note: { label: 'Note', shortcut: '[[ ]]', color: 'text-slate-400 border-slate-700/40 bg-slate-900/40', indentClass: 'italic text-slate-400 pl-0' },
-  'page-break': { label: 'Page Break', shortcut: '===', color: 'text-slate-500 border-slate-700/40', indentClass: 'text-center opacity-40 text-xs py-2' },
+  scene: { label: 'Scene Heading', shortcut: 'INT/EXT', color: 'text-amber-700 dark:text-amber-400 border-amber-500/40 bg-amber-50 dark:bg-amber-950/20', indentClass: 'font-bold uppercase text-slate-900 dark:text-slate-100' },
+  action: { label: 'Action', shortcut: 'Act', color: 'text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600/40 bg-slate-100 dark:bg-slate-800/20', indentClass: 'text-slate-800 dark:text-slate-200' },
+  character: { label: 'Character', shortcut: 'Char', color: 'text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20', indentClass: 'font-bold uppercase text-emerald-800 dark:text-emerald-300' },
+  parenthetical: { label: 'Parenthetical (Tab)', shortcut: '(Tab)', color: 'text-sky-700 dark:text-sky-400 border-sky-500/40 bg-sky-50 dark:bg-sky-950/20', indentClass: 'italic text-sky-800 dark:text-sky-300' },
+  dialogue: { label: 'Dialogue', shortcut: 'Dia', color: 'text-violet-700 dark:text-violet-300 border-violet-500/40 bg-violet-50 dark:bg-violet-950/20', indentClass: 'text-slate-900 dark:text-slate-100' },
+  transition: { label: 'Transition', shortcut: 'Trans', color: 'text-rose-700 dark:text-rose-400 border-rose-500/40 bg-rose-50 dark:bg-rose-950/20', indentClass: 'font-bold uppercase text-rose-800 dark:text-rose-300' },
+  shot: { label: 'Shot Angle', shortcut: 'Shot', color: 'text-yellow-700 dark:text-yellow-400 border-yellow-500/40 bg-yellow-50 dark:bg-yellow-950/20', indentClass: 'font-bold uppercase text-yellow-800 dark:text-yellow-200' },
+  note: { label: 'Note', shortcut: '[[ ]]', color: 'text-slate-400 border-slate-300 dark:border-slate-700/40 bg-slate-50 dark:bg-slate-900/40', indentClass: 'italic text-slate-400' },
+  'page-break': { label: 'Page Break', shortcut: '===', color: 'text-slate-500 border-slate-300 dark:border-slate-700/40', indentClass: 'text-center opacity-40 text-xs py-2' },
 };
 
 /**
@@ -687,29 +692,32 @@ export const ScriptPanel: React.FC = () => {
     importingScriptRef.current = false;
     knownHeadingIdsRef.current = ids;
   }, [lines]);
+  // A scene written here gets an empty plan in the canvas's scene list at
+  // once — not when its heading is left, which never happens when the next
+  // thing you do is look at the canvas. The plan is linked to the heading, so
+  // it follows the scene and takes its slugline as it is typed
+  // (useScriptSetupSync). A plan already there for that scene number (drawn on
+  // the canvas first) is linked instead of doubled.
   useEffect(() => {
     const pending = pendingSetupHeadingsRef.current;
     if (pending.size === 0) return;
-    const additions: SceneSetup[] = [];
+    const createFor: string[] = [];
     for (const id of [...pending]) {
-      if (id === activeEditingLineId) continue; // still being written
       const line = lines.find((candidate) => candidate.id === id);
       if (!line || line.type !== 'scene' || line.omitted) {
         pending.delete(id);
         continue;
       }
-      const location = parseSceneHeading(line.text || '').location;
-      if (!location || /^LOCATION$/i.test(location)) continue; // not named yet
-      const scene = (project.scriptScenes ?? []).find((candidate) => candidate.id === id);
-      if (!scene) continue;
+      if (!(project.scriptScenes ?? []).some((candidate) => candidate.id === id)) continue;
       pending.delete(id);
-      const taken = [...project.setups, ...additions].some((setup) => setup.sceneNumber === scene.sceneNumber);
-      if (!taken) additions.push(setupForScriptScene(scene));
+      createFor.push(id);
     }
-    if (additions.length > 0) runCommand(addSetupsCommand, { setups: additions, open: false }, { domain: 'script' });
+    if (createFor.length > 0) {
+      runCommand(syncSetupsWithScriptCommand, { createFor, makeSetup: (scene) => setupForScriptScene(scene) }, { domain: 'script' });
+    }
     // runCommand is stable in effect; the inputs that decide are listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeEditingLineId, lines, project.scriptScenes, project.setups]);
+  }, [lines, project.scriptScenes, project.setups]);
 
   const handleStartBlankScreenplay = () => {
     const blankId = createId('sl');
@@ -1074,6 +1082,11 @@ export const ScriptPanel: React.FC = () => {
     // ↑ ↓ move between lines, keeping the caret's column; omitted headings
     // have no field and are stepped over.
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      // In a line that wraps, ↑ ↓ first move between its own rows.
+      if (e.currentTarget instanceof HTMLTextAreaElement) {
+        const { row, rows } = caretRow(line.text, elementColumns(line.type, dualSides.get(line.id)).width, e.currentTarget.selectionStart ?? 0);
+        if ((e.key === 'ArrowUp' && row > 0) || (e.key === 'ArrowDown' && row < rows - 1)) return;
+      }
       const step = e.key === 'ArrowDown' ? 1 : -1;
       for (let i = index + step; i >= 0 && i < lines.length; i += step) {
         const target = lines[i];
@@ -1636,8 +1649,12 @@ export const ScriptPanel: React.FC = () => {
               />
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto shadow-2xl rounded-xl border border-slate-700/40 p-6 sm:p-12 min-h-[850px] bg-slate-900 text-slate-100 font-mono">
-              <div className="border-b border-slate-800 pb-4 mb-6 flex items-center justify-between text-xs opacity-60">
+            <div
+              className="max-w-4xl mx-auto shadow-2xl rounded-xl border border-slate-300 dark:border-slate-700/40 p-6 sm:p-12 min-h-[850px] bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+              // The printed face: every column is one character wide, as on paper.
+              style={{ fontFamily: '"Courier Prime", "Courier New", Courier, monospace', containerType: 'inline-size' }}
+            >
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 flex items-center justify-between text-xs opacity-60">
                 <span className="uppercase tracking-wider font-bold">{scriptTitle || 'UNTITLED SCREENPLAY'}</span>
                 <span>HOLLYWOOD STANDARD COURIER 12PT</span>
               </div>
@@ -1646,7 +1663,7 @@ export const ScriptPanel: React.FC = () => {
                 <div className="text-center py-16 space-y-4">
                   <Clapperboard className="w-10 h-10 mx-auto text-slate-500" />
                   <div>
-                    <p className="text-sm font-bold text-slate-200">Screenplay is Empty</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Screenplay is Empty</p>
                     <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
                       Write your scenes with standard Hollywood 12pt Courier formatting or import an existing file.
                     </p>
@@ -1673,33 +1690,28 @@ export const ScriptPanel: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-1">
-                  {lines.map((line, idx) => {
-                    const style = ELEMENT_STYLES[line.type || 'action'];
-                    const isSelected = activeEditingLineId === line.id;
-                    const pageLabel = idx > 0 ? pageStartMap.get(line.id) : undefined;
-                    return (
-                      <React.Fragment key={line.id}>
-                      {/* Where the printed page turns: the same pages as the PDF,
-                          locked labels (12A) included. */}
-                      {pageLabel && (
-                        <div
-                          role="separator"
-                          aria-label={`Page ${pageLabel}`}
-                          className="flex items-center gap-2 py-1 text-[10px] font-sans font-semibold text-slate-500 select-none"
-                        >
-                          <span className="flex-1 border-t border-dashed border-slate-700" />
-                          <span>{pageLabel}.</span>
-                        </div>
-                      )}
+                // Type sized so the whole 60-column page (plus the row's controls,
+                // about 7rem) fits the panel: a column is 0.6em of Courier.
+                <div className="space-y-1" style={{ fontSize: 'clamp(9px, calc((100cqw - 7rem) / 36.4), 16px)' }}>
+                  {(() => {
+                    /** One line of the editor, on its printed columns (in one column of a dual block when `dualSide` is set). */
+                    const renderRow = (line: ScriptLine, idx: number, dualSide?: 'left' | 'right') => {
+                      const style = ELEMENT_STYLES[line.type || 'action'];
+                      const isSelected = activeEditingLineId === line.id;
+                      const columns = elementColumns(line.type, dualSide);
+                      // The right column is drawn from where it starts on the page.
+                      const offset = dualSide === 'right' ? DUAL_RIGHT_COLUMN : 0;
+                      return (
                       <div
                         onClick={() => setActiveEditingLineId(line.id)}
                         onFocus={() => setActiveEditingLineId(line.id)}
-                        {...(dualSides.has(line.id) ? { title: `Dual dialogue — ${dualSides.get(line.id)} column` } : {})}
-                        className={`group relative flex items-center gap-2 rounded px-2 py-0.5 transition-colors ${
-                          isSelected ? 'bg-violet-950/40 ring-1 ring-violet-500/40' : 'hover:bg-slate-800/30'
-                        } ${dualSides.get(line.id) === 'left' ? 'border-l-2 border-emerald-500/40' : dualSides.get(line.id) === 'right' ? 'border-l-2 border-emerald-300/70 ml-4' : ''}`}
+                        {...(dualSide ? { title: `Dual dialogue — ${dualSide} column` } : {})}
+                        className={`group relative flex items-center gap-2 rounded py-0.5 transition-colors ${
+                          isSelected ? 'bg-violet-100 dark:bg-violet-950/40 ring-1 ring-violet-500/40' : 'hover:bg-slate-100 dark:hover:bg-slate-800/30'
+                        } ${dualSide === 'left' ? 'pl-2 pr-0' : dualSide === 'right' ? 'pl-0 pr-2' : 'px-2'}`}
                       >
+                        {/* The right column of a dual block starts mid-page: no gutter. */}
+                        {dualSide !== 'right' && (
                         <div className="w-16 flex-shrink-0 opacity-0 group-hover:opacity-80 transition-opacity">
                           <button
                             onClick={(e) => {
@@ -1707,13 +1719,29 @@ export const ScriptPanel: React.FC = () => {
                               toggleParentheticalOnLine(line.id);
                             }}
                             title="Click or press Tab to toggle parenthetical delivery"
-                            className="text-[10px] px-1 py-0.5 rounded border border-slate-700 bg-slate-800 text-slate-300 hover:text-sky-300"
+                            className="text-[10px] px-1 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-sky-800 dark:hover:text-sky-300"
                           >
                             {line.type === 'parenthetical' ? '(Delivery)' : style.shortcut}
                           </button>
                         </div>
+                        )}
 
-                        <div className={`flex-1 ${style.indentClass}`}>
+                        {/* The element's printed column (10 columns an inch from
+                            the 1.5" margin), so lines wrap where the page does. */}
+                        <div
+                          className={`min-w-0 ${style.indentClass}`}
+                          style={
+                            // A heading's pickers are controls, not printed text:
+                            // it takes the row. Every other element sits on its column.
+                            line.type === 'scene'
+                              ? { flex: '1 1 0%' }
+                              : {
+                                  paddingLeft: `${columns.col - offset}ch`,
+                                  width: `${columns.col - offset + columns.width}ch`,
+                                  flex: '0 0 auto',
+                                }
+                          }
+                        >
                           {line.type === 'scene' && line.omitted ? (
                             <div className="flex items-center justify-between gap-2 font-bold text-slate-500">
                               <span className="uppercase tracking-widest line-through decoration-rose-500/70 decoration-2">
@@ -1728,7 +1756,7 @@ export const ScriptPanel: React.FC = () => {
                                     e.stopPropagation();
                                     setScriptLines(restoreScene(lines, line.id));
                                   }}
-                                  className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/40 normal-case tracking-normal"
+                                  className="text-[10px] px-1.5 py-0.5 rounded border border-emerald-600/50 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/40 normal-case tracking-normal"
                                   title={`Restore this scene with its ${line.omittedBody?.length ?? 0} parked line(s)`}
                                 >
                                   Restore
@@ -1741,7 +1769,7 @@ export const ScriptPanel: React.FC = () => {
                                     e.stopPropagation();
                                     insertLineAfter(line.id, 'scene');
                                   }}
-                                  className="text-[10px] px-1.5 py-0.5 rounded border border-amber-600/50 text-amber-300 hover:bg-amber-900/40 normal-case tracking-normal"
+                                  className="text-[10px] px-1.5 py-0.5 rounded border border-amber-600/50 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/40 normal-case tracking-normal"
                                   title="Add a new scene directly after this omitted one"
                                 >
                                   + Scene
@@ -1749,7 +1777,7 @@ export const ScriptPanel: React.FC = () => {
                               </span>
                             </div>
                           ) : line.type === 'scene' ? (
-                            <div className="flex flex-wrap items-center justify-between gap-y-0.5 font-bold text-amber-300">
+                            <div className="flex flex-wrap items-center justify-between gap-y-0.5 font-bold text-amber-800 dark:text-amber-300">
                               {/* Both margins, like a production draft. The left
                                   one mirrors the right, which is the one you
                                   edit when the numbers are locked. */}
@@ -1785,6 +1813,7 @@ export const ScriptPanel: React.FC = () => {
                                   <SetLocationLink setName={parseSceneHeading(line.text || '').location as string} isLight={isLight} compact />
                                 </span>
                               )}
+                              <ScenePlanLink sceneId={line.id} />
                               {sceneNumbersLocked ? (
                                 <input
                                   value={line.sceneNumber ?? ''}
@@ -1800,22 +1829,23 @@ export const ScriptPanel: React.FC = () => {
                               ) : null}
                             </div>
                           ) : line.type === 'parenthetical' ? (
-                            <div className="relative text-sky-300 italic flex items-center">
-                              <input
+                            <div className="relative text-sky-800 dark:text-sky-300 italic">
+                              <ScreenplayLineField
+                                lineId={line.id}
                                 autoFocus={isSelected}
-                                data-line-input={line.id}
-                                aria-label="Parenthetical"
+                                ariaLabel="Parenthetical"
                                 value={line.text}
-                                onChange={(e) => {
-                                  updateLine(line.id, e.target.value);
+                                width={columns.width}
+                                onChange={(value) => {
+                                  updateLine(line.id, value);
                                   openSuggest(line.id, 'preset');
                                 }}
                                 onKeyDown={(e) => {
                                   if (handleSuggestionKeys(e, line)) return;
                                   handleLineKeyDown(e, line, idx);
                                 }}
-                                className="w-full bg-transparent outline-none italic text-sky-300 focus:bg-sky-950/20 px-1 rounded"
-                                placeholder="(whispering / beat / delivery)"
+                                className="italic text-sky-800 dark:text-sky-300 focus:bg-sky-50 dark:focus:bg-sky-950/20"
+                                placeholder="(whispering / beat)"
                               />
                               {renderSuggestions(line)}
                             </div>
@@ -1835,7 +1865,10 @@ export const ScriptPanel: React.FC = () => {
                                   handleLineKeyDown(e, line, idx);
                                 }}
                                 onBlur={() => setSuggest(null)}
-                                className="w-full bg-transparent outline-none uppercase font-bold text-emerald-300 focus:bg-emerald-950/20 px-1 rounded"
+                                // As wide as the name, so it never collapses in a
+                                // dual column and the cue's controls follow it.
+                                style={{ width: `calc(${Math.max((line.text || '').length, 'CHARACTER NAME'.length * (line.text ? 0 : 1), 3) + 1}ch + 0.5rem)` }}
+                                className="flex-none max-w-full bg-transparent outline-none uppercase font-bold text-emerald-800 dark:text-emerald-300 focus:bg-emerald-50 dark:focus:bg-emerald-950/20 px-1 rounded"
                                 placeholder="CHARACTER NAME"
                               />
                               <select
@@ -1845,18 +1878,18 @@ export const ScriptPanel: React.FC = () => {
                                 onChange={(e) => {
                                   if (e.target.value) updateLine(line.id, toggleCueExtension(line.text || '', e.target.value));
                                 }}
-                                className="shrink-0 bg-transparent text-[10px] font-bold text-emerald-300/70 hover:text-emerald-300 outline-none rounded px-0.5 hover:bg-emerald-950/30 cursor-pointer"
+                                className="w-[3.5ch] shrink-0 appearance-none text-center bg-transparent text-[10px] font-bold text-emerald-800/70 dark:text-emerald-300/70 hover:text-emerald-800 dark:hover:text-emerald-300 outline-none rounded px-0.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer"
                               >
-                                <option value="" className="bg-slate-900 text-emerald-300">( )</option>
+                                <option value="" className="bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300">( )</option>
                                 {CUE_EXTENSIONS.map((extension) => (
-                                  <option key={extension} value={extension} className="bg-slate-900 text-emerald-300">
+                                  <option key={extension} value={extension} className="bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300">
                                     {splitCue(line.text || '').extensions.includes(extension) ? `✓ (${extension})` : `(${extension})`}
                                   </option>
                                 ))}
                               </select>
                               {autoContdIds.has(line.id) && (
                                 <span
-                                  className="shrink-0 text-[10px] font-bold text-emerald-300/50"
+                                  className="shrink-0 text-[10px] font-bold text-emerald-800/50 dark:text-emerald-300/50"
                                   title="Printed automatically: the same character spoke last in this scene"
                                 >
                                   (CONT'D)
@@ -1874,8 +1907,8 @@ export const ScriptPanel: React.FC = () => {
                                   title="Dual dialogue: print this speech beside the one above (Ctrl+D)"
                                   className={`shrink-0 text-[10px] font-bold px-1 rounded border ${
                                     line.dual
-                                      ? 'border-emerald-400/70 bg-emerald-900/50 text-emerald-200'
-                                      : 'border-transparent text-emerald-300/40 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:border-emerald-500/40'
+                                      ? 'border-emerald-600/70 dark:border-emerald-400/70 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200'
+                                      : 'border-transparent text-emerald-800/40 dark:text-emerald-300/40 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:border-emerald-500/40'
                                   }`}
                                 >
                                   ⇉ Dual
@@ -1885,28 +1918,28 @@ export const ScriptPanel: React.FC = () => {
                             </div>
                           ) : (
                             <div className="relative">
-                            <input
+                            <ScreenplayLineField
+                              lineId={line.id}
                               autoFocus={isSelected}
-                              data-line-input={line.id}
-                              aria-label={line.type === 'dialogue' ? 'Dialogue' : line.type === 'transition' ? 'Transition' : line.type === 'shot' ? 'Shot' : 'Action'}
+                              ariaLabel={line.type === 'dialogue' ? 'Dialogue' : line.type === 'transition' ? 'Transition' : line.type === 'shot' ? 'Shot' : 'Action'}
                               value={line.text}
-                              onChange={(e) => {
+                              width={columns.width}
+                              right={columns.right}
+                              onChange={(value) => {
                                 // "int. " at the start of an action line makes it a heading.
-                                if ((line.type || 'action') === 'action' && startsSceneHeading(e.target.value)) {
-                                  updateLine(line.id, e.target.value, 'scene');
+                                if ((line.type || 'action') === 'action' && startsSceneHeading(value)) {
+                                  updateLine(line.id, value, 'scene');
                                   return;
                                 }
-                                updateLine(line.id, e.target.value);
+                                updateLine(line.id, value);
                                 if (LINE_PRESETS[line.type || 'action']) openSuggest(line.id, 'preset');
                               }}
                               onKeyDown={(e) => {
                                 if (handleSuggestionKeys(e, line)) return;
                                 handleLineKeyDown(e, line, idx);
                               }}
-                              className={`w-full bg-transparent outline-none focus:bg-slate-800/40 px-1 rounded ${
-                                line.type === 'dialogue' ? 'text-slate-100' : 'text-slate-300'
-                              }`}
-                              placeholder={line.type === 'dialogue' ? 'Spoken dialogue...' : line.type === 'transition' ? 'CUT TO:' : line.type === 'shot' ? 'ANGLE ON…' : 'Action description...'}
+                              className={`focus:bg-slate-50 dark:focus:bg-slate-800/40 ${line.type === 'dialogue' ? 'text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'}`}
+                              placeholder={line.type === 'dialogue' ? 'Spoken dialogue…' : line.type === 'transition' ? 'CUT TO:' : line.type === 'shot' ? 'ANGLE ON…' : 'Action description…'}
                             />
                             {renderSuggestions(line)}
                             </div>
@@ -1918,7 +1951,7 @@ export const ScriptPanel: React.FC = () => {
                             e.stopPropagation();
                             setScriptLines(removeLineOrOmit(lines, line.id));
                           }}
-                          className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-1 text-slate-500 hover:text-rose-400"
+                          className={`opacity-0 group-hover:opacity-60 hover:!opacity-100 p-1 text-slate-500 hover:text-rose-700 dark:hover:text-rose-400 ${dualSide === 'left' ? 'absolute left-full top-0 z-10' : ''}`}
                           title={
                             line.type === 'scene'
                               ? line.omitted
@@ -1937,9 +1970,48 @@ export const ScriptPanel: React.FC = () => {
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
+                      );
+                    };
+                    return lines.map((line, idx) => {
+                    const side = dualSides.get(line.id);
+                    // Dual dialogue prints side by side, and is written side by
+                    // side: the block's first line draws both columns.
+                    const startsDual = side === 'left' && dualSides.get(lines[idx - 1]?.id ?? '') !== 'left';
+                    if (side && !startsDual) return null;
+                    const pageLabel = idx > 0 ? pageStartMap.get(line.id) : undefined;
+                    let dualBlock: { left: number[]; right: number[] } | null = null;
+                    if (startsDual) {
+                      dualBlock = { left: [], right: [] };
+                      let k = idx;
+                      while (k < lines.length && dualSides.get(lines[k].id) === 'left') dualBlock.left.push(k++);
+                      while (k < lines.length && dualSides.get(lines[k].id) === 'right') dualBlock.right.push(k++);
+                    }
+                    return (
+                      <React.Fragment key={line.id}>
+                      {/* Where the printed page turns: the same pages as the PDF,
+                          locked labels (12A) included. */}
+                      {pageLabel && (
+                        <div
+                          role="separator"
+                          aria-label={`Page ${pageLabel}`}
+                          className="flex items-center gap-2 py-1 text-[10px] font-sans font-semibold text-slate-500 select-none"
+                        >
+                          <span className="flex-1 border-t border-dashed border-slate-300 dark:border-slate-700" />
+                          <span>{pageLabel}.</span>
+                        </div>
+                      )}
+                      {dualBlock ? (
+                        <div className="flex items-start" data-dual-block>
+                          <div className="flex-none space-y-1">{dualBlock.left.map((k) => <React.Fragment key={lines[k].id}>{renderRow(lines[k], k, 'left')}</React.Fragment>)}</div>
+                          <div className="min-w-0 flex-1 space-y-1">{dualBlock.right.map((k) => <React.Fragment key={lines[k].id}>{renderRow(lines[k], k, 'right')}</React.Fragment>)}</div>
+                        </div>
+                      ) : (
+                        renderRow(line, idx)
+                      )}
                       </React.Fragment>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
               )}
             </div>

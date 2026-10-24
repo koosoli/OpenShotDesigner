@@ -27,6 +27,7 @@ import { useDialogs } from '../../dialog/DialogProvider';
 import { framesOf, setFramePatch } from '../../../utils/storyboardFrames';
 import { loadStoryboardImageFile } from '../../../utils/image';
 import { ensureHexColor } from '../../../utils/geometry';
+import { shownRotation, storedRotation } from '../../../domain/plan/rotation';
 
 export const PillToggle: React.FC<{
   on: boolean;
@@ -468,7 +469,9 @@ export const WaypointListEditor: React.FC<{
   /** Cameras only: the shot whose storyboard this camera's beats belong to. */
   boardShot?: Shot | null;
 }> = ({ elementId, path, baseRotation, accentClass, isLight: _isLight, boardShot }) => {
-  const { updateElement, updateShot } = useFloorPlan();
+  const { updateElement, updateShot, activeSetup } = useFloorPlan();
+  // Facing angles are shown with 0° = facing down (domain/plan/rotation).
+  const elementType = activeSetup.elements.find((element) => element.id === elementId)?.type;
   const { notice } = useDialogs();
   const beatInputRef = React.useRef<HTMLInputElement>(null);
   const [beatUploadSlot, setBeatUploadSlot] = useState<string | null>(null);
@@ -488,7 +491,7 @@ export const WaypointListEditor: React.FC<{
   return (
     <div className="space-y-1.5">
       {path.map((wp) => {
-        const wpRot = Math.round(((wp.rotation ?? baseRotation) % 360 + 360) % 360);
+        const wpRot = shownRotation(elementType, wp.rotation ?? baseRotation);
         return (
           <div
             key={wp.id}
@@ -513,7 +516,7 @@ export const WaypointListEditor: React.FC<{
               max={359}
               value={wpRot}
               aria-label="Facing rotation (degrees) at this waypoint" title="Facing rotation (degrees) at this waypoint"
-              onChange={(e) => updateWaypoint(wp.id, { rotation: ((Number(e.target.value) % 360) + 360) % 360 })}
+              onChange={(e) => updateWaypoint(wp.id, { rotation: storedRotation(elementType, Number(e.target.value)) })}
               className={`w-14 border rounded px-1 py-0.5 text-[11px] font-mono text-center ${
                 'bg-surface text-ink border-line-strong'
               }`}

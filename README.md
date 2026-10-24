@@ -4,7 +4,7 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
-[![Version](https://img.shields.io/badge/version-1.4.2-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.4.2 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.5.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
@@ -252,10 +252,11 @@ board — in one print job, with your production logo on the paperwork.
 ### Lined Script & Screenplay Suite
 
 - **Lined Coverage view** — standard Hollywood layout (Courier, 60-column page) with fluid auto-scaling that dynamically fills available panel or fullscreen space.
-- **Screenplay Editor** — write and format scripts directly inside the browser with authentic 12pt Hollywood Courier formatting.
+- **Screenplay Editor** — write and format scripts directly inside the browser with authentic 12pt Hollywood Courier formatting. What you type is what prints: every element sits at its page indent and wraps where the printed page wraps, on a dark or light page to match the app's theme.
   - **Final Draft's element flow** — <kbd>Enter</kbd> after a heading gives Action, <kbd>Tab</kbd> at the end of Action gives a Character, <kbd>Enter</kbd> after a Character gives Dialogue, <kbd>Tab</kbd> in Dialogue a Parenthetical. <kbd>Enter</kbd> in the middle of a line splits it, on an empty line it opens the element list, and <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> on an empty line change its kind forwards and backwards. Typing `int. ` at the start of an action line makes it a heading.
+  - **Linked to the floor plan** — every scene heading has its plan: a new scene gets an empty one, a plan drawn first is linked when its scene is written, and plans follow their scenes through renumbering. **+ Plan** on a heading, or **Script Scene** in the Inspector, links one by hand.
   - **Location picker** — ▾ on a scene heading offers the project's locations; a new set typed there becomes a location in the Locations tab.
-  - **Dual dialogue** — <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>D</kbd> (or **⇉ Dual** on the cue) sets a speech beside the one above. Fountain `^` and Final Draft dual dialogue import and export intact.
+  - **Dual dialogue** — <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>D</kbd> (or **⇉ Dual** on the cue) sets a speech beside the one above, and the editor shows the two speeches side by side in their printed columns. Fountain `^` and Final Draft dual dialogue import and export intact.
   - **Industry pages** — US Letter (54 lines) or A4 (58), feature or multi-camera format, with (MORE) / (CONT'D) when a speech breaks across pages, no stranded headings or cues, an automatic (CONT'D) when a character speaks again in the same scene, and optional scene CONTINUED marks. Eighths, locked pages, sides and the printed screenplay all come from the same pages, and the editor shows where each page starts.
   - **Element list** — <kbd>Enter</kbd> on an empty line lists the elements (↑ ↓ or 1–7).
   - **Fountain mode** — toggle between WYSIWYG Page View and raw Fountain syntax markdown code.
@@ -272,6 +273,9 @@ board — in one print job, with your production logo on the paperwork.
 ### Floor plan & blocking
 
 - **Top-down floor plan canvas** — drag actors, cameras, and props onto a scaled room; move, resize, and rotate anything.
+- **Split screen** — up to four scenes side by side, each with its own pan and zoom, a drop-down naming the scene it shows, and dividers you drag to resize. Work in any of them — a click or drag in a pane edits that scene — and drag objects from one scene to another to move them (<kbd>Alt</kbd> copies).
+- **Rotation reads from the camera side** — 0° is facing down the plan for actors, cameras and lights (90° left, 180° up, 270° right).
+- **Stacking over walls** — Bring Forward / Bring to Front lifts a prop, shape, light or cable over the walls; Send Backward / Send to Back puts it under them again.
 - **Full screen overlay** — dedicated full screen toggle (`Maximize2` / `Minimize2` or <kbd>Esc</kbd> to exit) across Shot List, Storyboard Board, Script, and Inspector.
 - **Waypoint animation** — set waypoints for actors, cameras, props **and lights**, add rotation per waypoint, and watch a ghost preview of the move along the path. Fixtures move too: followspots track, practicals ride a dolly, and an event rig repositions between numbers.
 - **Group animation** — group any selection (right-click → Group) to rotate it rigidly around a shared pivot and animate the whole group with keyframes. The motion path draws on the plan as a dashed run with numbered, draggable keyframe dots.

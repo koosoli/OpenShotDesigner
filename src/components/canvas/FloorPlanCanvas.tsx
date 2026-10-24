@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { updateTrussElementsCommand } from '../../domain/commands';
+import { copyElementsToSetupCommand, updateTrussElementsCommand } from '../../domain/commands';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import {
   elementLength,
@@ -73,9 +73,12 @@ import { StoryboardThumbLayer } from './StoryboardThumbLayer';
 import { TrussLayer, type TrussRunOnPlan } from './TrussLayer';
 import { ResizeHandle, TransformControls } from './TransformControls';
 import { WallLayer } from './WallLayer';
-import { Move, ZoomIn, ZoomOut, Check, X, Scan, Grid } from 'lucide-react';
+import { Move, ZoomIn, ZoomOut, Check, X, Scan, Grid, Columns2 } from 'lucide-react';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { wheelIntent } from '../../utils/wheelIntent';
+import { canRaiseAboveWalls } from '../../domain/plan/stacking';
+import { scenePaneAt, scenePaneAttributes } from './scenePaneDrop';
+import type { PanePress } from './ScenePreviewPane';
 
 interface DragState {
   type:
@@ -119,7 +122,24 @@ const EMPTY_ELEMENTS: FloorPlanElement[] = [];
 /** Element types a cable can be plugged into. Fixed, so it lives out here. */
 const ATTACHABLE_DEVICE_TYPES: ReadonlyArray<FloorPlanElement['type']> = ['camera', 'light', 'actor', 'prop'];
 
-export const FloorPlanCanvas: React.FC = () => {
+interface FloorPlanCanvasProps {
+  /** Split screen (SplitCanvasArea): whether other scenes are shown beside this one. */
+  splitOpen?: boolean;
+  onToggleSplit?: () => void;
+  /** Fit the plan to the canvas once (the split layout changed); `onFitted` acknowledges. */
+  fitRequested?: boolean;
+  onFitted?: () => void;
+  /**
+   * Fit the plan whenever the scene changes (the default). Off in split
+   * screen, where each scene keeps the view its pane showed.
+   */
+  fitOnSceneChange?: boolean;
+  /** A press on a split-screen pane this canvas has just replaced: continue it here. */
+  pendingPress?: PanePress | null;
+  onPendingPressHandled?: () => void;
+}
+
+export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = false, onToggleSplit, fitRequested = false, onFitted, fitOnSceneChange = true, pendingPress = null, onPendingPressHandled }) => {
   const { activeSetup, project, selectedElementIds, selectedShotId, highlightedElementId, activeTool, activeShapeType, activeCableType, playback, selectElement, selectElements, clearSelection, addElement, updateElement, updateShot, updateSetupMeta, updateMultipleElements, deleteSelectedElements, updateBackgroundImage, removeBackgroundImage, runCommand, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, calibratingBackgroundId, cancelBackgroundCalibration, undo, redo, setTool, setCanvasOffset, setCanvasTransform, zoomIn, zoomOut, resetZoom, openViewfinder, displaySettings, updateDisplaySettings, setGridSettings, duplicateSelected, copySelectedElements, pasteElements, commitCurrentState, setCanvasViewport } = useFloorPlan();
   const { theme, setActiveRightTab, setRightPanelOpen } = useWorkspaceUI();
 
@@ -237,6 +257,8 @@ export const FloorPlanCanvas: React.FC = () => {
   // True when the current drag actually changed element positions (used to push
   // exactly ONE history entry on release, so Ctrl+Z undoes a whole gesture).
   const dragChangedRef = useRef(false);
+  /** The drag already dropped onto another scene (see handlePointerUp). */
+  const crossSceneDropRef = useRef<DragState | null>(null);
 
   // Original geometry of linked cables, snapshotted the first time a move
   // gesture cascades into them — keeps endpoint-following frame-independent.
@@ -519,8 +541,24 @@ export const FloorPlanCanvas: React.FC = () => {
   useEffect(() => {
     if (lastFittedSetupId.current === activeSetup.id) return;
     lastFittedSetupId.current = activeSetup.id;
-    fitToContent();
-  }, [fitToContent, activeSetup.id]);
+    if (fitOnSceneChange) fitToContent();
+  }, [fitToContent, activeSetup.id, fitOnSceneChange]);
+
+  // Opening or closing the split screen halves (or doubles) the canvas, and
+  // "Edit here" brings a scene in whose saved view was for the other size:
+  // fit again once the new layout has been measured.
+  const fitToContentRef = useRef(fitToContent);
+  fitToContentRef.current = fitToContent;
+  const onFittedRef = useRef(onFitted);
+  onFittedRef.current = onFitted;
+  useEffect(() => {
+    if (!fitRequested) return;
+    const frame = requestAnimationFrame(() => {
+      fitToContentRef.current();
+      onFittedRef.current?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [fitRequested]);
 
   // Segregate elements for wall snapping & SVG z-ordering.
   // Elements on hidden layers are filtered out here, so they are neither
@@ -605,12 +643,18 @@ export const FloorPlanCanvas: React.FC = () => {
   // whole plan, furniture glyphs and all, on every mouse move.
   const byType = useMemo(() => {
     const buckets: Record<string, FloorPlanElement[]> = {};
-    for (const element of renderedElements) (buckets[element.type] ??= []).push(element);
+    // Elements raised over the walls (domain/plan/stacking) get buckets of
+    // their own, drawn after the walls.
+    for (const element of renderedElements) {
+      const key = (element as { aboveWalls?: boolean }).aboveWalls && canRaiseAboveWalls(element) ? `above:${element.type}` : element.type;
+      (buckets[key] ??= []).push(element);
+    }
     return buckets;
   }, [renderedElements]);
   const ofType = <T extends FloorPlanElement>(type: string): T[] =>
     (byType[type] ?? EMPTY_ELEMENTS) as T[];
 
+  const raised = <T extends FloorPlanElement>(type: string): T[] => ofType<T>(`above:${type}`);
   const walls = ofType<WallElement>('wall');
   const doors = ofType<DoorElement>('door');
   const windows = ofType<WindowElement>('window');
@@ -1523,6 +1567,33 @@ export const FloorPlanCanvas: React.FC = () => {
     [handleElementSelect],
   );
 
+  // Split screen: a press on another scene's pane made that scene the one
+  // being edited and put this canvas where the pane was. Carry the press on as
+  // if it had landed here, so press-and-drag moves the object in one gesture.
+  // A frame later, because switching scenes clears the selection first.
+  const handleElementSelectRef = useRef(handleElementSelect);
+  handleElementSelectRef.current = handleElementSelect;
+  useEffect(() => {
+    if (!pendingPress) return;
+    const frame = requestAnimationFrame(() => {
+      onPendingPressHandled?.();
+      if (!activeSetup.elements.some((el) => el.id === pendingPress.elementId)) return;
+      const press = {
+        ...pendingPress,
+        button: 0,
+        buttons: 1,
+        detail: 1,
+        isPrimary: true,
+        stopPropagation: () => {},
+        preventDefault: () => {},
+      };
+      handleElementSelectRef.current(pendingPress.elementId, press as unknown as React.PointerEvent);
+    });
+    return () => cancelAnimationFrame(frame);
+    // Once per press.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPress]);
+
   // Rotate handle start
   const handleRotateStart = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -1899,7 +1970,7 @@ export const FloorPlanCanvas: React.FC = () => {
     // cursor. handlePointerUp is idempotent, so this is safe to call here.
     const leftHeld = (e.buttons & 1) !== 0;
     if (dragState.type === 'pan' ? e.buttons === 0 : !leftHeld) {
-      handlePointerUp();
+      handlePointerUp(e);
       return;
     }
 
@@ -2333,7 +2404,35 @@ export const FloorPlanCanvas: React.FC = () => {
   // stabilising all of them, for the sake of avoiding one listener swap per
   // render. Its effect's dependency list is complete, which is what matters.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handlePointerUp = () => {
+  const handlePointerUp = (pointer?: { clientX: number; clientY: number; altKey?: boolean }) => {
+    // Split screen: objects dragged out of the canvas onto another scene's
+    // pane move there (Alt copies). The originals go back to where the drag
+    // found them first, so the copy — and an undo of the move — starts from
+    // the real positions. The window listener and the canvas both call this on
+    // one release; the ref keeps the drop from happening twice.
+    if (dragState?.type === 'move' && pointer && crossSceneDropRef.current !== dragState) {
+      const target = scenePaneAt(pointer.clientX, pointer.clientY);
+      if (target && target.setupId && target.setupId !== activeSetup.id) {
+        crossSceneDropRef.current = dragState;
+        const originals = [...dragState.startElements.values()];
+        const restored = [...originals, ...movedCableSnapshotsRef.current.values()];
+        updateMultipleElements(restored.map((el) => ({ id: el.id, updates: el as ElementPatch })), false);
+        const grab = screenToCanvas(dragState.startMouse.x, dragState.startMouse.y);
+        runCommand(copyElementsToSetupCommand, {
+          fromSetupId: activeSetup.id,
+          toSetupId: target.setupId,
+          elementIds: originals.map((el) => el.id),
+          dx: target.world.x - grab.x,
+          dy: target.world.y - grab.y,
+          elements: originals,
+        });
+        if (!(pointer.altKey || altDownRef.current)) deleteSelectedElements();
+        dragChangedRef.current = false;
+        movedCableSnapshotsRef.current.clear();
+        setDragState(null);
+        return;
+      }
+    }
     if (dragState?.type === 'draw_measure') {
       // Finish measuring: if the tape is a zero-length click, give it a sensible default length
       const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
@@ -2464,7 +2563,7 @@ export const FloorPlanCanvas: React.FC = () => {
       finishStroke(true);
       return;
     }
-    handlePointerUp();
+    handlePointerUp(e);
   };
 
   const handleCanvasPointerCancel = () => {
@@ -2816,6 +2915,7 @@ export const FloorPlanCanvas: React.FC = () => {
         role="img"
         aria-label={planSummaryLabel}
         className="w-full h-full block"
+        {...scenePaneAttributes(activeSetup.id, canvasScale, canvasOffset)}
       >
         {/* 0. Endless Vector Grid & Axes — rendered outside the pan/zoom
             transform so it always covers the viewport, while the pattern
@@ -2947,6 +3047,63 @@ export const FloorPlanCanvas: React.FC = () => {
             labelOpacity={(displaySettings.labelOpacity ?? 1) * (displaySettings.labelCategoryOpacity?.doorWindows ?? 1)}
             labelColor={displaySettings.doorWindowLabelColor}
           />
+
+          {/* 5b. Elements brought forward over the walls (still under actors
+              and cameras) — the same layers again, with only the raised ones. */}
+          {(raised('shape').length > 0) && (
+            <ShapesLayer
+              shapes={raised<ShapeElement>('shape')}
+              selectedIds={selectedElementIds}
+              onSelect={handleElementSelect}
+              onDoubleClick={handleElementDoubleClick}
+              canvasScale={canvasScale}
+              showHiddenGhosts
+            />
+          )}
+          {(raised('prop').length + raised('track').length + raised('measurement').length + raised('arrow').length + raised('text').length > 0) && (
+            <PropsLayer
+              propsList={raised<PropElement>('prop')}
+              tracks={raised<TrackElement>('track')}
+              measurements={raised<MeasurementElement>('measurement')}
+              arrows={raised<ArrowElement>('arrow')}
+              texts={raised<TextElement>('text')}
+              selectedIds={selectedElementIds}
+              onSelect={handleElementSelect}
+              onDoubleClick={handleElementDoubleClick}
+              onUpdateText={handleUpdateElementText}
+              pixelsPerUnit={gridSettings.pixelsPerUnit}
+              displaySettings={displaySettings}
+              currentBeat={playback.currentBeat}
+              onAddWaypoint={handleAddPropWaypoint}
+              onWaypointDragStart={handleWaypointDragStart}
+              onWaypointRotateStart={handleWaypointRotateStart}
+            />
+          )}
+          {raised('cable').length > 0 && (
+            <CableLayer
+              cables={raised<CableElement>('cable')}
+              allElements={activeSetup.elements}
+              selectedIds={selectedElementIds}
+              onSelect={handleElementSelect}
+              onDoubleClick={handleElementDoubleClick}
+              pixelsPerUnit={gridSettings.pixelsPerUnit}
+              displaySettings={displaySettings}
+            />
+          )}
+          {raised('light').length > 0 && (
+            <LightingLayer
+              lights={raised<LightElement>('light')}
+              selectedIds={selectedElementIds}
+              onSelect={handleElementSelect}
+              onDoubleClick={handleElementDoubleClick}
+              displaySettings={displaySettings}
+              gridSettings={activeSetup.gridSettings}
+              currentBeat={playback.currentBeat}
+              onAddWaypoint={handleAddLightWaypoint}
+              onWaypointDragStart={handleWaypointDragStart}
+              onWaypointRotateStart={handleWaypointRotateStart}
+            />
+          )}
 
           {/* 6. Live Connected Wall Rubberband Preview */}
           {connectedWallStart && activeDrawPos && (
@@ -3475,6 +3632,24 @@ export const FloorPlanCanvas: React.FC = () => {
             </button>
           );
         })()}
+
+        {onToggleSplit && (
+          <>
+            <div className="w-[1px] h-5 bg-slate-700 mx-1" />
+            <button
+              id="btn-split-view"
+              onClick={onToggleSplit}
+              title={splitOpen ? 'Close split screen' : 'Split screen: show another scene beside this one (drag objects between them)'}
+              aria-label="Split screen"
+              aria-pressed={splitOpen}
+              className={`p-2 rounded-lg transition-colors ${
+                splitOpen ? 'bg-accent text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Columns2 className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Connected Wall Active Finish Bar */}

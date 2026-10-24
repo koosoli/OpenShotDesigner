@@ -1,3 +1,4 @@
+import { shownRotation } from '../../domain/plan/rotation';
 import React from 'react';
 import {
   colorOf,
@@ -382,7 +383,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
               fontWeight="bold"
               fontFamily="monospace"
             >
-              {rotation}°
+              {shownRotation(el.type, rotation)}°
             </text>
           </g>
         </g>
@@ -598,7 +599,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
             fontWeight="bold"
             fontFamily="monospace"
           >
-            {rotation}°
+            {shownRotation(el.type, rotation)}°
           </text>
         </g>
       </g>

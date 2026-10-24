@@ -138,7 +138,7 @@ export const sampleMarksFor = (
   sceneNumber: string,
   mapShotId: (shotId: string) => string | undefined = (id) => id
 ): ScriptMark[] => {
-  const idOf = (needle: string) => lines.find((line) => line.text.startsWith(needle))?.id;
+  const idOf = (needle: string) => lines.find((line) => line.text.includes(needle))?.id;
 
   return SAMPLE_LININGS.filter((lining) => lining.templateId === templateId)
     .map((lining, index) => {
@@ -191,7 +191,7 @@ const LATER_SAMPLE_CATEGORIES: ReadonlySet<BreakdownCategory> = new Set(['stunt'
 export const sampleBreakdownItems = (lines: ScriptLine[]): BreakdownItem[] => {
   let items: BreakdownItem[] = [];
   for (const tag of SAMPLE_BREAKDOWN_TAGS) {
-    const line = lines.find((candidate) => candidate.text.startsWith(tag.from));
+    const line = lines.find((candidate) => candidate.text.includes(tag.from));
     if (!line) continue;
     items = tagBreakdownItem(items, {
       category: tag.category,
@@ -1030,7 +1030,7 @@ export const buildExampleProductionFill = (project: Project): ExampleFillResult 
   if (hasItems(project.breakdownItems) && !project.breakdownItems!.some((item) => LATER_SAMPLE_CATEGORIES.has(item.category))) {
     let items = project.breakdownItems!;
     for (const tag of SAMPLE_BREAKDOWN_TAGS.filter((entry) => LATER_SAMPLE_CATEGORIES.has(entry.category))) {
-      const line = (project.scriptLines ?? []).find((candidate) => candidate.text.startsWith(tag.from));
+      const line = (project.scriptLines ?? []).find((candidate) => candidate.text.includes(tag.from));
       if (line) items = tagBreakdownItem(items, { category: tag.category, name: tag.name, notes: tag.notes, scriptLineIds: [line.id] });
     }
     if (items !== project.breakdownItems) {

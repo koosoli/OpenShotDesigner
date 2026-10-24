@@ -30,6 +30,9 @@ const TIME_OF_DAY_VALUES = ['Day INT', 'Night INT', 'Day EXT', 'Night EXT'] as c
 import { cloneSetupWithNewIds } from '../../domain/clone';
 import { createId } from '../../domain/ids';
 import { bakeGroupRotation, groupPivotOf } from '../../domain/plan';
+import { DISPLAY_FACINGS, shownRotation, storedRotation, usesFacingRotation } from '../../domain/plan/rotation';
+import { linkSetupToSceneCommand } from '../../domain/commands';
+import { NOT_IN_SCRIPT, sceneOfSetup } from '../../domain/script/setupLink';
 import { LayersPanel } from '../canvas/LayersPanel';
 import type { DisplaySettings } from '../../context/FloorPlanContext';
 
@@ -139,6 +142,7 @@ export const InspectorPanel: React.FC = () => {
   const fieldId = useId();
   const logoInputRef = React.useRef<HTMLInputElement>(null);
   const { activeSetup, project, runCommand, selectedElementIds, updateElement, deleteSelectedElements, duplicateSelected, updateSetupMeta, setActiveSetupId, rotateElementBy, backgroundImages, selectedBackgroundId, setSelectedBackgroundId, updateBackgroundImage, removeBackgroundImage, displaySettings, updateDisplaySettings, updateMultipleElements, setGridSettings, calibratingBackgroundId, startBackgroundCalibration, cancelBackgroundCalibration } = useFloorPlan();
+  const linkedScene = sceneOfSetup(activeSetup, project.scriptScenes ?? []);
   const { notice, prompt } = useDialogs();
   const { theme } = useWorkspaceUI();
 
@@ -500,6 +504,37 @@ export const InspectorPanel: React.FC = () => {
               />
             </div>
 
+            {/* The screenplay scene this plan is for (domain/script/setupLink).
+                Linked plans follow their scene's number and heading. */}
+            {(project.scriptScenes?.length ?? 0) > 0 && (
+              <div>
+                <label htmlFor={`${fieldId}-script-scene`} className={`block mb-1 text-ink-muted`}>Script Scene</label>
+                <select
+                  id={`${fieldId}-script-scene`}
+                  value={linkedScene?.id ?? NOT_IN_SCRIPT}
+                  onChange={(e) =>
+                    runCommand(linkSetupToSceneCommand, {
+                      setupId: activeSetup.id,
+                      sceneId: e.target.value === NOT_IN_SCRIPT ? null : e.target.value,
+                    }, { domain: 'script' })
+                  }
+                  className={`w-full border rounded-lg p-2 focus:border-sky-500 bg-field text-ink border-line-strong`}
+                >
+                  <option value={NOT_IN_SCRIPT}>Not in the script</option>
+                  {(project.scriptScenes ?? []).filter((scene) => !scene.omitted || scene.id === linkedScene?.id).map((scene) => (
+                    <option key={scene.id} value={scene.id}>
+                      {scene.sceneNumber}. {scene.heading}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[10px] text-ink-muted">
+                  {linkedScene
+                    ? 'Follows the scene: its number and heading update with the script.'
+                    : 'Link it, and the plan follows the scene when the script is renumbered.'}
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label htmlFor={`${fieldId}-scene-setup-number`} className={`block mb-1 text-ink-muted`}>Scene / Setup Number</label>
@@ -507,9 +542,11 @@ export const InspectorPanel: React.FC = () => {
                   type="text"
                   value={activeSetup.sceneNumber}
                   onChange={(e) => updateSetupMeta({ sceneNumber: e.target.value })}
+                  readOnly={!!linkedScene}
+                  title={linkedScene ? 'Numbered by the script scene this plan is linked to' : undefined}
                   className={`w-full border rounded-lg p-2 focus:border-sky-500 ${
                     'bg-field text-ink border-line-strong'
-                  }`}
+                  } ${linkedScene ? 'opacity-70' : ''}`}
                 />
               </div>
               <div>
@@ -1990,7 +2027,9 @@ export const InspectorPanel: React.FC = () => {
   const el = activeSetup.elements.find((e) => e.id === activeId);
   if (!el) return null;
 
-  const currentRotation = Math.round((el.rotation || 0) % 360 + 360) % 360;
+  // Shown with 0° = facing down for actors, cameras and lights (domain/plan/rotation).
+  const currentRotation = shownRotation(el.type, el.rotation);
+  const facing = usesFacingRotation(el.type);
 
   return (
     <div
@@ -2125,7 +2164,7 @@ export const InspectorPanel: React.FC = () => {
                     min={0}
                     max={360}
                     value={currentRotation}
-                    onChange={(e) => updateElement(el.id, { rotation: ((Number(e.target.value) % 360) + 360) % 360 })}
+                    onChange={(e) => updateElement(el.id, { rotation: storedRotation(el.type, Number(e.target.value)) })}
                     className={`w-14 text-right border rounded px-1.5 py-0.5 font-mono text-xs font-bold text-accent-ink ${
                       'bg-surface border-line-strong'
                     }`}
@@ -2140,7 +2179,7 @@ export const InspectorPanel: React.FC = () => {
                 min={0}
                 max={360}
                 value={currentRotation}
-                onChange={(e) => updateElement(el.id, { rotation: Number(e.target.value) })}
+                onChange={(e) => updateElement(el.id, { rotation: storedRotation(el.type, Number(e.target.value)) })}
                 className="w-full accent-sky-500 cursor-pointer"
               />
 
@@ -2186,42 +2225,26 @@ export const InspectorPanel: React.FC = () => {
 
               {/* Cardinal Facing Presets */}
               <div className="grid grid-cols-4 gap-1 text-[10px] font-mono">
-                <button
-                  onClick={() => updateElement(el.id, { rotation: 0 })}
-                  aria-pressed={currentRotation === 0}
-                  className={`py-0.5 rounded border text-center ${
-                    currentRotation === 0 ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
-                  }`}
-                >
-                  0° (Right)
-                </button>
-                <button
-                  onClick={() => updateElement(el.id, { rotation: 90 })}
-                  aria-pressed={currentRotation === 90}
-                  className={`py-0.5 rounded border text-center ${
-                    currentRotation === 90 ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
-                  }`}
-                >
-                  90° (Down)
-                </button>
-                <button
-                  onClick={() => updateElement(el.id, { rotation: 180 })}
-                  aria-pressed={currentRotation === 180}
-                  className={`py-0.5 rounded border text-center ${
-                    currentRotation === 180 ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
-                  }`}
-                >
-                  180° (Left)
-                </button>
-                <button
-                  onClick={() => updateElement(el.id, { rotation: 270 })}
-                  aria-pressed={currentRotation === 270}
-                  className={`py-0.5 rounded border text-center ${
-                    currentRotation === 270 ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
-                  }`}
-                >
-                  270° (Up)
-                </button>
+                {(facing
+                  ? DISPLAY_FACINGS
+                  : [
+                      { display: 0, label: '' },
+                      { display: 90, label: '' },
+                      { display: 180, label: '' },
+                      { display: 270, label: '' },
+                    ]
+                ).map(({ display, label }) => (
+                  <button
+                    key={display}
+                    onClick={() => updateElement(el.id, { rotation: storedRotation(el.type, display) })}
+                    aria-pressed={currentRotation === display}
+                    className={`py-0.5 rounded border text-center ${
+                      currentRotation === display ? 'bg-accent text-white font-bold border-sky-500' : 'bg-surface border-line-strong'
+                    }`}
+                  >
+                    {display}°{label ? ` (${label})` : ''}
+                  </button>
+                ))}
               </div>
             </div>
           )}

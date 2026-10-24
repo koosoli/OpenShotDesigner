@@ -4,6 +4,7 @@ import {
   hasWaypointPath,
   patchWaypoint,
   translatePath,
+  translateElement,
   translateStrokePoints,
 } from '../plan/translate';
 
@@ -85,5 +86,20 @@ describe('patchWaypoint', () => {
 
   it('leaves the path alone when the id is not in it', () => {
     expect(patchWaypoint(waypoints, 'missing', { x: 999 })).toEqual(waypoints);
+  });
+});
+
+describe('translateElement', () => {
+  it('moves both ends of a wall, so a pasted wall stays straight', () => {
+    const wall = { id: 'w', type: 'wall', name: 'Wall', x: 0, y: 0, x2: 200, y2: 0, thickness: 10, rotation: 0 } as unknown as FloorPlanElement;
+    const moved = translateElement(wall, 30, 30) as unknown as { x: number; y: number; x2: number; y2: number };
+    expect([moved.x, moved.y, moved.x2, moved.y2]).toEqual([30, 30, 230, 30]);
+  });
+
+  it('moves a movement path and freehand ink with the element', () => {
+    const actor = { id: 'a', type: 'actor', name: 'A', x: 10, y: 10, rotation: 0, path: [{ id: 'p', x: 50, y: 60, beat: 1 }] } as unknown as FloorPlanElement;
+    expect((translateElement(actor, 5, -5) as unknown as { path: Array<{ x: number; y: number }> }).path[0]).toMatchObject({ x: 55, y: 55 });
+    const stroke = { id: 's', type: 'stroke', name: 'S', x: 0, y: 0, rotation: 0, points: [{ x: 1, y: 2 }] } as unknown as FloorPlanElement;
+    expect((translateElement(stroke, 1, 1) as unknown as { points: Array<{ x: number; y: number }> }).points[0]).toEqual({ x: 2, y: 3 });
   });
 });

@@ -251,12 +251,24 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
       return;
     }
 
+    // Lines with no blank line between them are one paragraph (Fountain's
+    // rule): a hard-wrapped .txt or a script typed with line breaks reads as
+    // whole speeches and action, not a paragraph per printed line.
+    const last = out[out.length - 1];
     if (previousType === 'character' || previousType === 'parenthetical' || previousType === 'dialogue') {
+      if (previousType === 'dialogue' && last?.type === 'dialogue') {
+        last.text = `${last.text} ${text}`;
+        return;
+      }
       out.push({ text, type: 'dialogue', sceneNumber: currentScene });
       previousType = 'dialogue';
       return;
     }
 
+    if (previousType === 'action' && last?.type === 'action') {
+      last.text = `${last.text} ${text}`;
+      return;
+    }
     out.push({ text, type: 'action', sceneNumber: currentScene });
     previousType = 'action';
   });

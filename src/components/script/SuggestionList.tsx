@@ -8,10 +8,10 @@ export interface Suggestion {
 }
 
 const TONES = {
-  amber: { border: 'border-amber-700/50', text: 'text-amber-300', active: 'bg-amber-950/70' },
-  emerald: { border: 'border-emerald-700/50', text: 'text-emerald-300', active: 'bg-emerald-950/70' },
-  sky: { border: 'border-sky-700/50', text: 'text-sky-300', active: 'bg-sky-950/70' },
-  slate: { border: 'border-slate-600', text: 'text-slate-200', active: 'bg-slate-700/70' },
+  amber: { border: 'border-amber-300 dark:border-amber-700/50', text: 'text-amber-800 dark:text-amber-300', active: 'bg-amber-100 dark:bg-amber-950/70' },
+  emerald: { border: 'border-emerald-300 dark:border-emerald-700/50', text: 'text-emerald-800 dark:text-emerald-300', active: 'bg-emerald-100 dark:bg-emerald-950/70' },
+  sky: { border: 'border-sky-300 dark:border-sky-700/50', text: 'text-sky-800 dark:text-sky-300', active: 'bg-sky-100 dark:bg-sky-950/70' },
+  slate: { border: 'border-slate-300 dark:border-slate-600', text: 'text-slate-800 dark:text-slate-200', active: 'bg-slate-200 dark:bg-slate-700/70' },
 } as const;
 
 /**
@@ -39,7 +39,7 @@ export const SuggestionList: React.FC<{
       ref={listRef}
       role="listbox"
       aria-label={label}
-      className={`absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-lg border ${colors.border} bg-slate-900 shadow-xl text-[11px]`}
+      className={`absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-lg border ${colors.border} bg-white dark:bg-slate-900 shadow-xl text-[11px]`}
     >
       {items.map((item, index) => (
         <li key={item.key} role="option" aria-selected={index === highlight}>
@@ -48,7 +48,7 @@ export const SuggestionList: React.FC<{
             tabIndex={-1}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onPick(item)}
-            className={`w-full text-left px-2 py-1 font-bold ${uppercase ? 'uppercase' : ''} ${colors.text} ${index === highlight ? colors.active : 'hover:bg-slate-800'}`}
+            className={`w-full text-left px-2 py-1 font-bold ${uppercase ? 'uppercase' : ''} ${colors.text} ${index === highlight ? colors.active : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
           >
             {item.label}
             {item.hint && <span className="ml-2 opacity-50 font-normal normal-case">{item.hint}</span>}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { paginateScreenplay, wrapScreenplayText } from '../script/pagination';
+import { DUAL_RIGHT_COLUMN, elementColumns, paginateScreenplay, wrapScreenplayText } from '../script/pagination';
 import type { LaidPage, PaginationLine } from '../script/pagination';
 
 // Cases ported from ScriptCraft's layout tests (MIT/Apache-2.0).
@@ -169,5 +169,15 @@ describe('paginateScreenplay', () => {
     const revised = [...lines.slice(0, 10), ...filler(20, 'New'), ...lines.slice(10)];
     const { pages } = paginateScreenplay(revised, { lock });
     expect(pages.map((page) => page.label)).toEqual(['1', '1A', '2']);
+  });
+});
+
+describe('elementColumns', () => {
+  it('gives the editor the printed columns, dual dialogue included', () => {
+    expect(elementColumns('dialogue')).toEqual({ col: 10, width: 35, right: false });
+    expect(elementColumns('dialogue', 'left')).toEqual({ col: 0, width: 28, right: false });
+    expect(elementColumns('character', 'right')).toEqual({ col: 40, width: 19, right: false });
+    // The right column starts past the left one plus the gap between them.
+    expect(elementColumns('dialogue', 'right').col).toBeGreaterThan(DUAL_RIGHT_COLUMN);
   });
 });

@@ -14,15 +14,15 @@ import {
 import { SuggestionList, suggestionKeyAction } from './SuggestionList';
 
 const select =
-  'shrink-0 bg-transparent font-bold uppercase text-amber-300 outline-none rounded px-0.5 hover:bg-amber-950/30 focus:bg-amber-950/40 focus:ring-1 focus:ring-amber-500/60 cursor-pointer';
-const option = 'bg-slate-900 text-amber-300';
+  'shrink-0 bg-transparent font-bold uppercase text-amber-800 dark:text-amber-300 outline-none rounded px-0.5 hover:bg-amber-100 dark:hover:bg-amber-950/30 focus:bg-amber-100 dark:focus:bg-amber-950/40 focus:ring-1 focus:ring-amber-500/60 cursor-pointer';
+const option = 'bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-300';
 
 /**
  * A native select is as wide as its longest option ("MOMENTS LATER"), which
  * squeezed the set field to nothing. The page is Courier, so the chosen
  * value's length in `ch` (plus room for the arrow) is its real width.
  */
-const fitWidth = (value: string): React.CSSProperties => ({ width: `${Math.max(value.length, 1) + 3}ch` });
+const fitWidth = (value: string): React.CSSProperties => ({ width: `calc(${Math.max(value.length, 1) + 1}ch + 1.4rem)` });
 
 const PREFIX_VALUES: readonly string[] = ['', ...SCENE_PREFIXES];
 
@@ -207,7 +207,7 @@ export const SceneHeadingInput: React.FC<{
             setDraft(null);
             onBlur?.();
           }}
-          className="w-full bg-transparent outline-none uppercase font-bold text-amber-300 focus:bg-amber-950/20 px-1 rounded"
+          className="w-full bg-transparent outline-none uppercase font-bold text-amber-800 dark:text-amber-300 focus:bg-amber-50 dark:focus:bg-amber-950/20 px-1 rounded"
           placeholder="LOCATION"
         />
         {timeOptions.length > 0 ? (
@@ -239,7 +239,7 @@ export const SceneHeadingInput: React.FC<{
           ))}
         </select>
       )}
-      <span aria-hidden className="shrink-0 font-bold text-amber-300/70">-</span>
+      <span aria-hidden className="shrink-0 font-bold text-amber-800/70 dark:text-amber-300/70">-</span>
       <select
         ref={timeRef}
         aria-label="Time of day"
