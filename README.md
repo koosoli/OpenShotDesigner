@@ -253,6 +253,7 @@ board — in one print job, with your production logo on the paperwork.
 
 - **Lined Coverage view** — standard Hollywood layout (Courier, 60-column page) with fluid auto-scaling that dynamically fills available panel or fullscreen space.
 - **Screenplay Editor** — write and format scripts directly inside the browser with authentic 12pt Hollywood Courier formatting. What you type is what prints: every element sits at its page indent and wraps where the printed page wraps, on a dark or light page to match the app's theme.
+  - **Writing tools** — inline bold/italic/underline, literal find/replace with undo, anchored notes with authors and colours, bookmarks, dialogue alternatives, and act/sequence structure with reorderable scene cards. FDX and Fountain retain supported formatting and metadata; screenplay and sides PDFs embed a bundled Unicode font when needed. See the [writing guide and format limits](docs/scriptcraft-writing-ports-2026-10-30.md).
   - **Final Draft's element flow** — <kbd>Enter</kbd> after a heading gives Action, <kbd>Tab</kbd> at the end of Action gives a Character, <kbd>Enter</kbd> after a Character gives Dialogue, <kbd>Tab</kbd> in Dialogue a Parenthetical. <kbd>Enter</kbd> in the middle of a line splits it, on an empty line it opens the element list, and <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> on an empty line change its kind forwards and backwards. Typing `int. ` at the start of an action line makes it a heading.
   - **Linked to the floor plan** — every scene heading has its plan: a new scene gets an empty one, a plan drawn first is linked when its scene is written, and plans follow their scenes through renumbering. **+ Plan** on a heading, or **Script Scene** in the Inspector, links one by hand.
   - **Location picker** — ▾ on a scene heading offers the project's locations; a new set typed there becomes a location in the Locations tab.
@@ -601,6 +602,8 @@ The screenplay page-break rules, dual-dialogue layout, Final Draft element
 flow and the word-level draft comparison follow
 [ScriptCraft](https://github.com/NoJuanNobody/scriptcraft) (MIT OR
 Apache-2.0), reimplemented in TypeScript.
+The extended screenplay writing tools follow the same source. Bundled Courier
+Badi fonts use SIL OFL 1.1; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Support
 

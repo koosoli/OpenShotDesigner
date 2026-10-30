@@ -12,6 +12,7 @@ import type { ScreenplayTitlePage } from '../domain/script';
 import { deriveScriptBreakdown, scriptScenesHaveDriftedIds } from '../domain/script/logic';
 import { hasProductionSceneNumbers, normaliseSceneNumbers } from '../domain/script/numbering';
 import { pruneBreakdownScriptLines, screenplayLayoutOptions } from '../domain/script';
+import { editScriptText } from '../domain/script/editing';
 
 export const useScreenplay = (input: {
   project: Project;
@@ -57,8 +58,14 @@ export const useScreenplay = (input: {
       // that are not simply positional — an imported production draft with a
       // 12A in it — are kept, anything else is numbered by position.
       const locked = prev.sceneNumbersLocked ?? hasProductionSceneNumbers(lines);
+      const previousById = new Map((prev.scriptLines ?? []).map((line) => [line.id, line]));
       const numbered = normaliseSceneNumbers(
-        lines.map((line, index) => ({ ...line, lineNumber: index + 1 })),
+        lines.map((line, index) => {
+          const before = previousById.get(line.id);
+          if (!before || before.text === line.text) return { ...line, lineNumber: index + 1 };
+          const adjusted = editScriptText(before, line.text);
+          return { ...line, lineNumber: index + 1, ...(line.styles === before.styles ? { styles: adjusted.styles } : {}), ...(line.notes === before.notes ? { notes: adjusted.notes } : {}) };
+        }),
         locked,
       );
       // Derive old/new scene lists so removed headings can be detected.

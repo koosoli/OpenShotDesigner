@@ -1,0 +1,27 @@
+# Optional PRIVATE relay only. Default browser collaboration needs none of this.
+# The editor continues to be hosted on GitHub Pages.
+# Free is a trial configuration, not a production availability commitment.
+services:
+  - type: web
+    name: openshotdesigner-collaboration
+    runtime: node
+    plan: free
+    region: frankfurt
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    buildCommand: npm ci --include=dev
+    startCommand: node --import tsx scripts/run-collaboration-relay.ts
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: COLLAB_HOST
+        value: 0.0.0.0
+      - key: COLLAB_ORIGINS
+        value: https://koosoli.github.io
+      # Enter two different, cryptographically random 64-character HEX values.
+      # Render's generateValue creates BASE64, which is intentionally not used.
+      - key: COLLAB_CREATE_KEY
+        sync: false
+      - key: COLLAB_SIGNING_KEY
+        sync: false

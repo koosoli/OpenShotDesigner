@@ -12,6 +12,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { Project } from '../types';
 import { shouldCoalesce, typingTarget } from '../utils/undoCoalesce';
 import type { TypingMark } from '../utils/undoCoalesce';
+import type { CollaborationControls } from '../collaboration/useCollaboration';
 
 /** How many undo steps are kept. */
 export const HISTORY_LIMIT = 50;
@@ -19,6 +20,7 @@ export const HISTORY_LIMIT = 50;
 export const useProjectHistory = (
   project: Project,
   setProjectState: Dispatch<SetStateAction<Project>>,
+  collaboration?: CollaborationControls,
 ) => {
   const [history, setHistory] = useState<Project[]>([project]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -28,8 +30,21 @@ export const useProjectHistory = (
   // Latest known project for code paths that commit WITHOUT a setProject
   // (canvas gesture end), including live drag refs.
   const liveProjectRef = useRef(project);
+  const collaborationRef = useRef(collaboration);
+  collaborationRef.current = collaboration;
   /** The text field the last recorded change was typed in (utils/undoCoalesce). */
   const lastTypingRef = useRef<TypingMark | null>(null);
+  const timelineIdentity = `${project.id}:${collaboration?.active ?? false}`;
+  const previousTimeline = useRef(timelineIdentity);
+
+  useEffect(() => {
+    if (previousTimeline.current === timelineIdentity) return;
+    previousTimeline.current = timelineIdentity;
+    pendingSnapshotsRef.current = [];
+    lastTypingRef.current = null;
+    setHistory([project]);
+    setHistoryIndex(0);
+  }, [timelineIdentity, project]);
 
   /**
    * Every project write goes through here, so `liveProjectRef` can never fall
@@ -45,6 +60,7 @@ export const useProjectHistory = (
   const setProject = useCallback((value: Project | ((prev: Project) => Project)) => {
     setProjectState((prev) => {
       const next = typeof value === 'function' ? (value as (p: Project) => Project)(prev) : value;
+      collaborationRef.current?.captureLocal(prev, next);
       liveProjectRef.current = next;
       return next;
     });
@@ -94,6 +110,7 @@ export const useProjectHistory = (
   }, [project]);
 
   const undo = () => {
+    if (collaboration?.active) { collaboration.undo(); return; }
     lastTypingRef.current = null;
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
@@ -103,6 +120,7 @@ export const useProjectHistory = (
   };
 
   const redo = () => {
+    if (collaboration?.active) { collaboration.redo(); return; }
     lastTypingRef.current = null;
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
@@ -120,7 +138,8 @@ export const useProjectHistory = (
 
   return {
     history,
-    historyIndex,
+    historyIndex: collaboration?.active ? (collaboration.status?.canUndo ? 1 : 0) : historyIndex,
+    historyLength: collaboration?.active ? (collaboration.status?.canUndo ? 2 : 1) + (collaboration.status?.canRedo ? 1 : 0) : history.length,
     setHistory,
     setHistoryIndex,
     pendingSnapshotsRef,

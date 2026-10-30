@@ -11,8 +11,10 @@
  * a line reworded in place is matched to the line it was by its words.
  */
 import { compareDrafts } from './compareDrafts';
+import type { ScriptLine } from '../../types';
+import { editScriptText } from './editing';
 
-export interface ReconcilableLine {
+export interface ReconcilableLine extends Pick<ScriptLine, 'styles' | 'notes' | 'bookmark' | 'alternates' | 'structure'> {
   id: string;
   type?: string;
   text: string;
@@ -115,6 +117,13 @@ export const reconcileScriptLineIds = <T extends ReconcilableLine>(
     // A draft that carries no index card keeps the one the scene had.
     if (before?.synopsis && out.synopsis === undefined) out = { ...out, synopsis: before.synopsis };
     if (before?.sceneColor && out.sceneColor === undefined) out = { ...out, sceneColor: before.sceneColor };
+    if (before) {
+      const adjusted = editScriptText({ id: before.id, lineNumber: 0, text: before.text, styles: before.styles, notes: before.notes }, line.text);
+      for (const key of ['styles', 'notes', 'bookmark', 'alternates', 'structure'] as const) {
+        const value = key === 'styles' || key === 'notes' ? adjusted[key] : before[key];
+        if (out[key] === undefined && value !== undefined) out = { ...out, [key]: value };
+      }
+    }
     return out;
   });
 };

@@ -34,7 +34,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: GH_PAGES=true npm run build
+      - name: Build the Pages editor
+        run: npm run build
+        env:
+          GH_PAGES: 'true'
+          # Public endpoint only. Relay signing/creation keys never belong here.
+          VITE_COLLAB_RELAY_URL: ${{ vars.VITE_COLLAB_RELAY_URL }}
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

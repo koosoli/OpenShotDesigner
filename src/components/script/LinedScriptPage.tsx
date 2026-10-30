@@ -3,6 +3,7 @@ import { ScriptElementType, ScriptLine, ScriptMark, Shot } from '../../types';
 import { breakdownCategoryLabel, breakdownCategoryTint, breakdownTagsForLine, omittedSceneLabel } from '../../domain/script';
 import type { BreakdownItem, LineHighlight, NameMention, ScriptSelectionRange } from '../../domain/script';
 import { formatPageEighths } from '../../domain/reports';
+import { StyledScriptText } from './StyledScriptText';
 
 /** Stable identity so the default prop does not re-run the tag lookup each render. */
 const EMPTY_BREAKDOWN_ITEMS: BreakdownItem[] = [];
@@ -358,7 +359,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
         // selectable so the user can line as little as a single word.
         userSelect: 'text',
         WebkitUserSelect: 'text',
-        fontFamily: '"Courier New", Courier, monospace',
+        fontFamily: '"Courier Badi", "Courier New", Courier, monospace',
         fontSize: `${fontSize}px`,
         lineHeight: 1.35,
         width: '100%',
@@ -496,7 +497,7 @@ export const LinedScriptPage: React.FC<LinedScriptPageProps> = ({
                 data-line-text
                 className={`whitespace-pre-wrap break-words ${layout.className} ${type === 'character' && boldCharacters ? 'font-bold' : ''} ${line.omitted ? 'opacity-60 tracking-widest' : ''}`}
               >
-                {line.omitted ? omittedSceneLabel(line.sceneNumber) : line.text}
+                {line.omitted ? omittedSceneLabel(line.sceneNumber) : <StyledScriptText text={line.text} styles={line.styles} />}
               </span>
               {type === 'character' && contdLineIds?.has(line.id) && (
                 <span aria-hidden className={`${layout.className} ${boldCharacters ? 'font-bold' : ''}`}> (CONT'D)</span>

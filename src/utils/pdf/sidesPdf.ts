@@ -10,8 +10,8 @@
  * - Optional character filter: keeps the scenes where the character has a cue
  *   (mirrors `buildScriptSides`), and names the file after them.
  *
- * Portrait A4 by default; StandardFonts only (offline); every drawn string
- * passes through `sanitizePdfText` via the shared shell and table renderer.
+ * Portrait A4 by default; standard Courier for Latin, bundled Courier Badi
+ * for Unicode. Unsupported glyphs fail explicitly instead of losing script text.
  */
 
 import {
@@ -23,9 +23,11 @@ import {
 } from './document';
 import type { PdfOrientation, PdfPageSize } from './document';
 import { buildPdfFilename } from './filenames';
-import { sanitizePdfText } from './text';
+import { embedScriptFonts } from './scriptFonts';
+import type { ScriptTextStyle } from '../../types';
+import { styleRuns, uppercaseScriptText } from '../../domain/script/editing';
 import { paginateScreenplay } from '../../domain/script/pagination';
-import { StandardFonts, rgb } from 'pdf-lib';
+import { rgb } from 'pdf-lib';
 
 const HIGHLIGHT = rgb(1, 0.93, 0.45);
 
@@ -33,6 +35,7 @@ const HIGHLIGHT = rgb(1, 0.93, 0.45);
 export interface SidesPdfLine {
   type?: string;
   text: string;
+  styles?: ScriptTextStyle[];
   /** On a character cue: dual dialogue, beside the speech above. */
   dual?: boolean;
 }
@@ -95,6 +98,7 @@ export interface SidesPdfSourceLine {
   id: string;
   type?: string;
   text: string;
+  styles?: ScriptTextStyle[];
   sceneNumber?: string;
   omitted?: boolean;
   dual?: boolean;
@@ -179,7 +183,7 @@ export const sidesPdfScenesFromLines = (
       omitted,
       lines: omitted
         ? [{ type: 'scene', text: `SCENE ${sceneNumber} — OMITTED` }]
-        : chunk.lines.map((line) => ({ type: line.type, text: line.text, ...(line.dual ? { dual: true } : {}) })),
+        : chunk.lines.map((line) => ({ type: line.type, text: line.text, ...(line.styles ? { styles: line.styles } : {}), ...(line.dual ? { dual: true } : {}) })),
       characters,
     });
   }
@@ -220,10 +224,8 @@ export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> 
     draft: input.draft ?? input.isDraft ?? false,
     confidentialityLine: input.confidentialityLine,
   });
-  const fonts = {
-    regular: await ctx.doc.embedFont(StandardFonts.Courier),
-    bold: await ctx.doc.embedFont(StandardFonts.CourierBold),
-  };
+  const fonts = await embedScriptFonts(ctx.doc, [input.productionTitle, input.subtitle ?? '', input.characterFilter ?? '', ctx.draftText ?? '', input.confidentialityLine ?? '', ...input.scenes.flatMap((scene) => [scene.heading, ...scene.characters, ...scene.lines.map((line) => line.text)])]);
+  if (fonts.regular.name !== "Courier") { ctx.regular = fonts.regular; ctx.bold = fonts.bold; ctx.sanitizeText = fonts.clean; }
   const logo = await embedProductionLogoPng(ctx.doc, input.logoPngBytes);
   const firstPage = addPdfPage(ctx);
   const subtitle =
@@ -238,7 +240,7 @@ export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> 
 
   if (input.scenes.length === 0) {
     firstPage.drawText(
-      sanitizePdfText(
+      fonts.clean(
         input.characterFilter
           ? `No scenes selected for these sides (no scenes with dialogue for ${input.characterFilter}).`
           : 'No scenes selected for these sides.',
@@ -249,16 +251,18 @@ export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> 
   }
 
   // One script: every scene in shooting order, its cast under it.
-  const lines: Array<{ id: string; type?: string; text: string; omitted?: boolean; dual?: boolean; sceneNumber?: string; cast?: boolean }> = [];
+  const lines: Array<{ id: string; type?: string; text: string; styles?: ScriptTextStyle[]; omitted?: boolean; dual?: boolean; sceneNumber?: string; cast?: boolean }> = [];
   input.scenes.forEach((scene, sceneIndex) => {
     if (scene.omitted) {
       lines.push({ id: `s${sceneIndex}`, type: 'scene', text: scene.heading, omitted: true, sceneNumber: scene.sceneNumber });
       return;
     }
-    scene.lines.forEach((line, index) => {
+    scene.lines.forEach((original, index) => {
+      const line = STYLE[original.type ?? '']?.upper ? uppercaseScriptText(original) : original;
       lines.push({
         id: `s${sceneIndex}-${index}`,
         text: line.text,
+        ...(line.styles ? { styles: line.styles } : {}),
         ...(line.type ? { type: line.type } : {}),
         ...(line.dual ? { dual: true } : {}),
         ...(line.type === 'scene' ? { sceneNumber: scene.sceneNumber } : {}),
@@ -286,13 +290,14 @@ export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> 
   const spacer = { id: 'title-block', type: 'action', text: Array.from({ length: titleRows }, () => '').join('\n') };
   const { pages } = paginateScreenplay([spacer, ...lines], { rowsPerPage, autoContd: input.autoContd !== false });
 
+  const sourceCursors = new Map<number, number>();
   pages.forEach((laid, pageIndex) => {
     const page = pageIndex === 0 ? firstPage : addPdfPage(ctx);
     for (const line of laid.lines) {
       if (line.index === 0) continue;
       const source = lines[line.index - 1];
       const style = STYLE[line.type] ?? { bold: false, upper: false };
-      const text = sanitizePdfText(`${line.kind === 'body' && style.upper ? line.text.toUpperCase() : line.text}${line.suffix ?? ''}`);
+      const text = fonts.clean(`${line.kind === 'body' && style.upper ? line.text.toUpperCase() : line.text}${line.suffix ?? ''}`);
       if (!text) continue;
       const marked = highlighted.has(line.index - 1) && line.kind !== 'more';
       const bold = line.kind === 'omitted' || (line.kind === 'body' && style.bold) || (line.type === 'character' && marked);
@@ -303,9 +308,23 @@ export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> 
       if (marked) {
         page.drawRectangle({ x: x - 1.5, y: y - 2.5, width: font.widthOfTextAtSize(text, size) + 3, height: SIDES_LINE - 0.5, color: HIGHLIGHT });
       }
-      page.drawText(text, { x, y, size, font });
+      if (line.kind === 'body' && source?.styles?.length) {
+        const start = source.text.indexOf(line.text, sourceCursors.get(line.index) ?? 0);
+        if (start < 0) throw new Error('Cannot map screenplay formatting onto the printed sides.');
+        let runX = x;
+        for (const run of styleRuns(line.text, source.styles.map((s) => ({ ...s, start: s.start - start, end: s.end - start })))) {
+          const value = fonts.clean(style.upper ? run.text.toUpperCase() : run.text);
+          const runFont = run.italic ? (bold || run.bold ? fonts.boldItalic : fonts.italic) : bold || run.bold ? fonts.bold : fonts.regular;
+          const width = runFont.widthOfTextAtSize(value, size);
+          page.drawText(value, { x: runX, y, size, font: runFont });
+          if (run.underline) page.drawLine({ start: { x: runX, y: y - 1.5 }, end: { x: runX + width, y: y - 1.5 }, thickness: 0.5 });
+          runX += width;
+        }
+        if (line.suffix) page.drawText(fonts.clean(line.suffix), { x: runX, y, size, font });
+        sourceCursors.set(line.index, start + line.text.length);
+      } else page.drawText(text, { x, y, size, font });
       if (line.first && line.type === 'scene' && source?.sceneNumber) {
-        page.drawText(sanitizePdfText(source.sceneNumber), { x: ctx.margins.left - 4, y, size: SIDES_SIZE, font: fonts.bold });
+        page.drawText(fonts.clean(source.sceneNumber), { x: ctx.margins.left - 4, y, size: SIDES_SIZE, font: fonts.bold });
       }
     }
   });
@@ -313,7 +332,7 @@ export const createSidesPdf = async (input: SidesPdfInput): Promise<Uint8Array> 
   if ((input.missingSceneIds ?? []).length > 0) {
     const last = ctx.doc.getPage(ctx.doc.getPageCount() - 1);
     const note = `${(input.missingSceneIds ?? []).length} requested scene(s) no longer exist in the script.`;
-    last.drawText(sanitizePdfText(note), { x: ctx.margins.left, y: ctx.margins.bottom + 4, size: 8.5, font: ctx.regular });
+    last.drawText(fonts.clean(note), { x: ctx.margins.left, y: ctx.margins.bottom + 4, size: 8.5, font: ctx.regular });
   }
   return finalizePdfDocument(ctx);
 };

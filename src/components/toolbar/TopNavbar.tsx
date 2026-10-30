@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { GettingStarted } from './GettingStarted';
+import { CollaborationMenu } from './CollaborationMenu';
 import { useDismiss } from '../common/useDismiss';
 import { LANGUAGE_SWITCHING_ENABLED } from '../../config/features';
 import { updateProductionDetailsCommand } from '../../domain/commands';
@@ -170,12 +171,12 @@ export const TopNavbar: React.FC = () => {
     <header
       id="top-navbar"
       aria-label="Project and workspace actions"
-      className={`${isCompact ? 'h-12 px-2 gap-1.5' : 'h-14 px-4 gap-3'} border-b flex items-center justify-between select-none z-30 transition-colors ${
+      className={`${isCompact ? 'h-12 px-2 gap-1' : 'h-14 px-4 gap-3'} border-b flex items-center justify-between select-none z-30 transition-colors ${
         'bg-surface border-line text-ink'
       }`}
     >
       {/* 1. App Logo & Project Title */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 overflow-hidden">
         <button
           onClick={openDashboard}
           title={t('nav.dashboard')}
@@ -215,7 +216,7 @@ export const TopNavbar: React.FC = () => {
           type="text"
           value={project.title}
           onChange={(e) => runCommand(updateProductionDetailsCommand, { updates: { title: e.target.value } })}
-          className={`text-xs font-semibold px-2 py-1 rounded-lg border border-transparent focus:border-sky-500 focus:outline-none transition-colors hidden sm:block max-w-[180px] sm:max-w-xs truncate ${
+          className={`text-xs font-semibold min-w-0 px-2 py-1 rounded-lg border border-transparent focus:border-sky-500 focus:outline-none transition-colors hidden sm:block max-w-[180px] sm:max-w-xs truncate ${
             'text-ink-soft hover:bg-surface-hover focus:bg-field'
           }`}
           title={t('nav.rename')}
@@ -271,6 +272,7 @@ export const TopNavbar: React.FC = () => {
       </div>
 
       {/* 2. Scene / Setup Switcher Dropdown */}
+      <CollaborationMenu />
       <div className="flex items-center gap-2">
         <div className="relative" ref={setupsMenuRef}>
           <button
@@ -559,7 +561,7 @@ export const TopNavbar: React.FC = () => {
                 }`}
               >
                 <Eye className="w-3.5 h-3.5 text-sky-400" />
-                <span className="hidden xl:inline whitespace-nowrap">Viewing Options</span>
+                <span className="hidden 2xl:inline whitespace-nowrap">Viewing Options</span>
                 <ChevronDown className="w-3 h-3 opacity-60" />
               </button>
 
@@ -822,12 +824,13 @@ export const TopNavbar: React.FC = () => {
             <button
               onClick={() => openViewfinder()}
               title="Simulate Camera Viewfinder"
+              aria-label="Viewfinder"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                 'border-transparent hover:bg-surface-hover text-ink-soft'
               }`}
             >
               <Eye className="w-3.5 h-3.5 text-ink-muted" />
-              <span className="hidden lg:inline">Viewfinder</span>
+              <span className="hidden 2xl:inline">Viewfinder</span>
             </button>
           </>
         )}
@@ -934,7 +937,7 @@ export const TopNavbar: React.FC = () => {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json"
+          accept=".json,.osd"
           onChange={handleImportJson}
           className="hidden"
         />

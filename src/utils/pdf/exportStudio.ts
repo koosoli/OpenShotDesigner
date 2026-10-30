@@ -291,6 +291,7 @@ export const renderSectionPdf = async (
           id: line.id,
           type: line.type ?? '',
           text: line.text,
+          ...(line.styles ? { styles: line.styles } : {}),
           ...(line.sceneNumber ? { sceneNumber: line.sceneNumber } : {}),
           ...(line.omitted ? { omitted: true } : {}),
           ...(line.dual ? { dual: true } : {}),

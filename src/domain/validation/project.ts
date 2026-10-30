@@ -10,6 +10,7 @@ import type {
   SceneSetup,
   ScriptLine,
 } from '../../types';
+import { scriptMetadataError } from '../script/editing';
 import { issue, type ValidationIssue } from './types';
 import {
   indexProjectReferences,
@@ -145,6 +146,16 @@ export const validateSetup = (
 
 export const validateProject = (project: Project): ValidationIssue[] => {
   const issues: ValidationIssue[] = [];
+  const validateWriting = (lines: readonly ScriptLine[], depth = 0): void => {
+    if (depth > 8) { issues.push(issue('error', 'INVALID_SCRIPT_METADATA', 'Screenplay nesting limit exceeded.')); return; }
+    for (const line of lines) {
+      const error = typeof line.text === 'string' ? scriptMetadataError(line) : 'Invalid screenplay text.';
+      if (error) issues.push(issue('error', 'INVALID_SCRIPT_METADATA', error, line.id));
+      if (line.omittedBody?.length) validateWriting(line.omittedBody, depth + 1);
+    }
+  };
+  validateWriting(project.scriptLines ?? []);
+  for (const setup of project.setups) validateWriting(setup.scriptLines ?? []);
   const setupIds = new Set<string>();
 
   for (const setup of project.setups) {

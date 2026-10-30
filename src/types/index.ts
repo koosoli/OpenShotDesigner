@@ -785,11 +785,48 @@ export interface AVScriptRow {
   storyboardFit?: 'cover' | 'contain';
 }
 
+/** UTF-16 offsets, matching browser selections. Styles are flags, never HTML/CSS. */
+export interface ScriptTextStyle {
+  start: number;
+  end: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+}
+
+export interface ScriptNote {
+  id: string;
+  text: string;
+  author?: string;
+  color?: string;
+  start: number;
+  end: number;
+}
+
+export interface ScriptAlternate {
+  id: string;
+  text: string;
+  styles?: ScriptTextStyle[];
+}
+
+/** Opens an act (1), sequence (2) or section (3) before its source paragraph. */
+export interface ScriptStructurePoint {
+  id: string;
+  title: string;
+  level: 1 | 2 | 3;
+  summary?: string;
+}
+
 export interface ScriptLine {
   id: string;
   lineNumber: number;
   text: string;
   type?: ScriptElementType;
+  styles?: ScriptTextStyle[];
+  notes?: ScriptNote[];
+  bookmark?: string;
+  alternates?: ScriptAlternate[];
+  structure?: ScriptStructurePoint[];
   /** Scene number detected on the nearest preceding slugline (e.g. "8"). */
   sceneNumber?: string;
   /** True when this line is itself a slugline carrying a scene number. */

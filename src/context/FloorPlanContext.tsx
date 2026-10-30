@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useProjectHistory } from './useProjectHistory';
+import { useCollaboration, type CollaborationControls } from '../collaboration/useCollaboration';
 import { usePlayback } from './usePlayback';
 import { useScreenplay } from './useScreenplay';
 import { useAvScript } from './useAvScript';
@@ -121,6 +122,7 @@ const newShotId = () => createId('shot');
 const newMarkId = () => createId('mark');
 
 interface FloorPlanContextType {
+  collaboration: CollaborationControls;
   project: Project;
   activeSetup: SceneSetup;
   selectedElementIds: string[];
@@ -623,10 +625,12 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Playback engine (context/usePlayback).
   const { isPlaying, setIsPlaying, currentBeat, setCurrentBeat, playbackSpeed, setPlaybackSpeed, isLooping, setIsLooping } = usePlayback(activeSetup.totalBeats);
 
+  const collaboration = useCollaboration(project, setProjectState);
   // Undo / redo history and the recorded-write helpers (context/useProjectHistory).
   const {
     history,
     historyIndex,
+    historyLength,
     setHistory,
     setHistoryIndex,
     pendingSnapshotsRef,
@@ -636,7 +640,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     recordProjectSnapshot,
     undo,
     redo,
-  } = useProjectHistory(project, setProjectState);
+  } = useProjectHistory(project, setProjectState, collaboration);
 
   // Persistence lives in `useAutosave`: debounced IndexedDB writes, flush on
   // hide/unload, quota + multi-tab warnings. Extracted so the 4400-line
@@ -1397,6 +1401,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // drag/move/rotate is exactly one undoable operation. Uses the latest
   // project ref so the snapshot includes every live drag update.
   const commitCurrentState = () => {
+    collaboration.boundary();
     recordProjectSnapshot(liveProjectRef.current ?? project, history, historyIndex);
   };
 
@@ -3235,6 +3240,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   );
 
   const contextValue = useStableContextValue<FloorPlanContextType>({
+        collaboration,
         project,
         activeSetup,
         selectedElementIds,
@@ -3245,7 +3251,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         activeLightFixture,
         activeCameraRig,
         historyIndex,
-        historyLength: history.length,
+        historyLength,
         playback,
         isViewfinderOpen,
         viewfinderCameraId,

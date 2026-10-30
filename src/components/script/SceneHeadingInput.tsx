@@ -193,6 +193,7 @@ export const SceneHeadingInput: React.FC<{
         <input
           ref={inputRef}
           data-line-input={lineId}
+          data-line-offset={Math.max(0, text.toUpperCase().indexOf(body.toUpperCase()))}
           autoFocus={autoFocus}
           aria-label="Set / location"
           value={body}

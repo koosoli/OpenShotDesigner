@@ -71,7 +71,7 @@ export const useAutosave = (
     if (previous.id !== project.id) persistProjectNow(previous);
     autosaveProjectRef.current = project;
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
-    if (previous !== project) markSavePending();
+    if (previous !== project) markSavePending(project.id);
     autosaveTimerRef.current = window.setTimeout(
       () => persistProjectNow(project),
       AUTOSAVE_DEBOUNCE_MS,

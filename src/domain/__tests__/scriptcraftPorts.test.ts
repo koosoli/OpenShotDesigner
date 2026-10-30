@@ -282,11 +282,11 @@ describe('Final Draft fidelity (ScriptCraft v0.5)', () => {
   it('keeps outline paragraphs out of the action and reads revision colours', () => {
     const lines = parseScreenplay(FILE, 'bank.fdx');
     expect(lines.map((line) => [line.type, line.text, line.revisedIn])).toEqual([
-      ['note', 'ACT ONE', undefined],
       ['scene', 'INT. BANK - DAY', undefined],
       ['action', 'The vault is open.', 2],
       ['action', 'Nobody notices.', undefined],
     ]);
+    expect(lines[0].structure).toEqual([expect.objectContaining({ level: 1, title: 'ACT ONE' })]);
   });
 
   it('reads the cover, the paper, automatic (CONT\'D) and the active revision', () => {
@@ -404,9 +404,11 @@ describe('Final Draft script notes', () => {
       <Paragraph Type="Action"><ScriptNote Author="Ada" ID="1"><Paragraph><Text>Shorten this.</Text></Paragraph></ScriptNote><Text>The vault opens.</Text></Paragraph>
     </Content></FinalDraft>`;
     const lines = parseScreenplay(xml, 'notes.fdx');
-    expect(lines.map((line) => [line.type, line.text])).toEqual([['action', 'The vault opens.'], ['note', 'Ada: Shorten this.']]);
+    expect(lines.map((line) => [line.type, line.text])).toEqual([['action', 'The vault opens.']]);
+    expect(lines[0].notes).toEqual([expect.objectContaining({ author: 'Ada', text: 'Shorten this.', start: 0, end: 16 })]);
     const again = parseScreenplay(serializeToFdx(lines), 'again.fdx');
-    expect(again.map((line) => [line.type, line.text])).toEqual([['action', 'The vault opens.'], ['note', 'Ada: Shorten this.']]);
+    expect(again.map((line) => [line.type, line.text])).toEqual([['action', 'The vault opens.']]);
+    expect(again[0].notes).toEqual([expect.objectContaining({ author: 'Ada', text: 'Shorten this.', start: 0, end: 16 })]);
   });
 });
 

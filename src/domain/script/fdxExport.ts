@@ -12,8 +12,10 @@ import type { ScreenplayTitlePage } from './titlePage';
 import { hexToFdxColor } from './fdxParagraphs';
 import { fdxLayoutXml, fdxRevisionsXml } from './fdxDocument';
 import type { ScreenplayLayout } from './pagination';
+import type { ScriptLine } from '../../types';
+import { fdxAnnotations, fdxStyledText } from './fdxMetadata';
 
-export interface FdxLine {
+export interface FdxLine extends Pick<ScriptLine, 'styles' | 'notes' | 'bookmark' | 'alternates' | 'structure'> {
   text: string;
   type?: string;
   sceneNumber?: string;
@@ -43,8 +45,8 @@ const escapeXml = (text: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 
-const paragraph = (type: string, text: string, attributes = '', inner = '', indent = '    ', revision?: number): string =>
-  `${indent}<Paragraph Type="${type}"${attributes}>\n${inner}${indent}  <Text${revision ? ` RevisionID="${revision}"` : ''}>${escapeXml(text)}</Text>\n${indent}</Paragraph>`;
+const paragraph = (type: string, text: string, attributes = '', inner = '', indent = '    ', revision?: number, writing?: FdxLine): string =>
+  `${indent}<Paragraph Type="${type}"${attributes}${writing?.bookmark ? ` Bookmark="${escapeXml(writing.bookmark)}"` : ''}>\n${inner}${indent}  ${fdxAnnotations(writing ?? {})}${fdxStyledText(text, writing?.styles, revision ? ` RevisionID="${revision}"` : '')}\n${indent}</Paragraph>`;
 
 /** A scene heading's index card: its summary and colour. */
 const sceneProperties = (line: FdxLine): string => {
@@ -104,6 +106,10 @@ export const serializeToFdx = (
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const type = line.type ?? 'action';
+    for (const point of line.structure ?? []) {
+      body.push(paragraph(`Outline ${point.level}`, point.title));
+      if (point.summary) for (const text of point.summary.split('\n')) body.push(paragraph('Summary', text));
+    }
     if (type === 'page-break') {
       newPage = true;
       continue;
@@ -122,7 +128,7 @@ export const serializeToFdx = (
         const end2 = blockEnd(end);
         const inner = lines
           .slice(index, end2)
-          .map((speech) => paragraph(FDX_TYPE[speech.type ?? 'dialogue'] ?? 'Dialogue', speech.text, '', '', '        ', revisionOf(speech)))
+          .map((speech) => paragraph(FDX_TYPE[speech.type ?? 'dialogue'] ?? 'Dialogue', speech.text, '', '', '        ', revisionOf(speech), speech))
           .join('\n');
         body.push(`    <Paragraph${newPage ? ' StartsNewPage="Yes"' : ''}>\n      <DualDialogue>\n${inner}\n      </DualDialogue>\n    </Paragraph>`);
         newPage = false;
@@ -136,7 +142,7 @@ export const serializeToFdx = (
       newPage ? ' StartsNewPage="Yes"' : '',
     ].join('');
     newPage = false;
-    body.push(paragraph(fdxType, line.text, attributes, type === 'scene' ? sceneProperties(line) : '', '    ', revisionOf(line)));
+    body.push(paragraph(fdxType, line.text, attributes, type === 'scene' ? sceneProperties(line) : '', '    ', revisionOf(line), line));
     // Omitted scenes keep their heading and say so underneath — the same
     // convention the importer reads back.
     if (type === 'scene' && line.omitted) body.push(paragraph('Action', 'OMITTED'));

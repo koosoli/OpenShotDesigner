@@ -18,8 +18,8 @@
  *   bottom-left, draft and date bottom-right. No cover is ever invented:
  *   without content the script starts on page one.
  *
- * Courier/CourierBold are pdf-lib standard fonts (offline); every drawn
- * string passes through `sanitizePdfText` via the shared shell and renderer.
+ * Latin text uses standard Courier faces. Unicode text embeds bundled
+ * Courier Badi faces; unsupported glyphs stop the export with an explicit error.
  */
 
 import {
@@ -32,11 +32,13 @@ import {
 import type { PdfDocumentContext, PdfOrientation, PdfPageSize } from './document';
 import { buildPdfFilename } from './filenames';
 import type { PdfHeaderLogo } from './document';
-import { sanitizePdfText } from './text';
+import { embedScriptFonts, type ScriptFonts } from './scriptFonts';
+import type { ScriptTextStyle } from '../../types';
+import { styleRuns, uppercaseScriptText } from '../../domain/script/editing';
 import { hasTitlePageContent, paginateScreenplay, resolveTitlePage, screenplayLayoutOptions } from '../../domain/script';
 import type { ScreenplayLayout, ScreenplayTitlePage } from '../../domain/script';
-import { StandardFonts, degrees, rgb } from 'pdf-lib';
-import type { PDFFont, PDFPage } from 'pdf-lib';
+import { degrees, rgb } from 'pdf-lib';
+import type { PDFPage } from 'pdf-lib';
 
 /** One screenplay line, mirroring `ScriptLine` in minimal printable form. */
 export interface LinedScriptPdfLine {
@@ -44,6 +46,7 @@ export interface LinedScriptPdfLine {
   id?: string;
   type?: string;
   text: string;
+  styles?: ScriptTextStyle[];
   sceneNumber?: string;
   omitted?: boolean;
   /** Changed in the current revision: prints the margin asterisk. */
@@ -101,11 +104,6 @@ export const buildLinedScriptPdfFilename = (input: LinedScriptPdfFilenameInput):
     ...(input.date === undefined ? {} : { date: input.date }),
   });
 
-interface ScriptFonts {
-  regular: PDFFont;
-  bold: PDFFont;
-}
-
 /** Courier 12pt: 10 pitch, so one column is exactly 7.2pt and 60 columns are 6". */
 const COURIER_SIZE = 12;
 const COURIER_CHAR_WIDTH = 7.2;
@@ -133,7 +131,7 @@ const drawSceneNumber = (
   sceneNumber: string,
   side: 'left' | 'right',
 ): void => {
-  const label = sanitizePdfText(sceneNumber);
+  const label = fonts.clean(sceneNumber);
   const x =
     side === 'left'
       ? ctx.margins.left - fonts.bold.widthOfTextAtSize(label, SCENE_NUMBER_SIZE) - 8
@@ -161,6 +159,7 @@ const layoutFor = (type: string | undefined): { bold: boolean; upper: boolean } 
  */
 const drawSlimHeader = (
   ctx: PdfDocumentContext,
+  fonts: ScriptFonts,
   page: PDFPage,
   input: Pick<LinedScriptPdfInput, 'productionTitle' | 'subtitle' | 'lines'>,
   logo: PdfHeaderLogo | null,
@@ -169,7 +168,7 @@ const drawSlimHeader = (
   const logoHeight = logo ? Math.min(24, logo.height) : 0;
   const logoWidth = logo ? (logo.width * logoHeight) / Math.max(1, logo.height) : 0;
   const textWidth = ctx.contentWidth - (logo ? logoWidth + 8 : 0) - 48;
-  page.drawText(sanitizePdfText(input.productionTitle), {
+  page.drawText(fonts.clean(input.productionTitle), {
     x: ctx.margins.left,
     y: top - 9,
     size: 10,
@@ -178,7 +177,7 @@ const drawSlimHeader = (
     maxWidth: textWidth,
   });
   const subtitle = input.subtitle ?? `${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`;
-  page.drawText(sanitizePdfText(`Screenplay${subtitle.trim() ? ` · ${subtitle}` : ''}`), {
+  page.drawText(fonts.clean(`Screenplay${subtitle.trim() ? ` · ${subtitle}` : ''}`), {
     x: ctx.margins.left,
     y: top - 20,
     size: 8,
@@ -207,7 +206,7 @@ const drawCentered = (
 ): void => {
   const font = opts?.bold === true ? fonts.bold : fonts.regular;
   const size = opts?.size ?? COURIER_SIZE;
-  const clean = sanitizePdfText(text);
+  const clean = fonts.clean(text);
   page.drawText(clean, {
     x: ctx.margins.left + (ctx.contentWidth - font.widthOfTextAtSize(clean, size)) / 2,
     y,
@@ -263,16 +262,16 @@ const drawTitlePageCover = (
   const smallGap = SCRIPT_LINE_HEIGHT;
   let leftY = bottomY;
   for (const line of cover.contact) {
-    page.drawText(sanitizePdfText(line), { x: ctx.margins.left, y: leftY, size: COURIER_SIZE, font: fonts.regular });
+    page.drawText(fonts.clean(line), { x: ctx.margins.left, y: leftY, size: COURIER_SIZE, font: fonts.regular });
     leftY -= smallGap;
   }
   if (cover.copyright) {
     if (cover.contact.length > 0) leftY -= smallGap;
-    page.drawText(sanitizePdfText(cover.copyright), { x: ctx.margins.left, y: leftY, size: COURIER_SIZE, font: fonts.regular });
+    page.drawText(fonts.clean(cover.copyright), { x: ctx.margins.left, y: leftY, size: COURIER_SIZE, font: fonts.regular });
   }
   let rightY = bottomY;
   const drawRight = (text: string, bold = false): void => {
-    const clean = sanitizePdfText(text);
+    const clean = fonts.clean(text);
     const font = bold ? fonts.bold : fonts.regular;
     page.drawText(clean, {
       x: ctx.margins.left + ctx.contentWidth - font.widthOfTextAtSize(clean, COURIER_SIZE),
@@ -286,7 +285,7 @@ const drawTitlePageCover = (
   if (cover.draft) drawRight('DRAFT', true);
   if (cover.date) drawRight(cover.date);
   if (cover.notes) {
-    page.drawText(sanitizePdfText(cover.notes), {
+    page.drawText(fonts.clean(cover.notes), {
       x: ctx.margins.left,
       y: ctx.margins.bottom + SCRIPT_LINE_HEIGHT,
       size: COURIER_SIZE,
@@ -311,10 +310,11 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
     draft: input.draft ?? input.isDraft ?? false,
     confidentialityLine: input.confidentialityLine,
   });
-  const fonts: ScriptFonts = {
-    regular: await ctx.doc.embedFont(StandardFonts.Courier),
-    bold: await ctx.doc.embedFont(StandardFonts.CourierBold),
-  };
+  const fonts = await embedScriptFonts(ctx.doc, [
+    ...input.lines.map((line) => line.text), input.productionTitle, input.scriptTitle ?? '', input.subtitle ?? '',
+    input.confidentialityLine ?? '', ctx.draftText ?? '', ...Object.values(input.titlePage ?? {}).filter((v): v is string => typeof v === 'string'),
+  ]);
+  if (fonts.regular.name !== "Courier") { ctx.regular = fonts.regular; ctx.bold = fonts.bold; ctx.sanitizeText = fonts.clean; }
   const logo = await embedProductionLogoPng(ctx.doc, input.logoPngBytes);
 
   const coverPrinted =
@@ -333,7 +333,7 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
           subtitle: input.subtitle ?? '0 lines',
           logo,
         });
-    page.drawText(sanitizePdfText('No script lines yet.'), {
+    page.drawText(fonts.clean('No script lines yet.'), {
       x: ctx.margins.left,
       y: headerY - 12,
       size: COURIER_SIZE,
@@ -346,8 +346,9 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
   const anchors = input.pageStarts?.length
     ? new Map(input.pageStarts.map((start) => [start.lineIndex, start.label] as const))
     : undefined;
+  const printLines = input.lines.map((line) => layoutFor(line.type).upper || (layout.multicam && line.type === 'action') ? uppercaseScriptText(line) : line);
   const pagination = paginateScreenplay(
-    input.lines.map((line, index) => ({
+    printLines.map((line, index) => ({
       id: line.id ?? `pdf-line-${index}`,
       text: line.text,
       ...(line.type ? { type: line.type } : {}),
@@ -378,16 +379,17 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
   const bodyTop = ctx.pageHeight - ctx.margins.top;
   const baselineOf = (row: number) => bodyTop - SCRIPT_LINE_HEIGHT * (row + 1) + 3;
 
+  const sourceCursors = new Map<number, number>();
   pagination.pages.forEach((laid, pageIndex) => {
     const page = addPdfPage(ctx);
     if (pageIndex === 0 && !coverPrinted) {
       // Without a cover, a slim title line in the top margin names the
       // production; the body keeps every one of its lines.
-      drawSlimHeader(ctx, page, input, logo);
+      drawSlimHeader(ctx, fonts, page, input, logo);
     }
     // Page numbers top right from page 2 on; locked pages always say theirs.
     if (!(numberedPlainly && pageIndex === 0)) {
-      const text = sanitizePdfText(`${laid.label}.`);
+      const text = fonts.clean(`${laid.label}.`);
       page.drawText(text, {
         x: ctx.margins.left + ctx.contentWidth - fonts.regular.widthOfTextAtSize(text, COURIER_SIZE),
         y: ctx.pageHeight - 36 - COURIER_SIZE + 3,
@@ -396,7 +398,7 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
       });
     }
     for (const line of laid.lines) {
-      const source = input.lines[line.index];
+      const source = printLines[line.index];
       const style = layoutFor(line.type);
       const omitted = line.kind === 'omitted';
       const bold =
@@ -405,15 +407,27 @@ export const createLinedScriptPdf = async (input: LinedScriptPdfInput): Promise<
         (line.type === 'character' && line.kind !== 'more' && input.boldCharacters === true);
       // Multi-camera scripts set their action in capitals.
       const upper = line.kind === 'body' && (style.upper || (layout.multicam && line.type === 'action'));
-      const text = sanitizePdfText(`${upper ? line.text.toUpperCase() : line.text}${line.suffix ?? ''}`);
+      const text = fonts.clean(`${upper ? line.text.toUpperCase() : line.text}${line.suffix ?? ''}`);
       const y = baselineOf(line.row);
       if (text) {
-        page.drawText(text, {
-          x: ctx.margins.left + line.col * COURIER_CHAR_WIDTH,
-          y,
-          size: COURIER_SIZE,
-          font: bold ? fonts.bold : fonts.regular,
-        });
+        let x = ctx.margins.left + line.col * COURIER_CHAR_WIDTH;
+        if (line.kind === 'body' && source?.styles?.length) {
+          const start = source.text.indexOf(line.text, sourceCursors.get(line.index) ?? 0);
+          if (start < 0) throw new Error('Cannot map screenplay formatting onto the printed page.');
+          const spans = source.styles.map((s) => ({ ...s, start: s.start - start, end: s.end - start }));
+          for (const run of styleRuns(line.text, spans)) {
+            const value = fonts.clean(upper ? run.text.toUpperCase() : run.text);
+            const font = run.italic ? (bold || run.bold ? fonts.boldItalic : fonts.italic) : bold || run.bold ? fonts.bold : fonts.regular;
+            page.drawText(value, { x, y, size: COURIER_SIZE, font });
+            const width = font.widthOfTextAtSize(value, COURIER_SIZE);
+            if (run.underline) page.drawLine({ start: { x, y: y - 1.5 }, end: { x: x + width, y: y - 1.5 }, thickness: 0.6 });
+            x += width;
+          }
+          if (line.suffix) page.drawText(fonts.clean(line.suffix), { x, y, size: COURIER_SIZE, font: bold ? fonts.bold : fonts.regular });
+          sourceCursors.set(line.index, start + line.text.length);
+        } else {
+          page.drawText(text, { x, y, size: COURIER_SIZE, font: bold ? fonts.bold : fonts.regular });
+        }
       }
       if (showNumbers && line.first && line.type === 'scene') {
         const number = sceneNumberAt.get(line.index);

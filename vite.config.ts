@@ -3,11 +3,41 @@ import react from '@vitejs/plugin-react';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { defineConfig, type Plugin } from 'vite';
 
 // `__dirname` breaks Vite's native config loader (default in a future major);
 // the URL equivalent works on every Vite/Node combination this repo uses.
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+
+/** Pages cannot supply custom HTTP headers; apply a production script policy in HTML. */
+const productionSecurityPolicy = (): Plugin => ({
+  name: 'production-security-policy',
+  apply: 'build',
+  transformIndexHtml: {
+    order: 'post',
+    handler(html) {
+      const hashes = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)]
+        .filter((match) => !/\bsrc\s*=/.test(match[1]) && match[2].trim())
+        .map((match) => `'sha256-${createHash('sha256').update(match[2]).digest('base64')}'`);
+      const policy = [
+        "default-src 'self'",
+        `script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com ${hashes.join(' ')}`,
+        "style-src 'self' 'unsafe-inline'", // React/SVG transforms use inline styles.
+        "img-src 'self' data: blob: https:",
+        "font-src 'self' data: blob:",
+        // User-configurable relays/WebDAV and existing HTTPS fixture/cloud APIs.
+        "connect-src 'self' https: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
+        "worker-src 'self' blob:",
+        "frame-src 'self' blob: https://accounts.google.com",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; ');
+      return [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: policy }, injectTo: 'head-prepend' }];
+    },
+  },
+});
 
 /**
  * Stamp a unique build id into the service worker so each deploy gets its
@@ -36,7 +66,7 @@ const serviceWorkerBuildId = (): Plugin => {
 };
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), serviceWorkerBuildId()],
+  plugins: [react(), tailwindcss(), serviceWorkerBuildId(), productionSecurityPolicy()],
   build: {
     rollupOptions: {
       output: {

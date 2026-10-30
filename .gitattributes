@@ -10,3 +10,7 @@
 *.ico binary
 *.woff binary
 *.woff2 binary
+*.ttf binary
+
+# Preserve the upstream font license verbatim, including its original spacing.
+public/fonts/courier-badi/OFL.txt -whitespace

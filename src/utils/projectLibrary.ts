@@ -225,13 +225,15 @@ export interface UnreadableProject {
 const unreadableProjects = new Map<string, UnreadableProject>();
 
 const pendingWrites = new Set<Promise<unknown>>();
+/** A newer edit can still be waiting for its debounce while an older write finishes. */
+const pendingAutosaves = new Set<string>();
 
 const trackWrite = (promise: Promise<void>) => {
   setSaveState('saving');
   const tracked = promise
     .then(() => {
       pendingWrites.delete(tracked);
-      if (pendingWrites.size === 0) setSaveState('saved');
+      if (pendingWrites.size === 0 && pendingAutosaves.size === 0) setSaveState('saved');
     })
     .catch(() => {
       pendingWrites.delete(tracked);
@@ -256,7 +258,8 @@ export const getSaveState = (): LibrarySaveState => saveState;
  * Calling this when the project changes makes the indicator honestly show
  * `saving` until the debounced write settles.
  */
-export const markSavePending = (): void => {
+export const markSavePending = (projectId = '*'): void => {
+  pendingAutosaves.add(projectId);
   if (saveState === 'saved' || saveState === 'idle') setSaveState('saving');
 };
 
@@ -405,11 +408,15 @@ export const writeProject = (project: Project, options: { touch?: boolean } = {}
 
   memory.set(storable.id, storable);
   persistProject(storable);
+  pendingAutosaves.delete(storable.id);
+  pendingAutosaves.delete('*');
+  if (pendingWrites.size === 0 && pendingAutosaves.size === 0) setSaveState('saved');
   announceWrite(storable);
   return summarize(storable);
 };
 
 export const removeProject = (id: string) => {
+  pendingAutosaves.delete(id);
   memory.delete(id);
   persistDelete(id);
   if (getActiveProjectId() === id) localStorage.removeItem(ACTIVE_KEY);

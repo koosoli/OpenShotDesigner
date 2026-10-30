@@ -10,6 +10,8 @@
  * slugline. Only a paragraph's own `<Text>` runs are its text.
  */
 import { fdxParagraphRevision, fdxRevisionColorIndex } from './fdxDocument';
+import type { ScriptLine, ScriptTextStyle } from '../../types';
+import { fdxTextRuns, fdxWritingMetadata } from './fdxMetadata';
 
 export interface FdxParagraph {
   element: Element;
@@ -24,24 +26,11 @@ export interface FdxParagraph {
   /** Revision colour index (revisionColors) its text was last changed in. */
   revision?: number;
   /** Script notes anchored in the paragraph ("Author: text"). */
-  notes?: string[];
+  notes?: ScriptLine['notes'];
+  styles?: ScriptTextStyle[];
+  bookmark?: string;
+  alternates?: ScriptLine['alternates'];
 }
-
-/** The writer's notes inside a paragraph (`<ScriptNote Author>` holding paragraphs). */
-const scriptNotes = (paragraph: Element): string[] =>
-  Array.from(paragraph.children)
-    .filter((child) => child.localName === 'ScriptNote')
-    .map((note) => {
-      const text = Array.from(note.children)
-        .filter((child) => child.localName === 'Paragraph')
-        .map(ownText)
-        .filter(Boolean)
-        .join(' ');
-      const author = (note.getAttribute('Author') ?? '').trim();
-      return text && author ? `${author}: ${text}` : text;
-    })
-    .filter(Boolean);
-
 
 const ownText = (paragraph: Element): string =>
   Array.from(paragraph.children)
@@ -88,8 +77,8 @@ export const fdxBodyParagraphs = (doc: Document): FdxParagraph[] => {
   const colorById = fdxRevisionColorIndex(doc);
   const revisionOf = (paragraph: Element) => {
     const revision = colorById.size ? fdxParagraphRevision(paragraph, colorById) : undefined;
-    const notes = scriptNotes(paragraph);
-    return { ...(revision !== undefined ? { revision } : {}), ...(notes.length ? { notes } : {}) };
+    const runs = fdxTextRuns(paragraph);
+    return { ...(revision !== undefined ? { revision } : {}), ...runs, ...fdxWritingMetadata(paragraph, runs.text) };
   };
   const out: FdxParagraph[] = [];
   for (const paragraph of Array.from(body.querySelectorAll(':scope > Paragraph'))) {
@@ -99,12 +88,12 @@ export const fdxBodyParagraphs = (doc: Document): FdxParagraph[] => {
       for (const inner of Array.from(dual.children).filter((child) => child.localName === 'Paragraph')) {
         const type = inner.getAttribute('Type') || '';
         if (type === 'Character') cues += 1;
-        out.push({ element: inner, type, text: ownText(inner), ...(type === 'Character' && cues === 2 ? { dual: true } : {}), ...revisionOf(inner) });
+        out.push({ element: inner, type, ...(type === 'Character' && cues === 2 ? { dual: true } : {}), ...revisionOf(inner) });
       }
       continue;
     }
     const type = paragraph.getAttribute('Type') || '';
-    out.push({ element: paragraph, type, text: ownText(paragraph), ...(type === 'Scene Heading' ? sceneCard(paragraph) : {}), ...revisionOf(paragraph) });
+    out.push({ element: paragraph, type, ...(type === 'Scene Heading' ? sceneCard(paragraph) : {}), ...revisionOf(paragraph) });
   }
   return out;
 };

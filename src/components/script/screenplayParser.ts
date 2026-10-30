@@ -2,6 +2,8 @@ import { ScriptElementType, ScriptLine } from '../../types';
 import { parseFountainTitlePage, serializeFountainTitlePage } from '../../domain/script';
 import type { ScreenplayTitlePage } from '../../domain/script';
 import { fdxBodyParagraphs } from '../../domain/script/fdxParagraphs';
+import { editScriptText, normalizeStyles, scriptMetadataError, uppercaseScriptText } from '../../domain/script/editing';
+import { parseInlineFountain, styledFountain } from '../../domain/script/inlineFormat';
 
 /**
  * Screenplay import + classification.
@@ -34,7 +36,7 @@ const PAGE_NUMBER_RE = /^\d{1,3}[.)]?$/;
  * pattern: a cue is upper case, at most 45 characters, does not end in a full
  * stop, and in a columnar script must be indented.
  */
-const CHARACTER_RE = /^[A-Z0-9][A-Z0-9 .,'’&/#-]*(\([^)]*\)\s*)*$/i;
+const CHARACTER_RE = /^[\p{L}\p{N}][\p{L}\p{N} .,'’&/#-]*(\([^)]*\)\s*)*$/iu;
 
 /** Pull a scene number out of a slugline: "8  INT. LOFT - NIGHT  8" or "#8#". */
 const extractSceneNumber = (raw: string): { text: string; sceneNumber?: string } => {
@@ -65,15 +67,8 @@ const extractSceneNumber = (raw: string): { text: string; sceneNumber?: string }
   return { text, sceneNumber };
 };
 
-const stripFountainEmphasis = (text: string) =>
-  text
-    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/_(.+?)_/g, '$1');
-
 const isUpper = (text: string) => {
-  const letters = text.replace(/[^A-Za-z]/g, '');
+  const letters = text.replace(/[^\p{L}]/gu, '');
   return letters.length > 0 && text === text.toUpperCase();
 };
 
@@ -106,7 +101,7 @@ const stripTitlePage = (rawLines: string[]): string[] => {
   return rawLines;
 };
 
-interface ParsedElement {
+interface ParsedElement extends Pick<ScriptLine, 'styles' | 'notes' | 'bookmark' | 'alternates' | 'structure'> {
   text: string;
   type: ScriptElementType;
   sceneNumber?: string;
@@ -146,6 +141,7 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
   const out: ParsedElement[] = [];
   let previousType: ScriptElementType | null = null;
   let currentScene: string | undefined;
+  let pendingStructure: NonNullable<ScriptLine['structure']> = [];
 
   // If the file keeps its original column layout, indentation is the most
   // reliable signal for character / dialogue blocks.
@@ -153,9 +149,33 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
   const usesIndentation = indents.filter((indent) => indent >= 8).length > indents.length * 0.15;
 
   rawLines.forEach((rawLine) => {
+    const meta = rawLine.trim().match(/^\[\[OSD-META:v1:([A-Za-z0-9+/=]+)\]\]$/);
+    if (meta) {
+      if (meta[1].length > 2 * 1024 * 1024) throw new Error('Screenplay metadata is too large.');
+      const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(atob(meta[1]), (c) => c.charCodeAt(0))));
+      if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some((k) => !['notes', 'bookmark', 'alternates'].includes(k))) throw new Error('Invalid screenplay metadata.');
+      const last = out[out.length - 1];
+      if (last) {
+        const merged = { ...last, ...value };
+        const error = scriptMetadataError({ ...merged, id: '', lineNumber: 0 });
+        if (error) throw new Error(error);
+        Object.assign(last, value);
+      }
+      return;
+    }
+    const section = rawLine.trim().match(/^(#{1,3})\s+(.+)$/);
+    if (section) {
+      if (pendingStructure.length >= 16 || section[2].length > 500) throw new Error('Screenplay structure limit reached.');
+      pendingStructure.push({ id: nextId('structure'), level: section[1].length as 1 | 2 | 3, title: section[2] });
+      return;
+    }
     const withoutTabs = rawLine.replace(/\t/g, '    ');
     const indent = withoutTabs.match(/^\s*/)![0].length;
-    const text = stripFountainEmphasis(withoutTabs.trim());
+    const inline = parseInlineFountain(withoutTabs.trim());
+    const text = inline.text;
+    const beforeCount = out.length;
+    const beforeText = out[out.length - 1]?.text;
+    (() => {
 
     if (!text || text === '\f') {
       previousType = null;
@@ -172,7 +192,11 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
     }
     if (/^=(?!=)/.test(text)) {
       const synopsis = text.slice(1).trim();
-      if (synopsis) attachSynopsis(out, synopsis);
+      if (synopsis && pendingStructure.length) {
+        const point = pendingStructure[pendingStructure.length - 1];
+        point.summary = [point.summary, synopsis].filter(Boolean).join('\n');
+        if (point.summary.length > 8192) throw new Error('Screenplay structure summary is too large.');
+      } else if (synopsis) attachSynopsis(out, synopsis);
       return;
     }
 
@@ -271,7 +295,20 @@ export const parseScreenplayText = (raw: string): ParsedElement[] => {
     }
     out.push({ text, type: 'action', sceneNumber: currentScene });
     previousType = 'action';
+    })();
+    const last = out[out.length - 1];
+    if (!last || (out.length === beforeCount && last.text === beforeText)) return;
+    if (pendingStructure.length) { last.structure = pendingStructure; pendingStructure = []; }
+    if (out.length === beforeCount && beforeText !== undefined) {
+      const shift = beforeText.length + 1;
+      last.styles = normalizeStyles(last.text, [...(last.styles ?? []), ...inline.styles.map((s) => ({ ...s, start: s.start + shift, end: s.end + shift }))]);
+    } else {
+      const original = { id: '', lineNumber: 0, ...inline };
+      last.styles = editScriptText(['scene', 'character', 'transition', 'shot'].includes(last.type) ? uppercaseScriptText(original) : original, last.text).styles;
+    }
   });
+
+  if (pendingStructure.length && out.length) out[out.length - 1].structure = [...(out[out.length - 1].structure ?? []), ...pendingStructure];
 
   return out;
 };
@@ -299,23 +336,30 @@ export const parseFinalDraftXml = (raw: string): ParsedElement[] => {
   // Only the script body: a Final Draft file's <TitlePage> holds paragraphs
   // too, and reading those imported the cover as action lines. Dual dialogue
   // and the scene headings' index cards are read by fdxBodyParagraphs.
-  fdxBodyParagraphs(doc).forEach(({ element: paragraph, type: fdxType, text, dual, summary, color, revision, notes }) => {
-    // The writer's script notes follow the paragraph they are anchored in.
-    const pushNotes = () => notes?.forEach((note) => out.push({ text: note, type: 'note', sceneNumber: currentScene }));
+  let pendingStructure: NonNullable<ScriptLine['structure']> = [];
+  fdxBodyParagraphs(doc).forEach(({ element: paragraph, type: fdxType, text, dual, summary, color, revision, notes, styles, bookmark, alternates }) => {
+    const metadata = { ...(notes ? { notes } : {}), ...(styles?.length ? { styles } : {}), ...(bookmark ? { bookmark } : {}), ...(alternates ? { alternates } : {}), ...(pendingStructure.length ? { structure: pendingStructure } : {}) };
     if (!text) {
-      pushNotes();
+      if (notes?.length || bookmark || alternates?.length) { out.push({ text, type: FDX_TYPE_MAP[fdxType] ?? 'action', ...metadata }); pendingStructure = []; }
       return;
     }
     if (applyOmittedNote(out, text)) {
-      pushNotes();
       return;
     }
     const revised = revision !== undefined ? { revisedIn: revision } : {};
+    if (fdxType === 'Summary' && pendingStructure.length) {
+      const point = pendingStructure[pendingStructure.length - 1];
+      point.summary = [point.summary, text].filter(Boolean).join('\n');
+      if (point.summary.length > 8192) throw new Error('Screenplay structure summary is too large.');
+      return;
+    }
 
     // Final Draft's outline (acts, sequences and their summaries) is hidden in
-    // the script; it used to import as action lines. Kept as script notes.
+    // the script; keep them as non-printing structure points.
     if (/^Outline/i.test(fdxType)) {
-      out.push({ text, type: 'note', sceneNumber: currentScene });
+      const level = Math.max(1, Math.min(3, Number(fdxType.match(/\d/)?.[0] ?? 1))) as 1 | 2 | 3;
+      if (pendingStructure.length >= 16 || text.length > 500) throw new Error('Screenplay structure limit reached.');
+      pendingStructure.push({ id: nextId('structure'), title: text, level });
       return;
     }
     const type = FDX_TYPE_MAP[fdxType] || 'action';
@@ -324,19 +368,22 @@ export const parseFinalDraftXml = (raw: string): ParsedElement[] => {
       const { text: headingText, sceneNumber } = extractSceneNumber(text);
       currentScene = attrNumber || sceneNumber || currentScene;
       out.push({
-        text: headingText.toUpperCase(),
-        type,
-        sceneNumber: attrNumber || sceneNumber,
         ...(summary ? { synopsis: summary } : {}),
         ...(color ? { sceneColor: color } : {}),
         ...revised,
+        ...uppercaseScriptText(editScriptText({ id: '', lineNumber: 0, text, ...metadata }, headingText)),
+        // Only writing metadata from the adjusted line; retain the scene type below.
+        type,
+        sceneNumber: attrNumber || sceneNumber,
       });
-      pushNotes();
+      pendingStructure = [];
       return;
     }
-    out.push({ text, type, sceneNumber: currentScene, ...(type === 'character' && dual ? { dual: true } : {}), ...revised });
-    pushNotes();
+    out.push({ text, type, sceneNumber: currentScene, ...(type === 'character' && dual ? { dual: true } : {}), ...revised, ...metadata });
+    pendingStructure = [];
   });
+
+  if (pendingStructure.length && out.length) out[out.length - 1].structure = [...(out[out.length - 1].structure ?? []), ...pendingStructure];
 
   return out.length ? out : parseScreenplayText(raw);
 };
@@ -368,6 +415,11 @@ export const parseScreenplay = (raw: string, fileName = ''): ScriptLine[] => {
     if (element.synopsis) line.synopsis = element.synopsis;
     if (element.sceneColor) line.sceneColor = element.sceneColor;
     if (element.revisedIn !== undefined) line.revisedIn = element.revisedIn;
+    for (const key of ['styles', 'notes', 'bookmark', 'alternates', 'structure'] as const) {
+      if (element[key] !== undefined) Object.assign(line, { [key]: element[key] });
+    }
+    const metadataError = scriptMetadataError(line);
+    if (metadataError) throw new Error(metadataError);
     return line;
   });
 };
@@ -408,8 +460,12 @@ export const serializeToFountain = (
   else if (title) out.push(`Title: ${title}\n\n===\n\n`);
 
   lines.forEach((line) => {
-    const text = (line.text || '').trim();
-    if (!text) return;
+    line.structure?.forEach((s) => {
+      out.push(`\n${'#'.repeat(s.level)} ${s.title}\n`);
+      if (s.summary) out.push(s.summary.split('\n').map((text) => `= ${text}\n`).join(''));
+    });
+    const text = styledFountain(line.text || '', line.styles).trim();
+    if (!text && line.type !== 'page-break') return;
 
     switch (line.type) {
       case 'scene': {
@@ -456,6 +512,13 @@ export const serializeToFountain = (
       default:
         out.push(`\n${text}\n`);
         break;
+    }
+    if (line.notes?.length || line.bookmark || line.alternates?.length) {
+      const metadata = JSON.stringify({ ...(line.notes?.length ? { notes: line.notes } : {}), ...(line.bookmark ? { bookmark: line.bookmark } : {}), ...(line.alternates?.length ? { alternates: line.alternates } : {}) });
+      const bytes = new TextEncoder().encode(metadata);
+      let binary = '';
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      out.push(`[[OSD-META:v1:${btoa(binary)}]]\n`);
     }
   });
 

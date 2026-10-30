@@ -62,6 +62,8 @@ export interface PdfDocumentContext {
   doc: PDFDocument;
   regular: PDFFont;
   bold: PDFFont;
+  /** Optional Unicode policy for screenplay exports with embedded fonts. */
+  sanitizeText?: (text: string) => string;
   pageWidth: number;
   pageHeight: number;
   margins: PdfMargins;
@@ -137,7 +139,7 @@ export const createPdfDocument = async (settings: PdfDocumentSettings): Promise<
 export const addPdfPage = (ctx: PdfDocumentContext): PDFPage => {
   const page = ctx.doc.addPage([ctx.pageWidth, ctx.pageHeight]);
   if (ctx.draftText !== null) {
-    const text = sanitizePdfText(ctx.draftText);
+    const text = (ctx.sanitizeText ?? sanitizePdfText)(ctx.draftText);
     const textWidth = ctx.bold.widthOfTextAtSize(text, WATERMARK_FONT_SIZE);
     page.drawText(text, {
       x: (ctx.pageWidth - textWidth) / 2 - 30,
@@ -202,7 +204,7 @@ export const drawDocumentHeader = (
   const logoWidth = options.logo?.width ?? 0;
   const textWidth = contentWidth - (logoWidth > 0 ? logoWidth + 12 : 0);
 
-  const productionTitle = sanitizePdfText(options.productionTitle);
+  const productionTitle = (ctx.sanitizeText ?? sanitizePdfText)(options.productionTitle);
   page.drawText(productionTitle, {
     x: margins.left,
     y: y - 16,
@@ -213,7 +215,7 @@ export const drawDocumentHeader = (
   });
   y -= 20;
 
-  page.drawText(sanitizePdfText(options.documentTitle), {
+  page.drawText((ctx.sanitizeText ?? sanitizePdfText)(options.documentTitle), {
     x: margins.left,
     y: y - 12,
     size: 11,
@@ -224,7 +226,7 @@ export const drawDocumentHeader = (
   y -= 16;
 
   if (options.subtitle !== undefined && options.subtitle.trim() !== '') {
-    page.drawText(sanitizePdfText(options.subtitle), {
+    page.drawText((ctx.sanitizeText ?? sanitizePdfText)(options.subtitle), {
       x: margins.left,
       y: y - 9,
       size: 9,
@@ -266,7 +268,7 @@ const truncateToWidth = (font: PDFFont, text: string, size: number, maxWidth: nu
 const drawPdfFooter = (ctx: PdfDocumentContext, page: PDFPage, pageNumber: number, pageCount: number): void => {
   const gray = rgb(0.42, 0.42, 0.42);
   const baseline = ctx.margins.bottom - 18;
-  page.drawText(sanitizePdfText(ctx.generatedLabel), {
+  page.drawText((ctx.sanitizeText ?? sanitizePdfText)(ctx.generatedLabel), {
     x: ctx.margins.left,
     y: baseline,
     size: FOOTER_FONT_SIZE,
@@ -274,7 +276,7 @@ const drawPdfFooter = (ctx: PdfDocumentContext, page: PDFPage, pageNumber: numbe
     color: gray,
   });
   if (ctx.showPageNumbers) {
-    const label = sanitizePdfText(`Page ${pageNumber} of ${pageCount}`);
+    const label = (ctx.sanitizeText ?? sanitizePdfText)(`Page ${pageNumber} of ${pageCount}`);
     const width = ctx.regular.widthOfTextAtSize(label, FOOTER_FONT_SIZE);
     page.drawText(label, {
       x: ctx.pageWidth - ctx.margins.right - width,
@@ -287,7 +289,7 @@ const drawPdfFooter = (ctx: PdfDocumentContext, page: PDFPage, pageNumber: numbe
   if (ctx.confidentialityLine !== null) {
     const label = truncateToWidth(
       ctx.regular,
-      sanitizePdfText(ctx.confidentialityLine),
+      (ctx.sanitizeText ?? sanitizePdfText)(ctx.confidentialityLine),
       FOOTER_FONT_SIZE,
       ctx.contentWidth - 190,
     );

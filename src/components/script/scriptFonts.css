@@ -1,0 +1,5 @@
+/* Bundled locally; see public/fonts/courier-badi/OFL.txt and THIRD_PARTY_NOTICES.md. */
+@font-face { font-family: 'Courier Badi'; src: url('/fonts/courier-badi/CourierBadi-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Courier Badi'; src: url('/fonts/courier-badi/CourierBadi-Bold.ttf') format('truetype'); font-style: normal; font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Courier Badi'; src: url('/fonts/courier-badi/CourierBadi-Italic.ttf') format('truetype'); font-style: italic; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Courier Badi'; src: url('/fonts/courier-badi/CourierBadi-BoldItalic.ttf') format('truetype'); font-style: italic; font-weight: 700; font-display: swap; }

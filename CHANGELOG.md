@@ -4,6 +4,57 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] — 2026-10-30
+
+### Added
+
+- **Browser collaboration preview.** Start a session from **Collaborate** and
+  invite others with a link. The default uses encrypted WebRTC connections
+  and public discovery services: participants and session creators need no
+  installation, hosting account or connection configuration. One floor plan
+  and its shots are shared in a separate local copy; the original production
+  stays in the project library. The preview supports six participants,
+  2,000 objects and 2 MiB of synchronization state, without embedded media.
+  Restricted networks can still prevent direct connections. Anyone with the
+  invitation can edit and keep a copy; individual revocation and read-only
+  roles are not included.
+- **Screenplay writing tools:** bold, italic and underline, literal find and
+  replace, anchored notes with authors and colours, bookmarks, dialogue
+  alternatives, act/sequence structure and reorderable scene cards. Open
+  **Script → Screenplay → Writing tools**.
+- **Unicode screenplay and sides PDFs** with locally bundled Courier Badi
+  fonts. Cyrillic and Greek text stays selectable; unsupported glyphs stop
+  the export with an explicit error rather than silently becoming `?`.
+- An optional authenticated private collaboration relay for operators who
+  deliberately choose to run one. It is not required for the default mode.
+
+### Changed
+
+- FDX and Fountain preserve supported inline formatting and writing metadata.
+  Some annotations and alternatives use documented extensions; native
+  project files remain the complete format.
+- Project schema is now **38**. Existing projects migrate without changing
+  their line IDs or legacy note content. Projects saved by 1.6.0 require
+  1.6.0 or later to reopen.
+- Pages deployment checks out the exact commit that passed CI.
+
+### Fixed
+
+- Formatting and note anchors follow text edits, paragraph splits and Unicode
+  capitals such as `ß → SS`; scene moves retain production references.
+- The draft archive saves the edited screenplay instead of stale import text.
+- An older completed write can no longer display **Saved locally** while a
+  newer edit is still waiting for its autosave.
+- Collaboration validates incoming updates before applying or acknowledging
+  them, bounds transfer size and rates, and preserves the original project
+  across joins, reconnects and failed cache operations. Invite signaling is
+  encrypted; malicious markup is rendered as text.
+- Budget controls wrap within narrow smartphone screens.
+
+See the [collaboration guide](docs/collaboration-start-guide-de.md),
+[writing guide](docs/scriptcraft-writing-ports-2026-10-30.md) and the linked
+audit reports for the tested scope and remaining limits.
+
 ## [1.5.1] — 2026-10-24
 
 ### Fixed

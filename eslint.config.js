@@ -22,7 +22,7 @@ export default tseslint.config(
   {
     // Build output, deps, and the generated fixture snapshot (1.2 MB of data
     // that is validated by its own schema-contract test, not by a linter).
-    ignores: ['dist/**', 'node_modules/**', 'src/generated/**', 'coverage/**'],
+    ignores: ['dist/**', 'node_modules/**', 'src/generated/**', 'coverage/**', 'test-results/**', 'playwright-report/**', 'blob-report/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -139,7 +139,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.{mjs,ts}', '*.config.{ts,js}'],
+    files: ['scripts/**/*.{mjs,ts}', 'server/**/*.{mjs,ts}', '*.config.{ts,js}'],
     languageOptions: { globals: { ...globals.node } },
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },

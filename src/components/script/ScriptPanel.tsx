@@ -114,6 +114,10 @@ import { downloadCsv, downloadText, safeFileName } from '../../utils/download';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { PdfExportButton } from '../common/PdfExportButton';
 import { useDialogs } from '../dialog/DialogProvider';
+import { editScriptText, sliceScriptLine, uppercaseScriptText } from '../../domain/script/editing';
+import { toggleTextStyle } from '../../domain/script/editing';
+import { ScriptWritingTools, type WritingSelection } from './ScriptWritingTools';
+import './scriptFonts.css';
 
 type ScriptWorkspaceView = ScriptFormatMode | 'reports' | 'title_page';
 
@@ -196,6 +200,8 @@ export const ScriptPanel: React.FC = () => {
   const [fountainViewMode, setFountainViewMode] = useState<'page' | 'raw'>('page');
   const [rawFountainText, setRawFountainText] = useState('');
   const [activeEditingLineId, setActiveEditingLineId] = useState<string | null>(null);
+  const [writingToolsOpen, setWritingToolsOpen] = useState(false);
+  const [writingSelection, setWritingSelection] = useState<WritingSelection | null>(null);
 
   const [zoom, setZoom] = useState(1);
   const [autoFontSize, setAutoFontSize] = useState(12);
@@ -556,7 +562,7 @@ export const ScriptPanel: React.FC = () => {
           sourceFileName: name,
           scriptTitle: scriptTitle || 'Screenplay',
           scriptText:
-            project.scriptText ?? serializeToFountain(lines, scriptTitle || 'Screenplay', project.titlePage),
+            serializeToFountain(lines, scriptTitle || 'Screenplay', project.titlePage),
           summary: {
             added: comparison.added,
             removed: comparison.removed,
@@ -1013,13 +1019,10 @@ export const ScriptPanel: React.FC = () => {
         if (l.type === 'parenthetical' || newType !== undefined) {
           text = stripParentheses(text);
         }
-        if (targetType === 'scene' || targetType === 'character' || targetType === 'transition' || targetType === 'shot') {
-          text = text.toUpperCase();
-        }
       }
+      const edited = editScriptText(l, text);
       return {
-        ...l,
-        text,
+        ...(['scene', 'character', 'transition', 'shot'].includes(targetType) ? uppercaseScriptText(edited) : edited),
         type: targetType,
         isSceneHeading: targetType === 'scene',
       };
@@ -1035,9 +1038,6 @@ export const ScriptPanel: React.FC = () => {
       text = formatParenthetical(text);
     } else {
       text = stripParentheses(text);
-      if (type === 'character' || type === 'scene' || type === 'transition') {
-        text = text.toUpperCase();
-      }
     }
     updateLine(id, text, type);
   };
@@ -1079,6 +1079,16 @@ export const ScriptPanel: React.FC = () => {
   };
 
   const handleLineKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, line: ScriptLine, index: number) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && ['b', 'i', 'u'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      const flag = ({ b: 'bold', i: 'italic', u: 'underline' } as const)[e.key.toLowerCase() as 'b' | 'i' | 'u'];
+      const offset = Number(e.currentTarget.dataset.lineOffset ?? 0);
+      try {
+        const next = toggleTextStyle(line, offset + (e.currentTarget.selectionStart ?? 0), offset + (e.currentTarget.selectionEnd ?? 0), flag);
+        if (next !== line) setScriptLines(lines.map((l) => l.id === line.id ? next : l));
+      } catch (error) { void notice({ title: 'Formatting limit', message: error instanceof Error ? error.message : 'Formatting could not be applied.' }); }
+      return;
+    }
     // ↑ ↓ move between lines, keeping the caret's column; omitted headings
     // have no field and are stepped over.
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
@@ -1174,11 +1184,13 @@ export const ScriptPanel: React.FC = () => {
       const head = line.text.slice(0, caret).trimEnd();
       const tail = line.text.slice(caretEnd).trimStart();
       const newLineId = createId('sl');
-      const tailLine: ScriptLine = { id: newLineId, lineNumber: index + 2, text: tail, type, sceneNumber: line.sceneNumber };
+      const tailStart = caretEnd + line.text.slice(caretEnd).length - tail.length;
+      const tailLine: ScriptLine = { ...sliceScriptLine(line, tailStart, line.text.length), id: newLineId, lineNumber: index + 2, type, sceneNumber: line.sceneNumber, bookmark: undefined, structure: undefined, alternates: undefined };
+      const headLine = sliceScriptLine(line, 0, head.length);
       setScriptLines([
         ...lines.slice(0, index),
-        { ...line, text: type === 'parenthetical' ? formatParenthetical(head) : head },
-        type === 'parenthetical' ? { ...tailLine, text: formatParenthetical(tail) } : tailLine,
+        type === 'parenthetical' ? editScriptText(headLine, formatParenthetical(head)) : headLine,
+        type === 'parenthetical' ? editScriptText(tailLine, formatParenthetical(tail)) : tailLine,
         ...lines.slice(index + 1),
       ]);
       focusLine(newLineId, type === 'parenthetical' ? 1 : 0);
@@ -1324,6 +1336,21 @@ export const ScriptPanel: React.FC = () => {
   return (
     <div
       className={`relative h-full flex flex-col bg-surface text-ink`}
+      onFocusCapture={(event) => {
+        const target = event.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+          const id = target.dataset.lineInput;
+          if (id) setActiveEditingLineId(id);
+        }
+      }}
+      onSelectCapture={(event) => {
+        const target = event.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+          const id = target.dataset.lineInput;
+          const offset = Number(target.dataset.lineOffset ?? 0);
+          if (id) setWritingSelection({ lineId: id, start: offset + (target.selectionStart ?? 0), end: offset + (target.selectionEnd ?? 0) });
+        }
+      }}
       // A screenplay file dropped on the panel is imported. Without this the
       // browser opened the dropped PDF in place of the app.
       onDragOver={(event) => {
@@ -1366,6 +1393,7 @@ export const ScriptPanel: React.FC = () => {
           />
 
           <div className="flex items-center gap-1.5 flex-wrap">
+            {activeTab === 'screenplay' && <button className={headerButton} aria-expanded={writingToolsOpen} onClick={() => setWritingToolsOpen((open) => !open)}>Writing tools</button>}
             <input
               ref={fileRef}
               className="hidden"
@@ -1618,6 +1646,24 @@ export const ScriptPanel: React.FC = () => {
         )}
       </div>
 
+      {activeTab === 'screenplay' && writingToolsOpen && <ScriptWritingTools
+        lines={lines}
+        activeLineId={activeEditingLineId}
+        selection={writingSelection}
+        pagesLocked={!!project.scriptPageLock && Object.keys(project.scriptPageLock).length > 0}
+        onChange={setScriptLines}
+        onGoTo={(hit) => {
+          setFountainViewMode('page');
+          setWritingSelection({ lineId: hit.lineId, start: hit.start, end: hit.end });
+          focusLine(hit.lineId, hit.start);
+          requestAnimationFrame(() => {
+            const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-line-input="${CSS.escape(hit.lineId)}"]`);
+            const offset = Number(input?.dataset.lineOffset ?? 0);
+            input?.setSelectionRange(Math.max(0, hit.start - offset), Math.max(0, hit.end - offset));
+            input?.scrollIntoView({ block: 'nearest' });
+          });
+        }}
+      />}
       {activeTab === 'reports' && <ScriptReportsPanel lines={lines} isLight={isLight} />}
       {activeTab === 'title_page' && (
         <div className={`flex-1 overflow-auto custom-scrollbar bg-surface-sunken`}>
@@ -1652,7 +1698,7 @@ export const ScriptPanel: React.FC = () => {
             <div
               className="max-w-4xl mx-auto shadow-2xl rounded-xl border border-slate-300 dark:border-slate-700/40 p-6 sm:p-12 min-h-[850px] bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               // The printed face: every column is one character wide, as on paper.
-              style={{ fontFamily: '"Courier Prime", "Courier New", Courier, monospace', containerType: 'inline-size' }}
+              style={{ fontFamily: '"Courier Badi", "Courier Prime", "Courier New", Courier, monospace', containerType: 'inline-size' }}
             >
               <div className="border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 flex items-center justify-between text-xs opacity-60">
                 <span className="uppercase tracking-wider font-bold">{scriptTitle || 'UNTITLED SCREENPLAY'}</span>
@@ -1832,6 +1878,7 @@ export const ScriptPanel: React.FC = () => {
                             <div className="relative text-sky-800 dark:text-sky-300 italic">
                               <ScreenplayLineField
                                 lineId={line.id}
+                                styles={line.styles}
                                 autoFocus={isSelected}
                                 ariaLabel="Parenthetical"
                                 value={line.text}
@@ -1920,6 +1967,7 @@ export const ScriptPanel: React.FC = () => {
                             <div className="relative">
                             <ScreenplayLineField
                               lineId={line.id}
+                              styles={line.styles}
                               autoFocus={isSelected}
                               ariaLabel={line.type === 'dialogue' ? 'Dialogue' : line.type === 'transition' ? 'Transition' : line.type === 'shot' ? 'Shot' : 'Action'}
                               value={line.text}

@@ -45,6 +45,7 @@ afterEach(() => {
 
 /** Everything the navbar reads, stated in full so its coupling is visible. */
 const navDeps = () => ({
+  collaboration: { active: false, status: null, invite: null, start: async () => {}, join: async () => {}, leave: () => {}, undo: () => {}, redo: () => {}, boundary: () => {} },
   activeSetup: { id: 's1', name: 'Scene 1', elements: [], shots: [], gridSettings: undefined },
   historyIndex: 0,
   historyLength: 1,

@@ -235,7 +235,7 @@ export const BudgetPanel: React.FC = () => {
           title={view === 'budget' ? 'Budget' : view === 'topsheet' ? 'Top sheet' : view === 'actuals' ? 'Actuals' : 'Day needs'}
           subtitle={<>{shootDays} shooting day{shootDays === 1 ? '' : 's'} · {view === 'actuals' ? `${actualsLines.length} budget line${actualsLines.length === 1 ? '' : 's'}` : `${summary.entries.length} priced line${summary.entries.length === 1 ? '' : 's'}`} · total {money(summary.total)}</>}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
           <ViewSwitcher
             label="Budget view"
             value={view}

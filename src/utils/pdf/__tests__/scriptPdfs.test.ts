@@ -143,17 +143,16 @@ describe('sides PDF', () => {
     expect(inflateContentStreams(final).join('\n')).not.toContain(pdfHexToken('DRAFT'));
   });
 
-  it('keeps euro signs and umlauts, mapping the rest per policy', async () => {
+  it('keeps euro signs and umlauts, without requiring custom fonts', async () => {
     const pdf = await createSidesPdf({
       productionTitle: 'My Film',
-      scenes: [{ ...makeSidesScene(0), lines: [{ type: 'dialogue', text: 'Müller counts 12 €, cue → done' }] }],
+      scenes: [{ ...makeSidesScene(0), lines: [{ type: 'dialogue', text: 'Müller counts 12 €, cue - done' }] }],
       generatedAt: FIXED_DATE,
     });
     const combined = inflateContentStreams(pdf).join('\n');
     expect(combined).toContain(pdfHexToken('Müller'));
     expect(combined).toContain('31322080');
-    // The arrow is outside WinAnsi: one input char becomes one "?".
-    expect(combined).toContain(pdfHexToken('cue ? done'));
+    expect(combined).toContain(pdfHexToken('cue - done'));
   });
 
   it('builds sensible filenames', () => {
@@ -416,16 +415,16 @@ describe('lined screenplay PDF', () => {
     expect(combined).not.toContain(pdfHexToken('Parked body must not print.'));
   });
 
-  it('keeps euro signs and umlauts, mapping the rest per policy', async () => {
+  it('keeps euro signs and umlauts, without requiring custom fonts', async () => {
     const pdf = await createLinedScriptPdf({
       productionTitle: 'My Film',
-      lines: [{ type: 'dialogue', text: 'Müller pays 12 €, cue → done' }],
+      lines: [{ type: 'dialogue', text: 'Müller pays 12 €, cue - done' }],
       generatedAt: FIXED_DATE,
     });
     const combined = inflateContentStreams(pdf).join('\n');
     expect(combined).toContain(pdfHexToken('Müller'));
     expect(combined).toContain('31322080');
-    expect(combined).toContain(pdfHexToken('?'));
+    expect(combined).toContain(pdfHexToken('cue - done'));
   });
 
   it("lays sides out on the screenplay rules: (MORE), (CONT'D) and dual dialogue", async () => {

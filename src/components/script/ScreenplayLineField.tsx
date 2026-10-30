@@ -1,5 +1,7 @@
 import React from 'react';
 import { wrapScreenplayText } from '../../domain/script';
+import type { ScriptTextStyle } from '../../types';
+import { StyledScriptText } from './StyledScriptText';
 
 /**
  * One screenplay line in the editor, laid out as it prints.
@@ -17,6 +19,7 @@ export const ScreenplayLineField = React.forwardRef<
   {
     lineId: string;
     value: string;
+    styles?: ScriptTextStyle[];
     /** Printed width of the element in characters. */
     width: number;
     onChange: (value: string) => void;
@@ -28,9 +31,11 @@ export const ScreenplayLineField = React.forwardRef<
     className?: string;
     right?: boolean;
   }
->(({ lineId, value, width, onChange, onKeyDown, onBlur, autoFocus, placeholder, ariaLabel, className = '', right }, ref) => {
+>(({ lineId, value, styles, width, onChange, onKeyDown, onBlur, autoFocus, placeholder, ariaLabel, className = '', right }, ref) => {
   const rows = Math.max(1, wrapScreenplayText(value || placeholder || '', width).length);
   return (
+    <div className={`relative ${className}`} style={{ width: `${width}ch`, maxWidth: '100%' }}>
+    {!!styles?.length && <div aria-hidden className={`absolute inset-0 pointer-events-none whitespace-pre-wrap break-words leading-[inherit] ${right ? 'text-right' : ''}`}><StyledScriptText text={value} styles={styles} /></div>}
     <textarea
       ref={ref}
       data-line-input={lineId}
@@ -46,8 +51,9 @@ export const ScreenplayLineField = React.forwardRef<
       className={`block resize-none overflow-hidden bg-transparent outline-none rounded leading-[inherit] p-0 ${right ? 'text-right' : ''} ${className}`}
       // The column is exactly the printed width; the browser's word wrap at
       // that width matches the page's.
-      style={{ width: `${width}ch`, maxWidth: '100%', font: 'inherit', letterSpacing: 'inherit' }}
+      style={{ width: '100%', maxWidth: '100%', font: 'inherit', letterSpacing: 'inherit', ...(styles?.length ? { color: 'transparent', caretColor: '#64748b', background: 'transparent', position: 'relative' } : {}) }}
     />
+    </div>
   );
 });
 ScreenplayLineField.displayName = 'ScreenplayLineField';
