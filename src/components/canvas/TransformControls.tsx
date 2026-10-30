@@ -531,6 +531,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
 
       {/* Rotation Guideline circle */}
       <circle
+        pointerEvents="none"
         cx={0}
         cy={0}
         r={rotateHandleDistance}
@@ -543,6 +544,7 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
 
       {/* Rotation stalk line */}
       <line
+        pointerEvents="none"
         x1={0}
         y1={0}
         x2={rotateHandleDistance}

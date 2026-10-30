@@ -2,6 +2,7 @@ import { expect, test, type Page, type BrowserContext, type WebSocketRoute } fro
 import { createProject } from '../src/utils/projectLibrary';
 
 const baseUrl = process.env.COLLAB_TEST_BASE_URL ?? 'http://127.0.0.1:3000/';
+test.use({ actionTimeout: 15_000 });
 async function create(page: Page, title: string, url = baseUrl) {
   await page.goto(url);
   await page.getByPlaceholder('Production title (e.g. The Long Walk Home)').fill(title);
@@ -87,7 +88,7 @@ for (const mode of ['fixture', 'public-services', 'public-page'] as const) test(
       expect(discovery.frames.some((frame) => frame.includes(secret))).toBe(false);
       expect(discovery.frames.some((frame) => frame.includes('Automatic shared actor'))).toBe(false);
     }
-  } finally { await ca.close(); await cb.close(); await cc.close(); }
+  } finally { await Promise.allSettled([ca.close(), cb.close(), cc.close()]); }
 });
 
 test('direct collaboration transfers a chunked thousand-object plan and applies the following edit', async ({ browser }) => {
@@ -115,5 +116,5 @@ test('direct collaboration transfers a chunked thousand-object plan and applies 
     await a.getByLabel('Scene Setup Name', { exact: true }).fill('After the chunked transfer');
     await a.getByLabel('Scene Setup Name', { exact: true }).blur();
     await expect(b.getByLabel('Scene Setup Name', { exact: true })).toHaveValue('After the chunked transfer', { timeout: 30_000 });
-  } finally { await ca.close(); await cb.close(); }
+  } finally { await Promise.allSettled([ca.close(), cb.close()]); }
 });
