@@ -51,6 +51,29 @@ describe('real collaboration/editor lifecycle with transport isolated', () => {
     expect(invitation.requestInvite).not.toHaveBeenCalled();
     expect(hook.result.current.collaboration.invite?.relay).toBe(invitation.DIRECT_RELAY);
   });
+  it.each(['direct', 'relay'] as const)('preserves the original media before entering an opted-in media-free %s session', async (transport) => {
+    const hook = editor();
+    act(() => hook.result.current.history.setProject((project) => {
+      const next = clone(project);
+      next.setups[0].backgroundImage = { url: 'asset-sha256-original', x: 0, y: 0, width: 100, height: 100, opacity: 1, locked: false, visible: true };
+      next.setups[0].shots[0].storyboardImage = 'asset-sha256-storyboard';
+      return next;
+    }));
+    const original = clone(hook.result.current.project);
+    await act(async () => {
+      if (transport === 'direct') await hook.result.current.collaboration.startDirect({ omitMedia: true });
+      else await hook.result.current.collaboration.start('ws://localhost:1234', undefined, { omitMedia: true });
+    });
+    await waitFor(() => expect(hook.result.current.project.title).toContain('shared plan'));
+    const saved = library.readProject(original.id);
+    expect(saved).toMatchObject(original);
+    expect(hook.result.current.project.id).not.toBe(original.id);
+    expect(hook.result.current.project.setups[0].backgroundImage).toBeUndefined();
+    expect(hook.result.current.project.setups[0].shots[0].storyboardImage).toBeUndefined();
+    act(() => incoming((project) => { project.setups[0].elements[0].name = 'Media-free session edit'; }));
+    expect(hook.result.current.project.setups[0].elements[0].name).toBe('Media-free session edit');
+    expect(library.readProject(original.id)).toEqual(saved);
+  });
   it('cancels a direct start before its asynchronous modules finish loading', async () => {
     const hook = editor(); let pending!: Promise<void>;
     await act(async () => {

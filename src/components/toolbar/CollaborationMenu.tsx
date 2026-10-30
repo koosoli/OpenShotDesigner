@@ -19,6 +19,9 @@ export function CollaborationMenu() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [omitMedia, setOmitMedia] = useState(false);
+  const invitationRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { invitationRef.current?.focus(); }, [collaboration.invite]);
   useEffect(() => {
     const invitation = () => {
       if (new URLSearchParams(window.location.hash.slice(1)).has('collab')) {
@@ -37,7 +40,7 @@ export function CollaborationMenu() {
   const label = state?.error ? 'Collaboration needs attention' : !collaboration.active ? 'Collaborate' : !state?.ready ? 'Waiting for document' :
     !state.connected ? (state.pending ? 'Offline: changes not shared' : 'Reconnecting') : state.transport === 'webrtc' && state.peers < 2 ? 'Waiting for participants' : state.pending ? 'Sending changes' : `Live · ${Math.max(0, state.peers - 1)} peers`;
   const run = async (action: () => Promise<void>) => {
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setCopied(false);
     try { await action(); closeDashboard(); }
     catch (err) { setError(err instanceof Error ? err.message : 'Could not start collaboration.'); }
     finally { setBusy(false); }
@@ -49,9 +52,29 @@ export function CollaborationMenu() {
     </button>
     {open && <section aria-label="Collaboration preview" className="fixed left-3 top-16 z-50 w-80 max-w-[90vw] max-h-[80vh] overflow-y-auto space-y-3 rounded-xl border border-line bg-surface p-4 text-xs text-ink shadow-2xl">
       <p className="font-semibold">Live floor plan · preview</p>
+      {(error || state?.error) && <p role="alert" className="text-red-600 dark:text-red-300">{error ?? state?.error}</p>}
+      {collaboration.active ? <div className="space-y-2 rounded-lg border border-line p-3">
+        <p role="status">{label}</p>
+        <label className="block">Invitation link<input ref={invitationRef} aria-label="Invitation link" className="mt-1 w-full rounded border border-line p-2 bg-surface-sunken" readOnly value={inviteLink(collaboration.invite!)} onFocus={(e) => e.target.select()} /></label>
+        <button type="button" className="rounded bg-accent px-3 py-2 text-white" onClick={() => {
+          void (async () => {
+            try {
+              await navigator.clipboard.writeText(inviteLink(collaboration.invite!));
+              setCopied(true);
+            } catch {
+              invitationRef.current?.focus(); invitationRef.current?.select();
+              setError('Clipboard unavailable. The invitation is selected; copy it manually.');
+            }
+          })();
+        }}>{copied ? 'Copied' : 'Copy invite link'}</button>
+        <button type="button" className="ml-2 rounded border border-line px-3 py-2" onClick={collaboration.leave}>Leave session</button>
+      </div> : <div className="space-y-2 rounded-lg border border-line p-3">
+        <label className="flex items-start gap-2"><input type="checkbox" checked={omitMedia} disabled={busy} onChange={(e) => setOmitMedia(e.target.checked)} /><span>Share without images<span className="mt-1 block text-ink-muted">Omit backgrounds, storyboard frames and custom lighting files from the shared copy. Your original keeps all of them.</span></span></label>
+        <button type="button" disabled={busy || (useRelay && !relayAvailable)} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50" onClick={() => void run(async () => { try { if (useRelay) await collaboration.start(relay, creationKey, { omitMedia }); else await collaboration.startDirect({ omitMedia }); } finally { setCreationKey(''); } })}>Start collaboration</button>
+      </div>}
       <p>Start and share a link. No installation, account, hosting setup or connection settings are required.</p>
       <p>Shares one plan and its shots in a separate local project. Your original stays in the project library. Other production modules are personal in this preview.</p>
-      <p>Plans with images or custom asset files are not supported yet. Export .osd files for a portable backup.</p>
+      <p>Images and custom files are not synchronized. Choose Share without images to omit them from the shared copy. Export .osd files for a portable backup.</p>
       <details>
         <summary className="cursor-pointer font-medium">How to start or join</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-4">
@@ -63,20 +86,13 @@ export function CollaborationMenu() {
         <p className="mt-2">Existing public services help browsers connect. Some restricted networks can block direct connections; try another network if connecting fails.</p>
       </details>
       {isLocalCollaborationPage() && <p>Local test: use another browser profile on this computer. To invite another device, use the published website's link.</p>}
-      {(error || state?.error) && <p role="alert" className="text-red-600 dark:text-red-300">{error ?? state?.error}</p>}
       {collaboration.active ? <>
-        <p role="status">{label}</p>
         {state?.connected && !state.pending && state.transport !== 'webrtc' && <p>Changes received by the relay. This does not confirm that every peer has saved them.</p>}
         {state?.connected && !state.pending && state.transport === 'webrtc' && state.peers > 1 && <p>Changes received and checked by connected browsers. Export a project file for a separate backup.</p>}
         {state?.transport === 'webrtc' && state.peers < 2 && <p>Share the invitation and keep this tab open. The plan is local until another participant connects.</p>}
         {!state?.ready && <p>Your local project stays open while waiting. This invitation cannot recover a plan unless a previous participant or the relay still holds it.</p>}
         {state?.reconciled && <p>Reconnected changes were merged. Review objects edited by more than one person; Undo affects your own shared edits.</p>}
         {!state?.cached && <p>Room recovery in this browser is unavailable. Export before closing.</p>}
-        <label className="block">Invitation link<input aria-label="Invitation link" className="mt-1 w-full rounded border border-line p-2 bg-surface-sunken" readOnly value={inviteLink(collaboration.invite!)} onFocus={(e) => e.target.select()} /></label>
-        <button type="button" className="rounded border border-line px-3 py-2" onClick={() => {
-          void navigator.clipboard.writeText(inviteLink(collaboration.invite!)).then(() => setCopied(true)).catch(() => setError('Clipboard unavailable. Select and copy the invitation field.'));
-        }}>{copied ? 'Copied' : 'Copy invite link'}</button>
-        <button type="button" className="ml-2 rounded border border-line px-3 py-2" onClick={collaboration.leave}>Leave session</button>
         <p>{state?.transport === 'webrtc' ? 'Plan data travels over encrypted browser connections. Public connection services help participants find each other. Leaving keeps this local copy; anyone with the link can edit and retain a copy.' : 'Leaving keeps this local copy. Anyone with the link can edit. The relay sees the plan; this preview has no end-to-end encryption or link revocation.'}</p>
         {collaboration.invite?.ticket && <p>Invitation expires: {new Date(ticketExpiry(collaboration.invite.ticket)).toLocaleString()}.</p>}
       </> : <>
@@ -90,7 +106,6 @@ export function CollaborationMenu() {
             <p>Only a privately operated relay requires these settings. Its creation key is never included in invitations.</p>
           </div>
         </details>
-        <button type="button" disabled={busy || (useRelay && !relayAvailable)} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50" onClick={() => void run(async () => { try { if (useRelay) await collaboration.start(relay, creationKey); else await collaboration.startDirect(); } finally { setCreationKey(''); } })}>Start collaboration</button>
         <label className="block">Join invitation<input aria-label="Join invitation" className="mt-1 w-full rounded border border-line p-2 bg-surface-sunken" value={link} onChange={(e) => setLink(e.target.value)} /></label>
         <button type="button" disabled={busy || !link} className="rounded border border-line px-3 py-2 disabled:opacity-50" onClick={() => void run(async () => {
           const invite = parseInvite(link);

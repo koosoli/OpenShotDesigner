@@ -4,6 +4,18 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.6.1] — 2026-10-30
+
+### Fixed
+
+- Plans containing backgrounds, storyboards or custom lighting files can now
+  start collaboration by explicitly choosing **Share without images**. Only
+  the shared copy omits those resources; the original remains in the library
+  with its media. Incoming shared documents still reject unsupported media.
+- Invitation controls appear at the top of the collaboration panel after
+  starting, with keyboard focus on the link. Unavailable clipboard access
+  selects the link for manual copying instead of throwing an uncaught error.
+
 ## [1.6.0] — 2026-10-30
 
 ### Added

@@ -6,11 +6,11 @@ Die App bleibt eine statische GitHub-Pages-Website. Vorhandene öffentliche Dien
 
 ## Eine Sitzung starten
 
-1. Die App ab Version **1.6.0** im Browser öffnen und den gewünschten Plan laden. Für diesen Collaboration-Preview einen Plan ohne Hintergrund-/Storyboardbilder und ohne eigene Mediendateien verwenden.
+1. Die App ab Version **1.6.1** im Browser öffnen und den gewünschten Plan laden.
 2. Oben auf das Symbol mit **zwei Personen** klicken. Der Button heißt **Live collaboration**.
-3. **Start collaboration** anklicken. Weitere Eingaben sind nicht nötig. Insbesondere **Private relay (optional)** geschlossen lassen.
+3. Enthält der Plan Bilder oder eigene Dateien, zuerst **Share without images** aktivieren. Die gemeinsame Kopie enthält dann keine Hintergründe, Storyboard-Frames und eigenen Lichtdateien; das Original behält sie vollständig. Danach **Start collaboration** anklicken. Für Pläne ohne Medien ist das Häkchen nicht nötig. **Private relay (optional)** geschlossen lassen.
 4. Der Plan öffnet sich als separate lokale Kopie mit „shared plan“ im Titel. Das Original bleibt in der Projektbibliothek.
-5. **Copy invite link** anklicken und den Link an die gewünschten Gäste schicken. Falls die Zwischenablage nicht verfügbar ist, den Text aus **Invitation link** kopieren.
+5. **Copy invite link** oben im geöffneten Panel anklicken und den Link an die gewünschten Gäste schicken. Falls die Zwischenablage nicht verfügbar ist, den ausgewählten Text aus **Invitation link** manuell kopieren.
 6. Den Tab geöffnet lassen. **Waiting for participants** bedeutet, dass noch kein anderer Browser verbunden ist. **Live** erscheint, sobald Teilnehmer verbunden sind und die ausstehenden Änderungen bestätigt haben.
 
 ## Einer Sitzung beitreten
@@ -55,6 +55,7 @@ Die Verbindlungsdienste sind fremde öffentliche Infrastruktur ohne zugesagte Ve
 
 ## Wenn etwas nicht funktioniert
 
+- **Kein „Copy invite link“ und eine rote Meldung zu Bildern:** Die Sitzung wurde noch nicht gestartet. **Share without images** aktivieren und erneut **Start collaboration** anklicken. Die Bilder bleiben im Original; nur die separate gemeinsame Kopie lässt sie weg.
 - **Waiting for participants:** Den gleichen aktuellen Link im anderen Browser öffnen und den Beitritt bestätigen. Der Sitzungsersteller muss für den ersten Beitritt noch geöffnet sein.
 - **Waiting for document:** Noch kein Teilnehmer mit Planinhalt ist erreichbar. Einen bisherigen Teilnehmer mit seiner Raumkopie beitreten lassen.
 - **Connection services are unavailable:** Die öffentlichen Dienste sind gerade nicht erreichbar. Später erneut versuchen; eine Installation hilft hier nicht.

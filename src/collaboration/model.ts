@@ -15,8 +15,10 @@ const POSE = new Set(['x', 'y', 'x2', 'y2', 'rotation', 'width', 'height', 'star
 type RecordValue = Record<string, unknown>;
 const encode = (value: unknown) => JSON.stringify(value ?? null);
 
+export interface RoomProjectOptions { omitMedia?: boolean }
+
 /** A room shares only the visible plan, never crew/contact/script/other-scene data. */
-export function roomProject(project: Project): Project {
+export function roomProject(project: Project, { omitMedia = false }: RoomProjectOptions = {}): Project {
   const source = project.setups.find((s) => s.id === project.activeSetupId) ?? project.setups[0];
   if (!source) throw new Error('Open a floor plan first.');
   const setup: SceneSetup = JSON.parse(JSON.stringify(source));
@@ -29,6 +31,20 @@ export function roomProject(project: Project): Project {
   delete setup.scriptTitle;
   delete setup.avScriptRows;
   delete setup.customEquipment;
+  // Omission is opt-in and applies only to this deep copy. Incoming room data
+  // must still pass the ordinary media prohibition in assertRoomProject.
+  if (omitMedia) {
+    delete setup.backgroundImage;
+    delete setup.backgroundImages;
+    for (const shot of setup.shots) {
+      delete shot.storyboardImage;
+      delete shot.storyboardImageEnd;
+      delete shot.storyboardFrames;
+    }
+    for (const element of setup.elements) {
+      if (element.type === 'light') delete element.gdtfAssetId;
+    }
+  }
   for (const element of setup.elements) {
     if (element.type === 'actor') delete element.characterId;
   }
@@ -40,8 +56,17 @@ export function roomProject(project: Project): Project {
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION, director: '', cinematographer: '',
     date: project.date, setups: [setup], activeSetupId: setup.id,
   };
+  assertNoRoomMedia(result);
   assertRoomProject(result);
   return result;
+}
+
+function assertNoRoomMedia(project: Project): void {
+  const setup = project.setups[0];
+  if (collectProjectAssetIds(project).length || setup.backgroundImage || setup.backgroundImages?.length ||
+      setup.shots.some((s) => s.storyboardImage || s.storyboardImageEnd || Object.keys(s.storyboardFrames ?? {}).length)) {
+    throw new Error('Collaboration preview currently supports plans without background images, storyboard images or custom asset files. Select "Share without images" to start a separate copy. Your original keeps its files.');
+  }
 }
 
 /** Fail closed instead of showing guests an apparently complete plan with missing images. */
@@ -70,10 +95,7 @@ export function assertRoomProject(project: Project): void {
   }
   if (setup.groups?.some((g) => !Array.isArray(g.childIds) || g.childIds.some((id) => typeof id !== 'string'))) throw new Error('Invalid shared group.');
   if (COLLECTIONS.reduce((n, key) => n + (setup[key]?.length ?? 0), 0) > MAX_OBJECTS) throw new Error('Shared plans are limited to 2,000 objects.');
-  if (collectProjectAssetIds(project).length || setup.backgroundImage || setup.backgroundImages?.length ||
-      setup.shots.some((s) => s.storyboardImage || s.storyboardImageEnd || Object.keys(s.storyboardFrames ?? {}).length)) {
-    throw new Error('Collaboration preview currently supports plans without background images, storyboard images or custom asset files. Export the original .osd project to share those resources.');
-  }
+  assertNoRoomMedia(project);
   for (const element of setup.elements) {
     if (!['actor','camera','light','wall','door','window','prop','track','road','text','measurement','arrow','shape','cable','stroke','annotation'].includes(element.type) ||
         typeof element.id !== 'string' || !element.id || typeof element.name !== 'string' ||

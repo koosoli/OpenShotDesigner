@@ -151,6 +151,37 @@ describe('shared floor plan model', () => {
     expect(() => assertRoomProject(seed)).toThrow(/without background images/);
   });
 
+  it('omits media only from an explicitly requested shared copy while preserving its plan and the complete original', () => {
+    const original = createProject({ title: 'Plan with media', withSampleScenes: true });
+    const setup = original.setups[0];
+    setup.backgroundImage = { url: 'asset-sha256-background', x: 0, y: 0, width: 100, height: 100, opacity: 1, locked: false, visible: true };
+    setup.backgroundImages = [{ ...setup.backgroundImage }];
+    const shot = setup.shots[0];
+    shot.storyboardImage = 'asset-sha256-board';
+    shot.storyboardImageEnd = 'data:image/png;base64,AA==';
+    shot.storyboardFrames = { start: { image: 'https://example.com/frame.png', note: 'Original frame note' } };
+    const light = setup.elements.find((element) => element.type === 'light');
+    expect(light?.type).toBe('light');
+    if (light?.type === 'light') light.gdtfAssetId = 'asset-sha256-fixture';
+    const before = copy(original);
+    expect(() => roomProject(original)).toThrow(/Share without images/);
+
+    const shared = roomProject(original, { omitMedia: true });
+    expect(original).toEqual(before);
+    expect(shared.setups[0].backgroundImage).toBeUndefined();
+    expect(shared.setups[0].backgroundImages).toBeUndefined();
+    expect(shared.setups[0].shots[0]).toEqual(expect.objectContaining({ id: shot.id, name: shot.name, cameraId: shot.cameraId }));
+    expect(shared.setups[0].shots[0].storyboardImage).toBeUndefined();
+    expect(shared.setups[0].shots[0].storyboardImageEnd).toBeUndefined();
+    expect(shared.setups[0].shots[0].storyboardFrames).toBeUndefined();
+    expect(shared.setups[0].elements.map((element) => ({ id: element.id, x: element.x, y: element.y }))).toEqual(setup.elements.map((element) => ({ id: element.id, x: element.x, y: element.y })));
+    expect(shared.setups[0].elements.find((element) => element.type === 'light')).not.toHaveProperty('gdtfAssetId');
+    expect(() => assertRoomProject(shared)).not.toThrow();
+    // Opting in at creation must not relax validation of later incoming data.
+    shared.setups[0].backgroundImage = setup.backgroundImage;
+    expect(() => assertRoomProject(shared)).toThrow(/without background images/);
+  });
+
   it('keeps drag packets granular and round-trips a complete native JSON snapshot', () => {
     const { a, seed } = peers();
     const updates: Uint8Array[] = [];

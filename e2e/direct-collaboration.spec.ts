@@ -91,6 +91,50 @@ for (const mode of ['fixture', 'public-services', 'public-page'] as const) test(
   } finally { await Promise.allSettled([ca.close(), cb.close(), cc.close()]); }
 });
 
+test('a plan with storyboard images can share an explicit media-free copy and keep the original intact', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const creator = await browser.newContext(); const guest = await browser.newContext();
+  const discovery = discoveryFixture();
+  try {
+    await discovery.install(creator); await discovery.install(guest);
+    const a = await creator.newPage(); const b = await guest.newPage();
+    await create(a, 'Media source');
+    const original = createProject({ title: 'Original with storyboards', withSampleScenes: true });
+    expect(original.setups[0].shots.some((shot) => shot.storyboardImage || shot.storyboardFrames)).toBe(true);
+    const chooser = a.waitForEvent('filechooser');
+    await a.getByRole('button', { name: 'Open / Import Project JSON', exact: true }).click();
+    await (await chooser).setFiles({ name: 'with-storyboards.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(original)) });
+    await expect(a.getByLabel('Project title', { exact: true })).toHaveValue(original.title);
+    await a.getByRole('button', { name: 'Live collaboration', exact: true }).click();
+    await a.getByText('How to start or join', { exact: true }).click();
+    await a.getByRole('button', { name: 'Start collaboration', exact: true }).click();
+    await expect(a.getByRole('alert')).toContainText('Share without images');
+    await expect(a.getByRole('button', { name: 'Copy invite link', exact: true })).toBeHidden();
+    await expect(a.getByLabel('Project title', { exact: true })).toHaveValue(original.title);
+    await a.getByRole('checkbox', { name: /^Share without images/ }).check();
+    await a.getByRole('button', { name: 'Start collaboration', exact: true }).click();
+    await expect(a.getByRole('button', { name: 'Copy invite link', exact: true })).toBeInViewport();
+    const invitation = await a.getByLabel('Invitation link', { exact: true }).inputValue();
+    await join(b, invitation);
+    await expect(b.locator('.actor-element')).toHaveCount(original.setups[0].elements.filter((element) => element.type === 'actor').length);
+    const saved = await a.evaluate((id) => new Promise<unknown>((resolve, reject) => {
+      const open = indexedDB.open('local-workspace-v1');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const get = db.transaction('projects', 'readonly').objectStore('projects').get(id);
+        get.onsuccess = () => { resolve(get.result); db.close(); };
+        get.onerror = () => { reject(get.error); db.close(); };
+      };
+    }), original.id);
+    // Import fits the viewport; the source objects, shots and their media stay intact.
+    expect(saved).toMatchObject({ title: original.title, activeSetupId: original.activeSetupId,
+      setups: original.setups.map((setup) => ({ id: setup.id, name: setup.name, elements: setup.elements, shots: setup.shots })),
+    });
+    await a.screenshot({ path: 'test-results/collaboration-invite-media-copy.png', fullPage: true });
+  } finally { await Promise.allSettled([creator.close(), guest.close()]); }
+});
+
 test('direct collaboration transfers a chunked thousand-object plan and applies the following edit', async ({ browser }) => {
   test.setTimeout(120_000);
   const ca = await browser.newContext(); const cb = await browser.newContext();

@@ -5,11 +5,12 @@ import { flushPendingWrites, getSaveState, writeProject } from '../utils/project
 import type { CollaborationSession, SessionStatus } from './session';
 import type { Invite } from './invite';
 import { createPeerInvite, requestInvite, inviteLink, validateInvite } from './invite';
+import type { RoomProjectOptions } from './model';
 
 export interface CollaborationControls {
   active: boolean; status: SessionStatus | null; invite: Invite | null;
-  start: (relay: string, creationKey?: string) => Promise<void>;
-  startDirect: () => Promise<void>;
+  start: (relay: string, creationKey?: string, options?: RoomProjectOptions) => Promise<void>;
+  startDirect: (options?: RoomProjectOptions) => Promise<void>;
   join: (invite: Invite) => Promise<void>;
   captureLocal: (before: Project, after: Project) => void;
   leave: () => void; undo: () => void; redo: () => void; boundary: () => void;
@@ -118,17 +119,17 @@ export function useCollaboration(project: Project, setProject: Dispatch<SetState
   };
   return {
     active: invite !== null, status, invite,
-    startDirect: async () => {
+    startDirect: async (options) => {
       leave();
       source.current = { id: observed.current.id, setup: observed.current.activeSetupId };
       const ticket = generation.current;
       try {
         const { roomProject } = await import('./model');
         if (ticket !== generation.current) return;
-        await connect(createPeerInvite(), roomProject(observed.current));
+        await connect(createPeerInvite(), roomProject(observed.current, options));
       } catch (error) { if (ticket === generation.current) source.current = null; throw error; }
     },
-    start: async (relay, creationKey) => {
+    start: async (relay, creationKey, options) => {
       leave();
       const controller = new AbortController(); creation.current = controller;
       source.current = { id: observed.current.id, setup: observed.current.activeSetupId };
@@ -136,10 +137,10 @@ export function useCollaboration(project: Project, setProject: Dispatch<SetState
       try {
         const { roomProject } = await import('./model');
         if (controller.signal.aborted || ticket !== generation.current) return;
-        roomProject(observed.current);
+        roomProject(observed.current, options);
         const next = await requestInvite(relay, creationKey, controller.signal);
         if (controller.signal.aborted || ticket !== generation.current) return;
-        const seed = roomProject(observed.current);
+        const seed = roomProject(observed.current, options);
         creation.current = null;
         await connect(next, seed);
       } catch (error) { if (!controller.signal.aborted) throw error; }
