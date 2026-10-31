@@ -21,7 +21,7 @@ export function useCollaboration(project: Project, setProject: Dispatch<SetState
   const session = useRef<CollaborationSession | null>(null);
   const observed = useRef(project);
   const attachedId = useRef<string | null>(null);
-  const source = useRef<{ id: string; setup: string } | null>(null);
+  const source = useRef<{ id: string; setup?: string } | null>(null);
   const transition = useRef<Project | null>(null);
   const creation = useRef<AbortController | null>(null);
   const generation = useRef(0);
@@ -52,7 +52,7 @@ export function useCollaboration(project: Project, setProject: Dispatch<SetState
       attachedId.current = project.id;
       source.current = null; transition.current = null; setInitial(null);
     }
-    if (source.current && (source.current.id !== project.id || source.current.setup !== project.activeSetupId)) { leave(); return; }
+    if (source.current && (source.current.id !== project.id || source.current.setup && source.current.setup !== project.activeSetupId)) { leave(); return; }
     if (attachedId.current && project.id !== attachedId.current) { leave(); return; }
     if (session.current && attachedId.current) {
       try { session.current.flushLocal(); } catch (error) { stop(error); }
@@ -82,7 +82,7 @@ export function useCollaboration(project: Project, setProject: Dispatch<SetState
   const connect = useCallback(async (next: Invite, seed?: Project) => {
     next = validateInvite(next);
     leave();
-    source.current = { id: observed.current.id, setup: observed.current.activeSetupId };
+    source.current = { id: observed.current.id };
     const ticket = generation.current;
     const { CollaborationSession } = await import('./session');
     if (ticket !== generation.current) return;
@@ -121,26 +121,26 @@ export function useCollaboration(project: Project, setProject: Dispatch<SetState
     active: invite !== null, status, invite,
     startDirect: async (options) => {
       leave();
-      source.current = { id: observed.current.id, setup: observed.current.activeSetupId };
+      source.current = { id: observed.current.id, ...(options?.scope === 'plan' ? { setup: observed.current.activeSetupId } : {}) };
       const ticket = generation.current;
       try {
         const { roomProject } = await import('./model');
         if (ticket !== generation.current) return;
-        await connect(createPeerInvite(), roomProject(observed.current, options));
+        await connect(createPeerInvite(), roomProject(observed.current, { scope: 'project', omitMedia: true, ...options }));
       } catch (error) { if (ticket === generation.current) source.current = null; throw error; }
     },
     start: async (relay, creationKey, options) => {
       leave();
       const controller = new AbortController(); creation.current = controller;
-      source.current = { id: observed.current.id, setup: observed.current.activeSetupId };
+      source.current = { id: observed.current.id, ...(options?.scope === 'plan' ? { setup: observed.current.activeSetupId } : {}) };
       const ticket = generation.current;
       try {
         const { roomProject } = await import('./model');
         if (controller.signal.aborted || ticket !== generation.current) return;
-        roomProject(observed.current, options);
+        roomProject(observed.current, { scope: 'project', omitMedia: true, ...options });
         const next = await requestInvite(relay, creationKey, controller.signal);
         if (controller.signal.aborted || ticket !== generation.current) return;
-        const seed = roomProject(observed.current, options);
+        const seed = roomProject(observed.current, { scope: 'project', omitMedia: true, ...options });
         creation.current = null;
         await connect(next, seed);
       } catch (error) { if (!controller.signal.aborted) throw error; }

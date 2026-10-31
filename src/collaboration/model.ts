@@ -5,9 +5,10 @@ import { validateProject } from '../domain/validation';
 import { collectProjectAssetIds } from '../domain/media/projectAssetReferences';
 import { createId } from '../domain/ids';
 import { assertAllowedKeys, assertEditorType, assertSafeJson, FORBIDDEN_KEYS, parseSharedJson } from './security';
+import { PRODUCTION_ID, assertProductionProject, decodeProductionFields, productionFields, productionProject, productionView } from './productionModel';
+import { MAX_DOCUMENT_BYTES, MAX_OBJECTS, MAX_SHARED_FIELDS } from './limits';
 
-export const MAX_DOCUMENT_BYTES = 2 * 1024 * 1024;
-export const MAX_OBJECTS = 2000;
+export { MAX_DOCUMENT_BYTES, MAX_OBJECTS } from './limits';
 export const LOCAL_ORIGIN = 'local-editor';
 const COLLECTIONS = ['elements', 'shots', 'layers', 'groups'] as const;
 const SETTINGS = ['name', 'sceneNumber', 'location', 'timeOfDay', 'gridSettings', 'totalBeats', 'shootMode', 'aspectRatio', 'sunSettings', 'storyboardOrder'] as const;
@@ -15,10 +16,11 @@ const POSE = new Set(['x', 'y', 'x2', 'y2', 'rotation', 'width', 'height', 'star
 type RecordValue = Record<string, unknown>;
 const encode = (value: unknown) => JSON.stringify(value ?? null);
 
-export interface RoomProjectOptions { omitMedia?: boolean }
+export interface RoomProjectOptions { omitMedia?: boolean; scope?: 'plan' | 'project' }
 
-/** A room shares only the visible plan, never crew/contact/script/other-scene data. */
-export function roomProject(project: Project, { omitMedia = false }: RoomProjectOptions = {}): Project {
+/** Legacy plan seeds remain compatible; explicit production scope includes all project modules. */
+export function roomProject(project: Project, { omitMedia = false, scope = 'plan' }: RoomProjectOptions = {}): Project {
+  if (scope === 'project') return productionProject(project, omitMedia);
   const source = project.setups.find((s) => s.id === project.activeSetupId) ?? project.setups[0];
   if (!source) throw new Error('Open a floor plan first.');
   const setup: SceneSetup = JSON.parse(JSON.stringify(source));
@@ -71,6 +73,7 @@ function assertNoRoomMedia(project: Project): void {
 
 /** Fail closed instead of showing guests an apparently complete plan with missing images. */
 export function assertRoomProject(project: Project): void {
+  if (project?.id === PRODUCTION_ID) { assertProductionProject(project); return; }
   assertSafeJson(project);
   const raw = JSON.stringify(project);
   if (new TextEncoder().encode(raw).length > MAX_DOCUMENT_BYTES) throw new Error('Shared plans are limited to 2 MiB.');
@@ -117,6 +120,7 @@ export function assertRoomProject(project: Project): void {
 
 /** Flat, stable field keys avoid independently creating conflicting nested Y.Maps. */
 function fields(project: Project): Map<string, string> {
+  if (project.id === PRODUCTION_ID) return productionFields(project);
   const setup = project.setups[0];
   const out = new Map<string, string>();
   for (const key of SETTINGS) out.set(`setting:${key}`, encode(setup[key]));
@@ -141,7 +145,7 @@ export function seedDocument(doc: Y.Doc, project: Project): void {
   if (doc.getMap('meta').has('seed')) throw new Error('This room already has a plan.');
   assertRoomProject(project);
   doc.transact(() => {
-    doc.getMap('meta').set('seed', JSON.stringify(project));
+    doc.getMap('meta').set('seed', JSON.stringify(project.id === PRODUCTION_ID ? { id: PRODUCTION_ID, schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION, protocol: 2 } : project));
     const data = doc.getMap<string>('plan');
     fields(project).forEach((value, key) => data.set(key, value));
   }, 'seed');
@@ -149,7 +153,15 @@ export function seedDocument(doc: Y.Doc, project: Project): void {
 
 export type SharedChanges = Map<string, string | undefined>;
 
-export function localChanges(before: Project, after: Project): SharedChanges {
+export function localChanges(before: Project, after: Project, scope: 'plan' | 'project' = before.id === PRODUCTION_ID ? 'project' : 'plan'): SharedChanges {
+  if (scope === 'project') {
+    if (before.id !== after.id) throw new Error('A session shares one production. The new project remains local.');
+    const previous = productionFields(before); const next = productionFields(after);
+    const changes: SharedChanges = new Map();
+    for (const [key, value] of next) if (previous.get(key) !== value) changes.set(key, value);
+    for (const key of previous.keys()) if (!next.has(key)) changes.set(key, '["d"]');
+    return changes;
+  }
   if (before.id !== after.id || after.setups.length !== 1 || before.setups.length !== 1 ||
       after.setups[0].id !== before.setups[0].id || after.activeSetupId !== before.activeSetupId) {
     throw new Error('This session shares one fixed plan. Your changed project stays local; start a new session to share it.');
@@ -175,7 +187,7 @@ export function applyLocalChanges(doc: Y.Doc, changes: ReadonlyMap<string, strin
 }
 
 export function writeLocalChanges(doc: Y.Doc, before: Project, after: Project): void {
-  applyLocalChanges(doc, localChanges(before, after));
+  applyLocalChanges(doc, localChanges(before, after, readDocument(doc)?.id === PRODUCTION_ID ? 'project' : 'plan'));
 }
 
 export function readDocument(doc: Y.Doc): Project | null {
@@ -184,7 +196,7 @@ export function readDocument(doc: Y.Doc): Project | null {
       [...doc.store.clients.values()].reduce((sum, structs) => sum + structs.length, 0) > 100_000) throw new Error('Unsupported or excessive synchronization history.');
   const meta = doc.getMap('meta');
   const wire = doc.getMap('plan');
-  if (meta._start || wire._start || meta.size > 1 || wire.size > 50_000) throw new Error('Unsupported shared map structure.');
+  if (meta._start || wire._start || meta.size > 1 || wire.size > MAX_SHARED_FIELDS) throw new Error('Unsupported shared map structure.');
   if ([...meta.keys()].some((key) => key !== 'seed') || [...wire.values()].some((value) => typeof value !== 'string')) throw new Error('Invalid shared map values.');
   const seed = doc.getMap<string>('meta').get('seed');
   if (seed === undefined) {
@@ -208,6 +220,11 @@ export function readWithPendingChanges(doc: Y.Doc, changes: ReadonlyMap<string, 
 
 function decodeFields(seed: string, data: ReadonlyMap<string, string>): Project {
   const result = parseSharedJson(seed) as Project;
+  if (result.id === PRODUCTION_ID) {
+    assertAllowedKeys(result, ['id', 'schemaVersion', 'protocol']);
+    if ((result as unknown as RecordValue).protocol !== 2 || result.schemaVersion !== CURRENT_PROJECT_SCHEMA_VERSION) throw new Error('Unsupported shared-production protocol.');
+    return decodeProductionFields(data);
+  }
   assertAllowedKeys(result, ['id', 'title', 'schemaVersion', 'director', 'cinematographer', 'date', 'setups', 'activeSetupId']);
   if (result.id !== 'collaboration-plan' || result.director !== '' || result.cinematographer !== '') throw new Error('Unexpected shared project identity.');
   assertRoomProject(result);
@@ -280,6 +297,7 @@ function decodeFields(seed: string, data: ReadonlyMap<string, string>): Project 
 
 /** Keep each participant's viewport and library identity local. */
 export function projectView(shared: Project, local?: Project): Project {
+  if (shared.id === PRODUCTION_ID) return productionView(shared, local);
   const setup = shared.setups[0];
   const old = local?.setups.find((s) => s.id === setup.id);
   return { ...shared, ...local, id: local?.id ?? createId('proj'), setups: [{ ...old, ...setup,

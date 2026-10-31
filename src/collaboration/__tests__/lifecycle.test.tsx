@@ -34,7 +34,7 @@ function editor() {
 }
 async function start(hook: ReturnType<typeof editor>) {
   await act(async () => { await hook.result.current.collaboration.start('ws://localhost:1234'); });
-  await waitFor(() => expect(hook.result.current.project.title).toContain('shared plan'));
+  await waitFor(() => expect(hook.result.current.project.title).toContain('shared project'));
 }
 function incoming(update: (p: Project) => void) {
   const peer = new Y.Doc(); Y.applyUpdate(peer, Y.encodeStateAsUpdate(current.doc));
@@ -47,7 +47,7 @@ describe('real collaboration/editor lifecycle with transport isolated', () => {
   it('starts the default direct session without requesting a server invite or operator credentials', async () => {
     const hook = editor();
     await act(async () => { await hook.result.current.collaboration.startDirect(); });
-    await waitFor(() => expect(hook.result.current.project.title).toContain('shared plan'));
+    await waitFor(() => expect(hook.result.current.project.title).toContain('shared project'));
     expect(invitation.requestInvite).not.toHaveBeenCalled();
     expect(hook.result.current.collaboration.invite?.relay).toBe(invitation.DIRECT_RELAY);
   });
@@ -64,7 +64,7 @@ describe('real collaboration/editor lifecycle with transport isolated', () => {
       if (transport === 'direct') await hook.result.current.collaboration.startDirect({ omitMedia: true });
       else await hook.result.current.collaboration.start('ws://localhost:1234', undefined, { omitMedia: true });
     });
-    await waitFor(() => expect(hook.result.current.project.title).toContain('shared plan'));
+    await waitFor(() => expect(hook.result.current.project.title).toContain('shared project'));
     const saved = library.readProject(original.id);
     expect(saved).toMatchObject(original);
     expect(hook.result.current.project.id).not.toBe(original.id);
@@ -118,14 +118,17 @@ describe('real collaboration/editor lifecycle with transport isolated', () => {
     expect(updates).toHaveBeenCalledTimes(1);
   });
 
-  it('stops sharing when a second scene is added and keeps that whole local project', async () => {
+  it('shares added scenes and keeps scene selection local without stopping the production session', async () => {
     const hook = editor(); await start(hook);
     act(() => hook.result.current.history.setProject((prev) => {
       const next = clone(prev); next.setups.push({ ...clone(prev).setups[0], id: 'additional-plan' }); return next;
     }));
     expect(hook.result.current.project.setups).toHaveLength(2);
-    expect(hook.result.current.collaboration.active).toBe(false);
-    expect(hook.result.current.collaboration.status?.error).toContain('one fixed plan');
+    expect(hook.result.current.collaboration.active).toBe(true);
+    expect(readDocument(current.doc)?.setups).toHaveLength(2);
+    act(() => hook.result.current.history.setProject((prev) => ({ ...prev, activeSetupId: 'additional-plan' })));
+    expect(hook.result.current.collaboration.active).toBe(true);
+    expect(readDocument(current.doc)?.activeSetupId).not.toBe('additional-plan');
   });
 
   it.each(['leave', 'switch', 'unmount'] as const)('cancels delayed room creation on %s and ignores even a late successful response', async (action) => {

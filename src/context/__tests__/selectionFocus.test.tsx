@@ -8,9 +8,11 @@
  * bypasses this guard entirely and is not what these tests pin.
  */
 import React from 'react';
-import { renderHook, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, waitFor, act, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resetStorage } from './providerHarness';
+
+afterEach(cleanup);
 
 /** Mount both providers and expose the two APIs the guard spans. */
 const mountBoth = async () => {

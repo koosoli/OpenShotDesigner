@@ -15,7 +15,7 @@ async function join(page: Page, invite: string) {
   await page.goto(invite);
   await page.getByRole('button', { name: 'Join session', exact: true }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Join session', exact: true }).click();
-  await expect(page.getByLabel('Project title', { exact: true })).toHaveValue(/shared plan/, { timeout: 60_000 });
+  await expect(page.getByLabel('Project title', { exact: true })).toHaveValue(/shared (?:plan|project)/, { timeout: 60_000 });
 }
 async function rename(page: Page, value: string) {
   await page.locator('.actor-element').first().getByText('A', { exact: true }).click();
@@ -108,11 +108,6 @@ test('a plan with storyboard images can share an explicit media-free copy and ke
     await a.getByRole('button', { name: 'Live collaboration', exact: true }).click();
     await a.getByText('How to start or join', { exact: true }).click();
     await a.getByRole('button', { name: 'Start collaboration', exact: true }).click();
-    await expect(a.getByRole('alert')).toContainText('Share without images');
-    await expect(a.getByRole('button', { name: 'Copy invite link', exact: true })).toBeHidden();
-    await expect(a.getByLabel('Project title', { exact: true })).toHaveValue(original.title);
-    await a.getByRole('checkbox', { name: /^Share without images/ }).check();
-    await a.getByRole('button', { name: 'Start collaboration', exact: true }).click();
     await expect(a.getByRole('button', { name: 'Copy invite link', exact: true })).toBeInViewport();
     const invitation = await a.getByLabel('Invitation link', { exact: true }).inputValue();
     await join(b, invitation);
@@ -132,6 +127,67 @@ test('a plan with storyboard images can share an explicit media-free copy and ke
       setups: original.setups.map((setup) => ({ id: setup.id, name: setup.name, elements: setup.elements, shots: setup.shots })),
     });
     await a.screenshot({ path: 'test-results/collaboration-invite-media-copy.png', fullPage: true });
+  } finally { await Promise.allSettled([creator.close(), guest.close()]); }
+});
+
+test('the whole production synchronizes scripts, crew, tasks and all scenes while navigation stays personal', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const creator = await browser.newContext(); const guest = await browser.newContext();
+  const discovery = discoveryFixture();
+  try {
+    if (process.env.COLLAB_PUBLIC_DISCOVERY_TEST !== '1') { await discovery.install(creator); await discovery.install(guest); }
+    const a = await creator.newPage(); const b = await guest.newPage();
+    await create(a, 'Full production source');
+    const original = createProject({ title: 'Entire production', withSampleScenes: true });
+    const chooser = a.waitForEvent('filechooser');
+    await a.getByRole('button', { name: 'Open / Import Project JSON', exact: true }).click();
+    await (await chooser).setFiles({ name: 'production.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(original)) });
+    await expect(a.getByLabel('Project title', { exact: true })).toHaveValue(original.title);
+    await a.getByRole('button', { name: 'Live collaboration', exact: true }).click();
+    await a.getByRole('button', { name: 'Start collaboration', exact: true }).click();
+    await expect(a.getByLabel('Invitation link', { exact: true })).toBeVisible();
+    await join(b, await a.getByLabel('Invitation link', { exact: true }).inputValue());
+    await a.getByRole('button', { name: 'Live collaboration', exact: true }).click();
+    for (const page of [a, b]) {
+      await page.locator('#tab-script').click();
+      await page.getByText('Screenplay', { exact: true }).click();
+    }
+    await a.getByRole('textbox', { name: 'Action', exact: true }).first().fill('The creator edits the shared screenplay.');
+    await a.getByRole('textbox', { name: 'Action', exact: true }).first().blur();
+    await expect(b.getByRole('textbox', { name: 'Action', exact: true }).first()).toHaveValue('The creator edits the shared screenplay.');
+    await b.getByRole('textbox', { name: 'Action', exact: true }).last().fill('The guest writes another paragraph.');
+    await b.getByRole('textbox', { name: 'Action', exact: true }).last().blur();
+    await expect(a.getByRole('textbox', { name: 'Action', exact: true }).last()).toHaveValue('The guest writes another paragraph.');
+    const module = async (page: Page, name: string) => {
+      await page.getByRole('button', { name: /^Production modules/ }).click();
+      await page.getByRole('button', { name, exact: true }).click();
+    };
+    await module(a, 'Crew'); await module(b, 'Crew');
+    await a.locator('#right-sidebar details').filter({ hasText: original.people![0].displayName }).locator('summary').click();
+    await a.getByRole('button').filter({ hasText: original.people![0].displayName }).first().click();
+    await a.getByPlaceholder('Full name', { exact: true }).fill('Shared crew edit');
+    await a.getByPlaceholder('Full name', { exact: true }).blur();
+    await a.getByRole('button', { name: 'Save', exact: true }).click();
+    await b.locator('#right-sidebar details').filter({ hasText: 'Shared crew edit' }).locator('summary').click();
+    await expect(b.getByRole('button').filter({ hasText: 'Shared crew edit' }).first()).toBeVisible();
+    await module(a, 'Budget'); await module(b, 'Budget');
+    await b.getByLabel('Currency', { exact: true }).fill('USD');
+    await b.getByLabel('Currency', { exact: true }).blur();
+    await expect(a.getByLabel('Currency', { exact: true })).toHaveValue('USD');
+    await module(a, 'Tasks'); await module(b, 'Tasks');
+    await a.getByLabel('Board name', { exact: true }).fill('Shared preproduction tasks');
+    await a.getByLabel('Board name', { exact: true }).blur();
+    await expect(b.getByLabel('Board name', { exact: true })).toHaveValue('Shared preproduction tasks');
+    await b.reload();
+    await b.getByRole('button', { name: 'Join session', exact: true }).click();
+    await b.getByRole('alertdialog').getByRole('button', { name: 'Join session', exact: true }).click();
+    await expect(b.getByRole('button', { name: 'Live collaboration', exact: true })).toHaveAttribute('title', /^Live|Waiting for participants/, { timeout: 30_000 });
+    await module(b, 'Tasks');
+    await expect(b.getByLabel('Board name', { exact: true })).toHaveValue('Shared preproduction tasks');
+    await a.getByLabel('Board name', { exact: true }).fill('Shared tasks after rejoin');
+    await a.getByLabel('Board name', { exact: true }).blur();
+    await expect(b.getByLabel('Board name', { exact: true })).toHaveValue('Shared tasks after rejoin', { timeout: 45_000 });
+    await b.screenshot({ path: 'test-results/full-production-collaboration.png', fullPage: true });
   } finally { await Promise.allSettled([creator.close(), guest.close()]); }
 });
 

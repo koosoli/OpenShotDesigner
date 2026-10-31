@@ -6,7 +6,10 @@ import { writeFileSync } from 'node:fs';
 const program = ts.createProgram(['src/types/index.ts'], { strict: true, target: ts.ScriptTarget.ES2022, moduleResolution: ts.ModuleResolutionKind.Bundler, module: ts.ModuleKind.ESNext });
 const checker = program.getTypeChecker();
 type Schema = { kind: string; value?: unknown; choices?: Schema[]; item?: Schema; properties?: Record<string, Schema>; required?: string[]; additional?: Schema };
+const names = ['FloorPlanElement', 'Shot', 'PlanLayer', 'PlanGroup', 'GridSettings', 'SunSettings', 'Project', 'SceneSetup', 'ScriptLine', 'ProjectRevision'];
 function describe(type: ts.Type, depth = 0): Schema {
+  const name = type.aliasSymbol?.name ?? type.getSymbol()?.name;
+  if (depth > 0 && name && names.includes(name)) return { kind: 'ref', value: name };
   if (depth > 16) throw new Error('Recursive collaboration type requires an explicit design.');
   if (type.isUnion()) {
     const choices = type.types.filter((t) => !(t.flags & ts.TypeFlags.Undefined)).map((t) => describe(t, depth + 1));
@@ -38,7 +41,6 @@ function describe(type: ts.Type, depth = 0): Schema {
   throw new Error(`Unsupported collaboration type: ${checker.typeToString(type)}`);
 }
 const source = program.getSourceFile('src/types/index.ts')!;
-const names = ['FloorPlanElement', 'Shot', 'PlanLayer', 'PlanGroup', 'GridSettings', 'SunSettings'];
 const result: Record<string, Schema> = {};
 for (const statement of source.statements) {
   if ((ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) && names.includes(statement.name.text)) result[statement.name.text] = describe(checker.getTypeAtLocation(statement));

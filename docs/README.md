@@ -7,6 +7,7 @@ listed here is current; anything superseded has moved to [`archive/`](#archive).
 
 | Document | What it is | Read it when |
 | --- | --- | --- |
+| [`collaboration-production-sync-2026-10-31.md`](collaboration-production-sync-2026-10-31.md) | Whole-production synchronization in 1.7.0, excluded media, local navigation, protocol compatibility and security review. | You share scripts and preproduction data, or review the expanded trust boundary. |
 | [`scriptcraft-writing-ports-2026-10-30.md`](scriptcraft-writing-ports-2026-10-30.md) | Implemented writing ports, German click guide, v38 migration, format contracts, security review and regression evidence. | You use or review the new screenplay writing tools. |
 | [`scriptcraft-port-audit-2026-10-30.md`](scriptcraft-port-audit-2026-10-30.md) | German comparison against pinned ScriptCraft v0.5.0: existing ports, missing features, priorities, format fidelity, security and asset licensing. | You decide which ScriptCraft features to port next. |
 | [`collaboration-plan-v4.md`](collaboration-plan-v4.md) | Current account-free WebRTC default on GitHub Pages; no user installation, hosting account or connection configuration. | You want the current collaboration architecture and its network limitations. |

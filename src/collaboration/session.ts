@@ -13,6 +13,7 @@ export interface SessionStatus {
   canUndo: boolean; canRedo: boolean;
   stopped?: boolean;
   transport?: 'webrtc' | 'relay';
+  scope?: 'plan' | 'project';
 }
 const NETWORK = 'network';
 const CACHE = 'cache';
@@ -25,6 +26,7 @@ const fromBase64 = (data: string) => Uint8Array.from(atob(data), (c) => c.charCo
 
 /** Provider boundary. Network acknowledgments mean relay receipt, never peer durability. */
 export class CollaborationSession {
+  get sharesProduction() { return this.status.scope === 'project'; }
   readonly doc = new Y.Doc();
   readonly undoManager = new Y.UndoManager(this.doc.getMap('plan'), { trackedOrigins: new Set([LOCAL_ORIGIN]), captureTimeout: 400 });
   private persistence: RoomCache | null = null;
@@ -73,6 +75,7 @@ export class CollaborationSession {
       try {
         const shared = readDocument(this.doc);
         if (shared) {
+          this.status.scope = shared.id === 'collaboration-project' ? 'project' : 'plan';
           this.status.ready = true;
           if (origin !== LOCAL_ORIGIN && origin !== this.undoManager) this.onRemote(shared);
           if (origin === this.undoManager) this.onRemote(shared);
@@ -129,7 +132,7 @@ export class CollaborationSession {
     if (this.closed) return;
     if (seed && !readDocument(this.doc)) seedDocument(this.doc, seed);
     const shared = readDocument(this.doc);
-    if (shared) { this.status.ready = true; this.onRemote(shared); }
+    if (shared) { this.status.scope = shared.id === 'collaboration-project' ? 'project' : 'plan'; this.status.ready = true; this.onRemote(shared); }
     this.connect();
     this.emit();
   }
@@ -239,7 +242,7 @@ export class CollaborationSession {
   }
   captureLocal(before: Project, after: Project) {
     if (this.closed || before === after) return;
-    try { for (const [key, value] of localChanges(before, after)) this.pendingLocal.set(key, value); }
+    try { for (const [key, value] of localChanges(before, after, this.sharesProduction ? 'project' : 'plan')) this.pendingLocal.set(key, value); }
     catch (error) { this.pendingProblem = error instanceof Error ? error : new Error('Local changes cannot be shared.'); }
   }
   flushLocal() {

@@ -6,10 +6,10 @@ Die App bleibt eine statische GitHub-Pages-Website. Vorhandene öffentliche Dien
 
 ## Eine Sitzung starten
 
-1. Die App ab Version **1.6.1** im Browser öffnen und den gewünschten Plan laden.
+1. Die App ab Version **1.7.0** im Browser öffnen und die gewünschte Produktion laden. Alle Teilnehmer sollten die aktuelle Seite verwenden.
 2. Oben auf das Symbol mit **zwei Personen** klicken. Der Button heißt **Live collaboration**.
-3. Enthält der Plan Bilder oder eigene Dateien, zuerst **Share without images** aktivieren. Die gemeinsame Kopie enthält dann keine Hintergründe, Storyboard-Frames und eigenen Lichtdateien; das Original behält sie vollständig. Danach **Start collaboration** anklicken. Für Pläne ohne Medien ist das Häkchen nicht nötig. **Private relay (optional)** geschlossen lassen.
-4. Der Plan öffnet sich als separate lokale Kopie mit „shared plan“ im Titel. Das Original bleibt in der Projektbibliothek.
+3. **Start collaboration** anklicken. Bilder und Dateianhänge werden automatisch ausgeschlossen; ein Häkchen ist nicht mehr erforderlich. **Private relay (optional)** geschlossen lassen.
+4. Die ganze Produktion öffnet sich als separate lokale Kopie mit „shared project“ im Titel. Das Original bleibt mit seinen Dateien in der Projektbibliothek. Auch Drehbuch, Kontakte einschließlich privater Felder, Budget und andere Produktionsdaten werden geteilt.
 5. **Copy invite link** oben im geöffneten Panel anklicken und den Link an die gewünschten Gäste schicken. Falls die Zwischenablage nicht verfügbar ist, den ausgewählten Text aus **Invitation link** manuell kopieren.
 6. Den Tab geöffnet lassen. **Waiting for participants** bedeutet, dass noch kein anderer Browser verbunden ist. **Live** erscheint, sobald Teilnehmer verbunden sind und die ausstehenden Änderungen bestätigt haben.
 
@@ -17,7 +17,7 @@ Die App bleibt eine statische GitHub-Pages-Website. Vorhandene öffentliche Dien
 
 1. Den vollständigen Einladungslink im Browser öffnen.
 2. Auf **Join session** klicken.
-3. Im Dialog **Join shared floor plan?** nochmals **Join session** bestätigen.
+3. Im Dialog **Join shared project?** nochmals **Join session** bestätigen.
 4. Warten, bis der gemeinsame Plan erscheint. Ein gerade geöffnetes anderes Projekt bleibt als Original in der lokalen Bibliothek erhalten.
 5. Zum ersten Test eine Schauspieler-Beschriftung ändern und im anderen Browser prüfen. Danach in Gegenrichtung testen.
 
@@ -41,9 +41,10 @@ Zwei gewöhnliche Tabs teilen sich teilweise Browser-Speicher. Getrennte Profile
 - Nach einer kurzen Unterbrechung werden lokale Änderungen beim Wiederverbinden abgeglichen. Die Anzeige nennt noch nicht übertragene Änderungen. Bei konkurrierenden Änderungen denselben Planbereich anschließend prüfen.
 - Ein neuer Browser kann nur beitreten, wenn ein anderer Teilnehmer mit Planinhalt erreichbar ist. Die Verbindlungsdienste archivieren den Plan nicht. Ein bisheriger Teilnehmer mit lokalem Raum-Cache kann die Sitzung wiederbeleben.
 - Eine neue Sitzung erhält einen neuen Link. Mehrere getrennte Sitzungen können parallel in getrennten Browserprofilen getestet werden. Pro Raum sind höchstens sechs Teilnehmer vorgesehen.
-- Das Hinzufügen einer weiteren Szene beendet die Freigabe und bewahrt die geänderte Produktion lokal. Für eine andere Szene eine neue Sitzung starten.
+- Szenen können hinzugefügt, gewechselt und bearbeitet werden. Die eigene Szenenauswahl, Zoomposition und Wiedergabe bleiben persönlich; Navigation bewegt andere Teilnehmer nicht.
+- **Alte Sitzungen aus 1.6.x teilen weiterhin nur einen Plan.** **Leave session** wählen, unter **All projects** die ursprüngliche vollständige Produktion öffnen, dann mit 1.7.0 eine neue Sitzung starten und den neuen Link weitergeben. Die alte gemeinsame Kopie enthält die früher ausgeschlossenen Module nicht.
 
-Speichern/Exportieren erfolgt über die normale Projekt-Speicherfunktion. Gemeinsam sind ein Plan und seine Shots. Andere Produktionsmodule bleiben persönlich. **Undo** betrifft die eigenen gemeinsamen Änderungen.
+Speichern/Exportieren erfolgt über die normale Projekt-Speicherfunktion. Gemeinsam sind alle gespeicherten Produktionsmodule, einschließlich Drehbuch, Szenen, Shots, Crew, Kontakte, Termine, Call Sheets, Budget, Aufgaben, technische Planung und Notizen. Bilder und Dateianhänge bleiben lokal. **Undo** betrifft die eigenen gemeinsamen Änderungen. Gleichzeitig geänderte Textabsätze werden jeweils als ganzer Absatz aufgelöst; das ist kein zeichenweises Google-Docs-Modell.
 
 ## Datenschutz und Grenzen
 
@@ -55,7 +56,8 @@ Die Verbindlungsdienste sind fremde öffentliche Infrastruktur ohne zugesagte Ve
 
 ## Wenn etwas nicht funktioniert
 
-- **Kein „Copy invite link“ und eine rote Meldung zu Bildern:** Die Sitzung wurde noch nicht gestartet. **Share without images** aktivieren und erneut **Start collaboration** anklicken. Die Bilder bleiben im Original; nur die separate gemeinsame Kopie lässt sie weg.
+- **Kein „Copy invite link“ und eine rote Meldung zu Bildern:** Die Seite auf 1.7.0 aktualisieren und eine neue Sitzung starten. Medien werden dort automatisch ausgeschlossen; das Original behält sie.
+- **Drehbuch wird nicht geteilt:** Bei einer alten Einladung bleibt die Freigabe auf einen Plan beschränkt. Unter **All projects** die ursprüngliche Produktion mit Drehbuch öffnen und daraus mit 1.7.0 eine neue Sitzung erstellen. Die alte gemeinsame Kopie hat das Drehbuch nicht übernommen.
 - **Waiting for participants:** Den gleichen aktuellen Link im anderen Browser öffnen und den Beitritt bestätigen. Der Sitzungsersteller muss für den ersten Beitritt noch geöffnet sein.
 - **Waiting for document:** Noch kein Teilnehmer mit Planinhalt ist erreichbar. Einen bisherigen Teilnehmer mit seiner Raumkopie beitreten lassen.
 - **Connection services are unavailable:** Die öffentlichen Dienste sind gerade nicht erreichbar. Später erneut versuchen; eine Installation hilft hier nicht.

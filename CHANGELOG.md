@@ -4,6 +4,29 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] — 2026-10-31
+
+### Added
+
+- **Whole-production collaboration.** New sessions synchronize the screenplay,
+  all scene plans, crew and contacts, schedules, call sheets, budgets, tasks,
+  locations, technical planning, review notes and named revisions. Images and
+  file attachments are automatically excluded from the wire document. New
+  local attachments do not stop collaboration and survive incoming edits.
+- Stable record identities merge independent offline edits and concurrent
+  insertions; paragraph text and formatting stay atomic. Local Undo preserves
+  incoming edits. Scene selection, zoom, playback and library identity remain
+  personal. The original production stays in the library.
+- Full closed runtime schemas for every shared module, with bounded path
+  assembly, worker validation and media rejection before application. Existing
+  transport limits remain unchanged. Old invitations remain plan-only; create
+  a new session on 1.7.0 to share the whole production.
+
+### Fixed
+
+- Provider focus tests now unmount their components, preventing an autosave
+  timer from firing after the test browser environment has been disposed.
+
 ## [1.6.1] — 2026-10-30
 
 ### Fixed

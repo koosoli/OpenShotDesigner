@@ -33,8 +33,8 @@ async function snapshot(page: Page): Promise<Project> {
 async function join(page: Page, invite: string) {
   await page.goto(invite);
   await page.getByRole('button', { name: 'Join session', exact: true }).click();
-  await page.getByRole('alertdialog', { name: 'Join shared floor plan?' }).getByRole('button', { name: 'Join session', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue(/shared plan/);
+  await page.getByRole('alertdialog', { name: 'Join shared project?' }).getByRole('button', { name: 'Join session', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue(/shared (?:plan|project)/);
   await page.getByRole('button', { name: 'Live collaboration', exact: true }).click();
   await expect(page.getByText(/Changes received by the relay/)).toBeVisible();
   await page.getByRole('button', { name: 'Live collaboration', exact: true }).click();
@@ -60,7 +60,7 @@ test('three isolated browsers share a real editor, retain originals, undo locall
     await a.getByText('Private relay (optional)', { exact: true }).click();
     await a.getByLabel('Relay address').fill(endpoint);
     await a.getByRole('button', { name: 'Start collaboration', exact: true }).click();
-    await expect(a.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue(/shared plan/);
+    await expect(a.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue(/shared (?:plan|project)/);
     const invite = await a.getByLabel('Invitation link', { exact: true }).inputValue();
     await expect(a.getByText(/Changes received by the relay/)).toBeVisible();
     await a.getByRole('button', { name: 'Live collaboration', exact: true }).click();
@@ -104,7 +104,7 @@ test('three isolated browsers share a real editor, retain originals, undo locall
     await b.getByRole('button', { name: 'Live collaboration', exact: true }).click();
     // Rejoin from persisted CRDT state after refresh, without duplicating seed objects.
     await b.reload(); await b.getByRole('button', { name: 'Join session', exact: true }).click();
-    await b.getByRole('alertdialog', { name: 'Join shared floor plan?' }).getByRole('button', { name: 'Join session', exact: true }).click();
+    await b.getByRole('alertdialog', { name: 'Join shared project?' }).getByRole('button', { name: 'Join session', exact: true }).click();
     await expect(b.getByRole('button', { name: 'Live collaboration', exact: true })).toHaveAttribute('title', /^Live/);
     await expect(b.locator('.actor-element').first()).toContainText('Offline local edit');
     const exported = await snapshot(b);
@@ -137,7 +137,7 @@ test('a fresh browser waits for unavailable room data without replacing its loca
   const invite = inviteLink(createInvite(endpoint), baseUrl);
   await page.goto(invite);
   await page.getByRole('button', { name: 'Join session', exact: true }).click();
-  await page.getByRole('alertdialog', { name: 'Join shared floor plan?' }).getByRole('button', { name: 'Join session', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Join shared project?' }).getByRole('button', { name: 'Join session', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Live collaboration', exact: true })).toHaveAttribute('title', 'Waiting for document');
   await expect(page.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue('Keep this local plan');
   const after = await snapshot(page);
@@ -160,7 +160,7 @@ test('protected room creation keeps the creation key out of invitations and admi
     await expect(page.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue('Protected source');
     await page.getByLabel('Relay creation key', { exact: true }).fill(creationKey);
     await page.getByRole('button', { name: 'Start collaboration', exact: true }).click();
-    await expect(page.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue(/shared plan/);
+    await expect(page.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue(/shared (?:plan|project)/);
     const invitation = await page.getByLabel('Invitation link', { exact: true }).inputValue();
     expect(invitation).not.toContain(creationKey);
     expect(invitation).not.toContain('creationKey');
@@ -192,7 +192,7 @@ test('a malicious relay cannot replace or receive the unrelated local production
     const { createInvite, inviteLink } = await import('../src/collaboration/invite');
     await page.goto(inviteLink(createInvite(`ws://127.0.0.1:${address.port}`), baseUrl));
     await page.getByRole('button', { name: 'Join session', exact: true }).click();
-    await page.getByRole('alertdialog', { name: 'Join shared floor plan?' }).getByRole('button', { name: 'Join session', exact: true }).click();
+    await page.getByRole('alertdialog', { name: 'Join shared project?' }).getByRole('button', { name: 'Join session', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Live collaboration', exact: true })).toHaveAttribute('title', 'Collaboration needs attention');
     await page.getByRole('button', { name: 'Live collaboration', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('Collaboration stopped');
@@ -219,7 +219,7 @@ test('shared label text is rendered as text instead of executable HTML', async (
   await page.getByText('Private relay (optional)', { exact: true }).click();
   await page.getByLabel('Relay address').fill(endpoint);
   await page.getByRole('button', { name: 'Start collaboration', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue(/shared plan/);
+  await expect(page.getByRole('textbox', { name: 'Project title', exact: true })).toHaveValue(/shared (?:plan|project)/);
   await page.getByRole('button', { name: 'Live collaboration', exact: true }).click();
   const payload = '<img src=x onerror="document.body.dataset.injected=1">';
   await renameActor(page, payload);
@@ -279,7 +279,7 @@ test('an unconfigured public installation refuses a hostile relay before connect
   } finally { await context.close(); }
 });
 
-test('adding a scene stops sharing and preserves the whole local production against later remote changes', async ({ browser }) => {
+test('adding a scene shares it without moving the other participant away from their selected scene', async ({ browser }) => {
   const ownerContext = await browser.newContext(); const guestContext = await browser.newContext();
   try {
     const owner = await ownerContext.newPage(); const guest = await guestContext.newPage();
@@ -293,13 +293,11 @@ test('adding a scene stops sharing and preserves the whole local production agai
     await owner.getByRole('button', { name: 'Live collaboration', exact: true }).click();
     await owner.getByRole('button', { name: /^Sc / }).click();
     await owner.getByRole('button', { name: '+ New Scene Setup', exact: true }).click();
-    await owner.getByRole('button', { name: 'Live collaboration', exact: true }).click();
-    await expect(owner.getByRole('alert')).toContainText('Collaboration stopped');
-    await expect(owner.getByRole('alert')).toContainText('one fixed plan');
     const before = await snapshot(owner); expect(before.setups).toHaveLength(2);
-    await renameActor(guest, 'Guest after owner left');
-    await expect(guest.locator('.actor-element').first()).toContainText('Guest after owner left');
-    const after = await snapshot(owner);
-    expect(after.setups).toEqual(before.setups);
+    await expect.poll(async () => (await snapshot(guest)).setups.length).toBe(2);
+    const guestBefore = await snapshot(guest);
+    expect(guestBefore.activeSetupId).not.toBe(before.activeSetupId);
+    await renameActor(guest, 'Guest stays in the original scene');
+    await expect.poll(async () => (await snapshot(owner)).setups[0].elements[0].name).toBe('Guest stays in the original scene');
   } finally { await ownerContext.close(); await guestContext.close(); }
 });

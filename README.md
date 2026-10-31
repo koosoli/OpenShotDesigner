@@ -249,6 +249,18 @@ board — in one print job, with your production logo on the paperwork.
 - **Import lands beside your work** — importing a `.json` project file adds it as its own project instead of overwriting the one you have open.
 - **Safe storage** — each project is stored under its own key, so one production with heavy embedded storyboards can't push the others out.
 
+### Live production collaboration
+
+- **Share the production in a browser** — scripts, all scene plans and shots,
+  crew/contact details, scheduling and call sheets, budgets, tasks, locations,
+  technical planning, review notes and other saved production data synchronize.
+  Images and file attachments stay local. Each participant keeps their own
+  selected scene and viewport. No installation or hosting account is required.
+- Open **Collaborate → Start collaboration → Copy invite link**. After updating
+  from 1.6.x, start a **new session** to share the whole production; older links
+  retain their original plan-only scope. See the [start guide](docs/collaboration-start-guide-de.md)
+  and [scope, security and conflict limits](docs/collaboration-production-sync-2026-10-31.md).
+
 ### Lined Script & Screenplay Suite
 
 - **Lined Coverage view** — standard Hollywood layout (Courier, 60-column page) with fluid auto-scaling that dynamically fills available panel or fullscreen space.
