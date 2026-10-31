@@ -4,6 +4,27 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] — 2026-10-31
+
+### Changed
+
+- Collaboration now explicitly explains public IP visibility before starting
+  or joining a direct session and while it is active. Encryption protects
+  production content in transit; direct peer connections do not hide IP addresses.
+  The optional private relay's different confidentiality limits are also stated
+  before starting it.
+
+### Fixed
+
+- Unreachable public discovery services now get three quick connection
+  attempts, followed by a five-minute cooldown between probes. Healthy
+  services and existing browser-to-browser sessions keep working. A relay
+  that opens and immediately closes no longer resets its retry budget.
+- Synchronous WebSocket connection failures are isolated to that discovery
+  service. Leaving cancels retries; services quarantined for oversized or
+  excessive input remain closed. Browser-generated network failures may still
+  appear for initial attempts and later cooldown probes.
+
 ## [1.7.0] — 2026-10-31
 
 ### Added

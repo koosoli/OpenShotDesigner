@@ -4,6 +4,9 @@ import { createEvent, subscribe } from '@trystero-p2p/nostr';
 // Fixed in the application, never selected by an invitation or by a guest.
 export const DISCOVERY_SERVICES = ['wss://nos.lol', 'wss://cdn.satellite.earth', 'wss://relay.damus.io'] as const;
 const MAX_SIGNAL = 96 * 1024;
+const FAST_ATTEMPTS = 3;
+const RETRY_COOLDOWN_MS = 5 * 60_000;
+const STABLE_CONNECTION_MS = 30_000;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 function base64(bytes: Uint8Array) {
@@ -66,10 +69,13 @@ class DiscoveryClient {
   }
   private connect() {
     if (this.closed) return;
-    const socket = this.socket = new WebSocket(this.url);
+    let socket: WebSocket;
+    try { socket = this.socket = new WebSocket(this.url); }
+    catch { this.socket = null; this.scheduleRetry(null); return; }
+    let openedAt: number | null = null;
     socket.onopen = () => {
       if (this.closed || socket !== this.socket) { socket.close(); return; }
-      this.attempts = 0; this.owner.available();
+      openedAt = Date.now(); this.owner.available();
       for (const [topic, sub] of this.subscriptions) socket.send(subscribe(sub.id, topic));
       for (const [topic, message] of this.announcements) void this.publish(topic, message, false);
     };
@@ -89,8 +95,19 @@ class DiscoveryClient {
     socket.onerror = () => { /* Close/retry owns connection failures. */ };
     socket.onclose = () => {
       if (this.closed || socket !== this.socket) return;
-      this.retry = setTimeout(() => this.connect(), Math.min(30_000, 1000 * 2 ** Math.min(this.attempts++, 5)) + Math.random() * 500);
+      this.socket = null;
+      this.scheduleRetry(openedAt);
     };
+  }
+  private scheduleRetry(openedAt: number | null) {
+    if (this.closed) return;
+    // A relay that opens and immediately closes is still failing. Reset only
+    // after a stable connection, otherwise it can create a one-second loop.
+    if (openedAt !== null && Date.now() - openedAt >= STABLE_CONNECTION_MS) this.attempts = 0;
+    this.attempts = Math.min(FAST_ATTEMPTS, this.attempts + 1);
+    const delay = this.attempts >= FAST_ATTEMPTS ? RETRY_COOLDOWN_MS : 1000 * 2 ** (this.attempts - 1);
+    if (this.retry) clearTimeout(this.retry);
+    this.retry = setTimeout(() => { this.retry = undefined; this.connect(); }, delay + Math.random() * 500);
   }
   subscribe(topic: string, handler: Subscription['handler']) {
     if (this.closed) return () => {};

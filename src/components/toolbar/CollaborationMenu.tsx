@@ -70,6 +70,7 @@ export function CollaborationMenu() {
         <button type="button" className="ml-2 rounded border border-line px-3 py-2" onClick={collaboration.leave}>Leave session</button>
       </div> : <div className="space-y-2 rounded-lg border border-line p-3">
         <p>Share the whole production, including scripts, contacts and their private fields, schedules and budgets. Images and file attachments stay local. Your original is preserved.</p>
+        <p>{useRelay ? 'The private relay receives your IP address and shared production data. This relay mode has no end-to-end encryption.' : 'Direct connections are encrypted, but other participants and connection services can see your public IP address. Share invitations only with people you trust.'}</p>
         <button type="button" disabled={busy || (useRelay && !relayAvailable)} className="rounded bg-accent px-3 py-2 text-white disabled:opacity-50" onClick={() => void run(async () => { try { if (useRelay) await collaboration.start(relay, creationKey); else await collaboration.startDirect(); } finally { setCreationKey(''); } })}>Start collaboration</button>
       </div>}
       <p>Start and share a link. No installation, account, hosting setup or connection settings are required.</p>
@@ -93,7 +94,7 @@ export function CollaborationMenu() {
         {!state?.ready && <p>Your local project stays open while waiting. This invitation cannot recover a plan unless a previous participant or the relay still holds it.</p>}
         {state?.reconciled && <p>Reconnected changes were merged. Review objects edited by more than one person; Undo affects your own shared edits.</p>}
         {!state?.cached && <p>Room recovery in this browser is unavailable. Export before closing.</p>}
-        <p>{state?.transport === 'webrtc' ? 'Plan data travels over encrypted browser connections. Public connection services help participants find each other. Leaving keeps this local copy; anyone with the link can edit and retain a copy.' : 'Leaving keeps this local copy. Anyone with the link can edit. The relay sees the plan; this preview has no end-to-end encryption or link revocation.'}</p>
+        <p>{state?.transport === 'webrtc' ? 'Production data travels over encrypted browser connections. Other participants and public connection services can see your public IP address. Leaving keeps this local copy; anyone with the link can edit and retain a copy.' : 'Leaving keeps this local copy. Anyone with the link can edit. The relay sees the production and your IP address; this preview has no end-to-end encryption or link revocation.'}</p>
         {collaboration.invite?.ticket && <p>Invitation expires: {new Date(ticketExpiry(collaboration.invite.ticket)).toLocaleString()}.</p>}
       </> : <>
         <details>
@@ -109,7 +110,7 @@ export function CollaborationMenu() {
         <label className="block">Join invitation<input aria-label="Join invitation" className="mt-1 w-full rounded border border-line p-2 bg-surface-sunken" value={link} onChange={(e) => setLink(e.target.value)} /></label>
         <button type="button" disabled={busy || !link} className="rounded border border-line px-3 py-2 disabled:opacity-50" onClick={() => void run(async () => {
           const invite = parseInvite(link);
-          const message = isPeerInvite(invite) ? 'Join the shared production, including its script, contacts, schedules and budgets? Invitation holders can read, edit and retain copies. Images and file attachments are excluded. Connection services and other participants can see your network address. Your original stays in this browser; the shared project opens separately. Older invitations may share only one plan.' : `Connect to ${invite.relay}? This relay receives shared production data and your network address. The shared project may include scripts, contacts, schedules and budgets; images and attachments are excluded. Your current project stays in this browser's library. Export important work before continuing.`;
+          const message = isPeerInvite(invite) ? 'Join the shared production, including its script, contacts, schedules and budgets? Invitation holders can read, edit and retain copies. Images and file attachments are excluded. Connection services and other participants can see your public IP address. Your original stays in this browser; the shared project opens separately. Older invitations may share only one plan.' : `Connect to ${invite.relay}? This relay receives shared production data and your IP address. The shared project may include scripts, contacts, schedules and budgets; images and attachments are excluded. Your current project stays in this browser's library. Export important work before continuing.`;
           if (await confirm({ title: 'Join shared project?', message, confirmLabel: 'Join session' })) await collaboration.join(invite);
         })}>Join session</button>
       </>}

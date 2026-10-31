@@ -112,3 +112,50 @@ applies to discovery, encryption and network limitations; its single-plan data
 scope is superseded here. Public-service availability and NAT/firewall
 reachability remain external constraints. This review is not an independent
 penetration-test certification.
+
+## Discovery availability patch — 1.7.1
+
+Each fixed discovery service has an independent retry budget. After three
+quick attempts fail, that service is probed only once per five-minute cooldown
+(with a small timing jitter). A connection must remain open for at least 30
+seconds before a subsequent failure resets that budget. Opening and immediately
+closing a socket therefore cannot create a rapid retry loop.
+
+Other services and already established WebRTC connections remain active.
+Constructor failures cannot abort initialization of the remaining services;
+leaving cancels pending probes. Security/rate-limit quarantine still permanently
+closes that service for the discovery instance. No new endpoints or relaxed
+validation are introduced.
+
+This bounds repeated connection attempts rather than hiding console messages.
+Browsers can still report network failures for the initial attempts or cooldown
+probes. Existing production invitations remain compatible with 1.7.1.
+
+## Network privacy clarification — 1.7.1
+
+Direct WebRTC is encrypted but does not anonymize participants. The host,
+guests and connection services can learn network addresses; authorized peers
+can inspect each other's public IP and connection port. The menu now states
+public IP visibility before starting, in the join confirmation and during the
+session. This is a disclosure improvement, not an IP-hiding transport change.
+
+Hiding participant addresses from other participants requires a working TURN
+service with `iceTransportPolicy: 'relay'` on every participant and no direct
+fallback. GitHub Pages cannot run that service itself. A TURN operator still
+sees connection metadata; WebRTC data channels remain encrypted through TURN.
+No public TURN credentials, API keys or unverified relay services were added.
+The existing optional WebSocket relay is different: its operator receives the
+shared production in plaintext after TLS termination, as the menu explains.
+
+A Wireshark Ethernet label such as `FritzTechno_3a:49:ea` is manufacturer-name
+resolution for a MAC address. It does not establish that a remote router's
+MAC address crossed the internet: ordinary IP routers replace link-layer
+headers at each hop. On separate networks a capture normally shows a local
+next-hop MAC. The capture location and network topology must be known before
+attributing that device. A `TCP Dup ACK` label is a repeated TCP acknowledgement,
+often associated with missing or reordered packets; it alone does not establish
+an attack.
+
+References: [Wireshark name resolution](https://www.wireshark.org/docs/wsug_html_chunked/ChAdvNameResolutionSection),
+[Wireshark TCP analysis](https://www.wireshark.org/docs/wsug_html_chunked/ChAdvTCPAnalysis),
+and [WebRTC relay policy](https://www.w3.org/TR/webrtc/#rtcicetransportpolicy-enum).

@@ -25,12 +25,16 @@ async function rename(page: Page, value: string) {
 
 // Deterministic signaling fixture only. Peer discovery remains sealed and all
 // plan data crosses real browser WebRTC channels, not this test harness.
-function discoveryFixture() {
+function discoveryFixture(unavailableService?: string) {
   const sockets = new Map<WebSocketRoute, Map<string, string>>();
   const frames: string[] = [];
+  const connections = new Map<string, number>();
   return {
-    frames,
-    install: async (context: BrowserContext) => context.routeWebSocket(/^wss:\/\/(?:nos\.lol|cdn\.satellite\.earth|relay\.damus\.io)\/?$/, (socket) => {
+    frames, connections,
+    install: async (context: BrowserContext) => context.routeWebSocket(/^wss:\/\/(?:nos\.lol|cdn\.satellite\.earth|relay\.damus\.io)\/?$/, async (socket) => {
+      const origin = new URL(socket.url()).origin;
+      connections.set(origin, (connections.get(origin) ?? 0) + 1);
+      if (origin === unavailableService) { await socket.close({ code: 1013, reason: 'Temporarily unavailable' }); return; }
       const subscriptions = new Map<string, string>(); sockets.set(socket, subscriptions);
       socket.onClose(() => { sockets.delete(socket); });
       socket.onMessage((raw) => {
@@ -89,6 +93,34 @@ for (const mode of ['fixture', 'public-services', 'public-page'] as const) test(
       expect(discovery.frames.some((frame) => frame.includes('Automatic shared actor'))).toBe(false);
     }
   } finally { await Promise.allSettled([ca.close(), cb.close(), cc.close()]); }
+});
+
+test('an unavailable discovery service stops rapid retries while collaboration continues through healthy services', async ({ browser }) => {
+  test.setTimeout(60_000);
+  const creator = await browser.newContext(); const guest = await browser.newContext();
+  const failedService = 'wss://relay.damus.io';
+  const discovery = discoveryFixture(failedService);
+  try {
+    await discovery.install(creator); await discovery.install(guest);
+    const a = await creator.newPage(); const b = await guest.newPage();
+    await create(a, 'Discovery failover');
+    await a.getByRole('button', { name: 'Live collaboration', exact: true }).click();
+    await a.getByRole('button', { name: 'Start collaboration', exact: true }).click();
+    await expect(a.getByLabel('Invitation link', { exact: true })).toBeVisible();
+    await join(b, await a.getByLabel('Invitation link', { exact: true }).inputValue());
+    await a.getByRole('button', { name: 'Live collaboration', exact: true }).click();
+    await rename(a, 'Shared through the healthy services');
+    await expect(b.locator('.actor-element').first()).toContainText('Shared through the healthy services');
+    await expect.poll(() => discovery.connections.get(failedService), { timeout: 10_000 }).toBe(6);
+    // An observation window catches a fourth rapid attempt without relying
+    // on mocked browser clocks for the real WebRTC/crypto connections.
+    await a.waitForTimeout(10_000);
+    expect(discovery.connections.get(failedService)).toBe(6);
+    expect(discovery.connections.get('wss://nos.lol')).toBe(2);
+    expect(discovery.connections.get('wss://cdn.satellite.earth')).toBe(2);
+    await rename(b, 'Still connected after retry cooldown');
+    await expect(a.locator('.actor-element').first()).toContainText('Still connected after retry cooldown');
+  } finally { await Promise.allSettled([creator.close(), guest.close()]); }
 });
 
 test('a plan with storyboard images can share an explicit media-free copy and keep the original intact', async ({ browser }) => {
