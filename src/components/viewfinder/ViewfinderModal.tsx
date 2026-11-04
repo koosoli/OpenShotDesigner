@@ -17,6 +17,8 @@ import {
   SENSOR_FORMATS,
   SHUTTER_ANGLES,
 } from '../../constants/presets';
+import { BlockingPreview } from './BlockingPreview';
+import { ViewfinderScene } from './ViewfinderScene';
 import { ProjectImage } from '../common/ProjectImage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import {
@@ -29,7 +31,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Crosshair,
-  Eye,
   Grid,
   PenTool,
   RotateCw,
@@ -40,7 +41,6 @@ import {
   Video,
   VideoOff,
   Shield,
-  User,
   X,
 } from 'lucide-react';
 
@@ -77,7 +77,9 @@ export const ViewfinderModal: React.FC = () => {
   const [showSafeAreas, setShowSafeAreas] = useState(true);
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [photoFeedback, setPhotoFeedback] = useState(false);
-  const [showStoryboard, setShowStoryboard] = useState(true);
+  const [showStoryboard, setShowStoryboard] = useState(false);
+  const [sceneReady, setSceneReady] = useState(false);
+  const sceneCanvas = useRef<HTMLCanvasElement>(null);
   const [opticalReference, setOpticalReference] = useState<(OpticalSetting & { cameraId: string }) | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -219,8 +221,9 @@ export const ViewfinderModal: React.FC = () => {
 
   // Camera parameters
   const cameraPos = { x: selectedCamera.x, y: selectedCamera.y };
-  const focal = selectedCamera.focalLength || 35;
+  const focal = Number.isFinite(selectedCamera.focalLength) && selectedCamera.focalLength > 0 ? selectedCamera.focalLength : 35;
   const fovAngle = calculateFovAngle(focal, selectedCamera.sensorFormat);
+  const aspectRatio = ASPECT_RATIOS.find(({ value }) => value === selectedCamera.aspectRatio)?.ratio ?? 16 / 9;
   const throwDist = selectedCamera.throwDistance || 400;
   const currentOptics: OpticalSetting = { focalLength: focal, sensorFormat: selectedCamera.sensorFormat };
   const opticalComparison = opticalReference?.cameraId === selectedCamera.id
@@ -251,6 +254,7 @@ export const ViewfinderModal: React.FC = () => {
         sensorFormat: camera.sensorFormat,
       });
     }
+    setShowStoryboard(false);
     openViewfinder(cameraId);
   };
 
@@ -289,8 +293,6 @@ export const ViewfinderModal: React.FC = () => {
   // Aspect ratio helper
   const getAspectRatioStyle = (ar?: string) => {
     switch (ar) {
-      case '16:9':
-        return 'aspect-[16/9] max-w-[760px]';
       case '4:3':
         return 'aspect-[4/3] max-w-[560px]';
       case '1.85:1':
@@ -298,8 +300,9 @@ export const ViewfinderModal: React.FC = () => {
       case '9:16':
         return 'aspect-[9/16] max-w-[340px]';
       case '2.39:1':
-      default:
         return 'aspect-[2.39/1] max-w-[820px]';
+      default:
+        return 'aspect-[16/9] max-w-[760px]';
     }
   };
 
@@ -349,10 +352,10 @@ export const ViewfinderModal: React.FC = () => {
   const showsRealImage = !!liveStream || !!frozenFrame || (showStoryboard && !!shownStoryboard);
 
   const framingNotes = () => {
+    const caption = `Shot on Cam ${selectedCamera.cameraLabel} (${focal}mm, ${selectedCamera.aspectRatio}).`;
+    if (sceneReady) return caption;
     const subjectNames = visibleActors.map((a) => a.actor.name || a.actor.characterLetter).join(', ');
-    return `Shot on Cam ${selectedCamera.cameraLabel} (${focal}mm, ${selectedCamera.aspectRatio}). In frame: ${
-      subjectNames || 'Empty frame'
-    }.`;
+    return `${caption} In frame: ${subjectNames || 'Empty frame'}.`;
   };
 
   /** Subjects inside this camera's FOV, shaped for renderSimulatedFrame. */
@@ -373,16 +376,16 @@ export const ViewfinderModal: React.FC = () => {
     })),
   ];
 
-  /** Rasterise the simulated finder (guides + subjects) exactly as on screen. */
+  /** Capture the scene with the active framing guides. */
   const renderFinderBoardImage = (): string | null =>
     renderSimulatedFrame({
-      aspectRatio:
-        ASPECT_RATIOS.find((entry) => entry.value === (selectedCamera.aspectRatio || '16:9'))?.ratio || 16 / 9,
+      aspectRatio,
+      source: sceneReady ? sceneCanvas.current ?? undefined : undefined,
       showRuleOfThirds,
       showSafeAreas,
       showCrosshair,
       caption: `CAM ${selectedCamera.cameraLabel} · ${focal}mm · ${selectedCamera.aspectRatio || '16:9'} · ${selectedCamera.cameraHeight || 'Eye Level'}`,
-      subjects: buildSimulatedSubjects(),
+      subjects: sceneReady ? [] : buildSimulatedSubjects(),
     });
 
   /**
@@ -391,7 +394,7 @@ export const ViewfinderModal: React.FC = () => {
    * and framing go into ONE updateShot call; two calls in a row would each
    * start from the same stale setup and the second would drop the first.
    */
-  const handleSaveFramingToShot = () => {
+  const handleSaveFramingToShot = async () => {
     if (!targetShot) {
       // No shot on this camera yet: capture (or create) instead of refusing.
       if (liveStream) {
@@ -404,13 +407,20 @@ export const ViewfinderModal: React.FC = () => {
         videoRef.current?.pause();
         saveStoryboardImage(frame);
       } else {
+        const image = renderFinderBoardImage();
+        const ref = image ? await storeCapturedFrame(image) : null;
         addShot({
           cameraId: selectedCamera.id,
           cameraLabel: selectedCamera.cameraLabel,
           lensMm: focal,
           framingDescription: framingNotes(),
+          ...(ref ? { storyboardImage: ref, storyboardFit: 'cover' } : {}),
         });
-        setSaveNote(`Created a shot for Cam ${selectedCamera.cameraLabel}.`);
+        if (ref) setShowStoryboard(true);
+        if (image && !ref) setLiveError('The shot was created. The frame could not be saved to local media storage.');
+        setSaveNote(ref
+          ? `Created a shot for Cam ${selectedCamera.cameraLabel} and saved its board.`
+          : `Created a shot for Cam ${selectedCamera.cameraLabel}.`);
       }
       setSavedFeedback(true);
       setTimeout(() => setSavedFeedback(false), 2200);
@@ -432,36 +442,36 @@ export const ViewfinderModal: React.FC = () => {
       }
       setFrozenFrame(frame);
       videoRef.current?.pause();
+      const image = await storeCapturedFrame(frame);
+      if (!image) {
+        setLiveError('This frame could not be saved to local media storage.');
+        return;
+      }
       // Same slot-aware path as the shutter: the still lands in the resolved
       // Frame slot (legacy mirrors included) in this same single commit.
       updateShot(targetShot.id, {
         ...framing,
-        ...setFramePatch(targetShot, currentSlotKey, { image: frame, fit: 'cover' }),
+        ...setFramePatch(targetShot, currentSlotKey, { image, fit: 'cover' }),
       });
       setShowStoryboard(true);
       setPhotoFeedback(true);
       setSaveNote(`Storyboard and framing saved to shot ${targetShot.shotNumber}.`);
       setTimeout(() => setPhotoFeedback(false), 2200);
     } else {
-      // No webcam: board the simulated blocking so saving the framing leaves
-      // the shot with a picture — but ONLY when this slot has none.
-      //
-      // It used to do that unconditionally, which meant attaching your own
-      // photo and then pressing Save replaced it with a raster of the
-      // simulated view: silhouettes, and the caption "Empty frame" whenever no
-      // actor stood in the camera's cone. The photo was not lost by accident,
-      // it was deliberately overwritten by the thing meant to be a fallback.
+      // Preserve existing storyboard art when saving the framing metadata.
       const existingArt = framesOf(targetShot)[currentSlotKey]?.image;
       const boardImage = existingArt ? null : renderFinderBoardImage();
-      if (boardImage) {
+      const ref = boardImage ? await storeCapturedFrame(boardImage) : null;
+      if (ref) {
         updateShot(targetShot.id, {
           ...framing,
-          ...setFramePatch(targetShot, currentSlotKey, { image: boardImage, fit: 'cover' }),
+          ...setFramePatch(targetShot, currentSlotKey, { image: ref, fit: 'cover' }),
         });
         setShowStoryboard(true);
         setSaveNote(`Framing and board saved to shot ${targetShot.shotNumber}.`);
       } else {
         updateShot(targetShot.id, framing);
+        if (boardImage) setLiveError('Framing was saved. The frame could not be saved to local media storage.');
         setSaveNote(
           existingArt
             ? `Framing saved to shot ${targetShot.shotNumber}. Its board was kept.`
@@ -539,24 +549,26 @@ export const ViewfinderModal: React.FC = () => {
    * the next load anyway, so doing it here saves the round trip and keeps the
    * project small in the session it was captured.
    */
-  const storeCapturedFrame = async (image: string): Promise<string> => {
+  const storeCapturedFrame = async (image: string): Promise<string | null> => {
     if (!image.startsWith('data:')) return image;
     // Decoded by hand rather than via `fetch(dataUrl)`, which some content
-    // security policies block. Any failure keeps the inline image: a board the
-    // user just captured must never be lost to a storage problem, and the media
-    // pass will move it on the next load.
+    // security policies block.
     const blob = dataUrlToBlob(image);
-    if (!blob) return image;
+    if (!blob) return null;
     try {
       const stored = await storeImageAsset(blob, { maxSize: 1280, quality: 0.82, source: 'viewfinder' });
       return stored.assetId;
     } catch {
-      return image;
+      return null;
     }
   };
 
   const saveStoryboardImage = async (image: string) => {
     const ref = await storeCapturedFrame(image);
+    if (!ref) {
+      setLiveError('This frame could not be saved to local media storage.');
+      return;
+    }
     const slotName = resolvedSlot?.label ? `${resolvedSlot.label.toLowerCase()} frame` : 'storyboard';
 
     if (targetShot) {
@@ -604,18 +616,15 @@ export const ViewfinderModal: React.FC = () => {
   };
 
   /**
-   * Board the SIMULATED frame: the blocking you see in the finder (silhouettes,
-   * props, guides) is rasterised and stored as this shot's storyboard art, so
-   * a board can be built from the floor plan alone — no camera, no drawing.
+   * Board the scene from the active virtual camera and capture slot.
    */
   const captureSimulatedFrame = () => {
     setLiveError(null);
     const image = renderFinderBoardImage();
     if (!image) {
-      setLiveError('This browser blocked reading the canvas, so the simulated frame could not be saved.');
+      setLiveError('The virtual camera image could not be read from the canvas.');
       return;
     }
-    setFrozenFrame(image);
     saveStoryboardImage(image);
   };
 
@@ -767,15 +776,19 @@ export const ViewfinderModal: React.FC = () => {
               />
             )}
 
-            {/* Cinematic Studio Horizon & Perspective Grid */}
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex flex-col justify-end pointer-events-none">
-              {/* Ceiling grid lines */}
-              <div className="w-full h-1/3 bg-slate-950/60 border-b border-slate-800/40" />
-              {/* Studio Stage floor */}
-              <div className="w-full h-2/5 bg-gradient-to-t from-slate-900 to-slate-950 border-t border-slate-800/80">
-                <div className="w-full h-full opacity-20 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:24px_24px]" />
-              </div>
+            <div className={`absolute inset-0 ${showsRealImage || !sceneReady ? 'invisible' : ''}`}>
+              <ViewfinderScene
+                setup={activeSetup}
+                camera={selectedCamera}
+                slotKey={currentSlotKey}
+                aspectRatio={aspectRatio}
+                canvasRef={sceneCanvas}
+                onReady={setSceneReady}
+              />
             </div>
+            {!showsRealImage && !sceneReady && (
+              <BlockingPreview visibleActors={visibleActors} visibleProps={visibleProps} simulatedMagnification={simulatedMagnification} />
+            )}
 
             {/* Rule of Thirds Grid Overlay */}
             {showRuleOfThirds && (
@@ -811,90 +824,6 @@ export const ViewfinderModal: React.FC = () => {
                   <span className="absolute top-1 left-1.5 text-[10px] font-mono text-cyan-400/50">80% TITLE SAFE</span>
                 </div>
               </>
-            )}
-
-            {/* Simulated 3D Props in FOV (hidden behind live video / artwork) */}
-            {!showsRealImage && visibleProps.map(({ prop, normalizedX, distance }) => {
-              const scale = Math.max(0.3, Math.min(3.2, (160 / distance) * simulatedMagnification));
-              const leftPercent = 50 + normalizedX * 42;
-              return (
-                <div
-                  key={prop.id}
-                  className="absolute bottom-[22%] -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-300 z-10 opacity-75"
-                  style={{
-                    left: `${leftPercent}%`,
-                    transform: `translateX(-50%) scale(${scale})`,
-                    transformOrigin: 'bottom center',
-                  }}
-                >
-                  <div className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700 shadow mb-1">
-                    {prop.name || prop.propType} ({(distance / 50).toFixed(1)}m)
-                  </div>
-                  <div className="w-24 h-16 rounded-lg bg-slate-700/80 border-2 border-slate-600 shadow-xl flex items-center justify-center text-xs font-semibold text-slate-300">
-                    {prop.name || prop.propType}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Simulated 3D Actor Silhouettes in FOV */}
-            {showsRealImage ? null : visibleActors.length === 0 && visibleProps.length === 0 ? (
-              <div className="relative z-10 text-center text-slate-400 text-xs px-6 py-4 bg-slate-950/70 border border-slate-800 rounded-xl">
-                <Eye className="w-6 h-6 mx-auto text-sky-500 mb-1.5" />
-                <p className="font-mono font-bold text-slate-200">NO SUBJECTS IN FIELD OF VIEW</p>
-                <p className="text-[11px] mt-1 text-slate-400">
-                  Rotate the camera or adjust actors on the floor plan to place them inside this camera's coverage cone.
-                </p>
-              </div>
-            ) : (
-              visibleActors.map(({ actor, normalizedX, distance }) => {
-                // Closer distance = larger silhouette scale
-                const scale = Math.max(0.35, Math.min(4, (190 / distance) * simulatedMagnification));
-                const leftPercent = 50 + normalizedX * 44;
-                const color = actor.color || '#3b82f6';
-                const meters = (distance / 50).toFixed(1);
-
-                return (
-                  <div
-                    key={actor.id}
-                    className="absolute bottom-[20%] -translate-x-1/2 flex flex-col items-center pointer-events-none transition-all duration-300 z-15"
-                    style={{
-                      left: `${leftPercent}%`,
-                      transform: `translateX(-50%) scale(${scale})`,
-                      transformOrigin: 'bottom center',
-                    }}
-                  >
-                    {/* Character Tag Pill */}
-                    <div
-                      className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xl mb-1 flex items-center gap-1 border border-white/30"
-                      style={{ backgroundColor: color }}
-                    >
-                      <User className="w-2.5 h-2.5" />
-                      <span>{actor.name} ({actor.characterLetter}) • {meters}m</span>
-                    </div>
-
-                    {/* Actor Silhouette Figure */}
-                    <div className="relative flex flex-col items-center">
-                      {/* Head with character avatar */}
-                      <div
-                        className="w-14 h-14 rounded-full border-2 border-white shadow-xl flex items-center justify-center font-bold text-white text-base shadow-black/60"
-                        style={{ backgroundColor: color }}
-                      >
-                        {actor.characterLetter}
-                      </div>
-
-                      {/* Torso */}
-                      <div
-                        className="w-24 h-32 rounded-t-3xl mt-1 border-t-2 border-white/50 shadow-2xl"
-                        style={{
-                          backgroundColor: color,
-                          opacity: 0.9,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })
             )}
 
             {opticalComparison && opticalComparison.direction !== 'same' && (
@@ -953,7 +882,7 @@ export const ViewfinderModal: React.FC = () => {
             )}
 
             {/* What the frame is showing right now */}
-            {showsRealImage && (
+            {showsRealImage ? (
               <div className="absolute top-12 left-4 z-30 pointer-events-none">
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
@@ -969,6 +898,10 @@ export const ViewfinderModal: React.FC = () => {
                         }`}
                 </span>
               </div>
+            ) : (
+              <span className="absolute top-12 left-4 z-30 pointer-events-none rounded bg-black/70 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-100">
+                {sceneReady ? '3D CAMERA' : '2D BLOCKING'}
+              </span>
             )}
 
             {/* Cinematic Camera Telemetry HUD Overlay (Top) */}
@@ -1303,7 +1236,7 @@ export const ViewfinderModal: React.FC = () => {
             {!liveStream && (
               <button
                 onClick={captureSimulatedFrame}
-                title="Board this blocking: save the simulated frame (silhouettes, props and guides) as this shot's storyboard"
+                title="Save the virtual camera frame and guides as this shot's storyboard"
                 className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg shadow-sm transition-colors ${
                   photoFeedback ? 'bg-emerald-700 text-white' : 'bg-accent hover:bg-accent-hover text-white'
                 }`}

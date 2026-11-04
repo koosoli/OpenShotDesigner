@@ -4,6 +4,23 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] — 2026-11-04
+
+### Added
+
+- The viewfinder renders the plan from the selected camera in 3D. Lens,
+  sensor, aspect ratio and camera waypoints affect the framing, and walls
+  occlude subjects behind them. Wide lenses introduce progressively stronger
+  barrel distortion in the virtual viewfinder and storyboard captures.
+- Board this frame saves the virtual camera image to the selected storyboard
+  slot. The device camera and attached artwork are available in the same
+  finder, with a 2D blocking view on browsers without WebGL.
+
+### Changed
+
+- Viewfinder walls stay legible against the darker sky and floor, including
+  dark wall finishes and walls farther from the camera.
+
 ## [1.8.1] — 2026-11-04
 
 ### Changed

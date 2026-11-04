@@ -43,7 +43,7 @@ export function buildWallPreview(
   });
 }
 
-function prismFaces(sides: number): number[][] {
+export function prismFaces(sides: number): number[][] {
   const top = Array.from({ length: sides }, (_, index) => sides + index);
   const walls = top.map((_, index) => {
     const next = (index + 1) % sides;

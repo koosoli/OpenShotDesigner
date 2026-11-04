@@ -1,10 +1,6 @@
 /**
- * Render the SIMULATED viewfinder (actor silhouettes + props in the camera's
- * field of view) to a raster image so it can be stored as storyboard art.
- *
- * The drawing mirrors what `ViewfinderModal` shows on screen: a studio
- * gradient, back-to-front subjects scaled by distance, name pills and the
- * requested framing guides. Pure canvas work — no React, no DOM queries.
+ * Copy the 3D camera image or draw the blocking fallback, then add the
+ * requested framing guides for storyboard capture.
  */
 
 export interface SimulatedSubject {
@@ -22,6 +18,7 @@ export interface SimulatedSubject {
 export interface SimulatedFrameOptions {
   aspectRatio: number;
   subjects: SimulatedSubject[];
+  source?: HTMLCanvasElement;
   width?: number;
   showRuleOfThirds?: boolean;
   showSafeAreas?: boolean;
@@ -45,15 +42,7 @@ const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
  * Draw the simulated frame and return it as a JPEG data URL, or null when a
  * 2D context is unavailable (headless/blocked canvas).
  */
-export const renderSimulatedFrame = (options: SimulatedFrameOptions): string | null => {
-  const width = options.width ?? 1280;
-  const height = Math.max(1, Math.round(width / (options.aspectRatio || 16 / 9)));
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-
+function drawSimulatedBlocking(ctx: CanvasRenderingContext2D, width: number, height: number, subjects: SimulatedSubject[]) {
   // Studio backdrop: dark ceiling, floor band, subtle horizon.
   const sky = ctx.createLinearGradient(0, 0, 0, height);
   sky.addColorStop(0, '#020617');
@@ -75,7 +64,7 @@ export const renderSimulatedFrame = (options: SimulatedFrameOptions): string | n
   ctx.stroke();
 
   // Subjects: farthest first so nearer ones overlap correctly.
-  const ordered = [...options.subjects].sort((a, b) => b.distance - a.distance);
+  const ordered = [...subjects].sort((a, b) => b.distance - a.distance);
   const baseline = height * 0.86;
   for (const subject of ordered) {
     const scale = Math.max(0.3, Math.min(2.2, 190 / Math.max(1, subject.distance))) * (width / 900);
@@ -134,13 +123,26 @@ export const renderSimulatedFrame = (options: SimulatedFrameOptions): string | n
     }
   }
 
-  if (options.subjects.length === 0) {
+  if (subjects.length === 0) {
     ctx.fillStyle = 'rgba(148,163,184,0.85)';
     ctx.font = `700 ${Math.round(width / 40)}px Arial, Helvetica, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('EMPTY FRAME', width / 2, height / 2);
   }
+}
+
+export const renderSimulatedFrame = (options: SimulatedFrameOptions): string | null => {
+  const width = options.source?.width ?? options.width ?? 1280;
+  const height = options.source?.height ?? Math.max(1, Math.round(width / (options.aspectRatio || 16 / 9)));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  if (options.source) ctx.drawImage(options.source, 0, 0, width, height);
+  else drawSimulatedBlocking(ctx, width, height, options.subjects);
 
   if (options.showRuleOfThirds) {
     ctx.strokeStyle = 'rgba(255,255,255,0.22)';

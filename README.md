@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.8.1 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.9.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
@@ -312,6 +312,8 @@ board — in one print job, with your production logo on the paperwork.
 - **Synced with the canvas** — selecting a camera selects its shot, and deleting a camera removes its shots and their linings.
 
 ### Storyboard & viewfinder camera
+
+- **3D viewfinder** — frame the plan through the selected camera and change the lens, sensor or aspect ratio to see the result. **Board this frame** saves the preview to the selected storyboard slot. The device camera and attached artwork are available in the same finder. Browsers without WebGL use the 2D blocking view.
 
 - **A tab of its own** — "Board" sits between Shot List and Script: the scene as a wall of frames, one per shot.
 - **Same data as everything else** — "Add frame" creates a shot *and* drops its camera on the floor plan; shots added in the shot list or lined from the script appear here automatically, blank until artwork is attached.
