@@ -49,7 +49,8 @@ function prismFaces(sides: number): number[][] {
     const next = (index + 1) % sides;
     return [index, next, sides + next, sides + index];
   });
-  return [top, ...walls];
+  // Equipment prisms can face sideways or slope, exposing either cap.
+  return [top, ...walls, top.map((index) => index - sides).reverse()];
 }
 
 export function projectWallPreview(solids: readonly PreviewSolid[], angleDegrees: number, tiltDegrees = 36) {

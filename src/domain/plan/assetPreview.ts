@@ -2,6 +2,9 @@ import type { FloorPlanElement, GridSettings, PlanLayer } from '../../types';
 import { getSymbolById } from '../assets';
 import { diningFurnitureLayout, FURNITURE_MODELS, getFurnitureModel } from '../assets/furnitureModels';
 import { convertLength } from '../units';
+import { cameraPreview, cameraSymbolPreview } from './cameraPreview';
+import type { EquipmentPart } from './equipmentPreviewGeometry';
+import { lightPreview, lightingSymbolPreview } from './lightPreview';
 
 export interface PreviewSolid {
   wallId: string;
@@ -25,6 +28,14 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
     const angle = element.rotation * Math.PI / 180;
     const c = Math.cos(angle);
     const s = Math.sin(angle);
+    const place = (u: number, v: number, z: number) => ({
+      x: element.x * scale + u * c - v * s, y: element.y * scale + u * s + v * c, z,
+    });
+    const placeEquipment = (parts: EquipmentPart[], scaleX = 1, scaleY = 1, facingUp = false): PreviewSolid[] => parts.map(({ color, corners }) => ({
+      wallId: element.id,
+      color,
+      corners: corners.map(({ x, y, z }) => facingUp ? place(y * scaleX, -x * scaleY, z) : place(x * scaleX, y * scaleY, z)),
+    }));
     const box = (
       width: number, depth: number, bottom: number, top: number, color: string,
       offsetX = 0, offsetY = 0, round = false, heading = 0,
@@ -41,7 +52,7 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
             const localY = b * depth / 2;
             const u = localX * cos - localY * sin + offsetX;
             const v = localX * sin + localY * cos + offsetY;
-            return { x: element.x * scale + u * c - v * s, y: element.y * scale + u * s + v * c, z };
+            return place(u, v, z);
           })),
       };
     };
@@ -63,6 +74,11 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
         const symbol = element.type === 'shape' && element.symbolId ? getSymbolById(element.symbolId) : undefined;
         const width = Math.max(20, (element.width || 20) * scale);
         const depth = Math.max(20, (element.height || 20) * scale);
+        const equipment = symbol && (lightingSymbolPreview(symbol.id) ?? cameraSymbolPreview(symbol.id));
+        if (equipment) {
+          const { parts, footprint: [length, breadth], facingUp } = equipment;
+          return placeEquipment(parts, width / (facingUp ? breadth : length), depth / (facingUp ? length : breadth), facingUp);
+        }
         const color = element.color || '#818cf8';
         const propType = element.type === 'prop' ? element.propType : undefined;
         const diningKind = propType ?? symbol?.id;
@@ -98,9 +114,9 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
         return [box(width, depth, 0, element.type === 'shape' && !symbol ? 30 : 720, color)];
       }
       case 'camera':
-        return [box(490, 430, 0, 1300, '#334155'), box(360, 250, 1300, 1550, '#38bdf8')];
+        return placeEquipment(cameraPreview(element));
       case 'light':
-        return [box(330, 330, 0, 1550, '#475569'), box(420, 310, 1550, 1860, element.rgbColor || '#fbbf24')];
+        return placeEquipment(lightPreview(element));
       default:
         return [];
     }

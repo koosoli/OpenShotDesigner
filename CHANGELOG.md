@@ -4,6 +4,15 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] — 2026-11-04
+
+### Changed
+
+- Live 3D uses distinct models for cinema cameras, camera rigs, Fresnels,
+  panels, softboxes, LED PARs and moving heads in both preview renderers.
+- The CAD preview opens next to Live 3D, keeping the main toolbar usable on
+  phones and leaving more room for the project title on desktop.
+
 ## [1.8.0] — 2026-11-04
 
 ### Added
