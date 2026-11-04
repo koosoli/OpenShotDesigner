@@ -4,6 +4,7 @@ import { CollaborationMenu } from './CollaborationMenu';
 import { useDismiss } from '../common/useDismiss';
 import { LANGUAGE_SWITCHING_ENABLED } from '../../config/features';
 import { updateProductionDetailsCommand } from '../../domain/commands';
+import { PlanViewActions } from './PlanViewActions';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import type { CategoryOpacitySettings } from '../../context/FloorPlanContext';
 
@@ -46,7 +47,6 @@ import {
   MoreHorizontal,
   Moon,
   Plus,
-  FileDown,
   Redo2,
   Save,
   Sparkles,
@@ -67,7 +67,7 @@ const OnSetModeOverlay = lazy(() => import('../onset/OnSetModeOverlay').then((m)
 
 export const TopNavbar: React.FC = () => {
   const { project, activeSetup, historyIndex, historyLength, undo, redo, setActiveSetupId, addSetup, duplicateCurrentSetup, deleteSetup, runCommand, saveRevision, loadTemplateScene, loadExampleProductionData, loadProjectFromJson, setGridSettings, openViewfinder, displaySettings, updateDisplaySettings, isModuleVisible, setModuleVisible } = useFloorPlan();
-  const { theme, toggleTheme, openExportModal, openDashboard } = useWorkspaceUI();
+  const { theme, toggleTheme, openDashboard } = useWorkspaceUI();
   const { confirm, notice, prompt } = useDialogs();
   const { lang, setLang, t } = useLanguage();
 
@@ -835,16 +835,7 @@ export const TopNavbar: React.FC = () => {
           </>
         )}
 
-        {/* Export / Call Sheet Print Button - always reachable */}
-        <button
-          id="btn-open-export"
-          onClick={() => openExportModal()}
-          title="Export & Print Studio"
-          aria-label="Open the export and print studio"
-          className="h-8 w-8 inline-flex items-center justify-center bg-accent hover:bg-accent-hover text-white rounded-md transition-colors shadow-sm"
-        >
-          <FileDown className="w-3.5 h-3.5" />
-        </button>
+        <PlanViewActions />
 
         {!isCompact && (
           <>

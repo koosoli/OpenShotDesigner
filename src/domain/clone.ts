@@ -33,6 +33,10 @@ const remapRequired = (map: Map<string, string>, oldId: string): string =>
 const cloneElement = (element: FloorPlanElement, idMap: Map<string, string>): FloorPlanElement => {
   const base = { ...element, id: remapRequired(idMap, element.id) } as FloorPlanElement;
 
+  if ((base.type === 'door' || base.type === 'window') && base.hostWallId) {
+    base.hostWallId = idMap.get(base.hostWallId) ?? null;
+  }
+
   if ('path' in base && Array.isArray(base.path)) {
     (base as { path: unknown }).path = base.path.map((wp) => ({
       ...wp,

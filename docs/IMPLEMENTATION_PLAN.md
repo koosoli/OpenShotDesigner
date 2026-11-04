@@ -1722,6 +1722,69 @@ This is more maintainable than drawing every complex production object as a mono
 
 ---
 
+## 6.6 Shared wall and opening geometry
+
+The plan canvas and printable shot plan derive horizontal wall cuts from the
+same domain projection. A door or window whose saved pose is aligned with and
+fits inside a wall yields a normalized interval on the wall centerline. This
+supports existing saved plans without changing their schema. Openings drawn
+away from a wall remain usable as standalone plan elements.
+
+The read-only 3D preview extrudes visible walls and uses the same horizontal
+opening intervals. It converts the plan scale to millimeters and uses clearly
+labeled preview heights for walls, doors and windows. Those assumptions and
+the rotation angle are local to the preview. The preview uses an orthographic
+SVG projection and requires no renderer dependency.
+
+Before supporting wall-hosted editing in both views, add an explicit host
+wall reference and local opening offset, and migrate unambiguous matches from
+legacy plans. Model wall base elevation, wall height, opening height and sill
+elevation as explicit dimensions, with missing values left unknown. Arc-wall joins remain a separate implementation step.
+
+The editor also offers a docked Live 3D view. It stays open while the 2D canvas
+is edited and uses the same architectural projection as the preview dialog.
+The toggle and viewing angle are session UI state.
+
+Live 3D supports pointer orbit and schematic volumes for people, cameras,
+lights, props and plan symbols. Door leaves and window panes use the same
+inferred opening intervals as the wall cut. The editor, printable plan and
+3D preview share a TypeScript port of ConstructCAD's straight-wall L and T
+join calculations from
+[cc_geom wall geometry](https://github.com/francisreboucas/constructcad/blob/e9978dd4d9a5158c1ae4bd2b237a0a48df657aea/crates/cc_geom/src/wall.rs).
+The port covers straight wall centerlines. Arc walls, wall layers and
+persistent join metadata are future work.
+
+Door and window snapping fits the opening inside the wall. Wall edits carry
+attached openings in the same history operation where they fit. Schema 39
+stores explicit wall IDs and migrates legacy openings with a unique match.
+Ambiguous legacy openings keep their existing geometric behavior.
+
+Wall Chain follows ConstructCAD's straight-wall tool. The first click sets an
+anchor and subsequent clicks place segments. The editor previews the length
+in the plan's units, snaps branches to wall axes, and accepts a typed length
+and angle. Opening tools require a valid wall by default. Alt-click allows
+free placement. Live 3D uses ConstructCAD's mouse mapping for orbit, pan and
+wheel zoom. References are
+[wall_tool](https://github.com/francisreboucas/constructcad/blob/e9978dd4d9a5158c1ae4bd2b237a0a48df657aea/crates/cc_app/src/tools.rs)
+and [view3d](https://github.com/francisreboucas/constructcad/blob/e9978dd4d9a5158c1ae4bd2b237a0a48df657aea/crates/cc_app/src/view3d.rs).
+
+The Wall inspector edits the endpoint through a calibrated length field in the
+plan's current units. The start point and direction are preserved.
+
+The 3D preview can download a ConstructCAD `.ccmacro` for the active setup.
+Run `ccad --lang en --save-as floor-plan.ccad script floor-plan.ccmacro`,
+substituting the downloaded file name. The macro targets a fresh English
+ConstructCAD project and creates editable walls and hosted doors and windows
+with the plan's calibrated widths and thicknesses. It reports openings skipped
+because they are free-standing, ambiguous or too close to a wall end. This
+handoff covers architecture in one direction and uses the preview's height
+assumptions. The adapter uses the
+[ConstructCAD command interface](https://github.com/francisreboucas/constructcad/blob/e9978dd4d9a5158c1ae4bd2b237a0a48df657aea/docs/commands.md).
+
+Reference: [ConstructCAD's shared parametric model and wall-hosted openings](https://github.com/francisreboucas/constructcad#features-mvp).
+
+---
+
 # 7. Phase 4 — Asset Library 2.0
 
 This should be a dedicated workstream.

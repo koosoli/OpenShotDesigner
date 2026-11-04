@@ -7,6 +7,7 @@
 import { useRef } from 'react';
 import type { CameraElement, FloorPlanElement, PlanGroup, SceneSetup, Shot } from '../types';
 import { createId } from '../domain/ids';
+import { remapCopiedWallHosts } from '../domain/plan/editWallOpenings';
 import { remapAnnotationTargets } from '../domain/plan/annotations';
 import { translateElement } from '../domain/plan/translate';
 
@@ -59,7 +60,7 @@ export const useElementClipboard = (input: {
 
     // An annotation duplicated together with its target points at the copy;
     // one duplicated on its own keeps pointing at the original element.
-    const remappedNewElements = remapAnnotationTargets(newElements, duplicateIdMap);
+    const remappedNewElements = remapCopiedWallHosts(remapAnnotationTargets(newElements, duplicateIdMap), duplicateIdMap);
 
     commitSetupUpdate((prevSetup) => ({
       ...prevSetup,
@@ -145,7 +146,7 @@ export const useElementClipboard = (input: {
 
     // A pasted annotation follows its pasted target; one pasted on its own
     // keeps pointing at the original element.
-    const remappedPasted = remapAnnotationTargets(newElements, pasteIdMap);
+    const remappedPasted = remapCopiedWallHosts(remapAnnotationTargets(newElements, pasteIdMap), pasteIdMap);
 
     pasteOffsetRef.current += 30;
 

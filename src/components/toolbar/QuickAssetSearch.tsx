@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toggleShortcutSheet } from '../common/ShortcutSheet';
 import { useFloorPlan } from '../../context/FloorPlanContext';
+import { LIGHT_KEYWORDS, PROP_KEYWORDS } from './quickAssetKeywords';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
-import { getSymbolById, searchSymbols } from '../../domain/assets';
+import { getSymbolById, getSymbolsByCategory, searchSymbols } from '../../domain/assets';
 import type { PlanSymbolDefinition } from '../../domain/assets';
-import { CameraRigType, CableType, FloorPlanElement, LightFixtureType, PropType, ShapeType } from '../../types';
+import { CameraRigType, CableType, FloorPlanElement, PropType, ShapeType } from '../../types';
 import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import { FresnelLightIcon, MovieCameraIcon } from '../icons/ProductionIcons';
 import {
@@ -67,100 +68,6 @@ const SHAPE_ASSETS: { value: ShapeType; label: string; keywords: string }[] = [
   { value: 'star', label: 'Star Callout', keywords: 'marker highlight favorite hero callout focus' },
 ];
 
-const PROP_KEYWORDS: Record<PropType, string> = {
-  // Architecture & fixtures. Keywords lean on what people actually type —
-  // "wc" and "loo" for a toilet, "hob" for a stove — rather than the catalogue
-  // name, which is the one word they already know they could search for.
-  toilet: 'wc loo lavatory bathroom restroom water closet',
-  sink: 'basin washbasin vanity bathroom kitchen tap faucet',
-  bathtub: 'bath tub bathroom soak',
-  shower: 'cubicle stall wet room bathroom',
-  kitchen_counter: 'worktop countertop cabinets units galley kitchen',
-  kitchen_island: 'breakfast bar worktop kitchen',
-  fridge: 'refrigerator freezer fridge freezer kitchen appliance',
-  stove: 'hob cooker oven range kitchen appliance',
-  column: 'pillar post structural support pier',
-  railing: 'balustrade bannister handrail guard rail balcony',
-  radiator: 'heater heating panel',
-  fireplace: 'hearth chimney mantel mantelpiece stove wood burner',
-  sofa: 'sofa couch 3-seat living room seating lounge furniture settee divan sofa couch sitting',
-  sofa_sectional: 'sectional couch l-sectional l-shape sofa corner sofa corner couch living seating large sofa',
-  armchair: 'armchair recliner easy chair club chair single seat lounge chair armchair chair sitting',
-  table_coffee: 'coffee table living room table low table cocktail table tea table wood table',
-  tv: 'tv television media stand monitor screen flat screen entertainment center oled display video television',
-  bookshelf: 'bookshelf bookcase shelving unit storage shelf library book rack shelf furniture',
-  plant: 'plant potted plant houseplant indoor plant green foliage flowerpot shrub bush botany flora',
-  dining_set: 'dining set dining table chairs dinner table dining room banquet table kitchen table eating set',
-  table_rect: 'rectangular table dining table office table conference table boardroom table banquet table desk table rect',
-  table_round: 'round table circular table round dining table four chairs 4 chairs dining set poker table discussion table circular table round desk',
-  chair: 'chair dining chair side chair office chair seat seating stool desk chair dining chair',
-  desk: 'desk office desk executive desk workstation computer desk writing desk table study work table',
-  bar_counter: 'bar counter pub counter kitchen island reception desk high counter cash desk restaurant bar',
-  bar_stool: 'bar stool high stool counter stool pub stool high chair bar chair',
-  bed_king: 'king bed king size bed master bed mattress bedroom furniture double bed king size luxury bed',
-  bed: 'bed queen bed double bed twin bed single bed bedroom mattress sleep bedstead bed frame',
-  nightstand: 'nightstand bedside table end table night table small table bedroom night lamp table',
-  wardrobe: 'wardrobe closet armoire cabinet cupboard clothes storage dressing locker wardrobe furniture',
-  sound_boom: 'sound boom operator sound boom boom op boom pole boom mic sound recordist audio technician sound engineer sound guy audio operator microphone sound record boom microphone',
-  c_stand: 'c-stand cstand c stand 40 grip arm gobo head turtle base grip stand lighting stand flag stand century stand rocky mountain leg baby pin grip equipment cstand c stand',
-  tripod: 'tripod generic tripod heavy duty tripod camera tripod stand lighting tripod three legged stand baby pin spreader 5/8 pin stand tripod stand heavy tripod',
-  director_chair: "director chair director's chair folding chair canvas chair set chair seating filmmaker chair cinema chair",
-  apple_box: 'apple box applebox full apple half apple quarter apple pancake wooden box grip box studio box riser posing box wooden block',
-  camera_cart: 'camera cart magliner cart magliner equipment cart grip cart sound cart production trolley rolling cart ditty bag cart cart magliner',
-  green_screen: 'green screen greenscreen chroma key chroma green backdrop background seamless cyc wall studio backdrop blue screen roll background roll',
-  car: 'car sedan passenger car automobile vehicle auto 4-door vehicle sedan motorcar cab taxi vehicle car auto',
-  vehicle_suv: 'suv 4x4 offroad jeep truck vehicle sport utility vehicle crossover all-wheel drive 4wd suv car',
-  vehicle_truck: 'truck grip truck production truck equipment van box truck cargo truck lorry transport vehicle cube truck vehicle truck',
-  vehicle_police: 'police police car police cruiser cop car siren patrol car emergency vehicle law enforcement squad car pursuit vehicle cop car',
-  gun: 'gun handgun pistol firearm glock revolver beretta weapon sidearm 9mm firearm semi-automatic shooting piece prop gun pistol weapon',
-  rifle: 'rifle tactical rifle assault rifle shotgun ak47 ar15 sniper long gun firearm weapon carbine pump action automatic rifle weapon',
-  bomb: 'bomb c4 explosive dynamite time bomb timer bomb device detonator ordnance explosive blast charge prop bomb explosive',
-  letter: 'letter envelope mail document message note paper sealed letter dispatch brief paper folded paper secret letter',
-  tree: 'tree scenic tree foliage plant outdoor nature landscape oak pine bush forest wood park canopy trunk branches leaves scenic landscape greenery landscape tree plant tree',
-  stairs: 'stairs staircase steps flight of stairs spiral stairs steps architectural stairs floor transition staircase flight steps step staircase',
-  box: 'box block cube generic box crate riser wooden box geometric box prop cube box',
-  circle: 'circle pillar column round block generic cylinder marker pole round pillar circular base column pillar',
-  stage: 'stage concert stage platform stage deck stage floor performance stage live stage concert stage main stage apron proscenium band stage gig stage tour stage festival stage',
-  stage_riser: 'stage riser riser platform deck riser stage riser riser platform drum riser podium platform deck staging riser',
-  stage_runway: 'runway catwalk stage runway extension catwalk extension thrust stage ramp walkway pier catwalk',
-  stage_truss: 'truss truss tower lighting truss tower truss system rigging truss roof truss stage truss lighting rig truss tower',
-  drum_kit: 'drum kit drums drum riser drum set drum riser drums drum riser kit percussion drum set drum kit drums',
-  keyboard_rig: 'keyboard rig keyboard keyboard stand synth synth station keyboard stand keys rig keyboard keyboard rig',
-  amp_stack: 'amp stack guitar amp amplifier stack amp wall marshall amplifier stack guitar amp stack amp cabinet',
-  speaker_stack: 'speaker stack pa stack pa speaker speaker cabinet speaker stack pa cabinet sound system speaker stack pa',
-  speaker_array: 'line array speaker array line array hang pa line array speaker system line array audio hang speaker line array',
-  sub_stack: 'subwoofer sub stack subwoofer stack subwoofers bass bins sub subs subwoofer stack sub bass system',
-  monitor_wedge: 'monitor wedge floor monitor wedge stage monitor foldback wedge monitor speaker floor wedge stage wedge',
-  foh_console: 'foh front of house mixing console mixer desk sound mixer foh position mixing console soundboard foh mixing desk front of house mixing board audio mixing console',
-  monitor_console: 'monitor console monitor mix position monitor desk stage monitor mixer monitor world monitor mixing position monitor console',
-  mic_stand: 'mic stand microphone stand boom mic stand vocal mic stand microphone boom stand mic stand microphone',
-  barricade: 'barricade crowd barrier barricade barrier fence security barrier crowd control barrier stage barricade metal barrier',
-  video_wall: 'video wall led wall led screen video screen giant screen led video wall concert screen backdrop screen imax screen video wall',
-  broadcast_truck: 'broadcast truck production truck ob van outside broadcast truck broadcast truck mobile unit production truck truck broadcast',
-  broadcast_van: 'eng van news van broadcast van news truck eng vehicle news vehicle satellite van broadcast van eng unit',
-  sat_truck: 'satellite truck satellite uplink truck uplink truck satellite uplink sat truck uplink vehicle broadcast truck satellite',
-};
-
-const LIGHT_KEYWORDS: Partial<Record<LightFixtureType, string>> = {
-  softbox: 'softbox soft box dome octa rectangular softbox chimera aputure light dome diffuser soft light key light fill light soft lighting lantern softbox',
-  tube_light: 'light tube tube light astera titan helios hyperion quasar science pixel tube pavotube led tube wand tube stick light linear rgb light tube tube',
-  led_panel: 'led panel 1x1 2x1 skypanel arri aputure nova litepanels gemini astra mat flat panel flood light soft panel broad light panel light',
-  fresnel: 'fresnel arri tungsten focusable lens spotlight hard light key light junior baby fresnel 650w 1k 2k 5k mole richardson fresnel light',
-  spotlight: 'spotlight source four etc ellipsoidal profile spot framing shutters gobo projector follow spot sharp beam spotlight leko',
-  par_can: 'par can sealed beam par64 par56 par38 rock and roll wash stage light high intensity narrow spot flood par can par',
-  hmi: 'hmi daylight joker m18 m40 m90 5600k arc lamp continuous high power outdoor sun simulation hmi',
-  china_ball: 'china ball paper lantern jem ball spring ball omnidirectional soft light ambient top light overhead hanging lantern china ball',
-  practical: 'practical lamp table lamp floor lamp desk lamp desk light sconce chandelier bulb naked bulb domestic light fixture practical light',
-  reflector: 'bounce beadboard foam core poly board reflector pop up reflector fill card white board silver bounce unbleached muslin ultra bounce reflector bounce',
-  c_stand_flag: 'c-stand flag cstand flag solid flag 40 inch arm grip head flag stand blackout floppy cutter negative fill duvetyne c stand flag cstand flag',
-  flag_solid: 'flag solid solid flag floppy blackout black flag negative fill duvetyne light block cutter 24x36 48x48 solid flag',
-  flag_silk: 'flag silk silk diffusion white silk 1/4 silk full silk scrim butterfly overhead soft light diffusion silk flag',
-  flag_net: 'flag net single net double net scrim black net light reduction 1 stop 1/2 stop dimming net net flag',
-  flag_cutter: 'flag cutter cutter french flag fingers dots long narrow flag hard shadow edge control cutter cutter flag',
-  flag_cucoloris: 'cucoloris cookie cuke kook dappled shadow breakup pattern plywood cookie celo cucalorus dapple break up light cucoloris cookie',
-  flag_branchaloris: 'branchaloris branch branchalorus tree branch dappled foliage leaf pattern branch on c stand nature breakup branchaloris',
-  flag_shutter: 'shutter barn doors barndoors framing shutter leaves blades cut spill flag off leko shutters barndoor shutter',
-};
 
 const RIG_KEYWORDS: Partial<Record<CameraRigType, string>> = {
   Tripod: 'tripod static camera stationary sticks head fluid head lock off tripod camera',
@@ -473,6 +380,30 @@ const CATEGORY_TABS: { id: 'all' | QuickAsset['categoryTag']; label: string; ico
 ];
 
 const SYMBOL_RESULT_LIMIT = 8;
+const LIVE_SYMBOL_CATEGORIES = ['audio', 'staging', 'backline'];
+const FEATURED_SYMBOL_IDS = [
+  'lighting.moving-head-wash',
+  'lighting.moving-head-spot',
+  'lighting.led-par',
+  'audio.dj-booth',
+];
+
+function symbolResults(query: string, category: 'all' | QuickAsset['categoryTag']): Extract<ResultItem, { kind: 'symbol' }>[] {
+  const categories = category === 'lighting' ? ['lighting'] : category === 'staging' ? LIVE_SYMBOL_CATEGORIES : category === 'elements' ? ['architecture'] : [];
+  const matches = query
+    ? (category === 'all'
+      ? searchSymbols(query, { limit: SYMBOL_RESULT_LIMIT })
+      : categories.flatMap((symbolCategory) => searchSymbols(query, { category: symbolCategory, limit: SYMBOL_RESULT_LIMIT }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, SYMBOL_RESULT_LIMIT)).map(({ symbol }) => symbol)
+    : category === 'all'
+      ? FEATURED_SYMBOL_IDS.flatMap((id) => {
+        const symbol = getSymbolById(id);
+        return symbol ? [symbol] : [];
+      })
+      : categories.flatMap(getSymbolsByCategory);
+  return matches.map((symbol) => ({ kind: 'symbol', key: `symbol-${symbol.id}`, symbol }));
+}
 
 type ResultItem =
   | { kind: 'asset'; key: string; asset: QuickAsset }
@@ -592,8 +523,10 @@ export const QuickAssetSearch: React.FC = () => {
       list = list.filter((a) => a.categoryTag === activeCategory);
     }
 
+    const symbols = symbolResults(q, activeCategory);
     if (!q) {
-      return list.map((asset) => ({ kind: 'asset' as const, key: asset.id, asset }));
+      const legacyAssets = list.map((asset) => ({ kind: 'asset' as const, key: asset.id, asset }));
+      return [...symbols, ...legacyAssets];
     }
 
     const items: ResultItem[] = [];
@@ -615,13 +548,7 @@ export const QuickAssetSearch: React.FC = () => {
         items.push({ kind: 'asset', key: asset.id, asset });
       });
 
-    // Merge curated production-symbol registry hits (deduped by name).
-    if (activeCategory === 'all') {
-      searchSymbols(q, { limit: SYMBOL_RESULT_LIMIT }).forEach(({ symbol }) => {
-        if (seenNames.has(normalizeText(symbol.name))) return;
-        items.push({ kind: 'symbol', key: `symbol-${symbol.id}`, symbol });
-      });
-    }
+    items.push(...symbols.filter((item) => !seenNames.has(normalizeText(item.symbol.name))));
 
     return items;
   }, [query, activeCategory, commandItems]);
@@ -812,7 +739,7 @@ export const QuickAssetSearch: React.FC = () => {
           {filtered.length === 0 ? (
             <div className={`px-4 py-12 text-center text-sm text-ink-muted`}>
               <p className="font-semibold text-slate-300">No assets match “{query}”</p>
-              <p className="text-xs opacity-60 mt-1">Try searching for couch, c-stand, boom, desk, plant, car, gun, tree, softbox...</p>
+              <p className="text-xs opacity-60 mt-1">Try searching for moving head, LED PAR, DJ booth, or wall.</p>
             </div>
           ) : (
             filtered.map((item, idx) => {
@@ -857,7 +784,7 @@ export const QuickAssetSearch: React.FC = () => {
                       e.preventDefault();
                       place(item);
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left text-xs transition-colors ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
                       active
                         ? isLight
                           ? 'bg-violet-100 text-violet-900 font-semibold'

@@ -34,7 +34,11 @@ import {
   Waypoint,
   WindowElement,
 } from '../../types';
-import { boundsCenterOfPoints, findNearestWall, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
+import { WallChainControls } from './WallChainControls';
+import { planUnitsPerMm } from '../../domain/plan/straightWallJoins';
+import { snapWallJunction } from '../../domain/plan/wallDimensions';
+import { snapOpeningToWall } from '../../domain/plan/editWallOpenings';
+import { boundsCenterOfPoints, getAngleBetweenPoints, snapToGrid } from '../../utils/geometry';
 import { ASPECT_RATIOS, CABLE_TYPES } from '../../constants/presets';
 import { boardedFrames, keyFrame, keyFrameImage, setFramePatch, START_SLOT } from '../../utils/storyboardFrames';
 import { ActorElementView } from './ActorElementView';
@@ -89,7 +93,6 @@ interface DragState {
     | 'endpoint_start'
     | 'endpoint_end'
     | 'resize_element'
-    | 'draw_wall'
     | 'draw_measure'
     | 'draw_arrow'
     | 'draw_cable'
@@ -226,6 +229,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
   // Continuous / Connected architectural wall drawing state
   const [connectedWallStart, setConnectedWallStart] = useState<Vector2D | null>(null);
   const [wallChainFirstPoint, setWallChainFirstPoint] = useState<Vector2D | null>(null);
+  useEffect(() => {
+    setConnectedWallStart(null);
+    setWallChainFirstPoint(null);
+  }, [activeTool, activeSetup.id]);
   // Continuous cable routing state (like connected walls): remembers the cable
   // being routed and the last vertex so the next click adds a corner.
   const [connectedCableStart, setConnectedCableStart] = useState<{ cableId: string; x: number; y: number } | null>(null);
@@ -241,7 +248,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     () => activeSetup?.canvasOffset ?? { x: 50, y: 50 },
     [activeSetup?.canvasOffset],
   );
-  const gridSettings = activeSetup?.gridSettings || { size: 30, snap: true, showGrid: false, unit: 'm' as const, pixelsPerUnit: 30 };
+  const gridSettings = useMemo(
+    () => activeSetup?.gridSettings ?? { size: 30, snap: true, showGrid: false, unit: 'm' as const, pixelsPerUnit: 30 },
+    [activeSetup?.gridSettings],
+  );
   useEffect(() => {
     setCalibrationPoints([]);
     setCalibrationLength('1');
@@ -886,7 +896,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
   // Compute live wall snapping for door/window tools
   const nearestWallInfo =
     (activeTool === 'door' || activeTool === 'window') && hoverCanvasPos && walls.length > 0 && !altDownRef.current
-      ? findNearestWall(hoverCanvasPos, walls, 60)
+      ? snapOpeningToWall(hoverCanvasPos, walls, activeTool, 60, undefined, gridSettings)
       : null;
 
   // Snapped current cursor position for drawing (Alt disables grid/vertex
@@ -895,6 +905,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     const snapEnabled = !altDownRef.current;
     const snapVertex = snapEnabled ? findNearestVertex(rawPos, 20) : null;
     if (snapVertex) return snapVertex;
+    const junction = snapEnabled && activeTool === 'wall' ? snapWallJunction(rawPos, walls, 12 / canvasScale) : null;
+    if (junction) return junction;
 
     let x = snapEnabled ? snapToGrid(rawPos.x, gridSettings.size, gridSettings.snap) : rawPos.x;
     let y = snapEnabled ? snapToGrid(rawPos.y, gridSettings.size, gridSettings.snap) : rawPos.y;
@@ -920,7 +932,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     }
 
     return { x, y };
-  }, [connectedWallStart, findNearestVertex, gridSettings.size, gridSettings.snap]);
+  }, [activeTool, canvasScale, connectedWallStart, findNearestVertex, gridSettings.size, gridSettings.snap, walls]);
 
   // Finish connected wall mode
   const finishConnectedWalls = useCallback(() => {
@@ -1068,7 +1080,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
 
     // 1. Door or Window Tool - Instant reliable placement with wall alignment
     if (activeTool === 'door' || activeTool === 'window') {
-      const wallSnap = findNearestWall(canvasPos, walls, 60);
+      const wallSnap = e.altKey ? null : snapOpeningToWall(canvasPos, walls, activeTool, 60, undefined, gridSettings);
+      if (!wallSnap && !e.altKey) return;
       let newId: string;
       if (wallSnap) {
         newId = addElement({
@@ -1076,6 +1089,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
           x: wallSnap.point.x,
           y: wallSnap.point.y,
           rotation: wallSnap.angle,
+          hostWallId: wallSnap.wallId,
           name: activeTool === 'door' ? 'Door' : 'Window',
         });
       } else {
@@ -1084,6 +1098,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
           x: drawPos.x,
           y: drawPos.y,
           rotation: 0,
+          hostWallId: null,
           name: activeTool === 'door' ? 'Door' : 'Window',
         });
       }
@@ -1092,58 +1107,20 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
       return;
     }
 
-    // 2. Connected / Architectural Wall Drawing Mode
+    // ConstructCAD wall_tool: the first click sets an anchor; each later
+    // click places a segment and advances the anchor to its endpoint.
     if (activeTool === 'wall') {
       if (!connectedWallStart) {
-        // First vertex of the chain
         setConnectedWallStart(drawPos);
         setWallChainFirstPoint(drawPos);
-
-        // Also initiate standard drag wall in case user just wants to drag a single wall
-        const wallId = addElement({
-          type: 'wall',
-          x: drawPos.x,
-          y: drawPos.y,
-          x2: drawPos.x + 1,
-          y2: drawPos.y + 1,
-        });
-
-        const initialElements = new Map<string, FloorPlanElement>();
-        const createdWall = activeSetup.elements.find((el) => el.id === wallId);
-        if (createdWall) initialElements.set(wallId, createdWall);
-
-        setDragState({
-          type: 'draw_wall',
-          startMouse: { x: e.clientX, y: e.clientY },
-          startElements: initialElements,
-          selectedIds: [wallId],
-          activeElementId: wallId,
-        });
       } else {
-        // Second or subsequent vertex in continuous mode
-        const isClosingLoop =
-          wallChainFirstPoint &&
-          Math.hypot(drawPos.x - wallChainFirstPoint.x, drawPos.y - wallChainFirstPoint.y) < 25;
-
-        const endX = isClosingLoop ? wallChainFirstPoint.x : drawPos.x;
-        const endY = isClosingLoop ? wallChainFirstPoint.y : drawPos.y;
-
-        // Create the connected wall segment
-        addElement({
-          type: 'wall',
-          x: connectedWallStart.x,
-          y: connectedWallStart.y,
-          x2: endX,
-          y2: endY,
-        });
-
-        if (isClosingLoop) {
-          // Closed room! Finish drawing
-          finishConnectedWalls();
-        } else {
-          // Continue chain from new vertex
-          setConnectedWallStart({ x: endX, y: endY });
-        }
+        const close = wallChainFirstPoint && connectedWallStart !== wallChainFirstPoint &&
+          Math.hypot(drawPos.x - wallChainFirstPoint.x, drawPos.y - wallChainFirstPoint.y) < 20 / canvasScale;
+        const end = close ? wallChainFirstPoint : drawPos;
+        if (Math.hypot(end.x - connectedWallStart.x, end.y - connectedWallStart.y) <= 10 * planUnitsPerMm(gridSettings)) return;
+        addElement({ type: 'wall', x: connectedWallStart.x, y: connectedWallStart.y, x2: end.x, y2: end.y });
+        if (close) finishConnectedWalls();
+        else setConnectedWallStart(end);
       }
       return;
     }
@@ -1352,6 +1329,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     cancelBackgroundCalibration,
     cancelLongPress,
     canvasOffset,
+    canvasScale,
     clearSelection,
     connectedCableStart,
     connectedWallStart,
@@ -1359,6 +1337,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     finishConnectedCable,
     finishConnectedWalls,
     getDrawingCursorPos,
+    gridSettings,
     isSpacePressed,
     screenToCanvas,
     selectElement,
@@ -1404,7 +1383,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     // If door or window tool is active, place directly on clicked element (wall)
     if (activeTool === 'door' || activeTool === 'window') {
       const canvasPos = screenToCanvas(e.clientX, e.clientY);
-      const wallSnap = findNearestWall(canvasPos, walls, 60);
+      const wallSnap = e.altKey ? null : snapOpeningToWall(canvasPos, walls, activeTool, 60, undefined, gridSettings);
+      if (!wallSnap && !e.altKey) return;
       let newId: string;
       if (wallSnap) {
         newId = addElement({
@@ -1412,6 +1392,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
           x: wallSnap.point.x,
           y: wallSnap.point.y,
           rotation: wallSnap.angle,
+          hostWallId: wallSnap.wallId,
           name: activeTool === 'door' ? 'Door' : 'Window',
         });
       } else {
@@ -1420,6 +1401,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
           x: canvasPos.x,
           y: canvasPos.y,
           rotation: 0,
+          hostWallId: null,
           name: activeTool === 'door' ? 'Door' : 'Window',
         });
       }
@@ -1547,6 +1529,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     armLongPress,
     cancelLongPress,
     clearSelection,
+    gridSettings,
     handlePointerDown,
     isEffectivelyLocked,
     isSpacePressed,
@@ -2040,15 +2023,17 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
         let finalX = nextX;
         let finalY = nextY;
         let nextRotation = origEl.rotation;
+        const opening = origEl.type === 'door' || origEl.type === 'window' ? origEl : null;
+        let hostWallId = opening?.hostWallId && draggingMultiple && dragState.startElements.has(opening.hostWallId)
+          ? opening.hostWallId : null;
 
         if ((origEl.type === 'door' || origEl.type === 'window') && !draggingMultiple && walls.length > 0 && !altDownRef.current) {
-          const snapMatch = findNearestWall({ x: nextX, y: nextY }, walls, 50);
+          const snapMatch = snapOpeningToWall({ x: nextX, y: nextY }, walls, origEl.type, 50, origEl, gridSettings);
           if (snapMatch) {
             finalX = snapMatch.point.x;
             finalY = snapMatch.point.y;
-            const angleDiff = Math.abs((((origEl.rotation - snapMatch.angle) % 360) + 360) % 360);
-            const isFlipped = angleDiff > 90 && angleDiff < 270;
-            nextRotation = isFlipped ? Math.round((snapMatch.angle + 180) % 360) : snapMatch.angle;
+            nextRotation = snapMatch.angle;
+            hostWallId = snapMatch.wallId;
           } else if (gridSettings.snap) {
             finalX = snapToGrid(finalX, gridSettings.size, true);
             finalY = snapToGrid(finalY, gridSettings.size, true);
@@ -2065,6 +2050,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
           x: finalX,
           y: finalY,
           rotation: nextRotation,
+          ...(opening ? { hostWallId } : {}),
         };
 
         if ('x2' in origEl && typeof origEl.x2 === 'number') {
@@ -2193,7 +2179,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     if (
       (dragState.type === 'endpoint_start' ||
         dragState.type === 'endpoint_end' ||
-        dragState.type === 'draw_wall' ||
         dragState.type === 'draw_measure' ||
         dragState.type === 'draw_arrow' ||
         dragState.type === 'draw_cable') &&
@@ -2481,18 +2466,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
       }
       // Stay in the cable tool — the next click routes a corner.
     }
-    if (dragState?.type === 'draw_wall') {
-      // If user dragged a significant wall length, finish wall; if clicked in place, leave connected wall mode active
-      const el = activeSetup.elements.find((e) => e.id === dragState.activeElementId);
-      if (el && 'x2' in el && typeof el.x2 === 'number') {
-        const length = Math.hypot(el.x2 - el.x, el.y2 - el.y);
-        if (length > 20) {
-          // Keep connected wall point at endpoint so user can continue chaining
-          setConnectedWallStart({ x: el.x2, y: el.y2 });
-        }
-      }
-    }
-
     if (dragState?.type === 'endpoint_start' || dragState?.type === 'endpoint_end') {
       // Dropping a cable end on a device attaches it; dropping it on empty
       // space detaches. Runs before the single history commit below so the
@@ -2517,8 +2490,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
     }
 
     // Drags that modified EXISTING elements get pushed into history exactly
-    // once here, so one gesture = one undo step. (draw_wall / draw_measure are
-    // excluded: they already pushed a creation entry, and undo reverts them by
+    // once here, so one gesture = one undo step. (draw_measure is
+    // excluded: it already pushed a creation entry, and undo reverts it by
     // removing the whole element.)
     if (
       dragChangedRef.current &&
@@ -3034,6 +3007,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
 
           {/* 5. Walls, Doors, Windows with Live Snapping Glow */}
           <WallLayer
+            gridSettings={gridSettings}
             walls={walls}
             doors={doors}
             windows={windows}
@@ -3106,7 +3080,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
           )}
 
           {/* 6. Live Connected Wall Rubberband Preview */}
-          {connectedWallStart && activeDrawPos && (
+          {activeTool === 'wall' && connectedWallStart && activeDrawPos && (
             <g className="pointer-events-none">
               <line
                 x1={connectedWallStart.x}
@@ -3137,7 +3111,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
                 fontWeight="bold"
                 fontFamily="monospace"
               >
-                {(Math.hypot(activeDrawPos.x - connectedWallStart.x, activeDrawPos.y - connectedWallStart.y) / 50).toFixed(2)}m
+                {(Math.hypot(activeDrawPos.x - connectedWallStart.x, activeDrawPos.y - connectedWallStart.y) / gridSettings.pixelsPerUnit).toFixed(2)} {gridSettings.unit}
               </text>
             </g>
           )}
@@ -3652,27 +3626,17 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
         )}
       </div>
 
-      {/* Connected Wall Active Finish Bar */}
-      {connectedWallStart && (
-        <div className="absolute top-4 right-1/2 translate-x-1/2 bg-sky-950/95 border border-sky-500 text-sky-100 text-xs px-4 py-2 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-3 z-30">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Click to add wall corner • Snaps to corners & 90°</span>
-          <button
-            onClick={finishConnectedWalls}
-            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm"
-          >
-            <Check className="w-3.5 h-3.5" />
-            <span>Finish (Enter)</span>
-          </button>
-          <button
-            onClick={finishConnectedWalls}
-            className="p-1 hover:bg-sky-900 rounded text-slate-400 hover:text-white"
-            title="Cancel"
-            aria-label="Finish the wall run"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
+      {activeTool === 'wall' && connectedWallStart && (
+        <WallChainControls
+          start={connectedWallStart}
+          cursor={activeDrawPos}
+          grid={gridSettings}
+          onPlace={(end) => {
+            addElement({ type: 'wall', x: connectedWallStart.x, y: connectedWallStart.y, x2: end.x, y2: end.y });
+            setConnectedWallStart(end);
+          }}
+          onFinish={finishConnectedWalls}
+        />
       )}
 
       {/* Connected Cable Routing Finish Bar */}
@@ -3704,9 +3668,9 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({ splitOpen = fa
           <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
           <span>
             {activeTool === 'door' || activeTool === 'window' ? (
-              <>Click on or near any <strong>Wall</strong> to attach {activeTool} (Esc to cancel)</>
+              <>Click a <strong>wall</strong> to place the {activeTool}. Alt-click for free placement.</>
             ) : activeTool === 'wall' ? (
-              <>Click and drag to draw a wall, or click points to draw <strong>Connected Rooms</strong></>
+              <>Click the <strong>start point</strong>, then click the next corner</>
             ) : activeTool === 'measure' ? (
               <><strong>Click and drag</strong> between two points to measure distance (Esc to cancel)</>
             ) : activeTool === 'arrow' ? (

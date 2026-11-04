@@ -1752,6 +1752,7 @@ export const PrintableShotPlan: React.FC = () => {
 
                                     {/* 1. Walls, Doors & Windows */}
                   <WallLayer
+                    gridSettings={activeSetup.gridSettings}
                     walls={walls}
                     doors={doors}
                     windows={windows}

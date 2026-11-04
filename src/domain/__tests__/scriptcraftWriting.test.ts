@@ -6,6 +6,7 @@ import { parseScreenplay, serializeToFountain } from '../../components/script/sc
 import { serializeToFdx } from '../script/fdxExport';
 import { reconcileScriptLineIds } from '../script/reconcile';
 import { migrateProject } from '../migrations';
+import { CURRENT_PROJECT_SCHEMA_VERSION } from '../migrations/types';
 import { createProject } from '../../utils/projectLibrary';
 import { paginateScreenplay } from '../script/pagination';
 
@@ -162,7 +163,7 @@ describe('search, alternatives, scene structure and migration', () => {
     const old = { ...createProject({ title: 'Old' }), schemaVersion: 37, scriptLines: [line('Legacy note', { type: 'note' })] };
     const before = structuredClone(old);
     const result = migrateProject(old);
-    expect(result.project.schemaVersion).toBe(38);
+    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(result.project.scriptLines).toEqual(before.scriptLines);
     expect(result.project.setups).toEqual(before.setups);
     expect(old).toEqual(before);

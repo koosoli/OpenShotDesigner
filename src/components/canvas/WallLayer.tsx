@@ -1,8 +1,11 @@
-import React from 'react';
-import { DoorElement, WallElement, WindowElement } from '../../types';
+import React, { useMemo } from 'react';
+import { resolveWallOpenings, solidWallSpans } from '../../domain/plan/wallOpenings';
+import { planUnitsPerMm, resolveStraightWallJoins, wallLines, wallSpanCorners } from '../../domain/plan/straightWallJoins';
+import { DoorElement, GridSettings, WallElement, WindowElement } from '../../types';
 
 interface WallLayerProps {
   walls: WallElement[];
+  gridSettings?: GridSettings;
   doors: DoorElement[];
   windows: WindowElement[];
   selectedIds: string[];
@@ -18,6 +21,7 @@ interface WallLayerProps {
 
 const WallLayerImpl: React.FC<WallLayerProps> = ({
   walls,
+  gridSettings,
   doors,
   windows,
   selectedIds,
@@ -30,6 +34,13 @@ const WallLayerImpl: React.FC<WallLayerProps> = ({
   labelOpacity = 1,
   labelColor,
 }) => {
+  const openingsByWall = useMemo(() => resolveWallOpenings(walls, [...doors, ...windows]), [walls, doors, windows]);
+
+  const { lines, joins } = useMemo(() => {
+    const wallAxes = wallLines(walls);
+    return { lines: new Map(wallAxes.map((axis) => [axis.id, axis])), joins: resolveStraightWallJoins(wallAxes, planUnitsPerMm(gridSettings)) };
+  }, [walls, gridSettings]);
+
   return (
     <g className="wall-layer" opacity={categoryOpacity?.architecture ?? 1.0}>
       {/* 1. Walls */}
@@ -41,6 +52,8 @@ const WallLayerImpl: React.FC<WallLayerProps> = ({
         const x2 = wall.x2 ?? wall.x + 200;
         const y2 = wall.y2 ?? wall.y;
         const thickness = wall.thickness || 12;
+        const axis = lines.get(wall.id);
+        const openings = openingsByWall.get(wall.id) ?? [];
 
         return (
           <g
@@ -76,26 +89,28 @@ const WallLayerImpl: React.FC<WallLayerProps> = ({
                 className="animate-pulse"
               />
             )}
-            {/* Wall Body */}
-            <line
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke={isSelected ? '#38bdf8' : isSnapped ? '#0284c7' : wall.wallColor || '#64748b'}
-              strokeWidth={thickness}
-              strokeLinecap="round"
-            />
-            {/* Wall center architectural hatch line */}
-            <line
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke={isSelected ? '#0284c7' : '#334155'}
-              strokeWidth={2}
-              strokeDasharray="4 4"
-            />
+            {solidWallSpans(openings).map(({ start, end }) => {
+              const segment = {
+                x1: x1 + (x2 - x1) * start,
+                y1: y1 + (y2 - y1) * start,
+                x2: x1 + (x2 - x1) * end,
+                y2: y1 + (y2 - y1) * end,
+              };
+              return (
+                <g key={start}>
+                  {axis && <polygon
+                    points={wallSpanCorners(axis, start, end, joins.get(wall.id)).map(({ x, y }) => `${x},${y}`).join(' ')}
+                    fill={isSelected ? '#38bdf8' : isSnapped ? '#0284c7' : wall.wallColor || '#64748b'}
+                  />}
+                  <line
+                    {...segment}
+                    stroke={isSelected ? '#0284c7' : '#334155'}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                  />
+                </g>
+              );
+            })}
             {/* Selection endpoints */}
             {isSelected && (
               <>
@@ -207,16 +222,8 @@ const WallLayerImpl: React.FC<WallLayerProps> = ({
               onDoubleClick?.(door.id, e);
             }}
           >
-            {/* Door opening threshold gap line */}
-            <line
-              x1={0}
-              y1={0}
-              x2={w}
-              y2={0}
-              stroke="#0f172a"
-              strokeWidth={14}
-              strokeLinecap="butt"
-            />
+            {/* Keep the doorway selectable across the opening. */}
+            <line x1={0} y1={0} x2={w} y2={0} stroke="transparent" strokeWidth={14} />
             {/* Door frame jambs (left & right posts) */}
             <rect x={-5} y={-8} width={7} height={16} rx={1.5} fill="#d97706" stroke="#0f172a" strokeWidth={1.5} />
             <rect x={w - 2} y={-8} width={7} height={16} rx={1.5} fill="#d97706" stroke="#0f172a" strokeWidth={1.5} />

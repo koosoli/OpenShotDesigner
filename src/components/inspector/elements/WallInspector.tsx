@@ -14,6 +14,7 @@ import React, { useId } from 'react';
 import type { WallElement } from '../../../types';
 import { DoorClosed, AppWindow, Square } from 'lucide-react';
 import { RubricSection } from '../shared/InspectorPrimitives';
+import { resizeWallToLength, wallAxis } from '../../../domain/plan/wallDimensions';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
 
 interface WallInspectorProps {
@@ -23,10 +24,11 @@ interface WallInspectorProps {
 
 export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) => {
   const fieldId = useId();
-  const { updateElement, insertDoorInWall, insertWindowInWall } = useFloorPlan();
-  const wallLen = Math.round(
-    Math.sqrt(Math.pow((wall.x2 ?? wall.x + 200) - wall.x, 2) + Math.pow((wall.y2 ?? wall.y) - wall.y, 2))
-  );
+  const { activeSetup, updateElement, insertDoorInWall, insertWindowInWall } = useFloorPlan();
+  const grid = activeSetup.gridSettings;
+  const wallLen = wallAxis(wall).length;
+  const calibrated = Number.isFinite(grid.pixelsPerUnit) && grid.pixelsPerUnit > 0;
+  const displayLength = calibrated ? Number((wallLen / grid.pixelsPerUnit).toFixed(4)) : undefined;
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
@@ -35,15 +37,41 @@ export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) =
         icon={<Square className="w-3.5 h-3.5 text-slate-400" />}
         badge={
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-500/10 font-bold">
-            {(wallLen / 50).toFixed(2)}m
+            {calibrated ? `${displayLength} ${grid.unit}` : 'Unknown'}
           </span>
         }
         defaultOpen={true}
         isLight={isLight}
       >
-        <div className="flex items-center justify-between text-xs">
-          <span className="opacity-60">Wall Length:</span>
-          <span className="font-mono text-accent-ink font-bold">{(wallLen / 50).toFixed(2)}m ({wallLen}px)</span>
+        <div>
+          <label htmlFor={`${fieldId}-length`} className="opacity-60 block mb-1">Wall length ({grid.unit})</label>
+          <input
+            id={`${fieldId}-length`}
+            key={`${wall.id}-${grid.unit}-${displayLength}`}
+            type="number"
+            step="any"
+            min={0}
+            defaultValue={displayLength}
+            disabled={!calibrated}
+            onBlur={(event) => {
+              const input = event.currentTarget;
+              const length = input.valueAsNumber;
+              if (length === displayLength) return;
+              const resized = resizeWallToLength(wall, grid, length);
+              if (resized) updateElement(wall.id, resized);
+              else input.value = displayLength?.toString() ?? '';
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === 'Escape') {
+                event.stopPropagation();
+                if (event.key === 'Escape') event.currentTarget.value = displayLength?.toString() ?? '';
+                event.currentTarget.blur();
+              }
+            }}
+            className={`w-full border rounded p-1.5 font-mono text-xs ${
+              isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
+            }`}
+          />
         </div>
 
         <div>

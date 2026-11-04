@@ -3,6 +3,15 @@ import { searchSymbols } from "../assets/search";
 import { SYMBOL_REGISTRY } from "../assets/symbolRegistry";
 
 describe("searchSymbols", () => {
+  it.each([
+    ["moving heads", "lighting", "lighting.moving-head-wash"],
+    ["moving heads", "lighting", "lighting.moving-head-spot"],
+    ["LED PARs", "lighting", "lighting.led-par"],
+    ["DJ booth", "audio", "audio.dj-booth"],
+  ])("finds %s in %s", (query, category, id) => {
+    expect(searchSymbols(query, { category }).map(({ symbol }) => symbol.id)).toContain(id);
+  });
+
   it("returns [] for empty or whitespace queries", () => {
     expect(searchSymbols("")).toEqual([]);
     expect(searchSymbols("   ")).toEqual([]);

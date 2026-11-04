@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { defineConfig, type Plugin } from 'vite';
+import { constructCadRenderer } from './tools/constructCadRenderer.ts';
 
 // `__dirname` breaks Vite's native config loader (default in a future major);
 // the URL equivalent works on every Vite/Node combination this repo uses.
@@ -66,7 +67,7 @@ const serviceWorkerBuildId = (): Plugin => {
 };
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), serviceWorkerBuildId(), productionSecurityPolicy()],
+  plugins: [react(), tailwindcss(), serviceWorkerBuildId(), productionSecurityPolicy(), constructCadRenderer(rootDir)],
   build: {
     rollupOptions: {
       output: {

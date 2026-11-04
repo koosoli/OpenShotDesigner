@@ -4,6 +4,26 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] — 2026-11-04
+
+### Added
+
+- Docked Live 3D with orbit, pan and zoom, plus an optional local ConstructCAD
+  GPU renderer. The standalone web build includes an SVG preview.
+- ConstructCAD macro export for editable walls and hosted openings.
+- Eleven ConstructCAD furniture and cabinet families in the 3D preview,
+  including round tables, beds and cabinets. Existing matching assets use
+  the new geometry. The [furniture attribution](docs/furniture-attribution.md)
+  records the source and license.
+- Search and browsing for moving-head lights, LED PARs and a DJ booth.
+
+### Changed
+
+- Wall Chain places connected segments with snapping and typed dimensions.
+  Straight wall joins and openings share geometry across plan and 3D views.
+- Doors and windows can retain their host wall through edits, copies and saves.
+  Schema 39 assigns hosts to legacy openings with a unique wall match.
+
 ## [1.7.1] — 2026-10-31
 
 ### Changed

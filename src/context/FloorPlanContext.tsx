@@ -1,3 +1,5 @@
+import { clearMissingWallHosts, fitOpeningOnWall, moveWallOpenings } from '../domain/plan/editWallOpenings';
+import { wallAxis } from '../domain/plan/wallDimensions';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useProjectHistory } from './useProjectHistory';
 import { useCollaboration, type CollaborationControls } from '../collaboration/useCollaboration';
@@ -51,7 +53,7 @@ import type { CommandResult } from '../domain/commands';
 import { applyMergedProjectCommand, deleteShotCommand } from '../domain/commands';
 import { stripAnnotationsTargeting } from '../domain/plan/annotations';
 import { nextActorLetter, nextCameraLabel } from '../domain/plan/cameraLabels';
-import { endpointsOf, hasEndpoints, hasSize } from '../domain/plan/elementGuards';
+import { hasEndpoints, hasSize } from '../domain/plan/elementGuards';
 import { buildShotForSetup } from '../domain/shots/createShot';
 import { insertedShotNumber, takenShotNumbers } from '../domain/shots/numbering';
 import { useStableContextValue } from './stableContextValue';
@@ -1233,9 +1235,9 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
 
-      const updatedElements = activeSetup.elements.map((e) =>
+      const updatedElements = moveWallOpenings(activeSetup.elements, activeSetup.elements.map((e) =>
         e.id === id ? ({ ...e, ...updates, ...extraUpdates } as FloorPlanElement) : e
-      );
+      ), activeSetup.layers);
 
       return {
         ...activeSetup,
@@ -1253,10 +1255,10 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     commitSetupUpdate(
       (activeSetup) => ({
         ...activeSetup,
-        elements: activeSetup.elements.map((e) => {
+        elements: moveWallOpenings(activeSetup.elements, activeSetup.elements.map((e) => {
           const u = updateMap.get(e.id);
           return u ? ({ ...e, ...u } as FloorPlanElement) : e;
-        }),
+        }), activeSetup.layers),
       }),
       recordHistory,
     );
@@ -1323,7 +1325,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       );
       return {
         ...prevSetup,
-        elements: prevSetup.elements.filter((e) => e.id !== id),
+        elements: clearMissingWallHosts(prevSetup.elements.filter((e) => e.id !== id)),
         shots: prevSetup.shots.filter((s) => s.cameraId !== id),
         storyboardOrder: prevSetup.storyboardOrder?.filter((shotId) => !shotsGone.has(shotId)),
         scriptMarks: (prevSetup.scriptMarks || []).filter((mark) => !shotsGone.has(mark.shotId)),
@@ -1377,7 +1379,7 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Annotations pointing at a deleted element go with it — otherwise
         // they would render as leader lines into nothing.
         elements: stripAnnotationsTargeting(
-          prevSetup.elements.filter((e) => !idsSet.has(e.id)),
+          clearMissingWallHosts(prevSetup.elements.filter((e) => !idsSet.has(e.id))),
           idsSet,
         ),
         shots: prevSetup.shots.filter((s) => !idsSet.has(s.cameraId)),
@@ -1407,23 +1409,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const insertDoorInWall = (wallId: string): string | null => {
     const wall = activeSetup.elements.find((e) => e.id === wallId && e.type === 'wall');
-    if (!wall) return null;
-
-    const w1 = { x: wall.x, y: wall.y };
-    // 200 is this path's own default run length for a wall with no endpoint.
-    const { x2: wallX2, y2: wallY2 } = endpointsOf(wall, 200);
-    const w2 = { x: wallX2, y: wallY2 };
-    const midX = (w1.x + w2.x) / 2;
-    const midY = (w1.y + w2.y) / 2;
-    let angle = (Math.atan2(w2.y - w1.y, w2.x - w1.x) * 180) / Math.PI;
-    if (angle < 0) angle += 360;
+    if (!wall || wall.type !== 'wall') return null;
+    const pose = fitOpeningOnWall(wall, 'door', 70, wallAxis(wall).length / 2);
+    if (!pose) return null;
 
     const doorId = addElement({
       type: 'door',
       name: 'Single Door',
-      x: midX,
-      y: midY,
-      rotation: Math.round(angle),
+      ...pose,
+      hostWallId: wall.id,
       width: 70,
       swingAngle: 90,
       swingDirection: 'right',
@@ -1436,23 +1430,15 @@ export const FloorPlanProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const insertWindowInWall = (wallId: string): string | null => {
     const wall = activeSetup.elements.find((e) => e.id === wallId && e.type === 'wall');
-    if (!wall) return null;
-
-    const w1 = { x: wall.x, y: wall.y };
-    // 200 is this path's own default run length for a wall with no endpoint.
-    const { x2: wallX2, y2: wallY2 } = endpointsOf(wall, 200);
-    const w2 = { x: wallX2, y: wallY2 };
-    const midX = (w1.x + w2.x) / 2;
-    const midY = (w1.y + w2.y) / 2;
-    let angle = (Math.atan2(w2.y - w1.y, w2.x - w1.x) * 180) / Math.PI;
-    if (angle < 0) angle += 360;
+    if (!wall || wall.type !== 'wall') return null;
+    const pose = fitOpeningOnWall(wall, 'window', 80, wallAxis(wall).length / 2);
+    if (!pose) return null;
 
     const windowId = addElement({
       type: 'window',
       name: 'Window',
-      x: midX,
-      y: midY,
-      rotation: Math.round(angle),
+      ...pose,
+      hostWallId: wall.id,
       width: 80,
       depth: 14,
       beamVisible: false,

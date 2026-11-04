@@ -7,7 +7,7 @@ import { FloorPlanProvider, useFloorPlan } from './context/FloorPlanContext';
 import { useScriptSetupSync } from './context/useScriptSetupSync';
 import { TopNavbar } from './components/toolbar/TopNavbar';
 import { LeftToolbar } from './components/toolbar/LeftToolbar';
-import { SplitCanvasArea } from './components/canvas/SplitCanvasArea';
+import { PlanCanvasWorkspace } from './components/canvas/PlanCanvasWorkspace';
 import { TimelineBar } from './components/timeline/TimelineBar';
 import { ShotListPanel } from './components/shotlist/ShotListPanel';
 import { InspectorPanel } from './components/inspector/InspectorPanel';
@@ -354,9 +354,7 @@ const MainLayout: React.FC = () => {
               cover the resizable production sidebar. */}
           <ProductionReadiness />
           <ReviewNotes />
-          <div className="flex-1 relative overflow-hidden">
-            <SplitCanvasArea />
-          </div>
+          <PlanCanvasWorkspace />
 
           {/* Director's Blocking Playback Timeline */}
           <TimelineBar />

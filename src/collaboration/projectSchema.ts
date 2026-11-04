@@ -1219,6 +1219,18 @@ export const PROJECT_SCHEMA = {
       {
         "kind": "object",
         "properties": {
+          "hostWallId": {
+            "kind": "union",
+            "choices": [
+              {
+                "kind": "literal",
+                "value": null
+              },
+              {
+                "kind": "string"
+              }
+            ]
+          },
           "type": {
             "kind": "literal",
             "value": "door"
@@ -1344,6 +1356,18 @@ export const PROJECT_SCHEMA = {
       {
         "kind": "object",
         "properties": {
+          "hostWallId": {
+            "kind": "union",
+            "choices": [
+              {
+                "kind": "literal",
+                "value": null
+              },
+              {
+                "kind": "string"
+              }
+            ]
+          },
           "type": {
             "kind": "literal",
             "value": "window"

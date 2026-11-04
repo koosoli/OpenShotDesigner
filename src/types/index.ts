@@ -247,6 +247,8 @@ export interface WallElement extends BaseElement {
 }
 
 export interface DoorElement extends BaseElement {
+  /** Stable wall reference. Null means detached, absent means legacy placement. */
+  hostWallId?: string | null;
   type: 'door';
   width: number;
   swingAngle: number; // 0 to 180 degrees (how far open: 0 = closed, 45 = ajar, 90 = standard, 180 = wide)
@@ -256,6 +258,8 @@ export interface DoorElement extends BaseElement {
 }
 
 export interface WindowElement extends BaseElement {
+  /** Stable wall reference. Null means detached, absent means legacy placement. */
+  hostWallId?: string | null;
   type: 'window';
   width: number;
   depth: number;

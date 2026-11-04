@@ -219,7 +219,7 @@ export const LeftToolbar: React.FC = () => {
     {
       id: 'wall',
       group: 'set',
-      label: 'Wall / Room',
+      label: 'Wall Chain',
       shortcut: 'W',
       icon: <BrickWall className="w-4 h-4" />,
     },

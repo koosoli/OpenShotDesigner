@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.5.1 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.8.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
