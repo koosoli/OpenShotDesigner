@@ -45,6 +45,13 @@ test.describe('phone layout', () => {
     await createExampleProject(page, 'Phone Layout');
     expect(await unreachable(page, '#top-navbar')).toEqual([]);
 
+    await page.getByRole('button', { name: 'Live 3D', exact: true }).click();
+    await page.getByRole('button', { name: 'CAD preview', exact: true }).click();
+    const preview = page.getByRole('dialog', { name: '3D floor plan preview' });
+    await expect(preview).toBeVisible();
+    await preview.getByRole('button', { name: 'Close 3D floor plan preview' }).click();
+    await page.getByRole('button', { name: 'Live 3D', exact: true }).click();
+
     const trigger = page.getByRole('button', { name: /^Production modules/ });
     await trigger.click();
     const menu = page.locator('#right-sidebar div.z-50').first();

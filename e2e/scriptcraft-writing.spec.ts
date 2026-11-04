@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import type { Project } from '../src/types';
+import { CURRENT_PROJECT_SCHEMA_VERSION } from '../src/domain/migrations/types';
 
 test.beforeEach(async ({ page }) => {
   page.on('pageerror', (error) => console.error('Screenplay browser error:', error.message));
@@ -71,7 +72,7 @@ test('writing tools preserve styles, anchors, variants, IDs and scene structure 
   await tools.getByText(/^Scene cards and outline/).click();
   await tools.getByRole('button', { name: 'Move scene down', exact: true }).first().click();
   const after = await exportProject(page);
-  expect(after.schemaVersion).toBe(38);
+  expect(after.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   expect(after.scriptLines?.filter((l) => l.type === 'scene').map((l) => l.id)).toEqual(before.scriptLines?.filter((l) => l.type === 'scene').map((l) => l.id).reverse());
   const action = after.scriptLines?.find((l) => l.bookmark === 'Prop review');
   expect(action?.id).toBe(before.scriptLines?.find((l) => l.text === 'Coffee waits.')?.id);

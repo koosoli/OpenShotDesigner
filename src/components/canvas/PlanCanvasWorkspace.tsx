@@ -3,6 +3,7 @@ import { Box } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { buildAssetPreview } from '../../domain/plan/assetPreview';
 import { buildWallPreview, projectWallPreview } from '../../domain/plan/wallPreview';
+import { PlanPreviewButton } from './PlanPreviewButton';
 import { SplitCanvasArea } from './SplitCanvasArea';
 import { useConstructCadFrame } from './useConstructCadFrame';
 
@@ -118,15 +119,18 @@ export function PlanCanvasWorkspace() {
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         <SplitCanvasArea />
-        <button
-          type="button"
-          aria-pressed={showLive3D}
-          onClick={() => setShowLive3D((open) => !open)}
-          className="absolute right-2 top-2 z-20 flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-100 shadow-md hover:bg-slate-700 aria-pressed:border-sky-400"
-        >
-          <Box className="size-3.5" aria-hidden="true" />
-          Live 3D
-        </button>
+        <div className="absolute right-2 top-2 z-20 flex items-center gap-2">
+          {showLive3D && <PlanPreviewButton />}
+          <button
+            type="button"
+            aria-pressed={showLive3D}
+            onClick={() => setShowLive3D((open) => !open)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-100 shadow-md hover:bg-slate-700 aria-pressed:border-sky-400"
+          >
+            <Box className="size-3.5" aria-hidden="true" />
+            Live 3D
+          </button>
+        </div>
       </div>
       {showLive3D && <LiveWallView />}
     </div>

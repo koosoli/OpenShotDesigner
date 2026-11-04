@@ -30,7 +30,6 @@ export function PlanPreviewButton() {
     <>
       <button
         type="button"
-        aria-label="Open 3D floor plan preview"
         title="3D floor plan preview"
         onClick={() => {
           dialogRef.current?.showModal();
@@ -41,7 +40,7 @@ export function PlanPreviewButton() {
           : 'border-slate-700 bg-slate-800 text-sky-300 hover:bg-slate-700'}`}
       >
         <Box className="size-3.5" aria-hidden="true" />
-        3D
+        CAD preview
       </button>
       <dialog
         ref={dialogRef}
