@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ActorElement, CameraElement, GridSettings, WallElement, WindowElement } from '../../types';
-import { buildViewfinderMesh, getViewfinderPose, VIEWFINDER_FLOOR, VIEWFINDER_SKY } from './viewfinderScene';
+import { migrateProject } from '../migrations';
+import { buildViewfinderMesh, getViewfinderPose, getViewfinderTilt, VIEWFINDER_FLOOR, VIEWFINDER_SKY } from './viewfinderScene';
 
 const grid: GridSettings = { unit: 'm', pixelsPerUnit: 100, size: 20, snap: true, showGrid: true };
 const camera: CameraElement = {
@@ -10,6 +11,24 @@ const camera: CameraElement = {
 };
 
 describe('3D viewfinder scene', () => {
+  it('migrates schema 39 projects without replacing existing framing or wall defaults', () => {
+    const legacyCamera = { ...camera, cameraHeight: 'High Angle' as const };
+    const legacy = { schemaVersion: 39, setups: [{ elements: [legacyCamera, { id: 'wall', type: 'wall' }] }] };
+    const { project, migratedFrom } = migrateProject(legacy);
+    expect(migratedFrom).toBe(39);
+    expect(project).toEqual({ ...legacy, schemaVersion: 40 });
+    expect(getViewfinderTilt(legacyCamera)).toBe(-24);
+  });
+
+  it('applies signed tilt independently of the height preset and restores the preset on reset', () => {
+    const raised = { ...camera, cameraHeight: 'High Angle' as const, tiltDeg: 30 };
+    const pose = getViewfinderPose(raised, grid, 'start')!;
+    expect(pose.eye[2]).toBe(2350);
+    expect(pose.forward[2]).toBeCloseTo(.5);
+    expect(getViewfinderTilt({ ...raised, tiltDeg: 0 })).toBe(0);
+    expect(getViewfinderTilt({ ...raised, tiltDeg: -100 })).toBe(-90);
+    expect(getViewfinderTilt({ ...raised, tiltDeg: null })).toBe(-24);
+  });
   it('converts the plan position and aims at the selected waypoint', () => {
     const moving = { ...camera, path: [{ id: 'end', x: 50, y: 100, rotation: 90, beat: 2 }] };
     expect(getViewfinderPose(moving, grid, 'start')?.eye).toEqual([100, 250, 1535]);

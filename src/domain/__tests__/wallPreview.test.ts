@@ -15,6 +15,17 @@ const window: WindowElement = {
 };
 
 describe('wall preview', () => {
+  it('uses explicit wall heights and clips hosted panels to the top of short walls', () => {
+    const short = { ...wall, heightMm: 1600 };
+    const solids = buildWallPreview([short, door, window], undefined, grid, true);
+    expect(Math.max(...solids.flatMap(({ corners }) => corners.map(({ z }) => z)))).toBe(1600);
+    const windowPanel = solids.find(({ wallId }) => wallId === window.id)!;
+    expect(windowPanel.corners[0].z).toBe(900);
+    expect(windowPanel.corners[4].z).toBe(1600);
+    expect(buildWallPreview([{ ...wall, heightMm: 800 }, window], undefined, grid, true)).toHaveLength(1);
+    const [tall] = buildWallPreview([{ ...wall, heightMm: 3800 }], undefined, grid);
+    expect(tall.corners[4].z).toBe(3800);
+  });
   it('preserves a lintel above a door and a sill and lintel around a window', () => {
     const solids = buildWallPreview([wall, door, window], undefined, grid);
     expect(solids.map(({ corners: [base, end, , , top] }) => [base.x, end.x, base.z, top.z])).toEqual([

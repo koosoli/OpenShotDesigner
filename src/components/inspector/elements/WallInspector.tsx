@@ -15,6 +15,8 @@ import type { WallElement } from '../../../types';
 import { DoorClosed, AppWindow, Square } from 'lucide-react';
 import { RubricSection } from '../shared/InspectorPrimitives';
 import { resizeWallToLength, wallAxis } from '../../../domain/plan/wallDimensions';
+import { getWallPreviewHeightMm, isValidWallHeightMm } from '../../../domain/plan/planArchitecture';
+import { convertLength } from '../../../domain/units';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
 
 interface WallInspectorProps {
@@ -29,6 +31,7 @@ export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) =
   const wallLen = wallAxis(wall).length;
   const calibrated = Number.isFinite(grid.pixelsPerUnit) && grid.pixelsPerUnit > 0;
   const displayLength = calibrated ? Number((wallLen / grid.pixelsPerUnit).toFixed(4)) : undefined;
+  const displayHeight = Number(convertLength(getWallPreviewHeightMm(wall), 'mm', grid.unit).toFixed(4));
   return (
     <div className="space-y-3 pt-1">
       <RubricSection
@@ -71,6 +74,32 @@ export const WallInspector: React.FC<WallInspectorProps> = ({ wall, isLight }) =
             className={`w-full border rounded p-1.5 font-mono text-xs ${
               isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-950 text-slate-200 border-slate-700'
             }`}
+          />
+        </div>
+
+        <div>
+          <label htmlFor={`${fieldId}-height`} className="opacity-60 block mb-1">Wall height ({grid.unit})</label>
+          <input
+            id={`${fieldId}-height`}
+            key={`${wall.id}-${grid.unit}-${displayHeight}`}
+            type="number"
+            step="any"
+            min={0}
+            defaultValue={displayHeight}
+            onBlur={(event) => {
+              const input = event.currentTarget;
+              if (input.valueAsNumber === displayHeight) return;
+              const heightMm = convertLength(input.valueAsNumber, grid.unit, 'mm');
+              if (isValidWallHeightMm(heightMm)) updateElement(wall.id, { heightMm });
+              else input.value = String(displayHeight);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== 'Escape') return;
+              event.stopPropagation();
+              if (event.key === 'Escape') event.currentTarget.value = String(displayHeight);
+              event.currentTarget.blur();
+            }}
+            className="w-full border rounded p-1.5 font-mono text-xs bg-field text-ink border-line-strong"
           />
         </div>
 

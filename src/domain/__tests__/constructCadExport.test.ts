@@ -16,6 +16,13 @@ const window: WindowElement = {
 };
 
 describe('ConstructCAD handoff', () => {
+  it('exports the saved wall height and fits an opening to a shorter wall', () => {
+    const result = buildConstructCadMacro('Studio', [{ ...wall, heightMm: 1800 }, window], undefined, grid);
+    expect(result?.skippedOpenings).toBe(0);
+    expect(result?.text).toContain('"height":1.8');
+    expect(result?.text).toContain('"name":"Height","value":0.9');
+    expect(buildConstructCadMacro('Low wall', [{ ...wall, heightMm: 800 }, window], undefined, grid)?.skippedOpenings).toBe(1);
+  });
   it('emits editable wall and hosted opening commands in calibrated meters', () => {
     const result = buildConstructCadMacro('Studio "A"\nStage', [wall, door, window], undefined, grid);
     const commands = result?.text.split('\n').filter((line) => line.startsWith('{')).map((line) => JSON.parse(line));

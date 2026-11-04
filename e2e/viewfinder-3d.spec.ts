@@ -15,11 +15,18 @@ test('renders the 3D camera frame, reframes with the lens and saves it to the st
   await expect(scene).toBeVisible();
   const image = () => scene.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
   const wide = await image();
+  const tilt = finder.getByRole('slider', { name: 'Tilt', exact: true });
+  await tilt.press('PageDown');
+  expect(Number(await tilt.inputValue())).toBeLessThan(0);
+  expect(await image()).not.toBe(wide);
+  await finder.getByRole('button', { name: 'Reset tilt', exact: true }).click();
+  await expect(tilt).toHaveValue('0');
   await finder.getByRole('button', { name: '50mm', exact: true }).click();
   expect(await image()).not.toBe(wide);
 
   await finder.getByRole('combobox', { name: 'Ratio', exact: true }).selectOption('9:16');
   await finder.getByRole('button', { name: '14mm', exact: true }).click();
+  await tilt.press('PageDown');
   await expect(scene).toHaveAttribute('height', '960');
   await expect(scene).toHaveAttribute('width', '540');
   const hasScenePixels = await scene.evaluate((element) => {

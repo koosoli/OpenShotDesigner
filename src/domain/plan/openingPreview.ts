@@ -1,11 +1,10 @@
 import type { DoorElement } from '../../types';
 import type { PreviewSolid } from './assetPreview';
-import { PREVIEW_DIMENSIONS_MM, type ArchitectureWall } from './planArchitecture';
+import type { ArchitectureWall } from './planArchitecture';
 import type { WallOpening } from './wallOpenings';
 
 /** Schematic panels using the same hosted opening intervals as the wall cut. */
-export function previewOpening(wall: ArchitectureWall, opening: WallOpening, door?: DoorElement): PreviewSolid[] {
-  const { doorHeight, windowSill, windowHead } = PREVIEW_DIMENSIONS_MM;
+export function previewOpening(wall: ArchitectureWall, opening: WallOpening & { bottom: number; top: number }, door?: DoorElement): PreviewSolid[] {
   const ux = (wall.end.x - wall.start.x) / wall.lengthMm;
   const uy = (wall.end.y - wall.start.y) / wall.lengthMm;
   const width = (opening.end - opening.start) * wall.lengthMm;
@@ -26,7 +25,7 @@ export function previewOpening(wall: ArchitectureWall, opening: WallOpening, doo
   return [{
     wallId: opening.elementId,
     color: isDoor ? '#a47148' : '#7dd3fc',
-    corners: (isDoor ? [0, doorHeight] : [windowSill, windowHead]).flatMap((z) =>
+    corners: [opening.bottom, opening.top].flatMap((z) =>
       [[lo, -thickness / 2], [hi, -thickness / 2], [hi, thickness / 2], [lo, thickness / 2]].map(([u, v]) =>
         ({ x: x + dx * u - dy * v, y: y + dy * u + dx * v, z }))),
   }];

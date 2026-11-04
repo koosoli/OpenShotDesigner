@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.9.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.10.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ---
 
@@ -286,6 +286,8 @@ board — in one print job, with your production logo on the paperwork.
 ### Floor plan & blocking
 
 - **Top-down floor plan canvas** — drag actors, cameras, and props onto a scaled room; move, resize, and rotate anything.
+- **Wall height** — select a wall and enter its height under **Wall Dimensions & Inserts**. The height is used by Live 3D, the viewfinder and ConstructCAD export.
+- **3D vehicles** — existing sedan, SUV, police cruiser, grip truck and broadcast vehicle placements have distinct 3D models in Live 3D and the viewfinder.
 - **Split screen** — up to four scenes side by side, each with its own pan and zoom, a drop-down naming the scene it shows, and dividers you drag to resize. Work in any of them — a click or drag in a pane edits that scene — and drag objects from one scene to another to move them (<kbd>Alt</kbd> copies).
 - **Rotation reads from the camera side** — 0° is facing down the plan for actors, cameras and lights (90° left, 180° up, 270° right).
 - **Stacking over walls** — Bring Forward / Bring to Front lifts a prop, shape, light or cable over the walls; Send Backward / Send to Back puts it under them again.
@@ -313,7 +315,7 @@ board — in one print job, with your production logo on the paperwork.
 
 ### Storyboard & viewfinder camera
 
-- **3D viewfinder** — frame the plan through the selected camera and change the lens, sensor or aspect ratio to see the result. **Board this frame** saves the preview to the selected storyboard slot. The device camera and attached artwork are available in the same finder. Browsers without WebGL use the 2D blocking view.
+- **3D viewfinder** — frame the plan through the selected camera with pan, tilt, lens, sensor and aspect ratio controls. **Reset tilt** returns the camera to its height preset's angle. **Board this frame** saves the preview to the selected storyboard slot. The device camera and attached artwork are available in the same finder. Browsers without WebGL use the 2D blocking view.
 
 - **A tab of its own** — "Board" sits between Shot List and Script: the scene as a wall of frames, one per shot.
 - **Same data as everything else** — "Add frame" creates a shot *and* drops its camera on the floor plan; shots added in the shot list or lined from the script appear here automatically, blank until artwork is attached.

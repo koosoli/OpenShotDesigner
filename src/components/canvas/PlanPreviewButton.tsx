@@ -119,12 +119,12 @@ export function PlanPreviewButton() {
                 <Download className="size-4" aria-hidden="true" /> Export for ConstructCAD
               </button>
               {cadExport.skippedOpenings > 0 && (
-                <span className="text-xs opacity-75">{cadExport.skippedOpenings} openings omitted because their host was missing, ambiguous, or had insufficient end clearance.</span>
+                <span className="text-xs opacity-75">{cadExport.skippedOpenings} openings omitted because their host was missing, ambiguous, or had insufficient clearance.</span>
               )}
             </div>
           )}
           <p className="text-xs opacity-75">
-            Preview assumes {wallHeight} mm walls, {doorHeight} mm doors and windows from {windowSill} to {windowHead} mm above the floor.
+            Default wall height is {wallHeight} mm. Doors are up to {doorHeight} mm tall and windows start at {windowSill} mm and extend up to {windowHead} mm above the floor.
           </p>
         </footer>
       </dialog>

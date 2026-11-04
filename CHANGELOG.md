@@ -4,6 +4,22 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] — 2026-11-04
+
+### Added
+
+- The 3D viewfinder has a per-camera tilt control with a reset to the height
+  preset's angle. Storyboard capture uses the tilted view.
+- The wall inspector accepts a height in the plan's units. Live 3D, the
+  viewfinder and ConstructCAD exports use the saved height.
+- Sedan, SUV, police cruiser, grip truck and broadcast vehicle placements
+  have distinct models in Live 3D and the viewfinder.
+
+### Changed
+
+- Project schema 40 stores optional tilt and wall height. Earlier projects
+  retain their framing presets and default wall heights.
+
 ## [1.9.0] — 2026-11-04
 
 ### Added

@@ -1,5 +1,5 @@
 import type { FloorPlanElement, GridSettings, PlanLayer } from '../../types';
-import { buildPlanArchitecture, PREVIEW_DIMENSIONS_MM } from './planArchitecture';
+import { buildPlanArchitecture, openingVerticalSpanMm } from './planArchitecture';
 import { previewOpening } from './openingPreview';
 import type { PreviewSolid } from './assetPreview';
 import { resolveStraightWallJoins, wallSpanCorners } from './straightWallJoins';
@@ -12,7 +12,6 @@ export function buildWallPreview(
   includeOpeningPanels = false,
 ): PreviewSolid[] {
   const architecture = buildPlanArchitecture(elements, layers, grid);
-  const { wallHeight, doorHeight, windowSill, windowHead } = PREVIEW_DIMENSIONS_MM;
 
   const walls = architecture?.walls ?? [];
   const lines = walls.map(({ id, start, end, lengthMm, thicknessMm }) => ({
@@ -21,20 +20,23 @@ export function buildWallPreview(
   }));
   const joins = resolveStraightWallJoins(lines);
   return walls.flatMap((wall, wallIndex) => {
-    const cuts = wall.openings;
+    const cuts = wall.openings.flatMap((opening) => {
+      const span = openingVerticalSpanMm(opening.kind, wall.heightMm);
+      return span ? [{ ...opening, ...span }] : [];
+    });
     const stops = [...new Set([0, 1, ...cuts.flatMap(({ start, end }) => [start, end])])].sort((a, b) => a - b);
 
     const solids = stops.slice(1).flatMap((end, index) => {
       const start = stops[index];
       const verticalCuts = cuts.filter((cut) => cut.start < end && cut.end > start).map((cut) => ({
-        start: cut.kind === 'door' ? 0 : windowSill / wallHeight,
-        end: (cut.kind === 'door' ? doorHeight : windowHead) / wallHeight,
+        start: cut.bottom / wall.heightMm,
+        end: cut.top / wall.heightMm,
       }));
       const corners = wallSpanCorners(lines[wallIndex], start, end, joins.get(wall.id));
       return solidWallSpans(verticalCuts).map(({ start: bottom, end: top }) => ({
         wallId: wall.id,
         color: wall.color,
-        corners: [bottom, top].flatMap((height) => corners.map(({ x, y }) => ({ x, y, z: height * wallHeight }))),
+        corners: [bottom, top].flatMap((height) => corners.map(({ x, y }) => ({ x, y, z: height * wall.heightMm }))),
       }));
     });
     return includeOpeningPanels

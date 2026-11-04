@@ -5,6 +5,7 @@ import { convertLength } from '../units';
 import { cameraPreview, cameraSymbolPreview } from './cameraPreview';
 import type { EquipmentPart } from './equipmentPreviewGeometry';
 import { lightPreview, lightingSymbolPreview } from './lightPreview';
+import { vehiclePreview } from './vehiclePreview';
 
 export interface PreviewSolid {
   wallId: string;
@@ -74,13 +75,14 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
         const symbol = element.type === 'shape' && element.symbolId ? getSymbolById(element.symbolId) : undefined;
         const width = Math.max(20, (element.width || 20) * scale);
         const depth = Math.max(20, (element.height || 20) * scale);
-        const equipment = symbol && (lightingSymbolPreview(symbol.id) ?? cameraSymbolPreview(symbol.id));
+        const color = element.color || '#818cf8';
+        const propType = element.type === 'prop' ? element.propType : undefined;
+        const equipment = (symbol && (lightingSymbolPreview(symbol.id) ?? cameraSymbolPreview(symbol.id)))
+          ?? vehiclePreview(propType, symbol?.id, color);
         if (equipment) {
           const { parts, footprint: [length, breadth], facingUp } = equipment;
           return placeEquipment(parts, width / (facingUp ? breadth : length), depth / (facingUp ? length : breadth), facingUp);
         }
-        const color = element.color || '#818cf8';
-        const propType = element.type === 'prop' ? element.propType : undefined;
         const diningKind = propType ?? symbol?.id;
         if (diningKind === 'table_round' || diningKind === 'dining_set' ||
           diningKind === 'arch.dining-table' || diningKind === 'arch.conference-table') {

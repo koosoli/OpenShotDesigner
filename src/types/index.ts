@@ -110,6 +110,8 @@ export interface CameraElement extends BaseElement {
   fovAngle: number; // calculated field of view in degrees
   aspectRatio: AspectRatio;
   cameraHeight: CameraHeight;
+  /** Vertical aim in degrees, positive up. Null or absent uses the framing preset. */
+  tiltDeg?: number | null;
   rigType: CameraRigType;
   throwDistance: number; // visual reach of the FOV cone in pixels
   fovOpacity?: number; // opacity of FOV cone (0.05 to 1.0)
@@ -243,6 +245,8 @@ export interface WallElement extends BaseElement {
   x2: number;
   y2: number;
   thickness: number;
+  /** Explicit wall height in millimetres. Legacy walls may omit it. */
+  heightMm?: number;
   wallColor?: string;
 }
 

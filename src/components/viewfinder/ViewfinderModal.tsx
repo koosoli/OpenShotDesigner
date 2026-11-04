@@ -18,6 +18,7 @@ import {
   SHUTTER_ANGLES,
 } from '../../constants/presets';
 import { BlockingPreview } from './BlockingPreview';
+import { CameraOrientationControls } from './CameraOrientationControls';
 import { ViewfinderScene } from './ViewfinderScene';
 import { ProjectImage } from '../common/ProjectImage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
@@ -1109,19 +1110,15 @@ export const ViewfinderModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Camera Rotation Adjustment */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400 font-medium">Pan Angle:</span>
-            <input
-              type="range"
-              min={0}
-              max={360}
-              value={selectedCamera.rotation}
-              onChange={(e) => updateElement(selectedCamera.id, { rotation: Number(e.target.value) })}
-              className="w-28 accent-sky-500 cursor-pointer"
-            />
-            <span className="text-xs font-mono text-sky-400 w-10">{selectedCamera.rotation}°</span>
-          </div>
+          <CameraOrientationControls
+            camera={selectedCamera}
+            tiltDisabled={!sceneReady || !!liveStream}
+            onPan={(rotation) => updateElement(selectedCamera.id, { rotation })}
+            onTilt={(tiltDeg) => {
+              setShowStoryboard(false);
+              updateElement(selectedCamera.id, { tiltDeg });
+            }}
+          />
 
           {/* Guide Overlay Toggles & Framing Save */}
           <div className="flex items-center gap-2">

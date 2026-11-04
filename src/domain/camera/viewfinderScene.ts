@@ -25,15 +25,25 @@ const framing: Record<CameraElement['cameraHeight'], readonly [heightMm: number,
   "Overhead / Bird's Eye": [3600, -90], "Worm's Eye": [220, 35], 'Dutch Angle': [1535, 0, 14],
 };
 
+export const MAX_CAMERA_TILT_DEG = 90;
+
+export function getViewfinderTilt(camera: Pick<CameraElement, 'cameraHeight' | 'tiltDeg'>): number {
+  const { tiltDeg } = camera;
+  if (typeof tiltDeg === 'number' && Number.isFinite(tiltDeg)) {
+    return Math.max(-MAX_CAMERA_TILT_DEG, Math.min(MAX_CAMERA_TILT_DEG, tiltDeg));
+  }
+  return (framing[camera.cameraHeight] ?? framing['Eye Level'])[1];
+}
+
 export function getViewfinderPose(camera: CameraElement, grid: GridSettings, slotKey: string): ViewfinderPose | null {
   const scale = convertLength(1, grid.unit, 'mm') / grid.pixelsPerUnit;
   const waypoint = camera.path?.find(({ id }) => id === slotKey);
   const { x, y } = waypoint ?? camera;
   const heading = waypoint?.rotation ?? camera.rotation;
   if (!Number.isFinite(scale) || scale <= 0 || ![x, y, heading].every(Number.isFinite)) return null;
-  const [height, pitchDeg, rollDeg = 0] = framing[camera.cameraHeight] ?? framing['Eye Level'];
+  const [height, , rollDeg = 0] = framing[camera.cameraHeight] ?? framing['Eye Level'];
   const yaw = degToRad(heading);
-  const pitch = degToRad(pitchDeg);
+  const pitch = degToRad(getViewfinderTilt(camera));
   const roll = degToRad(rollDeg);
   const cos = Math.cos(yaw);
   const sin = Math.sin(yaw);
@@ -76,7 +86,7 @@ export function buildViewfinderMesh(setup: Pick<SceneSetup, 'elements' | 'layers
   const walls = new Set(elements.filter(({ type }) => type === 'wall').map(({ id }) => id));
   const windows = new Set(elements.filter(({ type }) => type === 'window').map(({ id }) => id));
   const placed = elements.filter(({ id }) => id !== cameraId).map((element) => {
-    if (beat <= 1 || (element.type !== 'actor' && element.type !== 'camera' && element.type !== 'light') || !element.path?.length) return element;
+    if (beat <= 1 || (element.type !== 'actor' && element.type !== 'camera' && element.type !== 'light' && element.type !== 'prop') || !element.path?.length) return element;
     const { position, rotation } = getInterpolatedPositionAndRotation(element, element.rotation, element.path, beat);
     return { ...element, ...position, rotation };
   });

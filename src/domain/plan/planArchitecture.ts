@@ -1,4 +1,4 @@
-import type { DoorElement, FloorPlanElement, GridSettings, PlanLayer } from '../../types';
+import type { DoorElement, FloorPlanElement, GridSettings, PlanLayer, WallElement } from '../../types';
 import { convertLength } from '../units';
 import { resolveWallOpenings, type WallOpening } from './wallOpenings';
 
@@ -9,6 +9,7 @@ export interface ArchitectureWall {
   end: PlanPointMm;
   lengthMm: number;
   thicknessMm: number;
+  heightMm: number;
   color: string;
   openings: WallOpening[];
 }
@@ -33,7 +34,7 @@ export function buildPlanArchitecture(
     const lengthMm = Math.hypot(end.x - start.x, end.y - start.y);
     const thicknessMm = (wall.thickness || 12) * mmPerPlanUnit;
     if (!Number.isFinite(lengthMm) || lengthMm <= 0 || !Number.isFinite(thicknessMm) || thicknessMm <= 0) return [];
-    return [{ id: wall.id, start, end, lengthMm, thicknessMm, color: wall.wallColor || '#64748b', openings: openingsByWall.get(wall.id) ?? [] }];
+    return [{ id: wall.id, start, end, lengthMm, thicknessMm, heightMm: getWallPreviewHeightMm(wall), color: wall.wallColor || '#64748b', openings: openingsByWall.get(wall.id) ?? [] }];
   });
   return { walls: architectureWalls, doorsById, openingCount: openings.length };
 }
@@ -45,3 +46,18 @@ export const PREVIEW_DIMENSIONS_MM = {
   windowSill: 900,
   windowHead: 2100,
 };
+
+export function isValidWallHeightMm(height: number | undefined): height is number {
+  return typeof height === 'number' && Number.isFinite(height) && height > 0;
+}
+
+export function getWallPreviewHeightMm(wall: Pick<WallElement, 'heightMm'>): number {
+  return isValidWallHeightMm(wall.heightMm) ? wall.heightMm : PREVIEW_DIMENSIONS_MM.wallHeight;
+}
+
+export function openingVerticalSpanMm(kind: WallOpening['kind'], wallHeightMm: number) {
+  const { doorHeight, windowSill, windowHead } = PREVIEW_DIMENSIONS_MM;
+  const bottom = kind === 'door' ? 0 : windowSill;
+  const top = Math.min(wallHeightMm, kind === 'door' ? doorHeight : windowHead);
+  return top > bottom ? { bottom, top } : null;
+}

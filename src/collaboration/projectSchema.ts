@@ -299,6 +299,18 @@ export const PROJECT_SCHEMA = {
               }
             ]
           },
+          "tiltDeg": {
+            "kind": "union",
+            "choices": [
+              {
+                "kind": "literal",
+                "value": null
+              },
+              {
+                "kind": "number"
+              }
+            ]
+          },
           "rigType": {
             "kind": "union",
             "choices": [
@@ -1138,6 +1150,9 @@ export const PROJECT_SCHEMA = {
             "kind": "number"
           },
           "thickness": {
+            "kind": "number"
+          },
+          "heightMm": {
             "kind": "number"
           },
           "wallColor": {
