@@ -15,6 +15,13 @@ const window: WindowElement = {
 };
 
 describe('wall preview', () => {
+  it('moves a raised wall and its panels together while applying opening offsets to the cut', () => {
+    const solids = buildWallPreview([{ ...wall, elevationMm: 1000 }, { ...window, elevationMm: 200 }], undefined, grid, true);
+    const panel = solids.find(({ wallId }) => wallId === window.id)!;
+    expect(panel.corners[0].z).toBe(2100);
+    expect(Math.min(...solids.flatMap(({ corners }) => corners.map(({ z }) => z)))).toBe(1000);
+    expect(Math.max(...solids.flatMap(({ corners }) => corners.map(({ z }) => z)))).toBe(3700);
+  });
   it('uses explicit wall heights and clips hosted panels to the top of short walls', () => {
     const short = { ...wall, heightMm: 1600 };
     const solids = buildWallPreview([short, door, window], undefined, grid, true);

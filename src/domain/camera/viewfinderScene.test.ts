@@ -16,7 +16,7 @@ describe('3D viewfinder scene', () => {
     const legacy = { schemaVersion: 39, setups: [{ elements: [legacyCamera, { id: 'wall', type: 'wall' }] }] };
     const { project, migratedFrom } = migrateProject(legacy);
     expect(migratedFrom).toBe(39);
-    expect(project).toEqual({ ...legacy, schemaVersion: 40 });
+    expect(project).toEqual({ ...legacy, schemaVersion: 41 });
     expect(getViewfinderTilt(legacyCamera)).toBe(-24);
   });
 
@@ -32,6 +32,7 @@ describe('3D viewfinder scene', () => {
   it('converts the plan position and aims at the selected waypoint', () => {
     const moving = { ...camera, path: [{ id: 'end', x: 50, y: 100, rotation: 90, beat: 2 }] };
     expect(getViewfinderPose(moving, grid, 'start')?.eye).toEqual([100, 250, 1535]);
+    expect(getViewfinderPose({ ...moving, elevationMm: 3000 }, grid, 'start')?.eye).toEqual([100, 250, 4535]);
     expect(getViewfinderPose(moving, grid, 'start')?.forward).toEqual([1, 0, 0]);
     const end = getViewfinderPose(moving, grid, 'end');
     expect(end?.eye).toEqual([500, 1000, 1535]);

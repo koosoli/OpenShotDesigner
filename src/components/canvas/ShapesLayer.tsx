@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShapeElement } from '../../types';
 import { getSymbolById } from '../../domain/assets';
+import { PlanSymbolGlyph } from './PlanSymbolGlyph';
 
 interface ShapesLayerProps {
   shapes: ShapeElement[];
@@ -61,6 +62,10 @@ const ShapesLayerImpl: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSe
 
       const isSelected = selectedIds.includes(shape.id);
       const symbol = shape.symbolId ? getSymbolById(shape.symbolId) : undefined;
+      const rotation = shape.rotation || 0;
+      const radians = rotation * Math.PI / 180;
+      const labelOffset = (Math.abs(shape.width * Math.sin(radians)) + Math.abs(shape.height * Math.cos(radians))) / 2 + 14 / canvasScale;
+      const label = symbol && (shape.label === symbol.name || shape.label === undefined) ? shape.name : shape.label;
       const fill = shape.filled === false ? 'none' : shape.color || '#38bdf8';
       const stroke = shape.strokeColor || shape.color || '#38bdf8';
       const strokeWidth = shape.strokeWidth ?? 2;
@@ -113,7 +118,7 @@ const ShapesLayerImpl: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSe
               <title>{symbol.name}</title>
               <rect x="0" y="0" width="100" height="100" fill="transparent" />
               {/* Registry markup is curated application data, never project/user HTML. */}
-              <g dangerouslySetInnerHTML={{ __html: symbol.svg }} />
+              <PlanSymbolGlyph symbol={symbol} selected={isSelected} />
             </g>
           ) : shape.shapeType === 'circle' || shape.shapeType === 'ellipse' ? (
             <ellipse rx={shape.width / 2} ry={shape.height / 2} {...common} />
@@ -171,17 +176,22 @@ const ShapesLayerImpl: React.FC<ShapesLayerProps> = ({ shapes, selectedIds, onSe
             />
           )}
 
-          {shape.label && (
+          {label && (
             <text
-              y={shape.height / 2 + 14 / canvasScale}
+              transform={`rotate(${-rotation})`}
+              y={labelOffset}
               textAnchor="middle"
               fontSize={11 / canvasScale}
               fill={hidden ? '#94a3b8' : stroke}
+              stroke="var(--osd-surface, #0f172a)"
+              strokeWidth={3 / canvasScale}
+              paintOrder="stroke fill"
+              strokeLinejoin="round"
               fontFamily="ui-sans-serif, system-ui, sans-serif"
               fontWeight="600"
               className="pointer-events-none"
             >
-              {shape.label}
+              {label}
             </text>
           )}
         </g>

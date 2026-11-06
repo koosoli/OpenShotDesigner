@@ -2,11 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createId } from '../../domain/ids';
 import type { PreviewSolid } from '../../domain/plan/assetPreview';
 
-export function useConstructCadFrame(solids: PreviewSolid[], yaw: number, pitch: number, orbiting: boolean) {
+export function useConstructCadFrame(solids: PreviewSolid[], yaw: number, pitch: number, orbiting: boolean, targetPixels = 1280) {
   const [frame, setFrame] = useState<ImageData>();
   const scene = useMemo(() => ({ id: createId('preview'), solids }), [solids]);
-  const size = orbiting ? 384 : 640;
-  const request = useMemo(() => ({ scene, yaw, pitch, width: size, height: size }), [scene, yaw, pitch, size]);
+  const camera = useMemo(() => ({ scene, yaw, pitch, targetPixels }), [scene, yaw, pitch, targetPixels]);
+  const [settled, setSettled] = useState(camera);
+  useEffect(() => {
+    if (orbiting) return;
+    const timer = setTimeout(() => setSettled(camera), 90);
+    return () => clearTimeout(timer);
+  }, [camera, orbiting]);
+  const size = orbiting || settled !== camera ? 256 : Math.max(640, Math.min(2048, Math.round(targetPixels)));
+  const request = useMemo(() => ({ scene, yaw, pitch, width: size, height: size, interactive: orbiting }), [scene, yaw, pitch, size, orbiting]);
   const latest = useRef(request);
   const wake = useRef<() => void>(() => {});
 
@@ -54,7 +61,10 @@ export function useConstructCadFrame(solids: PreviewSolid[], yaw: number, pitch:
           if (controller.signal.aborted) return;
           if (pixels.length !== pending.width * pending.height * 4) throw new Error('Invalid renderer frame size');
           uploaded = pending.scene;
-          setFrame(new ImageData(pixels, pending.width, pending.height));
+          // During a drag, display completed lightweight frames even if the pointer
+          // has moved ahead. Exact-camera gating would starve continuous motion.
+          // After release, only the final camera may replace the settled view.
+          if (pending === latest.current || (latest.current.interactive && pending.width === 256 && pending.scene === latest.current.scene)) setFrame(new ImageData(pixels, pending.width, pending.height));
         } else if (!needsUpload && recovered !== pending && (response.status === 409 || response.status === 502)) {
           recovered = pending;
           uploaded = undefined;

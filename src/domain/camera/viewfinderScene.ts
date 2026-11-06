@@ -3,6 +3,7 @@ import { calculateFovAngle, degToRad, getInterpolatedPositionAndRotation } from 
 import { buildAssetPreview, type PreviewSolid } from '../plan/assetPreview';
 import { buildWallPreview, prismFaces } from '../plan/wallPreview';
 import { convertLength } from '../units';
+import { elementElevationMm } from '../plan/elevation';
 
 type Vec3 = [number, number, number];
 
@@ -56,7 +57,7 @@ export function getViewfinderPose(camera: CameraElement, grid: GridSettings, slo
   // Generic preview curve. The field of view includes the selected sensor size.
   const wide = Math.max(0, Math.min(1, (hfov - 39) / 45));
   return {
-    eye: [x * scale, y * scale, height], forward,
+    eye: [x * scale, y * scale, height + elementElevationMm(camera)], forward,
     right: [rotate(0, roll), rotate(1, roll), rotate(2, roll)],
     up: [rotate(0, roll + Math.PI / 2), rotate(1, roll + Math.PI / 2), rotate(2, roll + Math.PI / 2)],
     tanHalfHorizontal: Math.tan(degToRad(hfov / 2)),

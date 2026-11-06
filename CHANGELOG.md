@@ -4,6 +4,36 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] — 2026-11-06
+
+### Added
+
+- Shared-library equipment from the production offer, with searchable symbols,
+  physical placement sizes and illustrative 3D models.
+- Dedicated 3D geometry across the built-in asset catalog: stage, audio, grip,
+  furniture, modifiers, hand props, cables, roads and straight/curved dolly tracks.
+- Height above ground for every plan object, with a slider and direct numeric
+  input. Elevation affects Live 3D, the viewfinder and supported CAD export.
+
+### Fixed
+
+- The dolly now has a platform, pedestal and eight track wheels. Its wheel
+  spacing follows the drawn track gauge and its treads sit on the rails.
+  The slider keeps its separate elevated rails, carriage and support stands.
+- Live 3D displays lightweight completed frames during dragging, then sharpens
+  after release instead of freezing while the pointer continues to move.
+- Library labels stay upright below rotated symbols. Named fixture variants use
+  the standard fixture artwork in search, canvas and print.
+
+### Changed
+
+- Settled local 3D renders follow the viewport and display density up to 2048
+  pixels. The virtual viewfinder renders up to 1920 pixels on its longer side.
+- Physical-size placement uses plan calibration; textile sizes such as 8×8 ft
+  retain their real footprint. Existing symbols can reset to physical size.
+- Project schema 41 adds optional object elevation; earlier projects preserve
+  their placements through a deterministic migration. No dependencies added.
+
 ## [1.10.0] — 2026-11-04
 
 ### Added

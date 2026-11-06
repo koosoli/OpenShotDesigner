@@ -111,6 +111,9 @@ export const PROJECT_SCHEMA = {
           "lookAtTargetId": {
             "kind": "string"
           },
+          "elevationMm": {
+            "kind": "number"
+          },
           "id": {
             "kind": "string"
           },
@@ -453,6 +456,9 @@ export const PROJECT_SCHEMA = {
           },
           "ndFilter": {
             "kind": "string"
+          },
+          "elevationMm": {
+            "kind": "number"
           },
           "id": {
             "kind": "string"
@@ -1061,6 +1067,9 @@ export const PROJECT_SCHEMA = {
               ]
             }
           },
+          "elevationMm": {
+            "kind": "number"
+          },
           "id": {
             "kind": "string"
           },
@@ -1157,6 +1166,9 @@ export const PROJECT_SCHEMA = {
           },
           "wallColor": {
             "kind": "string"
+          },
+          "elevationMm": {
+            "kind": "number"
           },
           "id": {
             "kind": "string"
@@ -1295,6 +1307,9 @@ export const PROJECT_SCHEMA = {
               }
             ]
           },
+          "elevationMm": {
+            "kind": "number"
+          },
           "id": {
             "kind": "string"
           },
@@ -1421,6 +1436,9 @@ export const PROJECT_SCHEMA = {
                 "value": true
               }
             ]
+          },
+          "elevationMm": {
+            "kind": "number"
           },
           "id": {
             "kind": "string"
@@ -1835,6 +1853,9 @@ export const PROJECT_SCHEMA = {
               ]
             }
           },
+          "elevationMm": {
+            "kind": "number"
+          },
           "id": {
             "kind": "string"
           },
@@ -1935,6 +1956,9 @@ export const PROJECT_SCHEMA = {
             ]
           },
           "curveOffset": {
+            "kind": "number"
+          },
+          "elevationMm": {
             "kind": "number"
           },
           "id": {
@@ -2120,6 +2144,9 @@ export const PROJECT_SCHEMA = {
           "label": {
             "kind": "string"
           },
+          "elevationMm": {
+            "kind": "number"
+          },
           "id": {
             "kind": "string"
           },
@@ -2261,6 +2288,9 @@ export const PROJECT_SCHEMA = {
               }
             ]
           },
+          "elevationMm": {
+            "kind": "number"
+          },
           "id": {
             "kind": "string"
           },
@@ -2359,6 +2389,9 @@ export const PROJECT_SCHEMA = {
                 "value": "m"
               }
             ]
+          },
+          "elevationMm": {
+            "kind": "number"
           },
           "id": {
             "kind": "string"
@@ -2488,6 +2521,9 @@ export const PROJECT_SCHEMA = {
           },
           "label": {
             "kind": "string"
+          },
+          "elevationMm": {
+            "kind": "number"
           },
           "id": {
             "kind": "string"
@@ -2668,6 +2704,9 @@ export const PROJECT_SCHEMA = {
           },
           "label": {
             "kind": "string"
+          },
+          "elevationMm": {
+            "kind": "number"
           },
           "id": {
             "kind": "string"
@@ -2900,6 +2939,9 @@ export const PROJECT_SCHEMA = {
               ]
             }
           },
+          "elevationMm": {
+            "kind": "number"
+          },
           "id": {
             "kind": "string"
           },
@@ -3021,6 +3063,9 @@ export const PROJECT_SCHEMA = {
                 "value": "highlighter"
               }
             ]
+          },
+          "elevationMm": {
+            "kind": "number"
           },
           "id": {
             "kind": "string"
@@ -3207,6 +3252,9 @@ export const PROJECT_SCHEMA = {
                 "value": "dotted"
               }
             ]
+          },
+          "elevationMm": {
+            "kind": "number"
           },
           "id": {
             "kind": "string"

@@ -1,8 +1,10 @@
 import type { PlanSymbolDefinition } from "./symbolTypes";
+import { OFFER_SYMBOLS } from './offerEquipment';
 
 const stroke = 'fill="none" stroke="currentColor" stroke-width="4"';
 
 export const SYMBOL_REGISTRY: PlanSymbolDefinition[] = [
+  ...OFFER_SYMBOLS,
   // ── Domestic / architecture ────────────────────────────────────────────────
   {
     id: "arch.kitchen-cabinet",

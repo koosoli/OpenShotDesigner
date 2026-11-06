@@ -5,6 +5,8 @@ import { LIGHT_KEYWORDS, PROP_KEYWORDS } from './quickAssetKeywords';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import { getSymbolById, getSymbolsByCategory, searchSymbols } from '../../domain/assets';
 import type { PlanSymbolDefinition } from '../../domain/assets';
+import { PlanSymbolGlyph } from '../canvas/PlanSymbolGlyph';
+import { symbolPlacementSize } from '../../domain/assets/symbolPlacement';
 import { CameraRigType, CableType, FloorPlanElement, PropType, ShapeType } from '../../types';
 import { CABLE_TYPES, CAMERA_RIGS, LIGHT_FIXTURES, PROP_CATALOG } from '../../constants/presets';
 import { FresnelLightIcon, MovieCameraIcon } from '../icons/ProductionIcons';
@@ -166,7 +168,7 @@ function buildAssetList(): QuickAsset[] {
       dimensions: `${p.defaultWidth}×${p.defaultHeight}cm`,
       icon: sharedSymbol ? (
         <svg className="w-5 h-5 text-accent-ink" viewBox="0 0 100 100" aria-hidden="true">
-          <g dangerouslySetInnerHTML={{ __html: sharedSymbol.svg }} />
+          <PlanSymbolGlyph symbol={sharedSymbol} />
         </svg>
       ) : p.type === 'tree' ? <TreePine className="w-4 h-4 text-ok" /> :
         p.category === 'Broadcast & Production' ? <Truck className="w-4 h-4 text-accent-ink" /> :
@@ -569,7 +571,10 @@ export const QuickAssetSearch: React.FC = () => {
     if (item.kind === 'command') {
       item.run();
     } else if (item.kind === 'asset') {
-      quickAddElement(item.asset.buildPartial());
+      const partial = item.asset.buildPartial();
+      const symbol = partial.type === 'shape' && 'symbolId' in partial && partial.symbolId ? getSymbolById(partial.symbolId) : undefined;
+      const size = symbol ? symbolPlacementSize(symbol, activeSetup.gridSettings) : null;
+      quickAddElement({ ...partial, ...size });
     } else {
       const symbol = item.symbol;
       quickAddElement({
@@ -579,6 +584,7 @@ export const QuickAssetSearch: React.FC = () => {
         name: symbol.name,
         width: symbol.defaultWidth,
         height: symbol.defaultHeight,
+        ...symbolPlacementSize(symbol, activeSetup.gridSettings),
         label: symbol.name,
         color: SYMBOL_SHAPE_COLOR,
         filled: false,
@@ -588,7 +594,7 @@ export const QuickAssetSearch: React.FC = () => {
     }
     setQuickSearchOpen(false);
     setQuery('');
-  }, [quickAddElement, setQuickSearchOpen]);
+  }, [quickAddElement, setQuickSearchOpen, activeSetup.gridSettings]);
 
   // Global hotkeys: Cmd/Ctrl+K is the command center; Shift+Space remains the
   // fast floor-plan placement shortcut existing users already know.
@@ -806,7 +812,7 @@ export const QuickAssetSearch: React.FC = () => {
                         aria-hidden="true"
                       >
                         {/* Registry SVG is our own static curated data, not user input. */}
-                        <svg viewBox="0 0 100 100" className="w-7 h-7" dangerouslySetInnerHTML={{ __html: item.symbol.svg }} />
+                        <svg viewBox="0 0 100 100" className="w-7 h-7"><PlanSymbolGlyph symbol={item.symbol} /></svg>
                       </span>
                     )}
                     <div className="flex-1 min-w-0">

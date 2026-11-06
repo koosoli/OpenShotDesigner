@@ -20,7 +20,7 @@ export function ViewfinderScene({ setup, camera, slotKey, aspectRatio, canvasRef
   const pose = useMemo(() => getViewfinderPose(camera, gridSettings, slotKey), [camera, gridSettings, slotKey]);
   const [revision, setRevision] = useState(0);
   const renderer = useRef<ReturnType<typeof createViewfinderRenderer>>(null);
-  const width = Math.min(960, Math.round(960 * aspectRatio));
+  const width = Math.min(1920, Math.round(1920 * aspectRatio));
   const height = Math.round(width / aspectRatio);
 
   useLayoutEffect(() => {

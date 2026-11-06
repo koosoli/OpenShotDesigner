@@ -191,6 +191,9 @@ export function diningFurnitureLayout(
 }
 
 const SYMBOL_MODELS: Partial<Record<string, FurnitureModelId>> = {
+  'arch.kitchen-cabinet': 'kitchen_counter',
+  'arch.kitchen-island': 'kitchen_counter',
+  'arch.kitchen-run': 'kitchen_counter',
   'arch.sofa': 'sofa',
   'arch.bed': 'bed',
   'arch.wardrobe': 'wardrobe',

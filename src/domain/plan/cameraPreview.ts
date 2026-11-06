@@ -1,4 +1,5 @@
 import type { CameraElement } from '../../types';
+import { cameraRigPreview } from './cameraRigPreview';
 import { block, equipmentFinish, prism, rod, stand, type EquipmentPart, type EquipmentSymbol } from './equipmentPreviewGeometry';
 
 const { shell, trim, metal, grip } = equipmentFinish;
@@ -6,7 +7,7 @@ const lensGlass = '#4e9aaf';
 const rigHeight: Partial<Record<CameraElement['cameraHeight'], number>> = { Ground: 165, Knee: 540, Waist: 950, High: 1900 };
 
 /** Generic cinema camera, with illustrative placement for the selected rig. */
-export function cameraPreview(camera: Pick<CameraElement, 'rigType' | 'cameraHeight' | 'color'>): EquipmentPart[] {
+export function cameraPreview(camera: Pick<CameraElement, 'rigType' | 'cameraHeight' | 'color'>, trackGaugeMm?: number): EquipmentPart[] {
   const rig = camera.rigType;
   const height = rigHeight[camera.cameraHeight] ?? (rig === 'Drone' ? 2050 : 1450);
   if (rig === 'Drone') {
@@ -32,7 +33,7 @@ export function cameraPreview(camera: Pick<CameraElement, 'rigType' | 'cameraHei
     block(0, 0, 55, 520, 480, 90, shell),
     rod([0, 0, 145], [0, 0, height], 118, trim),
     ...[-175, 175].flatMap((x) => [-165, 165].map((y) => rod([x, y, 0], [x, y, 66], 87, grip))),
-  ] : floating ? [] : stand(height - 24, height < 300 ? 240 : 410, true);
+  ] : floating ? [] : cameraRigPreview(rig, height, trackGaugeMm) ?? stand(height - 24, height < 300 ? 240 : 410, true);
 
   return [
     ...support,

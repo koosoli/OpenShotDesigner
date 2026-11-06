@@ -6,7 +6,7 @@ import { block, equipmentFinish, prism, rod, stand, type EquipmentPart, type Equ
 const { shell, trim, metal, grip } = equipmentFinish;
 const daylight = '#dbeafe';
 
-function roundHead(height: number, length: number, diameter: number, lens: string, barns = false): EquipmentPart[] {
+export function roundHead(height: number, length: number, diameter: number, lens: string, barns = false): EquipmentPart[] {
   const front = length * .52;
   const edge = diameter * .48;
   const yoke = diameter * .59;
@@ -29,7 +29,7 @@ function roundHead(height: number, length: number, diameter: number, lens: strin
   ];
 }
 
-function panel(height: number, width: number, faceHeight: number, lens: string): EquipmentPart[] {
+export function panel(height: number, width: number, faceHeight: number, lens: string): EquipmentPart[] {
   return [
     block(0, 0, height - faceHeight / 2 - 65, 70, 85, 75, trim),
     block(0, 0, height - faceHeight / 2, 104, width, faceHeight, shell),

@@ -4,6 +4,7 @@ import { previewOpening } from './openingPreview';
 import type { PreviewSolid } from './assetPreview';
 import { resolveStraightWallJoins, wallSpanCorners } from './straightWallJoins';
 import { solidWallSpans } from './wallOpenings';
+import { elementElevationMm } from './elevation';
 
 export function buildWallPreview(
   elements: readonly FloorPlanElement[],
@@ -14,6 +15,7 @@ export function buildWallPreview(
   const architecture = buildPlanArchitecture(elements, layers, grid);
 
   const walls = architecture?.walls ?? [];
+  const elevations = new Map(elements.map((element) => [element.id, elementElevationMm(element)]));
   const lines = walls.map(({ id, start, end, lengthMm, thicknessMm }) => ({
     id, start, end, length: lengthMm, half: thicknessMm / 2,
     dir: { x: (end.x - start.x) / lengthMm, y: (end.y - start.y) / lengthMm },
@@ -21,7 +23,7 @@ export function buildWallPreview(
   const joins = resolveStraightWallJoins(lines);
   return walls.flatMap((wall, wallIndex) => {
     const cuts = wall.openings.flatMap((opening) => {
-      const span = openingVerticalSpanMm(opening.kind, wall.heightMm);
+      const span = openingVerticalSpanMm(opening.kind, wall.heightMm, elevations.get(opening.elementId));
       return span ? [{ ...opening, ...span }] : [];
     });
     const stops = [...new Set([0, 1, ...cuts.flatMap(({ start, end }) => [start, end])])].sort((a, b) => a - b);
@@ -39,9 +41,10 @@ export function buildWallPreview(
         corners: [bottom, top].flatMap((height) => corners.map(({ x, y }) => ({ x, y, z: height * wall.heightMm }))),
       }));
     });
-    return includeOpeningPanels
+    const result = includeOpeningPanels
       ? [...solids, ...cuts.flatMap((opening) => previewOpening(wall, opening, architecture?.doorsById.get(opening.elementId)))]
       : solids;
+    return result.map((solid) => ({ ...solid, corners: solid.corners.map((point) => ({ ...point, z: point.z + wall.elevationMm })) }));
   });
 }
 

@@ -23,7 +23,7 @@ export function constructCadRenderer(root: string): Plugin {
             const header: Buffer | null = child.stdout.read(4);
             if (!header) return;
             length = header.readUInt32LE(0);
-            if (length > 960 * 960 * 4) {
+            if (length > 2048 * 2048 * 4) {
               child.kill();
               return;
             }

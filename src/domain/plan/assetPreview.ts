@@ -6,6 +6,12 @@ import { cameraPreview, cameraSymbolPreview } from './cameraPreview';
 import type { EquipmentPart } from './equipmentPreviewGeometry';
 import { lightPreview, lightingSymbolPreview } from './lightPreview';
 import { vehiclePreview } from './vehiclePreview';
+import { offerEquipmentPreview } from './offerEquipmentPreview';
+import { productionAssetPreview } from './productionAssetPreview';
+import { elementElevationMm } from './elevation';
+import { pathAssetPreview } from './pathAssetPreview';
+import { buildPlanArchitecture } from './planArchitecture';
+import { dollyTrackGaugeMm } from './dollyTrackDimensions';
 
 export interface PreviewSolid {
   wallId: string;
@@ -24,13 +30,15 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
   const scale = convertLength(1, grid.unit, 'mm') / grid.pixelsPerUnit;
   if (!Number.isFinite(scale) || scale <= 0) return [];
   const hidden = new Set(layers?.filter((layer) => !layer.visible).map((layer) => layer.id));
+  const hostedOpenings = new Set(elements.some(e => e.type === 'door' || e.type === 'window')
+    ? buildPlanArchitecture(elements, layers, grid)?.walls.flatMap(w => w.openings.map(o => o.elementId)) : []);
   return elements.flatMap((element) => {
     if (element.visible === false || hidden.has(element.layerId ?? '') || ![element.x, element.y, element.rotation].every(Number.isFinite)) return [];
     const angle = element.rotation * Math.PI / 180;
     const c = Math.cos(angle);
     const s = Math.sin(angle);
     const place = (u: number, v: number, z: number) => ({
-      x: element.x * scale + u * c - v * s, y: element.y * scale + u * s + v * c, z,
+      x: element.x * scale + u * c - v * s, y: element.y * scale + u * s + v * c, z: z + elementElevationMm(element),
     });
     const placeEquipment = (parts: EquipmentPart[], scaleX = 1, scaleY = 1, facingUp = false): PreviewSolid[] => parts.map(({ color, corners }) => ({
       wallId: element.id,
@@ -58,6 +66,21 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
       };
     };
     switch (element.type) {
+      case 'door':
+      case 'window': {
+        // Hosted panels are already emitted by buildWallPreview. Detached ones
+        // still need a model, rather than disappearing outside a wall.
+        if (hostedOpenings.has(element.id)) return [];
+        const model = productionAssetPreview(undefined, element.type === 'door' ? 'arch.single-door' : 'arch.window', '#a5b4c3');
+        return model ? placeEquipment(model.parts, element.width * scale / model.footprint[0]) : [];
+      }
+      case 'track':
+      case 'road':
+      case 'cable':
+        // Endpoint paths already use world coordinates, unlike local asset models.
+        return pathAssetPreview(element, scale).map(part => ({ ...part, wallId: element.id,
+          corners: part.corners.map(p => ({ ...p, z: p.z + elementElevationMm(element) })),
+        }));
       case 'actor': {
         const sourceHeight = element.heightCm;
         const height = sourceHeight && Number.isFinite(sourceHeight) && sourceHeight > 0 ? sourceHeight * 10 : 1750;
@@ -77,8 +100,9 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
         const depth = Math.max(20, (element.height || 20) * scale);
         const color = element.color || '#818cf8';
         const propType = element.type === 'prop' ? element.propType : undefined;
-        const equipment = (symbol && (lightingSymbolPreview(symbol.id) ?? cameraSymbolPreview(symbol.id)))
-          ?? vehiclePreview(propType, symbol?.id, color);
+        const equipment = (symbol && (offerEquipmentPreview(symbol.id) ?? lightingSymbolPreview(symbol.id) ?? cameraSymbolPreview(symbol.id)))
+          ?? vehiclePreview(propType, symbol?.id, color)
+          ?? productionAssetPreview(propType, symbol?.id, color);
         if (equipment) {
           const { parts, footprint: [length, breadth], facingUp } = equipment;
           return placeEquipment(parts, width / (facingUp ? breadth : length), depth / (facingUp ? length : breadth), facingUp);
@@ -116,7 +140,7 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
         return [box(width, depth, 0, element.type === 'shape' && !symbol ? 30 : 720, color)];
       }
       case 'camera':
-        return placeEquipment(cameraPreview(element));
+        return placeEquipment(cameraPreview(element, dollyTrackGaugeMm(scale)));
       case 'light':
         return placeEquipment(lightPreview(element));
       default:

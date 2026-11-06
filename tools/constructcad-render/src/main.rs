@@ -113,7 +113,7 @@ fn render(
     let Some(scene) = uploaded.as_ref().filter(|scene| scene.id == frame.scene_id) else {
         return Err("scene_missing".into());
     };
-    let size = [frame.width.clamp(16, 960), frame.height.clamp(16, 960)];
+    let size = [frame.width.clamp(16, 2048), frame.height.clamp(16, 2048)];
     let aspect = f64::from(size[0]) / f64::from(size[1]);
     let camera = CameraState {
         target: scene.target,

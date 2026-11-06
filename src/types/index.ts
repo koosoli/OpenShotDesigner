@@ -42,6 +42,8 @@ export interface ActorSpeechCue {
 }
 
 export interface BaseElement {
+  /** Vertical offset from normal placement in millimetres. Absent means no offset. */
+  elevationMm?: number;
   id: string;
   type: ElementType;
   x: number;

@@ -2,6 +2,7 @@ import type { FloorPlanElement, GridSettings, PlanLayer } from '../../types';
 import { HOST_CLEARANCE_MM } from './editWallOpenings';
 import { getClosestPointOnSegment } from '../../utils/geometry';
 import { buildPlanArchitecture, openingVerticalSpanMm } from './planArchitecture';
+import { elementElevationMm } from './elevation';
 
 type Command = { command: string; args: Record<string, unknown> };
 const BASE_TYPES = {
@@ -24,6 +25,7 @@ export function buildConstructCadMacro(
   if (!architecture || !walls.length) return null;
 
   const commands: Command[] = [{ command: 'project_info_set', args: { name: title } }];
+  const elevations = new Map(elements.map((element) => [element.id, elementElevationMm(element)]));
   const types = new Map<string, string>();
   let exportedOpenings = 0;
 
@@ -51,7 +53,8 @@ export function buildConstructCadMacro(
   for (const wall of walls) {
     commands.push({
       command: 'wall_create',
-      args: { start: cadPoint(wall.start), end: cadPoint(wall.end), height: metres(wall.heightMm), type: ensureType('wall', wall.thicknessMm) },
+      args: { start: cadPoint(wall.start), end: cadPoint(wall.end), height: metres(wall.heightMm), type: ensureType('wall', wall.thicknessMm),
+        ...(wall.elevationMm ? { base_offset: metres(wall.elevationMm) } : {}) },
     });
   }
 
@@ -59,7 +62,7 @@ export function buildConstructCadMacro(
     const dx = wall.end.x - wall.start.x;
     const dy = wall.end.y - wall.start.y;
     for (const opening of wall.openings) {
-      const span = openingVerticalSpanMm(opening.kind, wall.heightMm);
+      const span = openingVerticalSpanMm(opening.kind, wall.heightMm, elevations.get(opening.elementId));
       if (!span) continue;
       const startMm = opening.start * wall.lengthMm;
       const endMm = opening.end * wall.lengthMm;

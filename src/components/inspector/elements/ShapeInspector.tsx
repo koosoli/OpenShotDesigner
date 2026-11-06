@@ -17,6 +17,8 @@ import { Circle } from 'lucide-react';
 import { RubricSection } from '../shared/InspectorPrimitives';
 import { ShapeType } from '../../../types';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
+import { getSymbolById } from '../../../domain/assets';
+import { symbolPlacementSize } from '../../../domain/assets/symbolPlacement';
 
 const SHAPE_TYPES: ShapeType[] = [
   'line',
@@ -38,7 +40,9 @@ interface ShapeInspectorProps {
 export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }) => {
   const fieldId = useId();
   const selectClass = inspectorSelectClass(isLight);
-  const { updateElement } = useFloorPlan();
+  const { activeSetup, updateElement } = useFloorPlan();
+  const symbol = shape.symbolId ? getSymbolById(shape.symbolId) : undefined;
+  const physicalSize = symbol ? symbolPlacementSize(symbol, activeSetup.gridSettings) : null;
   const fill = shape.color || '#38bdf8';
   const strokeColor = shape.strokeColor || fill;
   const fillOpacity = shape.opacity ?? 0.3;
@@ -57,6 +61,12 @@ export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }
 
   return (
     <div className="space-y-3 pt-1">
+      {physicalSize && (
+        <button type="button" onClick={() => updateElement(shape.id, physicalSize)}
+          className="w-full rounded border border-line-strong bg-field px-3 py-2 text-xs text-ink">
+          Reset to physical size
+        </button>
+      )}
       <RubricSection
             persistKey="shapeinspector.shape-geometry-styling"
         title="Shape Geometry & Styling"

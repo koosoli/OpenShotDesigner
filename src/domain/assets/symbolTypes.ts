@@ -1,3 +1,5 @@
+import type { LightFixtureType } from '../../types';
+
 export interface PlanPortAnchor {
   id: string;
   x: number;
@@ -15,6 +17,8 @@ export interface PlanSymbolDefinition {
   keywords: string[];
   /** SVG path/markup fragment (viewBox 0 0 100 100). Keep top-down plan readable at 25% zoom. */
   svg: string;
+  /** Use the existing fixture drawing for named variants of a standard light. */
+  fixtureGlyph?: LightFixtureType;
   defaultWidth: number;
   defaultHeight: number;
   defaultPhysicalSize?: { widthMm?: number; depthMm?: number };

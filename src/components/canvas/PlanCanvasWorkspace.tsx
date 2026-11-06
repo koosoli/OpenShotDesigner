@@ -14,13 +14,27 @@ function LiveWallView() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [orbiting, setOrbiting] = useState(false);
+  const [viewportPixels, setViewportPixels] = useState(1280);
+  const viewport = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = viewport.current;
+    if (!element) return;
+    const measure = () => {
+      const { width, height } = element.getBoundingClientRect();
+      setViewportPixels(Math.max(640, Math.min(2048, Math.ceil(Math.min(width, height) * window.devicePixelRatio * Math.max(1, zoom)))));
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    measure();
+    return () => observer.disconnect();
+  }, [zoom]);
   const drag = useRef<{ id: number; x: number; y: number; orbit: boolean } | null>(null);
   const { elements, layers, gridSettings } = activeSetup;
   const solids = useMemo(() => [
     ...buildWallPreview(elements, layers, gridSettings, true),
     ...buildAssetPreview(elements, layers, gridSettings),
   ], [elements, layers, gridSettings]);
-  const nativeFrame = useConstructCadFrame(solids, angle, tilt, orbiting);
+  const nativeFrame = useConstructCadFrame(solids, angle, tilt, orbiting, viewportPixels);
   const nativeCanvas = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
     if (nativeFrame) nativeCanvas.current?.getContext('2d')?.putImageData(nativeFrame, 0, 0);
@@ -41,6 +55,7 @@ function LiveWallView() {
         </label>
       </div>
       <div
+        ref={viewport}
         className="relative min-h-0 w-full flex-1 overflow-hidden overscroll-contain touch-none select-none cursor-grab active:cursor-grabbing"
         onContextMenu={(event) => event.preventDefault()}
         onPointerDown={(event) => {
@@ -74,6 +89,13 @@ function LiveWallView() {
             setOrbiting(false);
           }
         }}
+        onPointerUp={(event) => {
+          if (drag.current?.id !== event.pointerId) return;
+          drag.current = null;
+          setOrbiting(false);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => { drag.current = null; setOrbiting(false); }}
         onWheel={(event) => {
           const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? event.currentTarget.clientHeight : 1);
           setZoom((value) => Math.max(.25, Math.min(12, value * Math.exp(-delta * .0025))));

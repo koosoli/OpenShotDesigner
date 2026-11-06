@@ -1,6 +1,7 @@
 import type { DoorElement, FloorPlanElement, GridSettings, PlanLayer, WallElement } from '../../types';
 import { convertLength } from '../units';
 import { resolveWallOpenings, type WallOpening } from './wallOpenings';
+import { elementElevationMm } from './elevation';
 
 type PlanPointMm = { x: number; y: number };
 export interface ArchitectureWall {
@@ -10,6 +11,7 @@ export interface ArchitectureWall {
   lengthMm: number;
   thicknessMm: number;
   heightMm: number;
+  elevationMm: number;
   color: string;
   openings: WallOpening[];
 }
@@ -34,7 +36,7 @@ export function buildPlanArchitecture(
     const lengthMm = Math.hypot(end.x - start.x, end.y - start.y);
     const thicknessMm = (wall.thickness || 12) * mmPerPlanUnit;
     if (!Number.isFinite(lengthMm) || lengthMm <= 0 || !Number.isFinite(thicknessMm) || thicknessMm <= 0) return [];
-    return [{ id: wall.id, start, end, lengthMm, thicknessMm, heightMm: getWallPreviewHeightMm(wall), color: wall.wallColor || '#64748b', openings: openingsByWall.get(wall.id) ?? [] }];
+    return [{ id: wall.id, start, end, lengthMm, thicknessMm, heightMm: getWallPreviewHeightMm(wall), elevationMm: elementElevationMm(wall), color: wall.wallColor || '#64748b', openings: openingsByWall.get(wall.id) ?? [] }];
   });
   return { walls: architectureWalls, doorsById, openingCount: openings.length };
 }
@@ -55,9 +57,9 @@ export function getWallPreviewHeightMm(wall: Pick<WallElement, 'heightMm'>): num
   return isValidWallHeightMm(wall.heightMm) ? wall.heightMm : PREVIEW_DIMENSIONS_MM.wallHeight;
 }
 
-export function openingVerticalSpanMm(kind: WallOpening['kind'], wallHeightMm: number) {
+export function openingVerticalSpanMm(kind: WallOpening['kind'], wallHeightMm: number, offsetMm = 0) {
   const { doorHeight, windowSill, windowHead } = PREVIEW_DIMENSIONS_MM;
-  const bottom = kind === 'door' ? 0 : windowSill;
-  const top = Math.min(wallHeightMm, kind === 'door' ? doorHeight : windowHead);
+  const bottom = Math.max(0, (kind === 'door' ? 0 : windowSill) + offsetMm);
+  const top = Math.min(wallHeightMm, (kind === 'door' ? doorHeight : windowHead) + offsetMm);
   return top > bottom ? { bottom, top } : null;
 }

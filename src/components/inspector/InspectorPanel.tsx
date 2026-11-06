@@ -1,3 +1,4 @@
+import { ElementPositionControls } from './shared/ElementPositionControls';
 import React, { useId } from 'react';
 import { LANGUAGE_SWITCHING_ENABLED } from '../../config/features';
 import { useFloorPlan } from '../../context/FloorPlanContext';
@@ -2111,6 +2112,8 @@ export const InspectorPanel: React.FC = () => {
           />
         </div>
 
+        <ElementPositionControls element={el} />
+
         {/* Position, Rotation & Transform Rubric */}
         <RubricSection
             persistKey="inspectorpanel.position-orientation"
@@ -2124,32 +2127,6 @@ export const InspectorPanel: React.FC = () => {
           defaultOpen={false}
           isLight={isLight}
         >
-          {/* Position Controls */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label htmlFor={`${fieldId}-pos-x-px`} className="opacity-60 block text-[10px]">POS X (px)</label>
-              <input id={`${fieldId}-pos-x-px`}
-                type="number"
-                value={Math.round(el.x)}
-                onChange={(e) => updateElement(el.id, { x: Number(e.target.value) })}
-                className={`w-full border rounded px-2 py-1 font-mono text-xs ${
-                  'bg-field text-ink border-line-strong'
-                }`}
-              />
-            </div>
-            <div>
-              <label htmlFor={`${fieldId}-pos-y-px`} className="opacity-60 block text-[10px]">POS Y (px)</label>
-              <input id={`${fieldId}-pos-y-px`}
-                type="number"
-                value={Math.round(el.y)}
-                onChange={(e) => updateElement(el.id, { y: Number(e.target.value) })}
-                className={`w-full border rounded px-2 py-1 font-mono text-xs ${
-                  'bg-field text-ink border-line-strong'
-                }`}
-              />
-            </div>
-          </div>
-
           {/* Rotation & Orientation Section */}
           {el.type !== 'wall' && el.type !== 'track' && el.type !== 'road' && el.type !== 'measurement' && el.type !== 'arrow' && (
             <div className="space-y-2 pt-1">

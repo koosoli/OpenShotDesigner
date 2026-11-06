@@ -27,8 +27,8 @@ test('renders the 3D camera frame, reframes with the lens and saves it to the st
   await finder.getByRole('combobox', { name: 'Ratio', exact: true }).selectOption('9:16');
   await finder.getByRole('button', { name: '14mm', exact: true }).click();
   await tilt.press('PageDown');
-  await expect(scene).toHaveAttribute('height', '960');
-  await expect(scene).toHaveAttribute('width', '540');
+  await expect(scene).toHaveAttribute('height', '1920');
+  await expect(scene).toHaveAttribute('width', '1080');
   const hasScenePixels = await scene.evaluate((element) => {
     const sample = document.createElement('canvas');
     sample.width = sample.height = 16;
@@ -40,7 +40,7 @@ test('renders the 3D camera frame, reframes with the lens and saves it to the st
   await finder.getByRole('button', { name: 'Board this frame', exact: true }).click();
   const board = finder.getByRole('img', { name: /^Storyboard for shot/ });
   await expect(board).toBeVisible();
-  await expect.poll(() => board.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBe(540);
+  await expect.poll(() => board.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBe(720);
   await finder.getByRole('button', { name: 'Board', exact: true }).click();
   await expect(scene).toBeVisible();
 });
