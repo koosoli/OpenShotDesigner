@@ -22,7 +22,7 @@ import {
   embedProductionLogoPng,
   finalizePdfDocument,
 } from './document';
-import type { PdfOrientation, PdfPageSize } from './document';
+import type { PdfOrientation, PdfPageSize, PdfDocumentContext, PdfHeaderLogo } from './document';
 import { buildPdfFilename } from './filenames';
 import { sanitizePdfText } from './text';
 
@@ -35,6 +35,8 @@ export interface FloorPlanPdfInput {
   date?: string;
   /** Raw raster bytes for the plan; corrupt bytes print the sheet without it. */
   imageBytes?: Uint8Array;
+  /** Optional second sheet from the export studio's current 3D preview. */
+  scene3dSnapshot?: { bytes: Uint8Array; caption: string };
   /** Image codec hint; defaults to PNG. */
   mimeType?: string;
   pageSize?: PdfPageSize;
@@ -114,28 +116,38 @@ export const createFloorPlanPdf = async (input: FloorPlanPdfInput): Promise<Uint
   });
   const logo = await embedProductionLogoPng(ctx.doc, input.logoPngBytes);
   const planImage = await embedFloorPlanImage(ctx.doc, input.imageBytes, input.mimeType);
+  drawRasterSheet(ctx, planImage, input.productionTitle, 'Floor Plan', subtitleBits.join('  |  '), logo);
+  if (input.scene3dSnapshot) {
+    const snapshot = await embedFloorPlanImage(ctx.doc, input.scene3dSnapshot.bytes, 'image/png');
+    drawRasterSheet(ctx, snapshot, input.productionTitle, '3D View', input.scene3dSnapshot.caption, logo);
+  }
+  return finalizePdfDocument(ctx);
+};
+
+function drawRasterSheet(ctx: PdfDocumentContext, planImage: FittedImage | null, productionTitle: string,
+  documentTitle: string, subtitle: string, logo: PdfHeaderLogo | null) {
   const page = addPdfPage(ctx);
   const cursorY = drawDocumentHeader(ctx, page, ctx.contentTop, {
-    productionTitle: input.productionTitle,
-    documentTitle: 'Floor Plan',
-    subtitle: subtitleBits.join('  |  ') || undefined,
+    productionTitle: productionTitle,
+    documentTitle,
+    subtitle,
     logo,
   });
 
   const frameTop = cursorY;
   const frameBottom = ctx.margins.bottom + 8;
   const frameHeight = frameTop - frameBottom;
-  if (frameHeight <= 0) return finalizePdfDocument(ctx);
+  if (frameHeight <= 0) return;
 
   if (planImage === null) {
-    page.drawText(sanitizePdfText('No floor plan image embedded.'), {
+    page.drawText(sanitizePdfText(documentTitle === '3D View' ? 'No 3D image embedded.' : 'No floor plan image embedded.'), {
       x: ctx.margins.left,
       y: frameTop - 14,
       size: 10,
       font: ctx.regular,
       color: rgb(0.35, 0.35, 0.35),
     });
-    return finalizePdfDocument(ctx);
+    return;
   }
 
   // Contain-fit into the frame between the title block and the footer zone.
@@ -147,14 +159,14 @@ export const createFloorPlanPdf = async (input: FloorPlanPdfInput): Promise<Uint
   try {
     page.drawImage(planImage.image, { x, y, width, height });
   } catch {
-    page.drawText(sanitizePdfText('No floor plan image embedded.'), {
+    page.drawText(sanitizePdfText(documentTitle === '3D View' ? 'No 3D image embedded.' : 'No floor plan image embedded.'), {
       x: ctx.margins.left,
       y: frameTop - 14,
       size: 10,
       font: ctx.regular,
       color: rgb(0.35, 0.35, 0.35),
     });
-    return finalizePdfDocument(ctx);
+    return;
   }
   page.drawRectangle({
     x,
@@ -164,5 +176,5 @@ export const createFloorPlanPdf = async (input: FloorPlanPdfInput): Promise<Uint
     borderColor: rgb(0.55, 0.55, 0.55),
     borderWidth: 0.75,
   });
-  return finalizePdfDocument(ctx);
-};
+  return;
+}

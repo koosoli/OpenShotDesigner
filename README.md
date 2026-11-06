@@ -4,7 +4,7 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
-[![Version](https://img.shields.io/badge/version-1.5.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.12.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
@@ -20,7 +20,11 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.11.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.12.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+The floor plan includes a live 3D view with orbit, pan and zoom, an optional
+lighting preview, and a 3D camera viewfinder. Add a 3D snapshot to your printed
+blueprint or PDF without leaving the app.
 
 ---
 
@@ -58,6 +62,32 @@ Cameras, actors, lights, props and walls on a scaled plan, with movement paths
 drawn as you set them. Each camera on the plan *is* a row in the shot list — and
 a lining in the script, and a frame on the board.
 
+### Preview the scene and its lighting in 3D
+
+![Live 3D lighting preview beside the floor plan](docs/screenshots/live-3d-lighting.png)
+
+Open **Live 3D** to see walls, openings, actors, cameras, lights and library
+assets as you build the plan. Drag to orbit, right or middle-drag to pan, and
+scroll to zoom. The dolly has track wheels; the slider has its own raised rails.
+
+Enable **Simulate lighting** to preview fixture colour, dimmer level, beam spread
+and direct shadows. Adjust ambient light and shared beam tilt. This is a
+qualitative preview, with illustrative source heights: it does not calculate
+calibrated lux, exposure or bounced light. Lighting runs in the browser with
+WebGL; the optional native ConstructCAD companion remains available for the
+normal 3D overview. [Preview details](docs/scene-lighting-and-print.md).
+
+### Put the 3D view on paper
+
+![3D snapshot in the print and PDF studio](docs/screenshots/print-3d-view.png)
+
+In **Export & Print Studio → Floor Plan Blueprint**, tick **Include 3D view in
+print / PDF**. The snapshot inherits the scene's Live 3D angle and lighting;
+adjust its rotation and tilt or fit the whole scene in the print options.
+Browser printing, the floor-plan PDF and the production pack can include this
+separate image sheet alongside the 2D blueprint. It also works in the complete
+package. Without WebGL, the snapshot falls back to an unlit 3D projection.
+
 ### Line the script for coverage
 
 ![Lined script](docs/screenshots/lined-script.png)
@@ -70,8 +100,9 @@ lining appears next to the text while a camera lands on the plan.
 ![Storyboard](docs/screenshots/storyboard.png)
 
 One frame per shot — and one per camera keyframe, so a move is boarded at its
-start, each waypoint and its end. Drop artwork in, or shoot the frame through
-the simulated viewfinder with the device camera on the recce.
+start, each waypoint and its end. Drop artwork in, capture the virtual 3D
+viewfinder with lens, distortion and tilt controls, or use the device camera
+on the recce.
 
 ### The gear list builds itself from the plan
 

@@ -17,6 +17,8 @@ export interface ViewfinderPose {
   forward: Vec3;
   tanHalfHorizontal: number;
   barrelDistortion: number;
+  /** Ephemeral orbit-preview projection width in mm; absent for camera optics. */
+  orthographicSpan?: number;
 }
 
 /** Legacy plans store framing presets. These heights and angles are preview estimates. */

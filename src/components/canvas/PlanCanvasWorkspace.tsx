@@ -6,13 +6,22 @@ import { buildWallPreview, projectWallPreview } from '../../domain/plan/wallPrev
 import { PlanPreviewButton } from './PlanPreviewButton';
 import { SplitCanvasArea } from './SplitCanvasArea';
 import { useConstructCadFrame } from './useConstructCadFrame';
+import { Scene3DCanvas } from './Scene3DCanvas';
+import { SceneLightingControls } from './SceneLightingControls';
+import { useSceneView } from './useSceneView';
+import { readSceneView, updateSceneView } from '../../utils/sceneViewSession';
+const NO_SOLIDS: ReturnType<typeof buildAssetPreview> = [];
 
 function LiveWallView() {
-  const { activeSetup } = useFloorPlan();
-  const [angle, setAngle] = useState(35);
-  const [tilt, setTilt] = useState(36);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
+  const { activeSetup, project } = useFloorPlan();
+  const viewKey = project.id + ':' + activeSetup.id;
+  const view = useSceneView(viewKey);
+  const { angle, tilt, zoom } = view;
+  const setAngle = (fn: (value: number) => number) => updateSceneView(viewKey, { angle: fn(readSceneView(viewKey).angle) });
+  const setTilt = (fn: (value: number) => number) => updateSceneView(viewKey, { tilt: fn(readSceneView(viewKey).tilt) });
+  const setZoom = (fn: (value: number) => number) => updateSceneView(viewKey, { zoom: fn(readSceneView(viewKey).zoom) });
+  const [viewportSize, setViewportSize] = useState({ width: 640, height: 640 });
+  const pan = { x: view.panX * viewportSize.width, y: view.panY * viewportSize.height };
   const [orbiting, setOrbiting] = useState(false);
   const [viewportPixels, setViewportPixels] = useState(1280);
   const viewport = useRef<HTMLDivElement>(null);
@@ -21,6 +30,7 @@ function LiveWallView() {
     if (!element) return;
     const measure = () => {
       const { width, height } = element.getBoundingClientRect();
+      setViewportSize({ width: Math.max(1, width), height: Math.max(1, height) });
       setViewportPixels(Math.max(640, Math.min(2048, Math.ceil(Math.min(width, height) * window.devicePixelRatio * Math.max(1, zoom)))));
     };
     const observer = new ResizeObserver(measure);
@@ -34,15 +44,15 @@ function LiveWallView() {
     ...buildWallPreview(elements, layers, gridSettings, true),
     ...buildAssetPreview(elements, layers, gridSettings),
   ], [elements, layers, gridSettings]);
-  const nativeFrame = useConstructCadFrame(solids, angle, tilt, orbiting, viewportPixels);
+  const nativeFrame = useConstructCadFrame(view.lighting ? NO_SOLIDS : solids, angle, tilt, orbiting, viewportPixels);
   const nativeCanvas = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
     if (nativeFrame) nativeCanvas.current?.getContext('2d')?.putImageData(nativeFrame, 0, 0);
   }, [nativeFrame]);
   const hasNativeFrame = Boolean(nativeFrame);
   const preview = useMemo(
-    () => hasNativeFrame ? null : projectWallPreview(solids, angle, tilt),
-    [solids, angle, tilt, hasNativeFrame],
+    () => hasNativeFrame || view.lighting ? null : projectWallPreview(solids, angle, tilt),
+    [solids, angle, tilt, hasNativeFrame, view.lighting],
   );
 
   return (
@@ -51,7 +61,7 @@ function LiveWallView() {
         <span className="font-semibold">Live 3D · {nativeFrame ? 'ConstructCAD' : 'Scene'}</span>
         <label className="flex items-center gap-2">
           Rotate
-          <input type="range" min={0} max={360} value={angle} onChange={(event) => setAngle(event.currentTarget.valueAsNumber)} className="w-24 accent-sky-400" />
+          <input type="range" min={0} max={360} value={angle} onChange={(event) => updateSceneView(viewKey, { angle: event.currentTarget.valueAsNumber })} className="w-24 accent-sky-400" />
         </label>
       </div>
       <div
@@ -59,7 +69,7 @@ function LiveWallView() {
         className="relative min-h-0 w-full flex-1 overflow-hidden overscroll-contain touch-none select-none cursor-grab active:cursor-grabbing"
         onContextMenu={(event) => event.preventDefault()}
         onPointerDown={(event) => {
-          if ((!hasNativeFrame && !preview) || drag.current || ![0, 1, 2].includes(event.button)) return;
+          if ((!view.lighting && !hasNativeFrame && !preview) || drag.current || ![0, 1, 2].includes(event.button)) return;
           event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
           drag.current = {
@@ -79,7 +89,8 @@ function LiveWallView() {
             setAngle((value) => ((value + dx * .4) % 360 + 360) % 360);
             setTilt((value) => Math.max(5, Math.min(89, value + dy * .4)));
           } else {
-            setPan((value) => ({ x: value.x + dx, y: value.y + dy }));
+            const current = readSceneView(viewKey);
+            updateSceneView(viewKey, { panX: current.panX + dx / viewportSize.width, panY: current.panY + dy / viewportSize.height });
           }
           drag.current = { ...previous, x: event.clientX, y: event.clientY };
         }}
@@ -101,7 +112,11 @@ function LiveWallView() {
           setZoom((value) => Math.max(.25, Math.min(12, value * Math.exp(-delta * .0025))));
         }}
       >
-        {nativeFrame ? (
+        {view.lighting ? (
+          <Scene3DCanvas setup={activeSetup} view={view}
+            width={Math.max(1, Math.round((orbiting ? 256 : 1600) * Math.min(1, viewportSize.width / viewportSize.height)))}
+            height={Math.max(1, Math.round((orbiting ? 256 : 1600) * Math.min(1, viewportSize.height / viewportSize.width)))} />
+        ) : nativeFrame ? (
           <canvas
             ref={nativeCanvas}
             role="img"
@@ -130,6 +145,7 @@ function LiveWallView() {
           <p className="grid h-full place-items-center px-3 text-center text-xs text-slate-300">Draw a wall or place an asset to preview it here.</p>
         )}
       </div>
+      <SceneLightingControls viewKey={viewKey} view={view} />
       <p className="px-3 py-1.5 text-[10px] text-slate-400">Left-drag to orbit · Right or middle-drag to pan · Scroll to zoom</p>
     </section>
   );
@@ -138,7 +154,7 @@ function LiveWallView() {
 export function PlanCanvasWorkspace() {
   const [showLive3D, setShowLive3D] = useState(false);
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row print:hidden">
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         <SplitCanvasArea />
         <div className="absolute right-2 top-2 z-20 flex items-center gap-2">

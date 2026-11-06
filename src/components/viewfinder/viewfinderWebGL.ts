@@ -6,6 +6,7 @@ const vertex = `
   uniform vec3 eye, right, up, forward;
   uniform vec2 lens;
   uniform float ground;
+  uniform float orthographic;
   varying vec3 color;
   varying float distanceMetres;
   void main() {
@@ -14,6 +15,8 @@ const vertex = `
     // 30 mm near plane and 300 m far plane, in WebGL clip space.
     gl_Position = vec4(dot(p, right) * lens.x, dot(p, up) * lens.y,
       depth * 1.00020002 - 60.0060006, depth);
+    if (orthographic > 0.0) gl_Position = vec4(dot(p, right) * lens.x, dot(p, up) * lens.y,
+      depth / 300000.0 * 2.0 - 1.0, 1.0);
     color = tint;
     // Fade the ground into the horizon while retaining the contrast of objects.
     distanceMetres = depth * 0.001 * ground;
@@ -207,8 +210,10 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
       gl.uniform3fv(up, pose.up);
       gl.uniform3fv(forward, pose.forward);
       const focal = 1 / (pose.tanHalfHorizontal * overscan);
-      gl.uniform2f(lens, focal, aspect * focal);
-      drawBuffer(ground, 6, true);
+      const ortho = pose.orthographicSpan;
+      gl.uniform1f(uniform('orthographic'), ortho ? 1 : 0);
+      gl.uniform2f(lens, ortho ? 2 / ortho : focal, ortho ? 2 * aspect / ortho : aspect * focal);
+      if (!ortho) drawBuffer(ground, 6, true);
       drawBuffer(scene, mesh.length / 6, false);
       gl.disableVertexAttribArray(position);
       gl.disableVertexAttribArray(tint);

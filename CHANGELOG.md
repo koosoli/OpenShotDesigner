@@ -4,6 +4,31 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] — 2026-11-06
+
+### Added
+
+- Optional 3D image sheets in the floor-plan print/PDF options and complete
+  package. The snapshot shares Live 3D's orbit and lighting settings, with
+  rotation, tilt and fit controls in the export studio. The direct PDF and
+  production pack retain the blueprint and add the 3D view on a separate page.
+- Live 3D lighting preview with fixture colour, dimmer level, beam spread,
+  distance falloff and direct shadows through the scene's geometry and wall
+  openings. Ambient light and shared beam tilt are adjustable. This is an
+  approximate visual aid, without calibrated lux, exposure or bounced light.
+- README screenshots and instructions for lighting preview and 3D printing.
+
+### Changed
+
+- Lighting calculations are cached separately from camera movement. Orbiting
+  uses lightweight frames, with a sharper view after release.
+- Browsers without WebGL can print a rasterized 3D projection; the caption
+  explicitly identifies when lighting is omitted.
+- The live canvas and its controls stay hidden during browser printing.
+- Export controls and the floor-plan PDF renderer are extracted into focused
+  modules. Preview settings and image bytes remain local session/export state;
+  no persisted schema changes, migrations or dependencies are needed.
+
 ## [1.11.0] — 2026-11-06
 
 ### Added

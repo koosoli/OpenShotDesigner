@@ -378,6 +378,19 @@ describe('logistics plan PDF', () => {
 });
 
 describe('floor plan PDF', () => {
+  it('adds the optional 3D snapshot as a second titled image sheet', async () => {
+    const pdf = await createFloorPlanPdf({ productionTitle: 'My Film', imageBytes: tinyPng(),
+      scene3dSnapshot: { bytes: tinyPng(), caption: 'Approximate direct lighting' }, generatedAt: FIXED_DATE });
+    expect((await PDFDocument.load(pdf)).getPageCount()).toBe(2);
+    expect(inflateContentStreams(pdf).join('\n')).toContain(pdfHexToken('3D View'));
+  });
+
+  it('preserves the blueprint when the optional 3D image is corrupt', async () => {
+    const pdf = await createFloorPlanPdf({ productionTitle: 'My Film', imageBytes: tinyPng(),
+      scene3dSnapshot: { bytes: CORRUPT_BYTES, caption: '3D overview' }, generatedAt: FIXED_DATE });
+    expect((await PDFDocument.load(pdf)).getPageCount()).toBe(2);
+    expect(inflateContentStreams(pdf).join('\n')).toContain(pdfHexToken('No 3D image embedded.'));
+  });
   it('embeds the plan image on a single landscape page with the metadata title', async () => {
     const pdf = await createFloorPlanPdf({
       productionTitle: 'My Film',

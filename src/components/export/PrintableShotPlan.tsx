@@ -120,11 +120,14 @@ import { castNumbersScheduledOn } from '../../domain/reports';
 import { useWorkspaceUI } from '../../context/WorkspaceUIContext';
 import { useDialogs } from '../dialog/DialogProvider';
 import { downloadProductionPackPdfZip, downloadSectionPdf } from '../../utils/pdf/exportStudio';
+import { PrintSectionTabs } from './PrintSectionTabs';
+import { Scene3DPrintOptions, Scene3DPrintPage } from './Scene3DPrint';
+import { readScene3DPrintSnapshot } from '../../utils/scene3DPrintSnapshot';
 import { formatDocumentDate } from '../../domain/documentFormat';
 
 export const PrintableShotPlan: React.FC = () => {
   const { project, activeSetup, scriptLines, allScriptMarks, allShots, avScriptRows, displaySettings } = useFloorPlan();
-  const { isExportModalOpen, closeExportModal, exportSection, setExportSection } = useWorkspaceUI();
+  const { isExportModalOpen, closeExportModal, exportSection } = useWorkspaceUI();
   const { notice } = useDialogs();
   // The power sheet reads the same two things the power panel does: the lights
   // standing on the plan, and the live fixture catalogue that gives them a
@@ -577,10 +580,16 @@ export const PrintableShotPlan: React.FC = () => {
     }
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     // Images (production logo, storyboard frames, reference plans) must be
     // decoded before the browser snapshots the page, or they print blank.
-    void waitForImages(document.body).then(() => window.print());
+    try {
+      if (exportSection === 'floorplan' || exportSection === 'combined') await readScene3DPrintSnapshot(project.id + ':' + activeSetup.id);
+      await waitForImages(document.body);
+      window.print();
+    } catch (error) {
+      await notice({ title: 'Print is not ready', message: error instanceof Error ? error.message : 'The image could not be prepared.' });
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -600,6 +609,8 @@ export const PrintableShotPlan: React.FC = () => {
         equipmentScope,
         moodboardId: exportBoardId,
         floorPlanSvg: floorPlanSvgRef.current,
+        scene3dSnapshot: exportSection === 'floorplan'
+          ? await readScene3DPrintSnapshot(project.id + ':' + activeSetup.id) : undefined,
         omitBlankStoryboardFrames: omitBlankWaypoints,
         ...(showStoryboards ? { shotListBoards: { size: boardSize, aspectRatio: sceneAspectRatio } } : {}),
         // The section ticks in the studio decide what the PDF holds too, so
@@ -626,6 +637,8 @@ export const PrintableShotPlan: React.FC = () => {
         avScriptRows,
         allShots,
         floorPlanSvg: floorPlanSvgRef.current,
+        scene3dSnapshot: exportSection === 'floorplan' || exportSection === 'combined'
+          ? await readScene3DPrintSnapshot(project.id + ':' + activeSetup.id) : undefined,
         omitBlankStoryboardFrames: omitBlankWaypoints,
       });
       // A partial pack must announce itself. Silence here means the producer
@@ -764,209 +777,7 @@ export const PrintableShotPlan: React.FC = () => {
             </div>
           </div>
 
-          {/* Section Mode Segmented Switcher */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner overflow-x-auto custom-scrollbar">
-            <button
-              onClick={() => setExportSection('floorplan')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'floorplan'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Floor Plan Blueprint
-            </button>
-            <button
-              onClick={() => setExportSection('shotlist')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'shotlist'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Shot List
-            </button>
-            <button
-              onClick={() => setExportSection('storyboard')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'storyboard'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Storyboard
-            </button>
-            <button
-              onClick={() => setExportSection('linedscript')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'linedscript'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Lined Script
-            </button>
-            <button
-              onClick={() => setExportSection('avscript')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'avscript'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              AV Script
-            </button>
-            <button
-              onClick={() => setExportSection('sides')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'sides'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Script Sides
-            </button>
-            <button
-              onClick={() => setExportSection('scriptreports')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'scriptreports'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Script Reports
-            </button>
-            <button
-              onClick={() => setExportSection('dmx')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'dmx'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              DMX Patch
-            </button>
-            <button
-              onClick={() => setExportSection('crew')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'crew'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Contact List
-            </button>
-            <button
-              onClick={() => setExportSection('equipment')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'equipment'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Equipment List
-            </button>
-            <button
-              onClick={() => setExportSection('power')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'power'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Power Plan
-            </button>
-            <button
-              onClick={() => setExportSection('rigging')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'rigging'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Rigging Plot
-            </button>
-            <button
-              onClick={() => setExportSection('logistics')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'logistics'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Load List
-            </button>
-            <button
-              onClick={() => setExportSection('continuity')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'continuity'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Continuity
-            </button>
-            <button
-              onClick={() => setExportSection('camerareport')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'camerareport'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Camera Report
-            </button>
-            <button
-              onClick={() => setExportSection('soundreport')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'soundreport'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Sound Report
-            </button>
-            <button
-              onClick={() => setExportSection('dailyprogress')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'dailyprogress'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Daily Report
-            </button>
-            <button
-              onClick={() => setExportSection('runofshow')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'runofshow'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Run of Show
-            </button>
-            <button
-              onClick={() => setExportSection('moodboard')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'moodboard'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Mood Board
-            </button>
-            <button
-              onClick={() => setExportSection('combined')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                exportSection === 'combined'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Complete Package
-            </button>
-          </div>
+          <PrintSectionTabs />
 
           {/* What "everything" actually means, and what is missing from this
               project so an empty section never looks like a lost section. */}
@@ -1406,6 +1217,8 @@ export const PrintableShotPlan: React.FC = () => {
             <span className="text-[10px] text-slate-500">{(project.people ?? []).length} contacts · edited in the Contacts module.</span>
           </div>
         )}
+
+        {(exportSection === 'floorplan' || exportSection === 'combined') && <Scene3DPrintOptions />}
 
         {/* Printable Document Paper View (Strictly Pure White for Ink Saving) */}
         <div
@@ -1906,6 +1719,8 @@ export const PrintableShotPlan: React.FC = () => {
               </div>
             </div>
           )}
+
+          {(exportSection === 'floorplan' || exportSection === 'combined') && <Scene3DPrintPage />}
 
           {/* ========================================================================= */}
           {/* SECTION B: COVERAGE SHOT LIST BREAKDOWN TABLE                              */}

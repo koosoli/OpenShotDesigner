@@ -56,7 +56,7 @@ import { buildDailyProgressPrintModel } from '../../components/reports/DailyProg
 import { buildCameraReportPrintModel, buildSoundReportPrintModel } from '../../components/reports/SetReportsPrintView';
 import type { TrussCapacityVerdict } from '../../domain/rigging/logic';
 import type { ScriptReportsPdfSections } from './scriptReportsPdf';
-import { renderSvgToPngBytes } from '../exportFloorPlanPng';
+import { renderFloorPlanSection } from './floorPlanSection';
 import {
   buildAvScriptPdfFilename,
   buildCalendarPdfFilename,
@@ -64,7 +64,6 @@ import {
   buildCoveragePdfFilename,
   buildDailyProgressPdfFilename,
   buildDmxPatchPdfFilename,
-  buildFloorPlanPdfFilename,
   buildLinedScriptPdfFilename,
   buildLogisticsPdfFilename,
   buildMoodboardPdfFilename,
@@ -88,7 +87,6 @@ import {
   createDailyProgressPdf,
   createDmxPatchPdf,
   createEquipmentManifestPdf,
-  createFloorPlanPdf,
   createLinedScriptPdf,
   createLogisticsPdf,
   createMoodboardPdf,
@@ -139,6 +137,7 @@ export interface SectionPdfContext {
   moodboardId?: string | null;
   /** Live SVG element for the floor-plan blueprint render. */
   floorPlanSvg?: SVGSVGElement | null;
+  scene3dSnapshot?: { bytes: Uint8Array; caption: string };
   omitBlankStoryboardFrames?: boolean;
   /** Shot list: include storyboard frames at this size (as the shot list shows them). */
   shotListBoards?: { size: import('./shotListPdf').ShotListBoardSize; aspectRatio: number };
@@ -243,23 +242,8 @@ export const renderSectionPdf = async (
   const date = project.date && /^\d{4}-\d{2}-\d{2}$/.test(project.date) ? project.date : undefined;
 
   switch (section) {
-    case 'floorplan': {
-      if (!ctx.floorPlanSvg) throw new Error('Open the floor plan section once so the blueprint can render.');
-      const png = await renderSvgToPngBytes(ctx.floorPlanSvg, {
-        scale: 2,
-        title: project.title,
-        subtitle: `SCENE ${activeSetup.sceneNumber}: ${activeSetup.name}`,
-      });
-      const bytes = await createFloorPlanPdf({
-        productionTitle: title,
-        sceneName: `Scene ${activeSetup.sceneNumber}: ${activeSetup.name}`,
-        ...(date ? { date } : {}),
-        ...(png ? { imageBytes: png, mimeType: 'image/png' } : {}),
-        orientation: 'landscape',
-        ...logo,
-      });
-      return renderedPdf(bytes, buildFloorPlanPdfFilename({ productionTitle: title }));
-    }
+    case 'floorplan':
+      return renderFloorPlanSection(ctx, { title, date, logoPngBytes });
     case 'shotlist': {
       const bytes = await createShotListPdf({
         productionTitle: title,
