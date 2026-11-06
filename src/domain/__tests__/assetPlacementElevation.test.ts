@@ -23,7 +23,7 @@ describe('physical placement and suspension', () => {
 
   it('preserves old placements when migrating and keeps explicit elevation', () => {
     const old = { schemaVersion: 40, setups: [{ elements: [{ id: 'a', elevationMm: 2500 }, { id: 'b' }] }] };
-    expect(migrateProject(old).project).toEqual({ ...old, schemaVersion: 41 });
+    expect(migrateProject(old).project).toEqual({ ...old, schemaVersion: 42 });
     expect(old.schemaVersion).toBe(40);
   });
 

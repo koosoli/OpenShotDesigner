@@ -1,5 +1,6 @@
 import type { FloorPlanElement, GridSettings, PlanLayer } from '../../types';
-import { getSymbolById } from '../assets';
+import { symbolFixtureKind } from '../assets/fixtureSymbols';
+import { resolveBeamAim } from '../lighting/beamAim';
 import { convertLength } from '../units';
 import { kelvinToHex } from '../../utils/geometry';
 import { deriveEffectiveLightAppearance } from '../lighting/modifiers';
@@ -38,11 +39,7 @@ export function buildPreviewLights(elements: readonly FloorPlanElement[], layers
     if (element.visible === false || hidden.has(element.layerId ?? '') ||
       ![element.x, element.y, element.rotation].every(Number.isFinite)) return [];
     const light = element.type === 'light' ? element : undefined;
-    const symbol = element.type === 'shape' && element.symbolId ? getSymbolById(element.symbolId) : undefined;
-    const symbolKind = symbol?.fixtureGlyph ?? ({
-      'lighting.fresnel': 'fresnel', 'lighting.led-panel': 'led_panel', 'lighting.led-par': 'par_can',
-      'lighting.moving-head-wash': 'moving_head', 'lighting.moving-head-spot': 'moving_head', 'lighting.follow-spot': 'spotlight',
-    } as Record<string, string>)[symbol?.id ?? ''];
+    const symbolKind = element.type === 'shape' && element.symbolId ? symbolFixtureKind(element.symbolId) : undefined;
     const kind = light?.fixtureType ?? symbolKind;
     if (!kind || nonEmittingFixture(kind)) return [];
     if (light && (!Number.isFinite(light.intensity) || !Number.isFinite(light.beamAngle))) return [];
@@ -55,15 +52,14 @@ export function buildPreviewLights(elements: readonly FloorPlanElement[], layers
       }
     }
     if (!intensity) return [];
-    const yaw = element.rotation * Math.PI / 180;
-    const tilt = Math.max(-80, Math.min(80, tiltDeg)) * Math.PI / 180;
+    const aim = resolveBeamAim(element.type === 'light' || element.type === 'shape' ? element : { rotation: element.rotation }, tiltDeg);
     const omni = kind === 'practical' || appearance.omni || appearance.beamAngleDeg >= 350;
     const angle = Math.max(1, Math.min(179, appearance.beamAngleDeg)) * Math.PI / 360;
     const tint = appearance.colorHex ?? light?.rgbColor ??
       (light && Number.isFinite(light.colorTemp) && light.colorTemp > 0 ? kelvinToHex(light.colorTemp) : '#ffffff');
     return [{ id: element.id, position: [element.x * scale, element.y * scale,
       PREVIEW_LIGHT_ASSUMPTIONS.heightMm + elementElevationMm(element)] as Vec3,
-    direction: [Math.cos(yaw) * Math.cos(tilt), Math.sin(yaw) * Math.cos(tilt), -Math.sin(tilt)] as Vec3,
+    direction: aim.direction,
     color: previewRgb(tint), intensity, outerCos: Math.cos(angle),
     innerCos: Math.cos(angle * (appearance.beamEdge === 'soft' ? .55 : .85)), omni,
     assumed: !light }];

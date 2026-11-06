@@ -4,6 +4,31 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] — 2026-11-06
+
+### Added
+
+- Per-fixture **Beam aim** controls in the inspector, with pan and tilt sliders
+  and numeric entry for regular fixtures and named library lights. Pan is
+  relative to the fixture body; positive tilt aims down. Reset pan or inherit
+  the scene's default tilt. Aim survives undo/redo, reload and JSON export.
+- Simulated lighting in the virtual viewfinder, sharing Live 3D's settings.
+  Lens, sensor and camera tilt remain active; captured storyboard frames retain
+  the lighting preview. Moving lights use the selected beat. Device-camera
+  feeds and attached artwork are unaffected.
+- Refreshed README storyboard screenshot using the current UI and 3D captures.
+
+### Changed
+
+- Camera optical changes reuse the lighting mesh instead of recalculating it.
+- The viewfinder controls can scroll on smaller displays.
+- Project schema 42 stores optional beam pan and tilt. The v41-to-v42 migration
+  preserves existing placements and aim defaults without backfilling values.
+  The generated collaboration schema accepts the same fields.
+- Fixture beam and viewfinder exposure controls are extracted into focused
+  components. No dependencies added. Lighting remains a qualitative preview,
+  without calibrated lux, exposure or bounced light.
+
 ## [1.12.0] — 2026-11-06
 
 ### Added

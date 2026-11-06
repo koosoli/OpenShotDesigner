@@ -1,5 +1,5 @@
 import type { DocumentLanguage } from '../domain/documentText';
-import type { LightModifier, LightPhotometricReference } from '../domain/lighting/types';
+import type { FixtureBeamAim, LightModifier, LightPhotometricReference } from '../domain/lighting/types';
 
 export type ElementType =
   | 'actor'
@@ -185,7 +185,7 @@ export type LightRole =
   | 'ambient'
   | 'unassigned';
 
-export interface LightElement extends BaseElement {
+export interface LightElement extends BaseElement, FixtureBeamAim {
   type: 'light';
   fixtureType: LightFixtureType;
   colorTemp: number; // Kelvin (e.g. 3200, 4300, 5600) or 0 for RGB / flags
@@ -453,7 +453,7 @@ export type ShapeType =
   | 'line';
 
 /** A free-form graphic: blocking zone, set piece footprint, callout area. */
-export interface ShapeElement extends BaseElement {
+export interface ShapeElement extends BaseElement, FixtureBeamAim {
   type: 'shape';
   /** Shared Asset Library symbol rendered inside this shape footprint. */
   symbolId?: string;

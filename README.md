@@ -4,7 +4,7 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
-[![Version](https://img.shields.io/badge/version-1.12.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.13.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.12.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.13.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The floor plan includes a live 3D view with orbit, pan and zoom, an optional
 lighting preview, and a 3D camera viewfinder. Add a 3D snapshot to your printed
@@ -71,7 +71,9 @@ assets as you build the plan. Drag to orbit, right or middle-drag to pan, and
 scroll to zoom. The dolly has track wheels; the slider has its own raised rails.
 
 Enable **Simulate lighting** to preview fixture colour, dimmer level, beam spread
-and direct shadows. Adjust ambient light and shared beam tilt. This is a
+and direct shadows. Adjust ambient light and the scene's default beam tilt;
+use **Inspector → Beam aim** to pan or tilt individual fixtures, with sliders
+and numeric inputs. This is a
 qualitative preview, with illustrative source heights: it does not calculate
 calibrated lux, exposure or bounced light. Lighting runs in the browser with
 WebGL; the optional native ConstructCAD companion remains available for the
@@ -101,8 +103,8 @@ lining appears next to the text while a camera lands on the plan.
 
 One frame per shot — and one per camera keyframe, so a move is boarded at its
 start, each waypoint and its end. Drop artwork in, capture the virtual 3D
-viewfinder with lens, distortion and tilt controls, or use the device camera
-on the recce.
+viewfinder with lens, distortion, tilt and simulated lighting controls, or use
+the device camera on the recce. Virtual captures retain the lighting preview.
 
 ### The gear list builds itself from the plan
 

@@ -12,6 +12,7 @@ import { FlagFixtureIcon, flagLabel, getFlagSelectionRadius, isFlagFixture } fro
 import { FixtureGlyph } from './FixtureGlyph';
 import { FixtureModifierGlyph } from './FixtureModifierGlyph';
 import { buildPhotometricMarkers, deriveEffectiveLightAppearance } from '../../domain/lighting';
+import { resolveBeamAim } from '../../domain/lighting/beamAim';
 
 interface LightingLayerProps {
   lights: LightElement[];
@@ -175,7 +176,8 @@ const LightingLayerImpl: React.FC<LightingLayerProps> = ({
 
             {/* Beam Cone Throw (flags never emit light; per-light beamVisible can hide it) */}
             {showBeams && !isFlag && light.beamVisible !== false && beamAngle > 0 && !isOmni && (
-              <g className="pointer-events-none">
+              <g className="pointer-events-none" data-beam-pan={resolveBeamAim(light).panOffsetDeg}
+                transform={`rotate(${resolveBeamAim(light).panOffsetDeg})`}>
                 <path
                   d={beamPath}
                   fill={`url(#light-grad-${light.id})`}

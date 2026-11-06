@@ -10,7 +10,7 @@ export function SceneLightingControls({ viewKey, view }: { viewKey: string; view
         value={view.ambient} onChange={event => updateSceneView(viewKey, { ambient: event.target.valueAsNumber })} /></label>
       <label className="flex items-center gap-2">Beam tilt<input aria-label="Preview beam tilt" type="range" min="-60" max="80" step="1"
         value={view.lightTilt} onChange={event => updateSceneView(viewKey, { lightTilt: event.target.valueAsNumber })} />{view.lightTilt}° down</label>
-      <p className="text-[10px] opacity-75">Approximate direct light and shadows; no bounce or calibrated lux. Beam tilt is shared; source heights and symbol-light settings are illustrative.</p>
+      <p className="text-[10px] opacity-75">Approximate direct light and shadows; no bounce or calibrated lux. Beam tilt is the scene default; individual fixtures can override it in the inspector. Source heights and symbol-light settings are illustrative.</p>
     </>}
   </div>;
 }

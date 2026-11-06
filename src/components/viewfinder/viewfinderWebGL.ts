@@ -185,7 +185,7 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
   };
 
   return {
-    draw(mesh: Float32Array, pose: ViewfinderPose) {
+    draw(mesh: Float32Array, pose: ViewfinderPose, options: { ground?: boolean } = {}) {
       if (gl.isContextLost()) return false;
       if (currentMesh !== mesh) {
         gl.bindBuffer(gl.ARRAY_BUFFER, scene);
@@ -213,7 +213,7 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
       const ortho = pose.orthographicSpan;
       gl.uniform1f(uniform('orthographic'), ortho ? 1 : 0);
       gl.uniform2f(lens, ortho ? 2 / ortho : focal, ortho ? 2 * aspect / ortho : aspect * focal);
-      if (!ortho) drawBuffer(ground, 6, true);
+      if (!ortho && options.ground !== false) drawBuffer(ground, 6, true);
       drawBuffer(scene, mesh.length / 6, false);
       gl.disableVertexAttribArray(position);
       gl.disableVertexAttribArray(tint);

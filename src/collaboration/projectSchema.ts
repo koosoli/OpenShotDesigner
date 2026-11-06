@@ -1129,6 +1129,12 @@ export const PROJECT_SCHEMA = {
           },
           "layerId": {
             "kind": "string"
+          },
+          "beamPanDeg": {
+            "kind": "number"
+          },
+          "beamTiltDeg": {
+            "kind": "number"
           }
         },
         "required": [
@@ -2764,6 +2770,12 @@ export const PROJECT_SCHEMA = {
           },
           "layerId": {
             "kind": "string"
+          },
+          "beamPanDeg": {
+            "kind": "number"
+          },
+          "beamTiltDeg": {
+            "kind": "number"
           }
         },
         "required": [

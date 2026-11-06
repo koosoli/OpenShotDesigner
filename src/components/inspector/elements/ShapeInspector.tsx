@@ -19,6 +19,8 @@ import { ShapeType } from '../../../types';
 import { useFloorPlan } from '../../../context/FloorPlanContext';
 import { getSymbolById } from '../../../domain/assets';
 import { symbolPlacementSize } from '../../../domain/assets/symbolPlacement';
+import { symbolFixtureKind } from '../../../domain/assets/fixtureSymbols';
+import { FixtureBeamAimControls } from './FixtureBeamAimControls';
 
 const SHAPE_TYPES: ShapeType[] = [
   'line',
@@ -61,6 +63,7 @@ export const ShapeInspector: React.FC<ShapeInspectorProps> = ({ shape, isLight }
 
   return (
     <div className="space-y-3 pt-1">
+      {shape.symbolId && symbolFixtureKind(shape.symbolId) && <FixtureBeamAimControls fixture={shape} isLight={isLight} />}
       {physicalSize && (
         <button type="button" onClick={() => updateElement(shape.id, physicalSize)}
           className="w-full rounded border border-line-strong bg-field px-3 py-2 text-xs text-ink">

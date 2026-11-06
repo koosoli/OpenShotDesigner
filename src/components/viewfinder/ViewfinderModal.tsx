@@ -8,18 +8,14 @@ import { dataUrlToBlob } from '../../utils/projectMedia';
 import { framesOf, setFramePatch, isSlotOmitted, slotsOf, START_SLOT, keyFrameImage } from '../../utils/storyboardFrames';
 import { renderSimulatedFrame, SimulatedSubject } from '../../utils/simulatedFrame';
 import {
-  APERTURES,
   ASPECT_RATIOS,
   FOCAL_LENGTH_PRESETS,
-  FRAME_RATES,
-  ISO_VALUES,
-  ND_FILTERS,
-  SENSOR_FORMATS,
-  SHUTTER_ANGLES,
 } from '../../constants/presets';
 import { BlockingPreview } from './BlockingPreview';
 import { CameraOrientationControls } from './CameraOrientationControls';
 import { ViewfinderScene } from './ViewfinderScene';
+import { ViewfinderExposureControls } from './ViewfinderExposureControls';
+import { ViewfinderLightingControls } from './ViewfinderLightingControls';
 import { ProjectImage } from '../common/ProjectImage';
 import { useDialogFocusTrap } from '../../utils/useDialogFocusTrap';
 import {
@@ -44,21 +40,6 @@ import {
   Shield,
   X,
 } from 'lucide-react';
-
-const CAMERA_HEIGHTS: NonNullable<CameraElement['cameraHeight']>[] = [
-  'Ground',
-  'Knee',
-  'Waist',
-  'Eye Level',
-  'High',
-  'Low Angle',
-  'High Angle',
-  'Overhead / Bird\'s Eye',
-  'Dutch Angle',
-];
-
-const hudSelect =
-  'bg-slate-950 border border-slate-800 text-slate-200 rounded-md px-1.5 py-0.5 text-xs font-mono focus:outline-none focus:border-sky-500 cursor-pointer';
 
 export const ViewfinderModal: React.FC = () => {
   const {
@@ -660,7 +641,7 @@ export const ViewfinderModal: React.FC = () => {
         aria-modal="true"
         aria-labelledby="viewfinder-title"
         tabIndex={-1}
-        className="relative w-full max-w-5xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95dvh]"
+        className="relative w-full max-w-5xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl overflow-x-hidden overflow-y-auto flex flex-col max-h-[95dvh]"
       >
         {/* 1. Modal Header Bar */}
         <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-slate-800">
@@ -957,136 +938,8 @@ export const ViewfinderModal: React.FC = () => {
           </div>
         )}
 
-        {/* 3a. Exposure & recording settings — everything on the HUD is editable */}
-        <div className="px-4 py-2 bg-slate-900 border-t border-slate-800 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          <span className="text-slate-400 font-medium">Exposure:</span>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">Iris</span>
-            <select
-              value={aperture}
-              onChange={(e) => updateElement(selectedCamera.id, { aperture: e.target.value })}
-              className={hudSelect}
-            >
-              {APERTURES.map((value) => (
-                <option key={value} value={value} className="bg-slate-900">
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">ISO</span>
-            <select
-              value={iso}
-              onChange={(e) => updateElement(selectedCamera.id, { iso: Number(e.target.value) })}
-              className={hudSelect}
-            >
-              {ISO_VALUES.map((value) => (
-                <option key={value} value={value} className="bg-slate-900">
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">Shutter</span>
-            <select
-              value={shutterAngle}
-              onChange={(e) => updateElement(selectedCamera.id, { shutterAngle: Number(e.target.value) })}
-              className={hudSelect}
-            >
-              {SHUTTER_ANGLES.map((value) => (
-                <option key={value} value={value} className="bg-slate-900">
-                  {value}°
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">FPS</span>
-            <select
-              value={frameRate}
-              onChange={(e) => targetShot && updateShot(targetShot.id, { frameRate: Number(e.target.value) })}
-              disabled={!targetShot}
-              title={targetShot ? 'Frame rate for this shot' : 'This camera has no shot yet'}
-              className={`${hudSelect} ${targetShot ? '' : 'opacity-40 cursor-not-allowed'}`}
-            >
-              {FRAME_RATES.map((value) => (
-                <option key={value} value={value} className="bg-slate-900">
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">ND</span>
-            <select
-              value={ndFilter}
-              onChange={(e) => updateElement(selectedCamera.id, { ndFilter: e.target.value })}
-              className={hudSelect}
-            >
-              {ND_FILTERS.map((value) => (
-                <option key={value} value={value} className="bg-slate-900">
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">Sensor</span>
-            <select
-              value={selectedCamera.sensorFormat}
-              onChange={(e) => changeOptics({ sensorFormat: e.target.value as CameraElement['sensorFormat'] })}
-              className={hudSelect}
-            >
-              {SENSOR_FORMATS.map((entry) => (
-                <option key={entry.value} value={entry.value} className="bg-slate-900">
-                  {entry.value}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">Ratio</span>
-            <select
-              value={selectedCamera.aspectRatio}
-              onChange={(e) =>
-                updateElement(selectedCamera.id, { aspectRatio: e.target.value as CameraElement['aspectRatio'] })
-              }
-              className={hudSelect}
-            >
-              {ASPECT_RATIOS.map((entry) => (
-                <option key={entry.value} value={entry.value} className="bg-slate-900">
-                  {entry.value}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">Height</span>
-            <select
-              value={selectedCamera.cameraHeight || 'Eye Level'}
-              onChange={(e) =>
-                updateElement(selectedCamera.id, { cameraHeight: e.target.value as CameraElement['cameraHeight'] })
-              }
-              className={hudSelect}
-            >
-              {CAMERA_HEIGHTS.map((value) => (
-                <option key={value} value={value} className="bg-slate-900">
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <ViewfinderExposureControls selectedCamera={selectedCamera} targetShot={targetShot} changeOptics={changeOptics} />
+        {!showsRealImage && <ViewfinderLightingControls ready={sceneReady} />}
 
         {/* 3. Live Optical Controls Bar */}
         <div className="p-4 bg-slate-900 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">

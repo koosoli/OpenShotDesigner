@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ActorElement, CameraElement, GridSettings, WallElement, WindowElement } from '../../types';
+import type { ActorElement, CameraElement, GridSettings, LightElement, WallElement, WindowElement } from '../../types';
 import { migrateProject } from '../migrations';
 import { buildViewfinderMesh, getViewfinderPose, getViewfinderTilt, VIEWFINDER_FLOOR, VIEWFINDER_SKY } from './viewfinderScene';
+import { createViewfinderMeshCache } from './viewfinderMeshCache';
 
 const grid: GridSettings = { unit: 'm', pixelsPerUnit: 100, size: 20, snap: true, showGrid: true };
 const camera: CameraElement = {
@@ -11,12 +12,43 @@ const camera: CameraElement = {
 };
 
 describe('3D viewfinder scene', () => {
+  const lamp: LightElement = { id: 'lamp', type: 'light', name: 'Lamp', x: 0, y: 0, rotation: 0,
+    fixtureType: 'led_panel', intensity: 100, colorTemp: 5600, beamAngle: 90, throwDistance: 400 };
+  it('reuses illumination during optical changes and refreshes it for lights and beats', () => {
+    const build = createViewfinderMeshCache();
+    const setup = { elements: [camera, lamp], gridSettings: grid };
+    const options = { ambient: .2, lightTilt: 20 };
+    const initial = build(setup, camera.id, 1, options);
+    expect(build({ ...setup, elements: [{ ...camera, focalLength: 85, tiltDeg: 30 }, lamp] }, camera.id, 1, { ...options })).toBe(initial);
+    expect(build({ ...setup, elements: [camera, { ...lamp, intensity: 10 }] }, camera.id, 1, options)).not.toBe(initial);
+    const second = build(setup, camera.id, 1, options);
+    expect(build(setup, camera.id, 2, options)).not.toBe(second);
+  });
+  it('uses simulated lighting in the perspective mesh and responds to blackout', () => {
+    const options = { ambient: .05, lightTilt: 30 };
+    const setup = { elements: [camera, lamp], gridSettings: grid };
+    const lit = buildViewfinderMesh(setup, camera.id, 1, options);
+    const dark = buildViewfinderMesh({ ...setup, elements: [camera, { ...lamp, intensity: 0 }] }, camera.id, 1, options);
+    expect(lit.length).toBe(dark.length);
+    expect([...lit].every(Number.isFinite)).toBe(true);
+    let gain = 0;
+    for (let i = 0; i < lit.length; i += 6) gain += lit[i + 3] - dark[i + 3];
+    expect(gain).toBeGreaterThan(1);
+    expect(lit).toEqual(buildViewfinderMesh({ ...setup, elements: [lamp] }, camera.id, 1, options));
+  });
+  it('moves emitters to the selected beat before calculating illumination', () => {
+    const moving = { ...lamp, path: [{ id: 'end', x: 200, y: 100, rotation: 90, beat: 2 }] };
+    const options = { ambient: .1, lightTilt: 20 };
+    const actual = buildViewfinderMesh({ elements: [moving], gridSettings: grid }, camera.id, 2, options);
+    const expected = buildViewfinderMesh({ elements: [{ ...lamp, x: 200, y: 100, rotation: 90 }], gridSettings: grid }, camera.id, 1, options);
+    expect(actual).toEqual(expected);
+  });
   it('migrates schema 39 projects without replacing existing framing or wall defaults', () => {
     const legacyCamera = { ...camera, cameraHeight: 'High Angle' as const };
     const legacy = { schemaVersion: 39, setups: [{ elements: [legacyCamera, { id: 'wall', type: 'wall' }] }] };
     const { project, migratedFrom } = migrateProject(legacy);
     expect(migratedFrom).toBe(39);
-    expect(project).toEqual({ ...legacy, schemaVersion: 41 });
+    expect(project).toEqual({ ...legacy, schemaVersion: 42 });
     expect(getViewfinderTilt(legacyCamera)).toBe(-24);
   });
 

@@ -4,6 +4,8 @@ import { buildAssetPreview, type PreviewSolid } from '../plan/assetPreview';
 import { buildWallPreview, prismFaces } from '../plan/wallPreview';
 import { convertLength } from '../units';
 import { elementElevationMm } from '../plan/elevation';
+import { buildLightBlockers, buildPreviewLights } from '../plan/sceneLighting';
+import { buildScenePreviewMesh } from '../plan/scenePreviewMesh';
 
 type Vec3 = [number, number, number];
 
@@ -84,7 +86,10 @@ function wallTint(tint: Vec3): Vec3 {
 }
 
 /** Interleaved position and shaded RGB for the depth-buffered browser renderer. */
-export function buildViewfinderMesh(setup: Pick<SceneSetup, 'elements' | 'layers' | 'gridSettings'>, cameraId: string, beat = 1): Float32Array {
+export interface ViewfinderLightingOptions { ambient: number; lightTilt: number }
+
+export function buildViewfinderMesh(setup: Pick<SceneSetup, 'elements' | 'layers' | 'gridSettings'>, cameraId: string, beat = 1,
+  lighting?: ViewfinderLightingOptions): Float32Array {
   const { elements, layers, gridSettings } = setup;
   const walls = new Set(elements.filter(({ type }) => type === 'wall').map(({ id }) => id));
   const windows = new Set(elements.filter(({ type }) => type === 'window').map(({ id }) => id));
@@ -97,6 +102,10 @@ export function buildViewfinderMesh(setup: Pick<SceneSetup, 'elements' | 'layers
     ...buildWallPreview(elements, layers, gridSettings, true).filter(({ wallId }) => !windows.has(wallId)),
     ...buildAssetPreview(placed, layers, gridSettings),
   ];
+  if (lighting) return buildScenePreviewMesh(solids, {
+    lights: buildPreviewLights(placed, layers, gridSettings, lighting.lightTilt),
+    blockers: buildLightBlockers(solids, placed), ambient: lighting.ambient,
+  });
   const mesh: number[] = [];
   const faces = new Map<number, number[][]>();
   for (const { wallId, color, corners } of solids) {

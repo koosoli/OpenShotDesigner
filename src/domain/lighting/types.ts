@@ -1,3 +1,10 @@
+/** Beam aim is independent of the fixture body's plan rotation. Degrees, positive tilt down. */
+export interface FixtureBeamAim {
+  beamPanDeg?: number;
+  /** Absent inherits the session's shared lighting-preview tilt. */
+  beamTiltDeg?: number;
+}
+
 export type LightModifierKind =
   | 'softbox'
   | 'lantern'
