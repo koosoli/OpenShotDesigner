@@ -44,6 +44,9 @@ test('aims a fixture independently, supports undo/redo and retains aim after rel
   expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   const aimed = project.setups.flatMap(setup => setup.elements).find(element => element.type === 'light' && element.beamPanDeg === 45);
   expect(aimed?.type === 'light' && aimed.beamTiltDeg).toBe(-30);
+  // File export reads memory; browser persistence has a separate debounce and
+  // IndexedDB write. Reload only after the UI confirms that write is durable.
+  await expect(page.getByText('Saved locally', { exact: true })).toBeVisible();
   await page.reload();
   await fixture.click();
   await expect(pan).toHaveValue('45'); await expect(tilt).toHaveValue('-30');
