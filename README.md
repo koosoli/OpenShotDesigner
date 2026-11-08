@@ -4,7 +4,7 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
-[![Version](https://img.shields.io/badge/version-1.13.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.14.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.13.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.14.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The floor plan includes a live 3D view with orbit, pan and zoom, an optional
 lighting preview, and a 3D camera viewfinder. Add a 3D snapshot to your printed
@@ -68,16 +68,37 @@ a lining in the script, and a frame on the board.
 
 Open **Live 3D** to see walls, openings, actors, cameras, lights and library
 assets as you build the plan. Drag to orbit, right or middle-drag to pan, and
-scroll to zoom. The dolly has track wheels; the slider has its own raised rails.
+scroll to zoom. The orbit turns the same way in every 3D view, including the
+ConstructCAD frame. The dolly has track wheels; the slider has its own raised rails.
 
-Enable **Simulate lighting** to preview fixture colour, dimmer level, beam spread
-and direct shadows. Adjust ambient light and the scene's default beam tilt;
-use **Inspector → Beam aim** to pan or tilt individual fixtures, with sliders
-and numeric inputs. This is a
-qualitative preview, with illustrative source heights: it does not calculate
-calibrated lux, exposure or bounced light. Lighting runs in the browser with
-WebGL; the optional native ConstructCAD companion remains available for the
-normal 3D overview. [Preview details](docs/scene-lighting-and-print.md).
+Enable **Simulate lighting** to see fixture colour, dimmer level, beam spread
+and shadows cast by walls, props and actors. Light and shadow are computed per
+pixel in WebGL for up to 8 lights and 12 shadow-casting walls; the caption says
+when a scene is larger. Adjust ambient light and the scene's default beam tilt.
+This is a qualitative preview with illustrative source heights: it does not
+calculate calibrated lux, exposure or bounced light. Without WebGL, the 3D view
+falls back to an unlit projection. The optional native ConstructCAD renderer
+(built from `tools/constructcad-render`) draws the normal overview when it is
+available. [Preview details](docs/scene-lighting-and-print.md).
+
+#### Aim lights in 3D
+
+![Beam handle dragged in Live 3D](docs/screenshots/live-3d-beam-aim.png)
+
+With Simulate lighting on, select a light in the plan and an amber handle
+appears at the end of its beam. Drag the handle to pan and tilt the beam. The
+lamp head turns with it, and **Inspector → Beam aim** updates live. Releasing
+the handle is one undo step, and the inspector still accepts exact values.
+Stands stay put. Only lights on the floor plan get handles; library lighting
+symbols keep the inspector controls.
+
+#### Viewfinder lighting
+
+![Lit viewfinder frame](docs/screenshots/viewfinder-lighting.png)
+
+The 3D camera viewfinder has the same **Simulate lighting** option, with the
+same ambient and tilt settings, so a shot can be checked through its lens. Lamps
+without a stored tilt stay upright in the viewfinder model.
 
 ### Put the 3D view on paper
 
