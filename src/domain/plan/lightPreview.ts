@@ -1,7 +1,7 @@
 import type { LightElement } from '../../types';
 import { kelvinToHex } from '../../utils/geometry';
 import { deriveEffectiveLightAppearance } from '../lighting/modifiers';
-import { block, equipmentFinish, prism, rod, stand, type EquipmentPart, type EquipmentSymbol } from './equipmentPreviewGeometry';
+import { block, equipmentFinish, headParts, prism, rod, stand, type EquipmentPart, type EquipmentSymbol } from './equipmentPreviewGeometry';
 
 const { shell, trim, metal, grip } = equipmentFinish;
 const daylight = '#dbeafe';
@@ -71,54 +71,60 @@ export function lightPreview(light: LightElement): EquipmentPart[] {
     return [
       rod([0, 0, 0], [0, 0, 45], 365, trim),
       rod([0, 0, 45], [0, 0, 1275], 42, metal),
-      prism([0, 0, 1245], [0, 0, 1530], [470, 470], [255, 255], lens, true),
+      ...headParts([prism([0, 0, 1245], [0, 0, 1530], [470, 470], [255, 255], lens, true)]),
     ];
   }
-  if (kind === 'china_ball') return [...stand(1390, 380, false), ...lantern(1375, 280, lens)];
+  if (kind === 'china_ball') return [...stand(1390, 380, false), ...headParts(lantern(1375, 280, lens))];
   if (kind === 'tube_light') {
     return [
       ...stand(1520, 330, false),
-      rod([0, 0, 1510], [0, 0, 2130], 67, lens),
-      rod([0, 0, 1480], [0, 0, 1520], 75, grip),
-      rod([0, 0, 2120], [0, 0, 2170], 75, grip),
+      ...headParts([
+        rod([0, 0, 1510], [0, 0, 2130], 67, lens),
+        rod([0, 0, 1480], [0, 0, 1520], 75, grip),
+        rod([0, 0, 2120], [0, 0, 2170], 75, grip),
+      ]),
     ];
   }
   if (kind === 'led_panel' || kind === 'kino_flo') {
     const kino = kind === 'kino_flo';
     return [
       ...stand(1560, 375, false),
-      ...panel(1720, kino ? 880 : 550, kino ? 240 : 340, kino ? grip : lens),
-      ...(kino ? [-72, 0, 72].map((offset) => rod([65, -395, 1720 + offset], [65, 395, 1720 + offset], 37, lens)) : []),
+      ...headParts(panel(1720, kino ? 880 : 550, kino ? 240 : 340, kino ? grip : lens)),
+      ...headParts(kino ? [-72, 0, 72].map((offset) => rod([65, -395, 1720 + offset], [65, 395, 1720 + offset], 37, lens)) : []),
     ];
   }
   if (kind === 'softbox' || light.modifiers?.some(({ enabled, kind: modifier }) => enabled && modifier === 'softbox')) {
     return [
       ...stand(1610, 430, false),
-      ...roundHead(1760, 295, 228, trim),
-      prism([146, 0, 1760], [480, 0, 1760], [225, 225], [790, 645], grip),
-      prism([480, 0, 1760], [489, 0, 1760], [744, 599], [744, 599], lens),
+      ...headParts(roundHead(1760, 295, 228, trim)),
+      ...headParts([
+        prism([146, 0, 1760], [480, 0, 1760], [225, 225], [790, 645], grip),
+        prism([480, 0, 1760], [489, 0, 1760], [744, 599], [744, 599], lens),
+      ]),
     ];
   }
   if (kind === 'overhead_diffusion') {
     return [
       ...stand(1930, 430, false),
-      rod([0, 0, 1915], [730, 0, 1915], 36, metal),
-      block(675, 0, 1920, 1190, 1190, 38, trim),
-      block(675, 0, 1913, 1110, 1110, 53, '#e1e0d6'),
+      ...headParts([
+        rod([0, 0, 1915], [730, 0, 1915], 36, metal),
+        block(675, 0, 1920, 1190, 1190, 38, trim),
+        block(675, 0, 1913, 1110, 1110, 53, '#e1e0d6'),
+      ]),
     ];
   }
   if (kind === 'reflector' || kind === 'c_stand_flag' || kind?.startsWith('flag_')) {
     const color = kind === 'reflector' ? '#d9dfe4'
       : kind === 'flag_silk' ? '#e1e0d6' : '#343842';
     const wide = kind === 'flag_cutter';
-    return [...stand(1580, 350, false), ...panel(1800, wide ? 1090 : 710, wide ? 245 : 535, color)];
+    return [...stand(1580, 350, false), ...headParts(panel(1800, wide ? 1090 : 710, wide ? 245 : 535, color))];
   }
   const diameter = kind === 'hmi' ? 390 : kind === 'par_can' ? 245 : kind === 'spotlight' ? 275 : 315;
   const length = kind === 'spotlight' || kind === 'par_can' ? 490 : kind === 'hmi' ? 460 : 355;
   const hasBarnDoors = light.hasBarnDoors || light.modifiers?.some(({ enabled, kind: modifier }) => enabled && modifier === 'barn_doors');
   return [
     ...stand(1540, 385, false),
-    ...roundHead(1540 + diameter * .59 + 20, length, diameter, lens, hasBarnDoors),
+    ...headParts(roundHead(1540 + diameter * .59 + 20, length, diameter, lens, hasBarnDoors)),
   ];
 }
 

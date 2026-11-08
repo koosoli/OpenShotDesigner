@@ -4,6 +4,12 @@ type Section = readonly [width: number, height: number];
 export interface EquipmentPart {
   color: string;
   corners: { x: number; y: number; z: number }[];
+  /** Lamp head, lens or barn doors: rotates with a light's pan and tilt. Stands and bases do not. */
+  head?: boolean;
+}
+
+export function headParts(parts: EquipmentPart[]): EquipmentPart[] {
+  return parts.map(part => ({ ...part, head: true }));
 }
 
 export interface EquipmentSymbol {

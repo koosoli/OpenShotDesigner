@@ -5,6 +5,7 @@ import { convertLength } from '../units';
 import { cameraPreview, cameraSymbolPreview } from './cameraPreview';
 import type { EquipmentPart } from './equipmentPreviewGeometry';
 import { lightPreview, lightingSymbolPreview } from './lightPreview';
+import { aimedLightParts } from './lightAim';
 import { vehiclePreview } from './vehiclePreview';
 import { offerEquipmentPreview } from './offerEquipmentPreview';
 import { productionAssetPreview } from './productionAssetPreview';
@@ -25,8 +26,13 @@ const ROUND_RIM = Array.from({ length: 24 }, (_, index) => {
   return [Math.cos(angle), Math.sin(angle)];
 });
 
-/** Simple massing models. Vertical sizes without source data are illustrative. */
-export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLayer[] | undefined, grid: GridSettings): PreviewSolid[] {
+/**
+ * Simple massing models. Vertical sizes without source data are illustrative.
+ * `lightTiltDeg` is the scene's default beam tilt for lights with no stored tilt, so lamp heads
+ * sit where their beams point.
+ */
+export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLayer[] | undefined, grid: GridSettings,
+  options: { lightTiltDeg?: number } = {}): PreviewSolid[] {
   const scale = convertLength(1, grid.unit, 'mm') / grid.pixelsPerUnit;
   if (!Number.isFinite(scale) || scale <= 0) return [];
   const hidden = new Set(layers?.filter((layer) => !layer.visible).map((layer) => layer.id));
@@ -142,7 +148,7 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
       case 'camera':
         return placeEquipment(cameraPreview(element, dollyTrackGaugeMm(scale)));
       case 'light':
-        return placeEquipment(lightPreview(element));
+        return placeEquipment(aimedLightParts(element, lightPreview(element), options.lightTiltDeg ?? 0));
       default:
         return [];
     }

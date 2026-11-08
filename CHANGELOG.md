@@ -6,7 +6,20 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Beam handles in Live 3D with simulated lighting. Each selected light shows an
+  amber handle at the end of its beam; drag it to pan and tilt the beam in 3D.
+  The change is written to the fixture's beam pan and tilt live and recorded as
+  one undo step on release. Only lights are supported; library lighting symbols
+  keep the 2D aim controls.
+
 ### Changed
+
+- Lamp heads in the 3D model turn with the beam's pan and tilt, pivoting about
+  the head. Stands and bases stay put, and the beam and the model share one
+  direction. Unset tilts follow the scene's default beam tilt in Live 3D and the
+  3D print sheet. The viewfinder still shows unset-tilt lamps upright.
 
 - Simulated lighting in Live 3D and the viewfinder is evaluated per pixel in
   WebGL instead of baked per vertex on the CPU. Light pools and wall shadows

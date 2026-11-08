@@ -13,7 +13,7 @@ import { readSceneView, updateSceneView } from '../../utils/sceneViewSession';
 const NO_SOLIDS: ReturnType<typeof buildAssetPreview> = [];
 
 function LiveWallView() {
-  const { activeSetup, project } = useFloorPlan();
+  const { activeSetup, project, selectedElementIds, updateElement, commitCurrentState } = useFloorPlan();
   const viewKey = project.id + ':' + activeSetup.id;
   const view = useSceneView(viewKey);
   const { angle, tilt, zoom } = view;
@@ -42,8 +42,8 @@ function LiveWallView() {
   const { elements, layers, gridSettings } = activeSetup;
   const solids = useMemo(() => [
     ...buildWallPreview(elements, layers, gridSettings, true),
-    ...buildAssetPreview(elements, layers, gridSettings),
-  ], [elements, layers, gridSettings]);
+    ...buildAssetPreview(elements, layers, gridSettings, { lightTiltDeg: view.lightTilt }),
+  ], [elements, layers, gridSettings, view.lightTilt]);
   const nativeFrame = useConstructCadFrame(view.lighting ? NO_SOLIDS : solids, angle, tilt, orbiting, viewportPixels);
   const nativeCanvas = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
@@ -114,6 +114,9 @@ function LiveWallView() {
       >
         {view.lighting ? (
           <Scene3DCanvas setup={activeSetup} view={view}
+            selectedIds={selectedElementIds}
+            onAimLive={(id, aim) => updateElement(id, aim, false)}
+            onAimCommit={commitCurrentState}
             width={Math.max(1, Math.round((orbiting ? 256 : 1600) * Math.min(1, viewportSize.width / viewportSize.height)))}
             height={Math.max(1, Math.round((orbiting ? 256 : 1600) * Math.min(1, viewportSize.height / viewportSize.width)))} />
         ) : nativeFrame ? (
