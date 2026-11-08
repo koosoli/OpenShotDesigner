@@ -4,6 +4,18 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Simulated lighting in Live 3D and the viewfinder is evaluated per pixel in
+  WebGL instead of baked per vertex on the CPU. Light pools and wall shadows
+  are smooth with sharp shadow edges, and the CPU cost that grew with lights
+  times walls is gone. Lit previews light and shadow the first 8 lights and 12
+  walls; the caption says so when a scene is larger. Walls with more than 8
+  sides cast no shadow in lit previews. The lighting remains a qualitative
+  preview, not calibrated lux. Unlit views are unchanged.
+
 ## [1.13.0] — 2026-11-06
 
 ### Added

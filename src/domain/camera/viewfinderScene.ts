@@ -5,7 +5,7 @@ import { buildWallPreview, prismFaces } from '../plan/wallPreview';
 import { convertLength } from '../units';
 import { elementElevationMm } from '../plan/elevation';
 import { buildLightBlockers, buildPreviewLights } from '../plan/sceneLighting';
-import { buildScenePreviewMesh } from '../plan/scenePreviewMesh';
+import { buildScenePreviewMesh, type ScenePreviewMesh } from '../plan/scenePreviewMesh';
 
 type Vec3 = [number, number, number];
 
@@ -85,11 +85,11 @@ function wallTint(tint: Vec3): Vec3 {
   return [r + (1 - r) * lift, g + (1 - g) * lift, b + (1 - b) * lift];
 }
 
-/** Interleaved position and shaded RGB for the depth-buffered browser renderer. */
+/** Lit meshes carry per-vertex normals for the per-pixel lighting; unlit ones carry pre-shaded colour. */
 export interface ViewfinderLightingOptions { ambient: number; lightTilt: number }
 
 export function buildViewfinderMesh(setup: Pick<SceneSetup, 'elements' | 'layers' | 'gridSettings'>, cameraId: string, beat = 1,
-  lighting?: ViewfinderLightingOptions): Float32Array {
+  lighting?: ViewfinderLightingOptions): ScenePreviewMesh {
   const { elements, layers, gridSettings } = setup;
   const walls = new Set(elements.filter(({ type }) => type === 'wall').map(({ id }) => id));
   const windows = new Set(elements.filter(({ type }) => type === 'window').map(({ id }) => id));
@@ -126,7 +126,7 @@ export function buildViewfinderMesh(setup: Pick<SceneSetup, 'elements' | 'layers
       }
     }
   }
-  return new Float32Array(mesh);
+  return { vertices: new Float32Array(mesh), lit: null };
 }
 
 type Point = PreviewSolid['corners'][number];

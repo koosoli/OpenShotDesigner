@@ -1,11 +1,12 @@
 import type { SceneSetup } from '../../types';
+import type { ScenePreviewMesh } from '../plan/scenePreviewMesh';
 import { buildViewfinderMesh, type ViewfinderLightingOptions } from './viewfinderScene';
 
 type Scene = Pick<SceneSetup, 'elements' | 'layers' | 'gridSettings'>;
 /** Per-viewer cache. Optical changes to the excluded camera only need a new pose. */
 export function createViewfinderMeshCache() {
-  let previous: { scene: Scene; cameraId: string; beat: number; lighting?: ViewfinderLightingOptions; mesh: Float32Array } | undefined;
-  return (scene: Scene, cameraId: string, beat: number, lighting?: ViewfinderLightingOptions): Float32Array => {
+  let previous: { scene: Scene; cameraId: string; beat: number; lighting?: ViewfinderLightingOptions; mesh: ScenePreviewMesh } | undefined;
+  return (scene: Scene, cameraId: string, beat: number, lighting?: ViewfinderLightingOptions): ScenePreviewMesh => {
     const elements = scene.elements.filter(element => element.id !== cameraId);
     if (previous && previous.cameraId === cameraId && previous.beat === beat &&
       previous.scene.layers === scene.layers && previous.scene.gridSettings === scene.gridSettings &&

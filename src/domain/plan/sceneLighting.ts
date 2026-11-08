@@ -117,7 +117,11 @@ export function isLightBlocked(from: Vec3, to: Vec3, blockers: readonly LightBlo
   return false;
 }
 
-/** RGB multipliers in relative display units, with inverse-square-like falloff. */
+/**
+ * RGB multipliers in relative display units, with inverse-square-like falloff.
+ * Reference model: the live preview evaluates the same maths per pixel in viewfinderWebGL.ts,
+ * and tests check the packed uniforms against this function.
+ */
 export function samplePreviewLighting(point: Vec3, normal: Vec3, lights: readonly PreviewLight[], blockers: readonly LightBlocker[],
   ambient: number, surfaceId = ''): Vec3 {
   const level = Number.isFinite(ambient) ? Math.max(0, Math.min(1, ambient)) : .15;

@@ -4,7 +4,7 @@ import type { SceneViewSettings } from '../../utils/sceneViewSession';
 import { buildAssetPreview } from '../../domain/plan/assetPreview';
 import { buildWallPreview, projectWallPreview } from '../../domain/plan/wallPreview';
 import { buildLightBlockers, buildPreviewLights, previewLightSummary } from '../../domain/plan/sceneLighting';
-import { buildScenePreviewMesh, sceneOrbitPose, sceneFallbackViewBox } from '../../domain/plan/scenePreviewMesh';
+import { buildScenePreviewMesh, litLimitNote, sceneOrbitPose, sceneFallbackViewBox } from '../../domain/plan/scenePreviewMesh';
 import { createViewfinderRenderer } from '../viewfinder/viewfinderWebGL';
 
 interface Props {
@@ -73,7 +73,7 @@ export function Scene3DCanvas({ setup, view, width, height, onSnapshot }: Props)
         <polygon points={face.points} fill="black" fillOpacity={face.shade} /></g>)}
     </svg>}
     {view.lighting && <p className="absolute bottom-1 left-2 rounded bg-slate-950/80 px-2 text-[10px] text-slate-200 print:hidden">
-      {available ? previewLightSummary(lights) : 'WebGL unavailable — lighting preview is disabled'}
+      {available ? `${previewLightSummary(lights)}${litLimitNote(mesh.lit)}` : 'WebGL unavailable — lighting preview is disabled'}
     </p>}
   </div>;
 }

@@ -1,11 +1,36 @@
 import type { PreviewSolid } from './assetPreview';
 import { prismFaces } from './wallPreview';
 import type { ViewfinderPose } from '../camera/viewfinderScene';
-import { faceNormal, previewRgb, samplePreviewLighting, type LightBlocker, type PreviewLight, type Vec3 } from './sceneLighting';
+import { faceNormal, previewRgb, type LightBlocker, type PreviewLight, type Vec3 } from './sceneLighting';
 
 export interface SceneLightingOptions { lights: PreviewLight[]; blockers: LightBlocker[]; ambient: number }
+
+/**
+ * Limits of the per-pixel lighting uniforms. A scene beyond them keeps the first items
+ * and reports the rest through `dropped`, so the caller can say so instead of mis-lighting silently.
+ */
+export const LIT_LIMITS = { lights: 8, blockers: 12, planes: 10 } as const;
+/** Lit vertex: position, normal, tint, surface index (floats). */
+export const LIT_STRIDE = 10;
+/** Unlit vertex: position, pre-shaded tint (floats). */
+export const UNLIT_STRIDE = 6;
+
+/** Packed lighting, ready for the fragment shader. Layout is mirrored by viewfinderWebGL.ts. */
+export interface LitScene {
+  ambient: number;
+  lightCount: number;
+  blockerCount: number;
+  /** Four vec4 per light: origin+outer cosine, aim+inner cosine, emission+omni flag, source surface. */
+  lightData: Float32Array;
+  /** Twelve vec4 per blocker: min+surface, max+plane count, then up to LIT_LIMITS.planes (normal, distance). */
+  blockerData: Float32Array;
+  dropped: { lights: number; blockers: number };
+}
+export interface ScenePreviewMesh { vertices: Float32Array; lit: LitScene | null }
+
+const FLOOR_SURFACE = -1;
+const UNKNOWN_SURFACE = -2;
 const point = (p: PreviewSolid['corners'][number]): Vec3 => [p.x, p.y, p.z];
-const mid = (a: Vec3, b: Vec3): Vec3 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
 
 export function sceneBounds(solids: readonly PreviewSolid[]) {
   const min: Vec3 = [Infinity, Infinity, Infinity];
@@ -18,44 +43,36 @@ export function sceneBounds(solids: readonly PreviewSolid[]) {
   return Number.isFinite(min[0]) ? { min, max } : { min: [-1000, -1000, 0] as Vec3, max: [1000, 1000, 2000] as Vec3 };
 }
 
-/** Cached per scene, not per camera move. Subdivision reveals light pools and shadow edges. */
-export function buildScenePreviewMesh(solids: readonly PreviewSolid[], lighting?: SceneLightingOptions): Float32Array {
+/** Surfaces are numbered by their wall id so the shader can skip a surface's own box when it casts shadow. */
+function surfaceIndices(solids: readonly PreviewSolid[]) {
+  const indices = new Map<string, number>();
+  for (const solid of solids) if (!indices.has(solid.wallId)) indices.set(solid.wallId, indices.size);
+  return indices;
+}
+
+/** Lit output keeps position, normal and tint per vertex; light is evaluated per pixel. Unlit output is pre-shaded per face. */
+export function buildScenePreviewMesh(solids: readonly PreviewSolid[], lighting?: SceneLightingOptions): ScenePreviewMesh {
   const vertices: number[] = [];
-  const cache = new Map<string, Vec3>();
-  const addTriangle = (a: Vec3, b: Vec3, c: Vec3, tint: Vec3, id: string, normal: Vec3, depth = 0) => {
-    const edge = Math.max(Math.hypot(...a.map((v, i) => v - b[i])), Math.hypot(...b.map((v, i) => v - c[i])), Math.hypot(...c.map((v, i) => v - a[i])));
-    if (lighting && edge > 650 && depth < 5) {
-      const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a);
-      addTriangle(a, ab, ca, tint, id, normal, depth + 1); addTriangle(ab, b, bc, tint, id, normal, depth + 1);
-      addTriangle(ca, bc, c, tint, id, normal, depth + 1); addTriangle(ab, bc, ca, tint, id, normal, depth + 1);
-      return;
-    }
+  const surfaces = surfaceIndices(solids);
+  const addTriangle = (a: Vec3, b: Vec3, c: Vec3, tint: Vec3, surface: number, normal: Vec3) => {
     const shade = .72 + .28 * Math.max(0, -normal[0] * .36 - normal[1] * .48 + normal[2] * .8);
     for (const vertex of [a, b, c]) {
-      let color: Vec3;
-      if (lighting) {
-        const key = `${id}:${vertex.map(v => Math.round(v)).join(',')}:${normal.map(v => v.toFixed(2)).join(',')}`;
-        let light = cache.get(key);
-        if (!light) {
-          light = samplePreviewLighting(vertex, normal, lighting.lights, lighting.blockers, lighting.ambient, id);
-          cache.set(key, light);
-        }
-        color = tint.map((v, i) => 1 - Math.exp(-v * light[i])) as Vec3;
-      } else color = tint.map(v => v * shade) as Vec3;
-      vertices.push(...vertex, ...color);
+      if (lighting) vertices.push(...vertex, ...normal, ...tint, surface);
+      else vertices.push(...vertex, ...tint.map(v => v * shade));
     }
   };
   for (const solid of solids) {
     if (!solid.corners.every(p => [p.x, p.y, p.z].every(Number.isFinite))) continue;
     const points = solid.corners.map(point);
     const tint = previewRgb(solid.color);
+    const surface = surfaces.get(solid.wallId) ?? UNKNOWN_SURFACE;
     for (const face of prismFaces(points.length / 2)) {
       const a = points[face[0]];
       const normal = faceNormal(a, points[face[1]], points[face[2]]);
-      for (let i = 1; i < face.length - 1; i++) addTriangle(a, points[face[i]], points[face[i + 1]], tint, solid.wallId, normal);
+      for (let i = 1; i < face.length - 1; i++) addTriangle(a, points[face[i]], points[face[i + 1]], tint, surface, normal);
     }
   }
-  // A finite floor, tiled to resolve local illumination instead of one giant triangle.
+  // A finite floor, tiled so that its per-pixel light pools and any clipping stay local.
   const { min, max } = sceneBounds(solids);
   const width = Math.max(4000, max[0] - min[0] + 4000);
   const depth = Math.max(4000, max[1] - min[1] + 4000);
@@ -67,10 +84,46 @@ export function buildScenePreviewMesh(solids: readonly PreviewSolid[], lighting?
     const b: Vec3 = [a[0] + width / countX, a[1], -5];
     const c: Vec3 = [b[0], a[1] + depth / countY, -5];
     const d: Vec3 = [a[0], c[1], -5];
-    addTriangle(a, b, c, [.55, .58, .62], '__floor', [0, 0, 1], 5);
-    addTriangle(a, c, d, [.55, .58, .62], '__floor', [0, 0, 1], 5);
+    addTriangle(a, b, c, [.55, .58, .62], FLOOR_SURFACE, [0, 0, 1]);
+    addTriangle(a, c, d, [.55, .58, .62], FLOOR_SURFACE, [0, 0, 1]);
   }
-  return new Float32Array(vertices);
+  return {
+    vertices: new Float32Array(vertices),
+    lit: lighting ? packLighting(lighting, surfaces) : null,
+  };
+}
+
+/** Packs lights and blockers into the layout read by the lit fragment shader. */
+export function packLighting(lighting: SceneLightingOptions, surfaces: ReadonlyMap<string, number>): LitScene {
+  const lights = lighting.lights.slice(0, LIT_LIMITS.lights);
+  const blockers = lighting.blockers.filter(({ planes }) => planes.length <= LIT_LIMITS.planes).slice(0, LIT_LIMITS.blockers);
+  const lightData = new Float32Array(LIT_LIMITS.lights * 16);
+  lights.forEach((light, i) => {
+    const o = i * 16;
+    lightData.set([...light.position, light.outerCos], o);
+    lightData.set([...light.direction, light.innerCos], o + 4);
+    // The 6x factor matches the reference model in sceneLighting.ts.
+    lightData.set([...light.color.map(channel => channel * light.intensity * 6), light.omni ? 1 : 0], o + 8);
+    lightData[o + 12] = surfaces.get(light.id) ?? UNKNOWN_SURFACE;
+  });
+  const blockerData = new Float32Array(LIT_LIMITS.blockers * 48);
+  blockers.forEach((blocker, j) => {
+    const o = j * 48;
+    blockerData.set([...blocker.min, surfaces.get(blocker.id) ?? UNKNOWN_SURFACE], o);
+    blockerData.set([...blocker.max, blocker.planes.length], o + 4);
+    blocker.planes.forEach((plane, k) => blockerData.set([...plane.normal, plane.distance], o + 8 + k * 4));
+  });
+  const ambient = Number.isFinite(lighting.ambient) ? Math.max(0, Math.min(1, lighting.ambient)) : .15;
+  return {
+    ambient, lightCount: lights.length, blockerCount: blockers.length, lightData, blockerData,
+    dropped: { lights: lighting.lights.length - lights.length, blockers: lighting.blockers.length - blockers.length },
+  };
+}
+
+/** Text for the preview caption when the lighting limits dropped anything; empty otherwise. */
+export function litLimitNote(lit: LitScene | null): string {
+  if (!lit || (lit.dropped.lights === 0 && lit.dropped.blockers === 0)) return '';
+  return ` · preview limit: first ${LIT_LIMITS.lights} lights and ${LIT_LIMITS.blockers} walls only`;
 }
 
 export interface OrbitView { angle: number; tilt: number; zoom: number; panX: number; panY: number }

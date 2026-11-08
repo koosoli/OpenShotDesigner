@@ -29,11 +29,11 @@ describe('3D viewfinder scene', () => {
     const setup = { elements: [camera, lamp], gridSettings: grid };
     const lit = buildViewfinderMesh(setup, camera.id, 1, options);
     const dark = buildViewfinderMesh({ ...setup, elements: [camera, { ...lamp, intensity: 0 }] }, camera.id, 1, options);
-    expect(lit.length).toBe(dark.length);
-    expect([...lit].every(Number.isFinite)).toBe(true);
-    let gain = 0;
-    for (let i = 0; i < lit.length; i += 6) gain += lit[i + 3] - dark[i + 3];
-    expect(gain).toBeGreaterThan(1);
+    expect(lit.vertices.length).toBe(dark.vertices.length);
+    expect([...lit.vertices].every(Number.isFinite)).toBe(true);
+    // Light is evaluated per pixel from packed uniforms, so blackout shows up as an empty light list.
+    expect(lit.lit?.lightCount).toBe(1);
+    expect(dark.lit?.lightCount).toBe(0);
     expect(lit).toEqual(buildViewfinderMesh({ ...setup, elements: [lamp] }, camera.id, 1, options));
   });
   it('moves emitters to the selected beat before calculating illumination', () => {
@@ -103,8 +103,8 @@ describe('3D viewfinder scene', () => {
     const first = buildViewfinderMesh(setup, camera.id);
     const second = buildViewfinderMesh(setup, camera.id, 2);
     expect(first).toEqual(buildViewfinderMesh({ ...setup, elements: [actor] }, camera.id));
-    expect(first.length).toBeGreaterThan(0);
-    expect(second[0] - first[0]).toBeCloseTo(1000);
+    expect(first.vertices.length).toBeGreaterThan(0);
+    expect(second.vertices[0] - first.vertices[0]).toBeCloseTo(1000);
   });
 
   it('keeps hosted window openings clear of opaque glass', () => {
@@ -112,20 +112,20 @@ describe('3D viewfinder scene', () => {
     const window: WindowElement = { id: 'window', type: 'window', name: 'Window', x: 250, y: 0, width: 100, depth: 12, rotation: 0, hostWallId: wall.id };
     const solid = buildViewfinderMesh({ elements: [wall], gridSettings: grid }, camera.id);
     const opening = buildViewfinderMesh({ elements: [wall, window], gridSettings: grid }, camera.id);
-    expect(opening.length).toBe(solid.length * 4);
+    expect(opening.vertices.length).toBe(solid.vertices.length * 4);
   });
 
   it.each([undefined, '#000', '#273446', '#b01040', '#ffe9c5'])('keeps every shaded face of a %s wall at least 3:1 against the background', (wallColor) => {
     const wall: WallElement = { id: 'wall', type: 'wall', name: 'Wall', x: 0, y: 0, x2: 500, y2: 0, thickness: 12, rotation: 0, wallColor };
     const mesh = buildViewfinderMesh({ elements: [wall], gridSettings: grid }, camera.id);
-    expect(mesh.length).toBeGreaterThan(0);
+    expect(mesh.vertices.length).toBeGreaterThan(0);
     const luminance = (r: number, g: number, b: number) => {
       const linear = (value: number) => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
       return .2126 * linear(r) + .7152 * linear(g) + .0722 * linear(b);
     };
     const backdrop = Math.max(luminance(...VIEWFINDER_SKY), luminance(...VIEWFINDER_FLOOR));
-    for (let i = 0; i < mesh.length; i += 6) {
-      expect((luminance(mesh[i + 3], mesh[i + 4], mesh[i + 5]) + .05) / (backdrop + .05)).toBeGreaterThanOrEqual(3);
+    for (let i = 0; i < mesh.vertices.length; i += 6) {
+      expect((luminance(mesh.vertices[i + 3], mesh.vertices[i + 4], mesh.vertices[i + 5]) + .05) / (backdrop + .05)).toBeGreaterThanOrEqual(3);
     }
   });
 });
