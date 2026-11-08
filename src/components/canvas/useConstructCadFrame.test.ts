@@ -43,7 +43,7 @@ describe('interactive native preview scheduling', () => {
     await tick(100);
     await finish(pending.length - 1);
     await tick();
-    expect(pending.at(-1)?.request).toMatchObject({ width: 1200, yaw: 20 });
+    expect(pending.at(-1)?.request).toMatchObject({ width: 1200, yaw: -20 });
     await finish(pending.length - 1);
     expect(result.current?.width).toBe(1200);
   });
@@ -60,7 +60,7 @@ describe('interactive native preview scheduling', () => {
     await tick(100);
     await finish(pending.length - 1);
     await tick();
-    expect(pending.at(-1)?.request).toMatchObject({ yaw: 60, width: 1200 });
+    expect(pending.at(-1)?.request).toMatchObject({ yaw: -60, width: 1200 });
     await finish(pending.length - 1);
     expect(result.current?.width).toBe(1200);
   });

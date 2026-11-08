@@ -40,7 +40,9 @@ export function useConstructCadFrame(solids: PreviewSolid[], yaw: number, pitch:
           body: JSON.stringify({
             scene_id: pending.scene.id,
             solids: needsUpload ? pending.scene.solids : undefined,
-            yaw: pending.yaw,
+            // ConstructCAD's camera turns the other way round than the Live 3D orbit, so the
+            // same drag gives the same rotation in both views.
+            yaw: -pending.yaw,
             pitch: pending.pitch,
             width: pending.width,
             height: pending.height,

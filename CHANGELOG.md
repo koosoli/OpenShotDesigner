@@ -6,6 +6,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The ConstructCAD frame in Live 3D turns the same way as the WebGL and
+  preview views. Before, the orbit direction reversed whenever the
+  ConstructCAD renderer was active, for example with Simulate lighting off.
+
 ### Added
 
 - Beam handles in Live 3D with simulated lighting. Each selected light shows an
