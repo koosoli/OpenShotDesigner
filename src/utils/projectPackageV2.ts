@@ -70,8 +70,10 @@ export function validateProjectPackageV2Manifest(
 }
 
 /** Build a portable ZIP package containing the project and all referenced assets. */
-export const exportProjectPackageV2 = async (project: Project): Promise<Blob> => {
-  const assetStore = getStore();
+export const exportProjectPackageV2 = async (
+  project: Project,
+  assetStore: Pick<AssetStore, 'get' | 'getMetadata'> = getStore(),
+): Promise<Blob> => {
   const ids = [...new Set(collectProjectAssetIds(project))];
   const archive: Record<string, Uint8Array> = {};
   const checksums: Record<string, string> = {};

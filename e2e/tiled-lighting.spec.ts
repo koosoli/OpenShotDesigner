@@ -3,6 +3,8 @@ import type { PreviewLight, Vec3 } from '../src/domain/plan/sceneLighting';
 import type { ViewfinderPose } from '../src/domain/camera/viewfinderScene';
 import type { WallElement, WindowElement } from '../src/types';
 
+test.use({ launchOptions: { args: ['--enable-unsafe-swiftshader'] } });
+
 test('tiled lighting renders a late fixture through a window and retains wall shadows', async ({ page }, testInfo) => {
   await page.goto('/__lighting_probe__');
   const result = await page.evaluate(async () => {

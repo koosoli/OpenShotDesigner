@@ -4,6 +4,17 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.15.2] - 2026-11-09
+
+### Added
+
+- Local MCP server and headless CLI for inspecting exported projects, listing
+  shots, and checking references.
+- Batch edits for production details, paperwork language, and setup locations.
+  Edits save to a new file for review and re-import. Native project output
+  carries its referenced media.
+- [Setup instructions and examples](docs/headless-agent.md) for both interfaces.
+
 ## [1.15.1] - 2026-11-09
 
 ### Fixed
