@@ -11,7 +11,8 @@ export function createViewfinderMeshCache() {
     if (previous && previous.cameraId === cameraId && previous.beat === beat &&
       previous.scene.layers === scene.layers && previous.scene.gridSettings === scene.gridSettings &&
       Boolean(previous.lighting) === Boolean(lighting) && previous.lighting?.ambient === lighting?.ambient &&
-      previous.lighting?.lightTilt === lighting?.lightTilt && previous.scene.elements.length === elements.length &&
+      previous.lighting?.lightTilt === lighting?.lightTilt && previous.lighting?.bounce === lighting?.bounce &&
+      previous.scene.elements.length === elements.length &&
       elements.every((element, i) => previous!.scene.elements[i] === element)) return previous.mesh;
     const placed = { ...scene, elements };
     const mesh = buildViewfinderMesh(placed, cameraId, beat, lighting);

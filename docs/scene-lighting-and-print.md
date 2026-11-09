@@ -23,8 +23,8 @@ Light objects use their existing dimmer, RGB/Kelvin colour, modifier appearance,
 known modifier transmission, rotation and vertical offset. Fixture-source height
 and shared tilt remain preview assumptions, not new technical source data.
 
-This is a qualitative direct-light preview. It does not calculate calibrated
-lux, exposure, bounce, translucent transmission through geometry, volumetric
+This is a qualitative lighting preview. It does not calculate calibrated
+lux, exposure, translucent transmission through geometry, volumetric
 beams or manufacturer-specific photometric profiles. Missing technical values
 are not written back as invented measurements. The normal native ConstructCAD
 preview remains available when lighting mode is off. Lighting mode reuses the
@@ -104,3 +104,11 @@ The renderer and tile data are transient. This experiment reuses the current
 schema, adds no dependencies, and works with the standalone and subpath
 builds. Unit tests cover conservative tile assignment, packing and overflow.
 The Chromium probe checks late fixtures, window occlusion and both projections.
+
+Enable **Bounce light** beside **Simulate lighting** to preview one diffuse
+bounce from lit wall faces and reflector boards. Bounce is off by default.
+It samples direct light on a limited set of surfaces and uses up to four
+samples as broad fill, giving priority to boards. Surface colour, orientation,
+and obstructions affect the result. The preview uses the same approximation in
+Live 3D, the viewfinder, and captures. The bounce is transient render data
+and reuses the existing lighting budget and project schema.

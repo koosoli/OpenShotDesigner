@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { LightElement, WallElement, WindowElement } from '../../types';
 import { buildPreviewLights, buildLightBlockers, isLightBlocked, samplePreviewLighting, type LightBlocker, type Vec3 } from '../plan/sceneLighting';
 import { buildWallPreview } from '../plan/wallPreview';
+import { buildAssetPreview } from '../plan/assetPreview';
+import { previewReflectorBounces } from '../plan/previewReflectorBounce';
 import { buildScenePreviewMesh, LIT_LIMITS, LIT_STRIDE, litLimitNote, sceneOrbitPose, sceneFallbackViewBox, type LitScene } from '../plan/scenePreviewMesh';
 
 const grid = { unit: 'm' as const, pixelsPerUnit: 1000, size: 20, snap: true, showGrid: true };
@@ -66,6 +68,50 @@ function evaluatePacked(lit: LitScene, point: Vec3, normal: Vec3, surface: numbe
 }
 
 describe('qualitative scene lighting', () => {
+  it('adds bounced fill from an illuminated wall without a reflector board', () => {
+    const wall: WallElement = { id: 'wall', type: 'wall', name: 'Wall', x: 0, y: -1000, x2: 0, y2: 1000, rotation: 0, thickness: 100 };
+    const solids = buildWallPreview([wall], undefined, grid, true);
+    const blockers = buildLightBlockers(solids, [wall]);
+    const source = { ...buildPreviewLights([light], undefined, grid, 0)[0],
+      position: [2000, 0, 1300] as Vec3, direction: [-1, 0, 0] as Vec3 };
+    const bounced = previewReflectorBounces(solids, [source], blockers);
+    expect(bounced.some(fill => fill.direction[0] > .9)).toBe(true);
+    expect(samplePreviewLighting([1000, 0, 0], [0, 0, 1], bounced, blockers, 0)[0]).toBeGreaterThan(0);
+    expect(samplePreviewLighting([-1000, 0, 0], [0, 0, 1], bounced, blockers, 0)).toEqual([0, 0, 0]);
+  });
+
+  it('bounces only direct light that reaches the front of a reflector', () => {
+    const reflector: LightElement = { ...light, id: 'board', fixtureType: 'reflector' };
+    const solids = buildAssetPreview([reflector], undefined, grid);
+    const source = { ...buildPreviewLights([light], undefined, grid, 0)[0],
+      position: [2000, 0, 1800] as Vec3, direction: [-1, 0, 0] as Vec3, color: [1, 0, 0] as Vec3 };
+    const bounces = previewReflectorBounces(solids, [source], []);
+    expect(bounces).toHaveLength(1);
+    expect(bounces[0].direction).toEqual([1, 0, 0]);
+    expect(samplePreviewLighting([1000, 0, 1800], [-1, 0, 0], bounces, [], 0)[0]).toBeGreaterThan(0);
+    expect(samplePreviewLighting([-1000, 0, 1800], [1, 0, 0], bounces, [], 0)).toEqual([0, 0, 0]);
+    expect(previewReflectorBounces(solids, [{ ...source, direction: [1, 0, 0] }], [])).toEqual([]);
+    const wall: WallElement = { id: 'wall', type: 'wall', name: 'Wall', x: 1000, y: -1000, x2: 1000, y2: 1000, rotation: 0, thickness: 100 };
+    const blockers = buildLightBlockers(buildWallPreview([wall], undefined, grid, true), [wall]);
+    expect(previewReflectorBounces(solids, [source], blockers)).toEqual([]);
+  });
+
+  it('packs dimmed fixture emission only on the emitting geometry', () => {
+    const panel: LightElement = { ...light, rgbColor: '#ff0000', intensity: 25 };
+    const solids = buildAssetPreview([panel], undefined, grid);
+    const face = solids.find(solid => solid.emitting)!;
+    const body = solids.find(solid => !solid.emitting)!;
+    const lights = buildPreviewLights([panel], undefined, grid, 20);
+    const emission = (solid: typeof face, sources = lights) =>
+      Array.from(buildScenePreviewMesh([solid], { lights: sources, blockers: [], ambient: 0 })
+        .vertices.slice(LIT_STRIDE - 3, LIT_STRIDE));
+    expect(emission(face)).toEqual([1, 0, 0]);
+    expect(emission(body)).toEqual([0, 0, 0]);
+    expect(emission(face, [])).toEqual([0, 0, 0]);
+    expect(buildAssetPreview([{ ...panel, fixtureType: 'reflector' }], undefined, grid)
+      .some(solid => solid.emitting)).toBe(false);
+  });
+
   it('honors blackout, non-emitting fixtures, visibility and missing technical inputs', () => {
     expect(buildPreviewLights([{ ...light, intensity: 0 }, { ...light, id: 'flag', fixtureType: 'flag_solid' },
       { ...light, id: 'hidden', visible: false }, { ...light, id: 'invalid', intensity: NaN }], undefined, grid, 20)).toEqual([]);

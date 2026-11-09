@@ -2,17 +2,18 @@ import type { PreviewSolid } from './assetPreview';
 import { prismFaces } from './wallPreview';
 import type { ViewfinderPose } from '../camera/viewfinderScene';
 import { faceNormal, previewRgb, type LightBlocker, type PreviewLight, type Vec3 } from './sceneLighting';
+import { previewReflectorBounces } from './previewReflectorBounce';
 import { packTiledPreviewLighting, TILED_LIGHTING_LIMITS, type TiledPreviewLighting } from './tiledPreviewLighting';
 
-export interface SceneLightingOptions { lights: PreviewLight[]; blockers: LightBlocker[]; ambient: number }
+export interface SceneLightingOptions { lights: PreviewLight[]; blockers: LightBlocker[]; ambient: number; bounce?: boolean }
 
 /**
  * Limits of the per-pixel lighting uniforms. A scene beyond them keeps the first items
  * and reports the rest through `dropped`, so the caller can say so instead of mis-lighting silently.
  */
 export const LIT_LIMITS = { lights: 8, blockers: 12, planes: 10 } as const;
-/** Lit vertex: position, normal, tint, surface index (floats). */
-export const LIT_STRIDE = 10;
+/** Lit vertex: position, normal, tint, surface index, emission (floats). */
+export const LIT_STRIDE = 13;
 /** Unlit vertex: position, pre-shaded tint (floats). */
 export const UNLIT_STRIDE = 6;
 
@@ -56,10 +57,12 @@ function surfaceIndices(solids: readonly PreviewSolid[]) {
 export function buildScenePreviewMesh(solids: readonly PreviewSolid[], lighting?: SceneLightingOptions): ScenePreviewMesh {
   const vertices: number[] = [];
   const surfaces = surfaceIndices(solids);
-  const addTriangle = (a: Vec3, b: Vec3, c: Vec3, tint: Vec3, surface: number, normal: Vec3) => {
+  const sources = new Map(lighting?.lights.map(light => [light.id, light]));
+  const dark: Vec3 = [0, 0, 0];
+  const addTriangle = (a: Vec3, b: Vec3, c: Vec3, tint: Vec3, surface: number, normal: Vec3, emission = dark) => {
     const shade = .72 + .28 * Math.max(0, -normal[0] * .36 - normal[1] * .48 + normal[2] * .8);
     for (const vertex of [a, b, c]) {
-      if (lighting) vertices.push(...vertex, ...normal, ...tint, surface);
+      if (lighting) vertices.push(...vertex, ...normal, ...tint, surface, ...emission);
       else vertices.push(...vertex, ...tint.map(v => v * shade));
     }
   };
@@ -67,11 +70,14 @@ export function buildScenePreviewMesh(solids: readonly PreviewSolid[], lighting?
     if (!solid.corners.every(p => [p.x, p.y, p.z].every(Number.isFinite))) continue;
     const points = solid.corners.map(point);
     const tint = previewRgb(solid.color);
+    const source = solid.emitting ? sources.get(solid.wallId) : undefined;
+    // Relative display brightness of a lamp surface. It does not add another light source.
+    const emission = source ? source.color.map(channel => channel * source.intensity * 4) as Vec3 : dark;
     const surface = surfaces.get(solid.wallId) ?? UNKNOWN_SURFACE;
     for (const face of prismFaces(points.length / 2)) {
       const a = points[face[0]];
       const normal = faceNormal(a, points[face[1]], points[face[2]]);
-      for (let i = 1; i < face.length - 1; i++) addTriangle(a, points[face[i]], points[face[i + 1]], tint, surface, normal);
+      for (let i = 1; i < face.length - 1; i++) addTriangle(a, points[face[i]], points[face[i + 1]], tint, surface, normal, emission);
     }
   }
   // A finite floor, tiled so that its per-pixel light pools and any clipping stay local.
@@ -89,9 +95,11 @@ export function buildScenePreviewMesh(solids: readonly PreviewSolid[], lighting?
     addTriangle(a, b, c, [.55, .58, .62], FLOOR_SURFACE, [0, 0, 1]);
     addTriangle(a, c, d, [.55, .58, .62], FLOOR_SURFACE, [0, 0, 1]);
   }
-  const lit = lighting ? packLighting(lighting, surfaces) : null;
-  if (lighting && lit && (lit.dropped.lights || lit.dropped.blockers)) {
-    lit.tiled = packTiledPreviewLighting(lighting.lights, lighting.blockers, surfaces, {
+  const bounces = lighting?.bounce ? previewReflectorBounces(solids, lighting.lights, lighting.blockers) : [];
+  const withBounce = lighting && bounces.length ? { ...lighting, lights: [...lighting.lights, ...bounces] } : lighting;
+  const lit = withBounce ? packLighting(withBounce, surfaces) : null;
+  if (withBounce && lit && (lit.dropped.lights || lit.dropped.blockers)) {
+    lit.tiled = packTiledPreviewLighting(withBounce.lights, withBounce.blockers, surfaces, {
       min: [x0, y0, Math.min(min[2], -5)],
       max: [x0 + width, y0 + depth, Math.max(max[2], -5)],
     });

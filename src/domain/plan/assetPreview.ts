@@ -16,6 +16,9 @@ import { dollyTrackGaugeMm } from './dollyTrackDimensions';
 
 export interface PreviewSolid {
   wallId: string;
+  emitting?: boolean;
+  reflecting?: boolean;
+  reflectingWall?: boolean;
   color: string;
   corners: { x: number; y: number; z: number }[];
 }
@@ -46,7 +49,9 @@ export function buildAssetPreview(elements: FloorPlanElement[], layers: PlanLaye
     const place = (u: number, v: number, z: number) => ({
       x: element.x * scale + u * c - v * s, y: element.y * scale + u * s + v * c, z: z + elementElevationMm(element),
     });
-    const placeEquipment = (parts: EquipmentPart[], scaleX = 1, scaleY = 1, facingUp = false): PreviewSolid[] => parts.map(({ color, corners }) => ({
+    const placeEquipment = (parts: EquipmentPart[], scaleX = 1, scaleY = 1, facingUp = false): PreviewSolid[] => parts.map(({ color, corners, emitting, reflecting }) => ({
+      emitting,
+      reflecting,
       wallId: element.id,
       color,
       corners: corners.map(({ x, y, z }) => facingUp ? place(y * scaleX, -x * scaleY, z) : place(x * scaleX, y * scaleY, z)),

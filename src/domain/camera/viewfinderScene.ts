@@ -86,7 +86,7 @@ function wallTint(tint: Vec3): Vec3 {
 }
 
 /** Lit meshes carry per-vertex normals for the per-pixel lighting; unlit ones carry pre-shaded colour. */
-export interface ViewfinderLightingOptions { ambient: number; lightTilt: number }
+export interface ViewfinderLightingOptions { ambient: number; lightTilt: number; bounce?: boolean }
 
 export function buildViewfinderMesh(setup: Pick<SceneSetup, 'elements' | 'layers' | 'gridSettings'>, cameraId: string, beat = 1,
   lighting?: ViewfinderLightingOptions): ScenePreviewMesh {
@@ -100,11 +100,11 @@ export function buildViewfinderMesh(setup: Pick<SceneSetup, 'elements' | 'layers
   });
   const solids = [
     ...buildWallPreview(elements, layers, gridSettings, true).filter(({ wallId }) => !windows.has(wallId)),
-    ...buildAssetPreview(placed, layers, gridSettings),
+    ...buildAssetPreview(placed, layers, gridSettings, { lightTiltDeg: lighting?.lightTilt }),
   ];
   if (lighting) return buildScenePreviewMesh(solids, {
     lights: buildPreviewLights(placed, layers, gridSettings, lighting.lightTilt),
-    blockers: buildLightBlockers(solids, placed), ambient: lighting.ambient,
+    blockers: buildLightBlockers(solids, placed), ambient: lighting.ambient, bounce: lighting.bounce,
   });
   const mesh: number[] = [];
   const faces = new Map<number, number[][]>();

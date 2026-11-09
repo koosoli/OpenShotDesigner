@@ -9,6 +9,7 @@ const vertex = `
   attribute vec3 normal;
   attribute vec3 tint;
   attribute float surface;
+  attribute vec3 emission;
   uniform vec3 eye, right, up, forward;
   uniform vec2 lens;
   uniform float ground;
@@ -17,6 +18,7 @@ const vertex = `
   varying vec3 worldNormal;
   varying vec3 worldPosition;
   varying float surfaceId;
+  varying vec3 surfaceEmission;
   varying float distanceMetres;
   void main() {
     vec3 p = position + vec3(eye.xy * ground, 0.0) - eye;
@@ -30,6 +32,7 @@ const vertex = `
     worldNormal = normal;
     worldPosition = position;
     surfaceId = surface;
+    surfaceEmission = emission;
     // Fade the ground into the horizon while retaining the contrast of objects.
     distanceMetres = depth * 0.001 * ground;
   }
@@ -109,6 +112,7 @@ interface SceneProgram {
   normal: number;
   tint: number;
   surface: number;
+  emission: number;
   uniforms: Record<Uniform, WebGLUniformLocation | null>;
 }
 
@@ -122,6 +126,7 @@ function createSceneProgram(gl: WebGLRenderingContext, fragmentSource: string): 
     normal: gl.getAttribLocation(program, 'normal'),
     tint: gl.getAttribLocation(program, 'tint'),
     surface: gl.getAttribLocation(program, 'surface'),
+    emission: gl.getAttribLocation(program, 'emission'),
     uniforms,
   };
 }
@@ -246,6 +251,8 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
       gl.vertexAttribPointer(program.normal, 3, gl.FLOAT, false, stride, 12);
       gl.enableVertexAttribArray(program.surface);
       gl.vertexAttribPointer(program.surface, 1, gl.FLOAT, false, stride, 36);
+      gl.enableVertexAttribArray(program.emission);
+      gl.vertexAttribPointer(program.emission, 3, gl.FLOAT, false, stride, 40);
     }
   };
   const unbindVertices = (program: SceneProgram) => {
@@ -253,6 +260,7 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
     gl.disableVertexAttribArray(program.tint);
     if (program.normal >= 0) gl.disableVertexAttribArray(program.normal);
     if (program.surface >= 0) gl.disableVertexAttribArray(program.surface);
+    if (program.emission >= 0) gl.disableVertexAttribArray(program.emission);
   };
   const setPose = (program: SceneProgram, pose: ViewfinderPose, aspect: number, overscan: number, groundMode: number) => {
     const u = program.uniforms;

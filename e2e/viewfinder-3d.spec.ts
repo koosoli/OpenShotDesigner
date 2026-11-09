@@ -16,7 +16,11 @@ test('renders the 3D camera frame, reframes with the lens and saves it to the st
   const image = () => scene.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
   const wide = await image();
   const lighting = finder.getByRole('checkbox', { name: 'Simulate lighting', exact: true });
+  const bounce = finder.getByRole('checkbox', { name: 'Bounce light', exact: true });
+  await expect(bounce).toBeDisabled();
   await lighting.check();
+  await expect(bounce).toBeEnabled();
+  await expect(bounce).not.toBeChecked();
   expect(await image()).not.toBe(wide);
   const dim = await image();
   await finder.getByRole('slider', { name: 'Ambient light', exact: true }).fill('0.7');

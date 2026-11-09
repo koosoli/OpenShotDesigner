@@ -4,6 +4,17 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.15.0] - 2026-11-09
+
+### Added
+
+- Live 3D has a fullscreen toggle and a divider that supports dragging and arrow keys.
+- Active fixtures show a bright lens or emitting surface in the lighting preview.
+- The optional **Bounce light** checkbox previews diffuse fill from lit walls and
+  reflector boards. The effect depends on the scene and fixture aim.
+- Compatible GPUs use tiled direct lighting for larger scenes, with support for
+  up to 64 lights and 96 shadow casters.
+
 ## [1.14.0] - 2026-11-08
 
 ### Fixed

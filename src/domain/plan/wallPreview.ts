@@ -38,6 +38,7 @@ export function buildWallPreview(
       return solidWallSpans(verticalCuts).map(({ start: bottom, end: top }) => ({
         wallId: wall.id,
         color: wall.color,
+        reflectingWall: true,
         corners: [bottom, top].flatMap((height) => corners.map(({ x, y }) => ({ x, y, z: height * wall.heightMm }))),
       }));
     });

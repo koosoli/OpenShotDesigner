@@ -6,6 +6,8 @@ export interface EquipmentPart {
   corners: { x: number; y: number; z: number }[];
   /** Lamp head, lens or barn doors: rotates with a light's pan and tilt. Stands and bases do not. */
   head?: boolean;
+  emitting?: boolean;
+  reflecting?: boolean;
 }
 
 export function headParts(parts: EquipmentPart[]): EquipmentPart[] {

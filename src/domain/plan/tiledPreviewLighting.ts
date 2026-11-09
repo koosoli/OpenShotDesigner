@@ -17,7 +17,7 @@ export interface TiledPreviewLighting {
 
 /** Reject a tile only if its entire box is outside the fixture's forward cone. */
 function reachesTile(light: PreviewLight, min: Vec3, max: Vec3): boolean {
-  if (light.omni || light.outerCos <= 0) return true;
+  if (light.omni || light.outerCos < 0) return true;
   let projection = 0;
   let distanceSquared = 0;
   for (let axis = 0; axis < 3; axis++) {

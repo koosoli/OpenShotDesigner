@@ -28,8 +28,8 @@ export function Scene3DCanvas({ setup, view, width, height, onSnapshot, selected
     ...buildAssetPreview(elements, layers, gridSettings, { lightTiltDeg: view.lightTilt })], [elements, layers, gridSettings, view.lightTilt]);
   const lights = useMemo(() => buildPreviewLights(elements, layers, gridSettings, view.lightTilt), [elements, layers, gridSettings, view.lightTilt]);
   const blockers = useMemo(() => view.lighting ? buildLightBlockers(solids, elements) : [], [solids, elements, view.lighting]);
-  const mesh = useMemo(() => buildScenePreviewMesh(solids, view.lighting ? { lights, blockers, ambient: view.ambient } : undefined),
-    [solids, view.lighting, view.ambient, lights, blockers]);
+  const mesh = useMemo(() => buildScenePreviewMesh(solids, view.lighting ? { lights, blockers, ambient: view.ambient, bounce: view.bounce } : undefined),
+    [solids, view.lighting, view.ambient, view.bounce, lights, blockers]);
   const pose = useMemo(() => sceneOrbitPose(solids, view, width / height), [solids, view, width, height]);
   const canvas = useRef<HTMLCanvasElement>(null);
   const svg = useRef<SVGSVGElement>(null);

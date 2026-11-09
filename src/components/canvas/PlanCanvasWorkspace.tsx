@@ -1,5 +1,5 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Box } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Box, Maximize, Minimize } from 'lucide-react';
 import { useFloorPlan } from '../../context/FloorPlanContext';
 import { buildAssetPreview } from '../../domain/plan/assetPreview';
 import { buildWallPreview, projectWallPreview } from '../../domain/plan/wallPreview';
@@ -12,7 +12,7 @@ import { useSceneView } from './useSceneView';
 import { readSceneView, updateSceneView } from '../../utils/sceneViewSession';
 const NO_SOLIDS: ReturnType<typeof buildAssetPreview> = [];
 
-function LiveWallView() {
+function LiveWallView({ size }: { size: number }) {
   const { activeSetup, project, selectedElementIds, updateElement, commitCurrentState } = useFloorPlan();
   const viewKey = project.id + ':' + activeSetup.id;
   const view = useSceneView(viewKey);
@@ -25,6 +25,15 @@ function LiveWallView() {
   const [orbiting, setOrbiting] = useState(false);
   const [viewportPixels, setViewportPixels] = useState(1280);
   const viewport = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const exit = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', exit);
+    return () => window.removeEventListener('keydown', exit);
+  }, [fullscreen]);
   useLayoutEffect(() => {
     const element = viewport.current;
     if (!element) return;
@@ -56,13 +65,20 @@ function LiveWallView() {
   );
 
   return (
-    <section aria-label="Live 3D view" className="flex h-[36%] min-h-0 flex-col border-t border-slate-500/30 bg-slate-950 text-slate-100 md:h-full md:w-[40%] md:border-l md:border-t-0">
+    <section aria-label="Live 3D view"
+      className={`flex min-h-0 min-w-0 shrink-0 flex-col bg-slate-950 text-slate-100 ${fullscreen ? 'fixed inset-0 z-[100]' : ''}`}
+      style={fullscreen ? undefined : { flexBasis: `${size}%` }}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 px-3 py-1.5 text-xs">
         <span className="font-semibold">Live 3D · {nativeFrame ? 'ConstructCAD' : 'Scene'}</span>
         <label className="flex items-center gap-2">
           Rotate
           <input type="range" min={0} max={360} value={angle} onChange={(event) => updateSceneView(viewKey, { angle: event.currentTarget.valueAsNumber })} className="w-24 accent-sky-400" />
         </label>
+        <button type="button" aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen Live 3D'}
+          aria-pressed={fullscreen} onClick={() => setFullscreen(value => !value)}
+          className="rounded p-1.5 hover:bg-slate-700">
+          {fullscreen ? <Minimize className="size-4" aria-hidden="true" /> : <Maximize className="size-4" aria-hidden="true" />}
+        </button>
       </div>
       <div
         ref={viewport}
@@ -156,8 +172,18 @@ function LiveWallView() {
 
 export function PlanCanvasWorkspace() {
   const [showLive3D, setShowLive3D] = useState(false);
+  const [panelSize, setPanelSize] = useState(40);
+  const workspace = useRef<HTMLDivElement>(null);
+  const [sideBySide, setSideBySide] = useState(() => window.matchMedia('(min-width: 768px)').matches);
+  useEffect(() => {
+    const breakpoint = window.matchMedia('(min-width: 768px)');
+    const update = () => setSideBySide(breakpoint.matches);
+    breakpoint.addEventListener('change', update);
+    return () => breakpoint.removeEventListener('change', update);
+  }, []);
+  const resize = (size: number) => setPanelSize(Math.round(Math.max(25, Math.min(75, size))));
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row print:hidden">
+    <div ref={workspace} className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row print:hidden">
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         <SplitCanvasArea />
         <div className="absolute right-2 top-2 z-20 flex items-center gap-2">
@@ -173,7 +199,29 @@ export function PlanCanvasWorkspace() {
           </button>
         </div>
       </div>
-      {showLive3D && <LiveWallView />}
+      {showLive3D && <>
+        <div role="separator" tabIndex={0} aria-label="Resize Live 3D panel"
+          aria-orientation={sideBySide ? 'vertical' : 'horizontal'}
+          aria-valuemin={25} aria-valuemax={75} aria-valuenow={panelSize}
+          className="h-2 shrink-0 cursor-row-resize touch-none bg-slate-700 hover:bg-sky-500 focus-visible:bg-sky-500 md:h-auto md:w-2 md:cursor-col-resize"
+          onPointerDown={event => {
+            if (event.button === 0 && event.isPrimary) event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={event => {
+            const bounds = workspace.current?.getBoundingClientRect();
+            if (!bounds || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+            resize(sideBySide ? 100 * (bounds.right - event.clientX) / bounds.width
+              : 100 * (bounds.bottom - event.clientY) / bounds.height);
+          }}
+          onKeyDown={event => {
+            const grow = sideBySide ? 'ArrowLeft' : 'ArrowUp';
+            const shrink = sideBySide ? 'ArrowRight' : 'ArrowDown';
+            if (event.key !== grow && event.key !== shrink) return;
+            event.preventDefault();
+            resize(panelSize + (event.key === grow ? 5 : -5));
+          }} />
+        <LiveWallView size={panelSize} />
+      </>}
     </div>
   );
 }

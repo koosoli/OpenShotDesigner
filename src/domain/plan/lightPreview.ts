@@ -5,8 +5,9 @@ import { block, equipmentFinish, headParts, prism, rod, stand, type EquipmentPar
 
 const { shell, trim, metal, grip } = equipmentFinish;
 const daylight = '#dbeafe';
+const emitting = (part: EquipmentPart): EquipmentPart => ({ ...part, emitting: true });
 
-export function roundHead(height: number, length: number, diameter: number, lens: string, barns = false): EquipmentPart[] {
+export function roundHead(height: number, length: number, diameter: number, lens: string, barns = false, showLens = true): EquipmentPart[] {
   const front = length * .52;
   const edge = diameter * .48;
   const yoke = diameter * .59;
@@ -14,7 +15,7 @@ export function roundHead(height: number, length: number, diameter: number, lens
     rod([-length * .52, 0, height], [front, 0, height], diameter, shell),
     rod([-length * .58, 0, height], [-length * .47, 0, height], diameter * .85, trim),
     rod([front - 32, 0, height], [front + 12, 0, height], diameter * 1.07, grip),
-    rod([front + 12, 0, height], [front + 20, 0, height], diameter * .83, lens),
+    { ...rod([front + 12, 0, height], [front + 20, 0, height], diameter * .83, lens), emitting: showLens },
     block(0, 0, height - yoke - 24, 70, 2 * yoke + 32, 30, trim),
     ...[-1, 1].flatMap((side) => [
       block(0, side * yoke, height - yoke, 63, 28, yoke + 22, trim),
@@ -29,11 +30,13 @@ export function roundHead(height: number, length: number, diameter: number, lens
   ];
 }
 
-export function panel(height: number, width: number, faceHeight: number, lens: string): EquipmentPart[] {
+export function panel(height: number, width: number, faceHeight: number, lens: string, face: 'emitting' | 'passive' | 'reflecting' = 'emitting'): EquipmentPart[] {
+  const size = [width - 48, faceHeight - 46] as const;
   return [
     block(0, 0, height - faceHeight / 2 - 65, 70, 85, 75, trim),
     block(0, 0, height - faceHeight / 2, 104, width, faceHeight, shell),
-    block(53, 0, height - faceHeight / 2 + 23, 12, width - 48, faceHeight - 46, lens),
+    { ...prism([47, 0, height], [59, 0, height], size, size, lens),
+      emitting: face === 'emitting', reflecting: face === 'reflecting' },
     block(-61, 0, height - faceHeight * .30, 35, width * .43, faceHeight * .60, trim),
   ];
 }
@@ -44,15 +47,15 @@ function lantern(bottom: number, radius: number, color: string): EquipmentPart[]
   ];
   return rings.slice(1).map(([end, endRadius], index) => {
     const [start, startRadius] = rings[index];
-    return prism([0, 0, bottom + start * radius], [0, 0, bottom + end * radius],
-      [2 * radius * startRadius, 2 * radius * startRadius], [2 * radius * endRadius, 2 * radius * endRadius], color, true);
+    return emitting(prism([0, 0, bottom + start * radius], [0, 0, bottom + end * radius],
+      [2 * radius * startRadius, 2 * radius * startRadius], [2 * radius * endRadius, 2 * radius * endRadius], color, true));
   });
 }
 
 function diodeFace(height: number, length: number, diameter: number) {
   const front = length * .52 + 20;
   const radius = diameter * .25;
-  const diode = (y: number, z: number) => rod([front, y, height + z], [front + 4, y, height + z], diameter * .19, daylight);
+  const diode = (y: number, z: number) => emitting(rod([front, y, height + z], [front + 4, y, height + z], diameter * .19, daylight));
   return [diode(0, 0), ...Array.from({ length: 6 }, (_, index) => {
     const angle = index * Math.PI / 3;
     return diode(radius * Math.cos(angle), radius * Math.sin(angle));
@@ -71,7 +74,7 @@ export function lightPreview(light: LightElement): EquipmentPart[] {
     return [
       rod([0, 0, 0], [0, 0, 45], 365, trim),
       rod([0, 0, 45], [0, 0, 1275], 42, metal),
-      ...headParts([prism([0, 0, 1245], [0, 0, 1530], [470, 470], [255, 255], lens, true)]),
+      ...headParts([emitting(prism([0, 0, 1245], [0, 0, 1530], [470, 470], [255, 255], lens, true))]),
     ];
   }
   if (kind === 'china_ball') return [...stand(1390, 380, false), ...headParts(lantern(1375, 280, lens))];
@@ -79,7 +82,7 @@ export function lightPreview(light: LightElement): EquipmentPart[] {
     return [
       ...stand(1520, 330, false),
       ...headParts([
-        rod([0, 0, 1510], [0, 0, 2130], 67, lens),
+        emitting(rod([0, 0, 1510], [0, 0, 2130], 67, lens)),
         rod([0, 0, 1480], [0, 0, 1520], 75, grip),
         rod([0, 0, 2120], [0, 0, 2170], 75, grip),
       ]),
@@ -89,17 +92,17 @@ export function lightPreview(light: LightElement): EquipmentPart[] {
     const kino = kind === 'kino_flo';
     return [
       ...stand(1560, 375, false),
-      ...headParts(panel(1720, kino ? 880 : 550, kino ? 240 : 340, kino ? grip : lens)),
-      ...headParts(kino ? [-72, 0, 72].map((offset) => rod([65, -395, 1720 + offset], [65, 395, 1720 + offset], 37, lens)) : []),
+      ...headParts(panel(1720, kino ? 880 : 550, kino ? 240 : 340, kino ? grip : lens, kino ? 'passive' : 'emitting')),
+      ...headParts(kino ? [-72, 0, 72].map((offset) => emitting(rod([65, -395, 1720 + offset], [65, 395, 1720 + offset], 37, lens))) : []),
     ];
   }
   if (kind === 'softbox' || light.modifiers?.some(({ enabled, kind: modifier }) => enabled && modifier === 'softbox')) {
     return [
       ...stand(1610, 430, false),
-      ...headParts(roundHead(1760, 295, 228, trim)),
+      ...headParts(roundHead(1760, 295, 228, trim, false, false)),
       ...headParts([
         prism([146, 0, 1760], [480, 0, 1760], [225, 225], [790, 645], grip),
-        prism([480, 0, 1760], [489, 0, 1760], [744, 599], [744, 599], lens),
+        emitting(prism([480, 0, 1760], [489, 0, 1760], [744, 599], [744, 599], lens)),
       ]),
     ];
   }
@@ -117,7 +120,7 @@ export function lightPreview(light: LightElement): EquipmentPart[] {
     const color = kind === 'reflector' ? '#d9dfe4'
       : kind === 'flag_silk' ? '#e1e0d6' : '#343842';
     const wide = kind === 'flag_cutter';
-    return [...stand(1580, 350, false), ...headParts(panel(1800, wide ? 1090 : 710, wide ? 245 : 535, color))];
+    return [...stand(1580, 350, false), ...headParts(panel(1800, wide ? 1090 : 710, wide ? 245 : 535, color, kind === 'reflector' ? 'reflecting' : 'passive'))];
   }
   const diameter = kind === 'hmi' ? 390 : kind === 'par_can' ? 245 : kind === 'spotlight' ? 275 : 315;
   const length = kind === 'spotlight' || kind === 'par_can' ? 490 : kind === 'hmi' ? 460 : 355;
@@ -133,7 +136,7 @@ export function lightingSymbolPreview(symbolId: string): EquipmentSymbol | undef
   switch (symbolId) {
     case 'lighting.led-par':
       return {
-        parts: [block(0, 0, 0, 305, 305, 48, shell), ...roundHead(195, 240, 208, '#425263'), ...diodeFace(195, 240, 208)],
+        parts: [block(0, 0, 0, 305, 305, 48, shell), ...roundHead(195, 240, 208, '#425263', false, false), ...diodeFace(195, 240, 208)],
         footprint: [305, 305],
       };
     case 'lighting.led-panel':
@@ -152,7 +155,7 @@ export function lightingSymbolPreview(symbolId: string): EquipmentSymbol | undef
           block(0, 0, 0, 400, 400, 93, shell),
           rod([0, 0, 93], [0, 0, 150], 260, trim),
           block(0, 0, 150, 235, 185, 80, shell),
-          ...roundHead(360, length, diameter, wash ? '#425263' : daylight),
+          ...roundHead(360, length, diameter, wash ? '#425263' : daylight, false, !wash),
           ...(wash ? diodeFace(360, length, diameter) : []),
         ],
         footprint: [400, 400],

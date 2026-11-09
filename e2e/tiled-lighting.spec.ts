@@ -92,12 +92,47 @@ test('tiled lighting renders a late fixture through a window and retains wall sh
     });
     const candidates = Array.from({ length: 64 }, (_, tile) => lit.tiled!.data[tile * 4 + 1]);
     const casterCandidates = Array.from({ length: 64 }, (_, tile) => lit.tiled!.data[tile * 4 + 3]);
+    const fixtureFace = {
+      wallId: beam.id, color: '#808080', emitting: true,
+      corners: [0, 20].flatMap(z => [[-200, -200], [200, -200], [200, 200], [-200, 200]]
+        .map(([x, y]) => ({ x: x + 1500, y, z }))),
+    };
+    renderer.draw(buildScenePreviewMesh([fixtureFace], { lights: [], blockers: [], ambient: 0 }), pose);
+    const fixtureOff = readRed(1500, 0);
+    const glowingMesh = buildScenePreviewMesh([fixtureFace], {
+      lights: lights.map(light => ({ ...light, direction: [0, 0, 1] })), blockers: [], ambient: 0,
+    });
+    renderer.draw(glowingMesh, pose);
+    const fixtureOn = readRed(1500, 0);
+    const board = {
+      wallId: 'reflector', color: '#e0e0e0', reflecting: true,
+      corners: [490, 500].flatMap(x => [[-350, 950], [350, 950], [350, 1650], [-350, 1650]]
+        .map(([y, z]) => ({ x, y, z }))),
+    };
+    const bounceKey: PreviewLight = {
+      ...beam, position: [2200, 0, 1300], direction: [-1, 0, 0], outerCos: .98, innerCos: .99,
+    };
+    const bounceLighting = { lights: [...lights.slice(0, -1), bounceKey], blockers, ambient: 0 };
+    const boardScene = [...solids, board];
+    renderer.draw(buildScenePreviewMesh(boardScene, bounceLighting), pose);
+    const directOnly = readRed(1500, 0);
+    renderer.draw(buildScenePreviewMesh(boardScene, { ...bounceLighting, bounce: true }), pose);
+    const bounced = readRed(1500, 0);
+    const measureBoard = (bounce: boolean) => elapsed(i => {
+      const direction: Vec3 = [-Math.cos(i * .002), Math.sin(i * .002), 0];
+      renderer.draw(buildScenePreviewMesh(boardScene, {
+        ...bounceLighting, bounce, lights: [...bounceLighting.lights.slice(0, -1), { ...bounceKey, direction }],
+      }), pose);
+    });
+    const boardDirect = measureBoard(false);
+    const boardBounce = measureBoard(true);
     const gpu = gl.getExtension('WEBGL_debug_renderer_info');
     const device = gpu ? String(gl.getParameter(gpu.UNMASKED_RENDERER_WEBGL)) : 'unavailable';
     const error = gl.getError();
     renderer.dispose();
     return {
-      capped, throughWindow, behindWall, throughViewfinder, afterReaim, error, device,
+      capped, throughWindow, behindWall, throughViewfinder, afterReaim, fixtureOn, fixtureOff, error, device,
+      directOnly, bounced, boardDirect, boardBounce,
       cappedPan, tiledPan, aimUpdate, lights: lights.length, blockers: blockers.length,
       meanTileLights: candidates.reduce((sum, count) => sum + count, 0) / candidates.length,
       meanTileBlockers: casterCandidates.reduce((sum, count) => sum + count, 0) / casterCandidates.length,
@@ -110,5 +145,9 @@ test('tiled lighting renders a late fixture through a window and retains wall sh
   expect(result.throughWindow).toBeGreaterThan(result.capped + 30);
   expect(result.behindWall).toBeCloseTo(result.capped, 0);
   expect(result.afterReaim).toBeCloseTo(result.capped, 0);
+  expect(result.fixtureOff).toBe(0);
+  expect(result.fixtureOn).toBeGreaterThan(220);
+  expect(result.directOnly).toBe(0);
+  expect(result.bounced).toBeGreaterThan(20);
   expect(Math.abs(result.throughViewfinder - result.throughWindow)).toBeLessThan(6);
 });

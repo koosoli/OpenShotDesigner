@@ -16,6 +16,7 @@ export function lightingFragment(tiled: boolean) {
   varying vec3 worldNormal;
   varying vec3 worldPosition;
   varying float surfaceId;
+  varying vec3 surfaceEmission;
   uniform float ambient;
   uniform float lightCount;
   uniform float blockerCount;
@@ -107,7 +108,7 @@ export function lightingFragment(tiled: boolean) {
       if (blocked(origin.xyz, worldPosition, identity.x, surfaceId${tiled ? ', header.zw' : ''})) continue;
       light += emission.rgb * cone * incidence / (1.0 + pow(span / 2000.0, 2.0));
     }
-    gl_FragColor = vec4(1.0 - exp(-color * light), 1.0);
+    gl_FragColor = vec4(1.0 - exp(-(color * light + surfaceEmission)), 1.0);
   }
 `;
 }

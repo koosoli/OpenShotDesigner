@@ -23,8 +23,8 @@ export function ViewfinderScene({ setup, camera, slotKey, aspectRatio, canvasRef
   const beat = camera.path?.find(({ id }) => id === slotKey)?.beat ?? 1;
   const buildMesh = useMemo(createViewfinderMeshCache, []);
   const mesh = useMemo(() => buildMesh({ elements, layers, gridSettings }, cameraId, beat,
-    view.lighting ? { ambient: view.ambient, lightTilt: view.lightTilt } : undefined),
-  [elements, layers, gridSettings, cameraId, beat, view.lighting, view.ambient, view.lightTilt, buildMesh]);
+    view.lighting ? { ambient: view.ambient, lightTilt: view.lightTilt, bounce: view.bounce } : undefined),
+  [elements, layers, gridSettings, cameraId, beat, view.lighting, view.ambient, view.lightTilt, view.bounce, buildMesh]);
   const pose = useMemo(() => getViewfinderPose(camera, gridSettings, slotKey), [camera, gridSettings, slotKey]);
   const [revision, setRevision] = useState(0);
   const renderer = useRef<ReturnType<typeof createViewfinderRenderer>>(null);
