@@ -39,6 +39,7 @@ export function Scene3DCanvas({ setup, view, width, height, onSnapshot, selected
   const aimDrag = useRef<{ pointerId: number; id: string; pivot: Vec3; rotationDeg: number; direction: Vec3; length: number; pose: ViewfinderPose } | null>(null);
   useLayoutEffect(() => { snapshot.current = onSnapshot; }, [onSnapshot]);
   const [available, setAvailable] = useState(true);
+  const [tiledSupported, setTiledSupported] = useState(false);
   const [revision, setRevision] = useState(0);
   const fallback = useMemo(() => !available ? projectWallPreview(solids, view.angle, view.tilt) : null,
     [available, solids, view.angle, view.tilt]);
@@ -67,7 +68,9 @@ export function Scene3DCanvas({ setup, view, width, height, onSnapshot, selected
     };
   }, [revision]);
   useLayoutEffect(() => {
-    if (renderer.current?.draw(mesh, pose)) onSnapshot?.(canvas.current?.toDataURL('image/png'), view.lighting);
+    const activeRenderer = renderer.current;
+    if (activeRenderer?.draw(mesh, pose)) onSnapshot?.(canvas.current?.toDataURL('image/png'), view.lighting);
+    setTiledSupported(Boolean(activeRenderer?.supportsTiledLighting));
   }, [mesh, pose, width, height, revision, onSnapshot, view.lighting]);
   useLayoutEffect(() => {
     if (available || !svg.current || !onSnapshot) return;
@@ -135,7 +138,7 @@ export function Scene3DCanvas({ setup, view, width, height, onSnapshot, selected
       </g>)}
     </svg>}
     {view.lighting && <p className="absolute bottom-1 left-2 rounded bg-slate-950/80 px-2 text-[10px] text-slate-200 print:hidden">
-      {available ? `${previewLightSummary(lights)}${litLimitNote(mesh.lit)}${handles.length > 0 ? ' · drag the amber handle to aim' : ''}`
+      {available ? `${previewLightSummary(lights)}${litLimitNote(mesh.lit, tiledSupported)}${handles.length > 0 ? ' · drag the amber handle to aim' : ''}`
         : 'WebGL unavailable — lighting preview is disabled'}
     </p>}
   </div>;

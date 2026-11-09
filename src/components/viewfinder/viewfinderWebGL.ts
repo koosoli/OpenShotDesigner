@@ -1,5 +1,8 @@
 import { VIEWFINDER_FLOOR, VIEWFINDER_SKY, type ViewfinderPose } from '../../domain/camera/viewfinderScene';
-import { LIT_LIMITS, LIT_STRIDE, UNLIT_STRIDE, type ScenePreviewMesh } from '../../domain/plan/scenePreviewMesh';
+import { LIT_STRIDE, UNLIT_STRIDE, type ScenePreviewMesh } from '../../domain/plan/scenePreviewMesh';
+
+import { LIGHT_TEXTURE_WIDTH, type TiledPreviewLighting } from '../../domain/plan/tiledPreviewLighting';
+import { lightingFragment } from './previewLightingShader';
 
 const vertex = `
   attribute vec3 position;
@@ -41,79 +44,6 @@ const fragment = `
   }
 `;
 
-const LIGHT_VECTORS = LIT_LIMITS.lights * 4;
-const BLOCKER_VECTORS = LIT_LIMITS.blockers * (2 + LIT_LIMITS.planes);
-// Mirrors sceneLighting.ts: samplePreviewLighting and isLightBlocked are the reference this shader implements.
-const litFragment = `
-  #ifdef GL_FRAGMENT_PRECISION_HIGH
-  precision highp float;
-  #else
-  precision mediump float;
-  #endif
-  varying vec3 color;
-  varying vec3 worldNormal;
-  varying vec3 worldPosition;
-  varying float surfaceId;
-  uniform float ambient;
-  uniform float lightCount;
-  uniform float blockerCount;
-  uniform vec4 lightData[${LIGHT_VECTORS}];
-  uniform vec4 blockerData[${BLOCKER_VECTORS}];
-
-  bool blocked(vec3 from, vec3 to, float source, float surface) {
-    vec3 delta = to - from;
-    vec3 segmentMin = min(from, to);
-    vec3 segmentMax = max(from, to);
-    for (int b = 0; b < ${LIT_LIMITS.blockers}; b++) {
-      if (float(b) >= blockerCount) break;
-      vec4 low = blockerData[b * ${2 + LIT_LIMITS.planes}];
-      vec4 high = blockerData[b * ${2 + LIT_LIMITS.planes} + 1];
-      if (low.w == source || low.w == surface) continue;
-      if (any(lessThan(segmentMax, low.xyz)) || any(greaterThan(segmentMin, high.xyz))) continue;
-      float near = 0.001;
-      float far = 0.999;
-      bool clear = false;
-      for (int p = 0; p < ${LIT_LIMITS.planes}; p++) {
-        if (float(p) >= high.w) break;
-        vec4 plane = blockerData[b * ${2 + LIT_LIMITS.planes} + 2 + p];
-        float denominator = dot(plane.xyz, delta);
-        float offset = plane.w - dot(plane.xyz, from);
-        if (abs(denominator) < 1e-9) {
-          if (offset < -0.01) { clear = true; break; }
-          continue;
-        }
-        float t = offset / denominator;
-        if (denominator < 0.0) near = max(near, t); else far = min(far, t);
-        if (near > far) { clear = true; break; }
-      }
-      if (!clear && near <= far) return true;
-    }
-    return false;
-  }
-
-  void main() {
-    vec3 normal = normalize(worldNormal);
-    vec3 light = vec3(ambient);
-    for (int i = 0; i < ${LIT_LIMITS.lights}; i++) {
-      if (float(i) >= lightCount) break;
-      vec4 origin = lightData[i * 4];
-      vec4 aim = lightData[i * 4 + 1];
-      vec4 emission = lightData[i * 4 + 2];
-      vec4 identity = lightData[i * 4 + 3];
-      vec3 delta = worldPosition - origin.xyz;
-      float span = length(delta);
-      if (span < 1.0) continue;
-      vec3 direction = delta / span;
-      float cone = emission.a > 0.5 ? 1.0 : clamp((dot(direction, aim.xyz) - origin.a) / max(0.001, aim.a - origin.a), 0.0, 1.0);
-      float incidence = max(0.0, -dot(normal, direction));
-      if (cone <= 0.0 || incidence <= 0.0) continue;
-      if (blocked(origin.xyz, worldPosition, identity.x, surfaceId)) continue;
-      light += emission.rgb * cone * incidence / (1.0 + pow(span / 2000.0, 2.0));
-    }
-    gl_FragColor = vec4(1.0 - exp(-color * light), 1.0);
-  }
-`;
-
 const barrelVertex = `
   attribute vec2 position;
   varying vec2 screen;
@@ -140,7 +70,9 @@ const groundVertices = new Float32Array([
   [-300000, -300000], [300000, 300000], [-300000, 300000],
 ].flatMap(([x, y]) => [x, y, -1, ...VIEWFINDER_FLOOR]));
 
-const UNIFORMS = ['eye', 'right', 'up', 'forward', 'lens', 'ground', 'orthographic', 'sky', 'ambient', 'lightCount', 'blockerCount', 'lightData', 'blockerData'] as const;
+const UNIFORMS = ['eye', 'right', 'up', 'forward', 'lens', 'ground', 'orthographic', 'sky',
+  'ambient', 'lightCount', 'blockerCount', 'lightData', 'blockerData',
+  'lightingData', 'lightingHeight', 'lightingGrid', 'blockerStart'] as const;
 type Uniform = typeof UNIFORMS[number];
 
 function compile(gl: WebGLRenderingContext, type: number, source: string) {
@@ -260,7 +192,9 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
   // fragment uniforms still gets the unlit view and lit draws simply report failure.
   const unlit = createSceneProgram(gl, fragment);
   if (!unlit) return null;
-  const lit = createSceneProgram(gl, litFragment);
+  const lit = createSceneProgram(gl, lightingFragment(false));
+  let tiled: SceneProgram | null | undefined;
+  let lightingTexture: WebGLTexture | null = null;
   const ground = gl.createBuffer();
   const scene = gl.createBuffer();
   if (!ground || !scene) {
@@ -279,6 +213,26 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
   gl.bufferData(gl.ARRAY_BUFFER, groundVertices, gl.STATIC_DRAW);
 
   let currentMesh: Float32Array | undefined;
+  let currentLighting: TiledPreviewLighting | undefined;
+  const setTiledLighting = (lighting: TiledPreviewLighting, u: SceneProgram['uniforms']) => {
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, lightingTexture);
+    if (currentLighting !== lighting) {
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, LIGHT_TEXTURE_WIDTH, lighting.textureHeight,
+        0, gl.RGBA, gl.FLOAT, lighting.data);
+      currentLighting = lighting;
+    }
+    gl.uniform1i(u.lightingData, 1);
+    gl.uniform1f(u.lightingHeight, lighting.textureHeight);
+    gl.uniform4fv(u.lightingGrid, lighting.grid);
+    gl.uniform1f(u.blockerStart, lighting.blockerStart);
+    gl.uniform1f(u.blockerCount, lighting.blockerCount);
+    gl.activeTexture(gl.TEXTURE0);
+  };
   // Lit meshes carry normal and surface per vertex; unlit meshes carry only pre-shaded colour.
   const bindVertices = (program: SceneProgram, buffer: WebGLBuffer, litLayout: boolean) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -292,18 +246,13 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
       gl.vertexAttribPointer(program.normal, 3, gl.FLOAT, false, stride, 12);
       gl.enableVertexAttribArray(program.surface);
       gl.vertexAttribPointer(program.surface, 1, gl.FLOAT, false, stride, 36);
-    } else {
-      gl.disableVertexAttribArray(program.normal);
-      gl.vertexAttrib3f(program.normal, 0, 0, 1);
-      gl.disableVertexAttribArray(program.surface);
-      gl.vertexAttrib1f(program.surface, -1);
     }
   };
   const unbindVertices = (program: SceneProgram) => {
     gl.disableVertexAttribArray(program.position);
     gl.disableVertexAttribArray(program.tint);
-    gl.disableVertexAttribArray(program.normal);
-    gl.disableVertexAttribArray(program.surface);
+    if (program.normal >= 0) gl.disableVertexAttribArray(program.normal);
+    if (program.surface >= 0) gl.disableVertexAttribArray(program.surface);
   };
   const setPose = (program: SceneProgram, pose: ViewfinderPose, aspect: number, overscan: number, groundMode: number) => {
     const u = program.uniforms;
@@ -320,9 +269,19 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
   };
 
   return {
+    get supportsTiledLighting() { return Boolean(tiled && lightingTexture); },
     draw(mesh: ScenePreviewMesh, pose: ViewfinderPose, options: { ground?: boolean } = {}) {
       if (gl.isContextLost()) return false;
-      const target = mesh.lit ? lit : unlit;
+      // Only compile the larger shader when a rig actually needs it.
+      if (mesh.lit?.tiled && tiled === undefined) {
+        const supported = gl.getExtension('OES_texture_float')
+          && gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT)?.precision
+          && gl.getParameter(gl.MAX_TEXTURE_SIZE) >= LIGHT_TEXTURE_WIDTH;
+        tiled = supported ? createSceneProgram(gl, lightingFragment(true)) : null;
+        lightingTexture = tiled ? gl.createTexture() : null;
+      }
+      const tiledLighting = tiled && lightingTexture ? mesh.lit?.tiled : undefined;
+      const target = mesh.lit ? (tiledLighting ? tiled : lit) : unlit;
       if (!target) return false;
       if (currentMesh !== mesh.vertices) {
         gl.bindBuffer(gl.ARRAY_BUFFER, scene);
@@ -347,13 +306,16 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
         unbindVertices(unlit);
       }
       setPose(target, pose, aspect, overscan, 0);
-      if (mesh.lit && lit) {
-        const u = lit.uniforms;
+      if (mesh.lit) {
+        const u = target.uniforms;
         gl.uniform1f(u.ambient, mesh.lit.ambient);
-        gl.uniform1f(u.lightCount, mesh.lit.lightCount);
-        gl.uniform1f(u.blockerCount, mesh.lit.blockerCount);
-        gl.uniform4fv(u.lightData, mesh.lit.lightData);
-        gl.uniform4fv(u.blockerData, mesh.lit.blockerData);
+        if (tiledLighting) setTiledLighting(tiledLighting, u);
+        else {
+          gl.uniform1f(u.lightCount, mesh.lit.lightCount);
+          gl.uniform1f(u.blockerCount, mesh.lit.blockerCount);
+          gl.uniform4fv(u.lightData, mesh.lit.lightData);
+          gl.uniform4fv(u.blockerData, mesh.lit.blockerData);
+        }
       }
       bindVertices(target, scene, Boolean(mesh.lit));
       gl.drawArrays(gl.TRIANGLES, 0, mesh.vertices.length / (mesh.lit ? LIT_STRIDE : UNLIT_STRIDE));
@@ -367,6 +329,8 @@ export function createViewfinderRenderer(canvas: HTMLCanvasElement) {
       gl.deleteBuffer(scene);
       gl.deleteProgram(unlit.program);
       if (lit) gl.deleteProgram(lit.program);
+      if (tiled) gl.deleteProgram(tiled.program);
+      gl.deleteTexture(lightingTexture);
     },
   };
 }

@@ -72,3 +72,35 @@ preserve it. No dependencies were added.
 Tests cover angle composition, clamping, vertical beams, missing/explicit-zero
 tilt, symbol fixtures, lossless migration, UI sliders/numbers, undo/redo and
 reload/export. The default preview tilt remains a local session setting.
+
+## Experimental tiled direct lighting
+
+This prototype builds on the per-pixel WebGL lighting branch. When a scene
+exceeds the uniform shader's limits, a compatible GPU can read lighting data
+from a float texture. An 8 × 8 grid in plan coordinates assigns each tile
+only the fixtures whose cones can reach it and the shadow casters that might
+intersect those light rays. The test is conservative and keeps practicals in
+every tile. The same shader evaluates the light and shadows in Live 3D,
+viewfinder, and image capture. Solstice's tiled light pass informed the
+experiment. [Solstice renderer](https://github.com/SamG-Coder/solstice/blob/e14ac55af929f89aa7b7fcb182c3830e15c80421/crates/solstice-render/src/renderer.rs)
+
+The tiled path accepts up to 64 lights and 96 convex shadow casters, with up
+to 32 planes per caster. Small scenes and devices without float textures or
+high-precision fragments use the existing uniform path. Live 3D reports
+omissions using the active path's limits. This experiment covers direct
+lighting and convex occlusion.
+
+The Chromium probe uses a window, 16 lights and 17 shadow casters. The
+sixteenth fixture illuminates the floor through the window. The adjoining
+wall keeps its shadow, and the perspective and orthographic renders match at
+the tested floor position. The tile lists average 4.2 lights and 3.0 casters.
+On the test RTX 3070 at 320 × 320, aim updates took 1.3–4.1 ms median and
+2.2–4.8 ms at the 95th percentile across two runs of 12 measured frames each.
+This synthetic measurement includes rebuilding and drawing the mesh. It
+excludes React and PNG encoding. Integrated graphics and mobile performance
+are unmeasured.
+
+The renderer and tile data are transient. This experiment reuses the current
+schema, adds no dependencies, and works with the standalone and subpath
+builds. Unit tests cover conservative tile assignment, packing and overflow.
+The Chromium probe checks late fixtures, window occlusion and both projections.

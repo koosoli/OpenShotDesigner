@@ -2,6 +2,7 @@ import type { PreviewSolid } from './assetPreview';
 import { prismFaces } from './wallPreview';
 import type { ViewfinderPose } from '../camera/viewfinderScene';
 import { faceNormal, previewRgb, type LightBlocker, type PreviewLight, type Vec3 } from './sceneLighting';
+import { packTiledPreviewLighting, TILED_LIGHTING_LIMITS, type TiledPreviewLighting } from './tiledPreviewLighting';
 
 export interface SceneLightingOptions { lights: PreviewLight[]; blockers: LightBlocker[]; ambient: number }
 
@@ -25,6 +26,7 @@ export interface LitScene {
   /** Twelve vec4 per blocker: min+surface, max+plane count, then up to LIT_LIMITS.planes (normal, distance). */
   blockerData: Float32Array;
   dropped: { lights: number; blockers: number };
+  tiled?: TiledPreviewLighting;
 }
 export interface ScenePreviewMesh { vertices: Float32Array; lit: LitScene | null }
 
@@ -87,9 +89,16 @@ export function buildScenePreviewMesh(solids: readonly PreviewSolid[], lighting?
     addTriangle(a, b, c, [.55, .58, .62], FLOOR_SURFACE, [0, 0, 1]);
     addTriangle(a, c, d, [.55, .58, .62], FLOOR_SURFACE, [0, 0, 1]);
   }
+  const lit = lighting ? packLighting(lighting, surfaces) : null;
+  if (lighting && lit && (lit.dropped.lights || lit.dropped.blockers)) {
+    lit.tiled = packTiledPreviewLighting(lighting.lights, lighting.blockers, surfaces, {
+      min: [x0, y0, Math.min(min[2], -5)],
+      max: [x0 + width, y0 + depth, Math.max(max[2], -5)],
+    });
+  }
   return {
     vertices: new Float32Array(vertices),
-    lit: lighting ? packLighting(lighting, surfaces) : null,
+    lit,
   };
 }
 
@@ -121,9 +130,12 @@ export function packLighting(lighting: SceneLightingOptions, surfaces: ReadonlyM
 }
 
 /** Text for the preview caption when the lighting limits dropped anything; empty otherwise. */
-export function litLimitNote(lit: LitScene | null): string {
-  if (!lit || (lit.dropped.lights === 0 && lit.dropped.blockers === 0)) return '';
-  return ` · preview limit: first ${LIT_LIMITS.lights} lights and ${LIT_LIMITS.blockers} walls only`;
+export function litLimitNote(lit: LitScene | null, tiledSupported = false): string {
+  const tiled = tiledSupported ? lit?.tiled : undefined;
+  const dropped = tiled?.dropped ?? lit?.dropped;
+  if (!dropped || (!dropped.lights && !dropped.blockers)) return '';
+  const limits = tiled ? TILED_LIGHTING_LIMITS : LIT_LIMITS;
+  return ` · preview limit: first ${limits.lights} lights, up to ${limits.blockers} shadow casters`;
 }
 
 export interface OrbitView { angle: number; tilt: number; zoom: number; panX: number; panY: number }
