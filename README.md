@@ -4,7 +4,7 @@
 
 <img src="logo/big.png" alt="Open Shot Designer" width="320" />
 
-[![Version](https://img.shields.io/badge/version-1.13.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.14.0-blue)](CHANGELOG.md)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/koosoli)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/koosoli)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_it_now-00C853)](https://koosoli.github.io/OpenShotDesigner/)
@@ -20,7 +20,7 @@ A screenplay is optional: nothing outside the script tools requires one, so conc
 
 **Try it live:** <https://koosoli.github.io/OpenShotDesigner/>
 
-**Current release:** v1.13.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
+**Current release:** v1.14.0 — see [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The floor plan includes a live 3D view with orbit, pan and zoom, an optional
 lighting preview, and a 3D camera viewfinder. Add a 3D snapshot to your printed
@@ -579,6 +579,10 @@ npm run preview
 ```
 
 > Note: the existing `node_modules` may already be present; if not, `npm install` will set everything up.
+
+## Headless automation and MCP
+
+Use the local CLI to inspect exported projects, list shots, check references, and apply a batch of supported edits. MCP clients can use the same operations over stdio. See [setup and examples](docs/headless-agent.md).
 
 ## Deploying to GitHub Pages
 

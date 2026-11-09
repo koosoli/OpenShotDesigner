@@ -1,7 +1,7 @@
 {
   "name": "open-shotdesigner",
   "private": true,
-  "version": "1.13.0",
+  "version": "1.14.0",
   "type": "module",
   "description": "Open Shot Designer — a free, open-source 2D film floor plan & shot list designer. Block scenes, plan camera moves, and export production-ready blueprints.",
   "license": "GPL-3.0",
@@ -30,7 +30,9 @@
     "test:e2e:firefox": "playwright test --config=playwright.firefox.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "fixtures:build": "tsx scripts/build-fixture-db.ts",
-    "check:commands": "node scripts/check-command-ratchet.mjs"
+    "check:commands": "node scripts/check-command-ratchet.mjs",
+    "agent": "tsx scripts/project-agent.ts",
+    "mcp": "tsx scripts/project-mcp.ts"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "1.1.1",
@@ -48,6 +50,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.39.5",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.1.14",
     "@testing-library/react": "^16.3.3",
@@ -69,6 +72,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.71.1",
     "vite": "^8.3.4",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "zod": "^4.6.7"
   }
 }
