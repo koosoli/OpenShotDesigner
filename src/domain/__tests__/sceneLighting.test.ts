@@ -80,6 +80,19 @@ describe('qualitative scene lighting', () => {
     expect(samplePreviewLighting([-1000, 0, 0], [0, 0, 1], bounced, blockers, 0)).toEqual([0, 0, 0]);
   });
 
+  it('bounces a narrow spot that hits a wall away from its centre', () => {
+    const wall: WallElement = { id: 'wall', type: 'wall', name: 'Wall', x: 0, y: -2000, x2: 0, y2: 2000, rotation: 0, thickness: 100 };
+    const solids = buildWallPreview([wall], undefined, grid, true);
+    const blockers = buildLightBlockers(solids, [wall]);
+    const source = { ...buildPreviewLights([{ ...light, beamAngle: 8 }], undefined, grid, 0)[0],
+      position: [2000, 1400, 1300] as Vec3, direction: [-1, 0, 0] as Vec3 };
+    const bounced = previewReflectorBounces(solids, [source], blockers);
+    expect(bounced).toHaveLength(1);
+    expect(bounced[0].position[1]).toBeCloseTo(1400);
+    expect(samplePreviewLighting([1000, 1400, 0], [0, 0, 1], bounced, blockers, 0)[0]).toBeGreaterThan(0);
+    expect(previewReflectorBounces(solids, [{ ...source, position: [2000, 3000, 1300] }], blockers)).toEqual([]);
+  });
+
   it('bounces only direct light that reaches the front of a reflector', () => {
     const reflector: LightElement = { ...light, id: 'board', fixtureType: 'reflector' };
     const solids = buildAssetPreview([reflector], undefined, grid);

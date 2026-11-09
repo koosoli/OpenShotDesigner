@@ -4,6 +4,13 @@ All notable changes to Open Shot Designer are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.15.1] - 2026-11-09
+
+### Fixed
+
+- Narrow spotlights can now produce bounced fill when they hit a wall away
+  from the centre of its face.
+
 ## [1.15.0] - 2026-11-09
 
 ### Added

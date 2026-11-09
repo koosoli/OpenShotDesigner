@@ -118,6 +118,12 @@ test('tiled lighting renders a late fixture through a window and retains wall sh
     const directOnly = readRed(1500, 0);
     renderer.draw(buildScenePreviewMesh(boardScene, { ...bounceLighting, bounce: true }), pose);
     const bounced = readRed(1500, 0);
+    const wallSpot: PreviewLight = { ...bounceKey, position: [2200, 1150, 1300] };
+    const wallLighting = { lights: [wallSpot], blockers, ambient: 0 };
+    renderer.draw(buildScenePreviewMesh(solids, wallLighting), pose);
+    const wallBounceOff = readRed(1500, 1150);
+    renderer.draw(buildScenePreviewMesh(solids, { ...wallLighting, bounce: true }), pose);
+    const wallBounceOn = readRed(1500, 1150);
     const measureBoard = (bounce: boolean) => elapsed(i => {
       const direction: Vec3 = [-Math.cos(i * .002), Math.sin(i * .002), 0];
       renderer.draw(buildScenePreviewMesh(boardScene, {
@@ -132,7 +138,7 @@ test('tiled lighting renders a late fixture through a window and retains wall sh
     renderer.dispose();
     return {
       capped, throughWindow, behindWall, throughViewfinder, afterReaim, fixtureOn, fixtureOff, error, device,
-      directOnly, bounced, boardDirect, boardBounce,
+      directOnly, bounced, wallBounceOff, wallBounceOn, boardDirect, boardBounce,
       cappedPan, tiledPan, aimUpdate, lights: lights.length, blockers: blockers.length,
       meanTileLights: candidates.reduce((sum, count) => sum + count, 0) / candidates.length,
       meanTileBlockers: casterCandidates.reduce((sum, count) => sum + count, 0) / casterCandidates.length,
@@ -149,5 +155,7 @@ test('tiled lighting renders a late fixture through a window and retains wall sh
   expect(result.fixtureOn).toBeGreaterThan(220);
   expect(result.directOnly).toBe(0);
   expect(result.bounced).toBeGreaterThan(20);
+  expect(result.wallBounceOff).toBe(0);
+  expect(result.wallBounceOn).toBeGreaterThan(10);
   expect(Math.abs(result.throughViewfinder - result.throughWindow)).toBeLessThan(6);
 });
